@@ -43648,33 +43648,14 @@ categories: ${categories.join(" ")}`;
         const viewportBottom = containerRect ? containerRect.bottom : window.innerHeight;
         let topmostId = null;
         let topmostPosition = Infinity;
-        const sampleRate = Math.max(1, Math.floor(elementIds.length / 100));
-        for (let i2 = 0; i2 < elementIds.length; i2 += sampleRate) {
-          const id = elementIds[i2];
-          const element = document.getElementById(id);
-          if (element) {
+        const elementIdSet = new Set(elementIds);
+        const elements = container2 ? container2.querySelectorAll("[id]") : document.querySelectorAll("[id]");
+        for (const element of elements) {
+          const id = element.id;
+          if (elementIdSet.has(id)) {
             const rect = element.getBoundingClientRect();
             if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
               if (rect.top < topmostPosition) {
-                topmostPosition = rect.top;
-                topmostId = id;
-              }
-            }
-          }
-        }
-        if (topmostId) {
-          const candidateIndex = elementIds.indexOf(topmostId);
-          const searchStart = Math.max(0, candidateIndex - sampleRate);
-          const searchEnd = Math.min(
-            elementIds.length,
-            candidateIndex + sampleRate
-          );
-          for (let i2 = searchStart; i2 < searchEnd; i2++) {
-            const id = elementIds[i2];
-            const element = document.getElementById(id);
-            if (element) {
-              const rect = element.getBoundingClientRect();
-              if (rect.bottom >= viewportTop && rect.top <= viewportBottom && rect.top < topmostPosition) {
                 topmostPosition = rect.top;
                 topmostId = id;
               }
@@ -55210,12 +55191,37 @@ self.onmessage = function (e) {
         return flatTree(eventNodes, null);
       }, [eventNodes]);
       const elementIds = allNodesList.map((node2) => node2.id);
+      const parentNodeId = (id2) => {
+        return id2.substring(0, id2.lastIndexOf("."));
+      };
+      const childId = (id2) => {
+        const last = id2.split(".").pop();
+        if (last) {
+          return Number(last);
+        } else {
+          return -1;
+        }
+      };
       useScrollTrack(
         elementIds,
         (id2) => {
           if (!isProgrammaticScrolling.current) {
-            console.log(id2);
-            setSelectedOutlineId(id2);
+            let parentId = "";
+            const targetNode = allNodesList.find((node2) => node2.id === id2);
+            for (let i2 = outlineNodeList.length - 1; i2 >= 0; i2--) {
+              const node2 = outlineNodeList[i2];
+              if (parentNodeId(node2.id) === parentNodeId(id2) && node2.event.event === "span_begin" && childId(node2.id) < childId(id2) && node2.depth === (targetNode == null ? void 0 : targetNode.depth)) {
+                parentId = node2.id;
+                break;
+              }
+              if (id2.startsWith(node2.id) && parentId.length < node2.id.length) {
+                parentId = node2.id;
+                break;
+              }
+            }
+            if (parentId) {
+              setSelectedOutlineId(parentId);
+            }
           }
         },
         scrollRef

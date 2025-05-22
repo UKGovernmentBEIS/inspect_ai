@@ -163,13 +163,51 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
 
   const elementIds = allNodesList.map((node) => node.id);
 
+  const parentNodeId = (id: string) => {
+    return id.substring(0, id.lastIndexOf("."));
+  };
+  const childId = (id: string) => {
+    const last = id.split(".").pop();
+    if (last) {
+      return Number(last);
+    } else {
+      return -1;
+    }
+  };
+
   useScrollTrack(
     elementIds,
     (id: string) => {
       if (!isProgrammaticScrolling.current) {
-        // TODO: find the best outline parent for this node
-        console.log(id);
-        setSelectedOutlineId(id);
+        // If the ID is not in the list, return
+        let parentId = "";
+
+        const targetNode = allNodesList.find((node) => node.id === id);
+        for (let i = outlineNodeList.length - 1; i >= 0; i--) {
+          const node = outlineNodeList[i];
+
+          // If there is a span 'above' this node with the same parentID,
+          // treat that as a parent (this would be an injected span like the
+          // 'turns' span most likely)
+          if (
+            parentNodeId(node.id) === parentNodeId(id) &&
+            node.event.event === "span_begin" &&
+            childId(node.id) < childId(id) &&
+            node.depth === targetNode?.depth
+          ) {
+            parentId = node.id;
+            break;
+          }
+
+          if (id.startsWith(node.id) && parentId.length < node.id.length) {
+            parentId = node.id;
+            break;
+          }
+        }
+
+        if (parentId) {
+          setSelectedOutlineId(parentId);
+        }
       }
     },
     scrollRef,

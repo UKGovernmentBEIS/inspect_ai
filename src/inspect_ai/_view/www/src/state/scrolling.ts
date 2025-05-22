@@ -264,52 +264,24 @@ export function useScrollTrack(
     let topmostId: string | null = null;
     let topmostPosition = Infinity;
 
-    // Binary search would be ideal here if elements were ordered by position,
-    // but with virtual scrolling they may not be. So we'll check a subset.
+    // Create a Set for O(1) lookup
+    const elementIdSet = new Set(elementIds);
 
-    // Sample check: only check every Nth element to reduce overhead
-    const sampleRate = Math.max(1, Math.floor(elementIds.length / 100)); // Check ~100 elements max
+    // Find all elements that are actually in the DOM and check if they're our tracked elements
+    const elements = container
+      ? container.querySelectorAll("[id]")
+      : document.querySelectorAll("[id]");
 
-    for (let i = 0; i < elementIds.length; i += sampleRate) {
-      const id = elementIds[i];
-      const element = document.getElementById(id);
+    for (const element of elements) {
+      const id = element.id;
 
-      if (element) {
+      // Check if this element is one we're tracking
+      if (elementIdSet.has(id)) {
         const rect = element.getBoundingClientRect();
 
         // Check if element is in viewport
         if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
-          // Element is visible
           if (rect.top < topmostPosition) {
-            topmostPosition = rect.top;
-            topmostId = id;
-          }
-        }
-      }
-    }
-
-    // If we found a candidate through sampling, do a more thorough check
-    // around that area to find the actual topmost
-    if (topmostId) {
-      const candidateIndex = elementIds.indexOf(topmostId);
-      const searchStart = Math.max(0, candidateIndex - sampleRate);
-      const searchEnd = Math.min(
-        elementIds.length,
-        candidateIndex + sampleRate,
-      );
-
-      for (let i = searchStart; i < searchEnd; i++) {
-        const id = elementIds[i];
-        const element = document.getElementById(id);
-
-        if (element) {
-          const rect = element.getBoundingClientRect();
-
-          if (
-            rect.bottom >= viewportTop &&
-            rect.top <= viewportBottom &&
-            rect.top < topmostPosition
-          ) {
             topmostPosition = rect.top;
             topmostId = id;
           }
@@ -322,7 +294,7 @@ export function useScrollTrack(
 
   const checkVisibility = useCallback(() => {
     const now = Date.now();
-    const checkInterval = options?.checkInterval ?? 100; // Default 100ms throttle
+    const checkInterval = options?.checkInterval ?? 100;
 
     // Throttle checks
     if (now - lastCheckRef.current < checkInterval) {
@@ -330,7 +302,6 @@ export function useScrollTrack(
     }
 
     lastCheckRef.current = now;
-
     const topmostId = findTopmostVisibleElement();
 
     if (topmostId !== currentVisibleRef.current) {
