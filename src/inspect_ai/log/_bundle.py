@@ -201,8 +201,10 @@ def move_output(
                 output_fs.mkdir(dir_path)
             tick()
 
-            # Copy the files
-            for working_file in files:
+            # Copy the files, preserving relative mtime ordering
+            for _, working_file in sorted(
+                (os.stat(os.path.join(root, f)).st_mtime, f) for f in files
+            ):
                 target_path = (
                     os.path.join(relative_dir, working_file)
                     if relative_dir != "."
