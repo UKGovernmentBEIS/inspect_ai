@@ -51,7 +51,11 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
 
     // Create a new node
     const idPath = pathIndices.slice(0, currentDepth + 1).join(".");
-    const node = new EventNode(idPath, event, currentDepth + depth);
+    const node = new EventNode(
+      `event_node_${idPath}`,
+      event,
+      currentDepth + depth,
+    );
     if (stack.length > 0) {
       const parentNode = stack[stack.length - 1];
       parentNode.children.push(node);

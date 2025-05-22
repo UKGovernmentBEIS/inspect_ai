@@ -25,10 +25,9 @@ export const SandboxEventView: FC<SandboxEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  const id = eventNode.id;
   return (
     <EventPanel
-      id={id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       className={className}
       title={`Sandbox: ${event.action}`}
@@ -36,11 +35,11 @@ export const SandboxEventView: FC<SandboxEventViewProps> = ({
       subTitle={formatTiming(event.timestamp, event.working_start)}
     >
       {event.action === "exec" ? (
-        <ExecView id={`${id}-exec`} event={event} />
+        <ExecView id={`${eventNode.id}-exec`} event={event} />
       ) : event.action === "read_file" ? (
-        <ReadFileView id={`${id}-read-file`} event={event} />
+        <ReadFileView id={`${eventNode.id}-read-file`} event={event} />
       ) : (
-        <WriteFileView id={`${id}-write-file`} event={event} />
+        <WriteFileView id={`${eventNode.id}-write-file`} event={event} />
       )}
     </EventPanel>
   );

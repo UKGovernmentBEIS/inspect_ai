@@ -17266,52 +17266,48 @@ thead th {
 ._scores_las07_54 {
   padding-top: 1em;
 }
-._eventRow_x0z4b_1 {
+._eventRow_1vspp_1 {
   display: grid;
   grid-template-columns: 10px 1fr;
   column-gap: 3px;
   cursor: pointer;
 }
 
-._eventRow_x0z4b_1._selected_x0z4b_8 {
+._eventRow_1vspp_1._selected_1vspp_8 {
   font-weight: 800;
 }
 
-._eventRow_x0z4b_1 ._toggle_x0z4b_12 {
+._eventRow_1vspp_1 ._toggle_1vspp_12 {
   font-size: 0.7em;
   margin-top: 4px;
 }
 
-._eventLink_x0z4b_17 {
+._eventLink_1vspp_17 {
   color: var(--bs-body);
   text-decoration: none;
   cursor: pointer;
 }
 
-._eventLink_x0z4b_17:hover {
+._eventLink_1vspp_17:hover {
   text-decoration: underline;
   color: var(--bs-link-hover-color);
 }
 
-._label_x0z4b_28 {
+._label_1vspp_28 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._eventPadding_x0z4b_34 {
-  height: 2em;
-}
-
-._icon_x0z4b_38 {
+._icon_1vspp_34 {
   margin-right: 3px;
 }
 
-._progress_x0z4b_42 {
+._progress_1vspp_38 {
   margin-left: 0.3em !important;
 }
 
-._popover_x0z4b_46 {
+._popover_1vspp_42 {
   width: 300px;
 }
 ._node_1d5c2_1 {

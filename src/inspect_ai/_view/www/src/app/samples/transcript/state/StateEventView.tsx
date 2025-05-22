@@ -35,7 +35,6 @@ export const StateEventView: FC<StateEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  const id = eventNode.id;
 
   const summary = useMemo(() => {
     return summarizeChanges(event.changes);
@@ -67,13 +66,13 @@ export const StateEventView: FC<StateEventViewProps> = ({
   const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
   useEffect(() => {
     if (changePreview === undefined) {
-      collapseEvent(kTranscriptCollapseScope, id, true);
+      collapseEvent(kTranscriptCollapseScope, eventNode.id, true);
     }
   }, [changePreview, collapseEvent]);
 
   return (
     <EventPanel
-      id={id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       title={title}
       className={className}

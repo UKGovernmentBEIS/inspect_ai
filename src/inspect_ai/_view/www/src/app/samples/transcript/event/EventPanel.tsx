@@ -22,7 +22,7 @@ import { kTranscriptCollapseScope } from "../types";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
-  id: string;
+  eventNodeId: string;
   depth: number;
   className?: string | string[];
   title?: string;
@@ -43,7 +43,7 @@ interface ChildProps {
  * Renders the StateEventView component.
  */
 export const EventPanel: FC<EventPanelProps> = ({
-  id,
+  eventNodeId,
   depth,
   className,
   title,
@@ -57,7 +57,7 @@ export const EventPanel: FC<EventPanelProps> = ({
 }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(
     kTranscriptCollapseScope,
-    id,
+    eventNodeId,
   );
   const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
   const useBottomDongle = isCollapsible && collapseControl === "bottom";
@@ -72,12 +72,13 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const url =
     logPath && supportsLinking()
-      ? toFullUrl(sampleEventUrl(id, logPath, sampleId, epoch))
+      ? toFullUrl(sampleEventUrl(eventNodeId, logPath, sampleId, epoch))
       : undefined;
 
   const pillId = (index: number) => {
-    return `${id}-nav-pill-${index}`;
+    return `${eventNodeId}-nav-pill-${index}`;
   };
+
   const filteredArrChildren = (
     Array.isArray(children) ? children : [children]
   ).filter((child) => !!child);
@@ -87,9 +88,13 @@ export const EventPanel: FC<EventPanelProps> = ({
   });
   const defaultPillId = defaultPill !== -1 ? pillId(defaultPill) : pillId(0);
 
-  const [selectedNav, setSelectedNav] = useProperty(id, "selectedNav", {
-    defaultValue: defaultPillId,
-  });
+  const [selectedNav, setSelectedNav] = useProperty(
+    eventNodeId,
+    "selectedNav",
+    {
+      defaultValue: defaultPillId,
+    },
+  );
 
   const gridColumns = [];
 
@@ -190,7 +195,7 @@ export const EventPanel: FC<EventPanelProps> = ({
                     ? (child.props as ChildProps)["data-name"] || defaultTitle
                     : defaultTitle;
                 return {
-                  id: `eventpanel-${id}-${index}`,
+                  id: `eventpanel-${eventNodeId}-${index}`,
                   title: title,
                   target: pillId(index),
                 };
@@ -209,7 +214,7 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const card = (
     <div
-      id={id}
+      id={`event-panel-${eventNodeId}`}
       className={clsx(
         className,
         styles.card,

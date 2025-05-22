@@ -23,7 +23,6 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  const id = eventNode.id;
   const body: ReactNode[] = [];
   if (event.type === "fork") {
     body.push(
@@ -48,7 +47,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   const type = event.type === "fork" ? "Fork" : "Subtask";
   return (
     <EventPanel
-      id={id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       className={className}
       title={formatTitle(
