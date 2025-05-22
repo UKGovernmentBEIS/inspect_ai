@@ -51,7 +51,21 @@ export const MetaDataGrid: FC<MetadataGridProps> = ({
           {entry.name}
         </div>
         <div className={clsx(styles.value, `${baseId}-value`, fontStyle)}>
-          <RenderedContent id={id} entry={entry} />
+          <RenderedContent
+            id={id}
+            entry={entry}
+            renderObject={(obj: any) => {
+              return (
+                <MetaDataGrid
+                  id={id}
+                  className={clsx(styles.nested)}
+                  entries={obj}
+                  size={size}
+                  plain={plain}
+                />
+              );
+            }}
+          />
         </div>
       </Fragment>
     );

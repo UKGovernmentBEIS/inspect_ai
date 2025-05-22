@@ -24804,11 +24804,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const container$l = "_container_1ramc_1";
     const key$1 = "_key_1ramc_12";
-    const value$3 = "_value_1ramc_16";
+    const value$2 = "_value_1ramc_16";
     const styles$1q = {
       container: container$l,
       key: key$1,
-      value: value$3
+      value: value$2
     };
     const objectScoreDescriptor = (values) => {
       const buckets = values.map((val) => {
@@ -24857,281 +24857,1440 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       };
     };
-    const visible = "_visible_tm52u_1";
-    const hidden$2 = "_hidden_tm52u_5";
-    const pills = "_pills_tm52u_9";
-    const pill = "_pill_tm52u_9";
-    const styles$1p = {
-      visible,
-      hidden: hidden$2,
-      pills,
-      pill
-    };
-    const NavPills = ({ id, children: children2 }) => {
-      const defaultNav = children2 ? children2[0].props["title"] : "";
-      const [activeItem, setActiveItem] = useProperty(id, "active", {
-        defaultValue: defaultNav
-      });
-      if (!activeItem || !children2) {
-        return void 0;
-      }
-      const navPills = children2.map((nav2, idx) => {
-        var _a2;
-        const title2 = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          NavPill,
-          {
-            title: title2,
-            activeItem,
-            setActiveItem
-          },
-          `nav-pill-contents-${idx}`
-        );
-      });
-      const navBodies = children2.map((child, idx) => {
-        var _a2;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1p.visible : styles$1p.hidden,
-            children: child
-          },
-          `nav-pill-container-${idx}`
-        );
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "ul",
-          {
-            className: clsx("nav", "nav-pills", styles$1p.pills),
-            role: "tablist",
-            "aria-orientation": "horizontal",
-            children: navPills
-          }
-        ),
-        navBodies
-      ] });
-    };
-    const NavPill = ({
-      title: title2,
-      activeItem,
-      setActiveItem,
-      children: children2
-    }) => {
-      const active2 = activeItem === title2;
-      const handleClick = reactExports.useCallback(
-        (e) => {
-          const target2 = e.currentTarget.dataset.target;
-          if (target2) {
-            setActiveItem(target2);
-          }
-        },
-        [setActiveItem]
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "nav-item", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            role: "tab",
-            "aria-selected": active2,
-            className: clsx(
-              "nav-link",
-              "text-style-label",
-              active2 ? "active " : "",
-              styles$1p.pill
-            ),
-            "data-target": title2,
-            onClick: handleClick,
-            children: title2
-          }
-        ),
-        children2
-      ] });
-    };
-    const Buckets = {
-      first: 0,
-      intermediate: 10,
-      final: 1e3
-    };
-    const copyButton = "_copyButton_1goi8_1";
-    const styles$1o = {
-      copyButton
-    };
-    const CopyButton = ({
-      icon: icon2 = ApplicationIcons.copy,
-      value: value2,
-      onCopySuccess,
-      onCopyError,
-      className: className2 = "",
-      ariaLabel = "Copy to clipboard"
-    }) => {
-      const [isCopied, setIsCopied] = reactExports.useState(false);
-      const handleClick = async () => {
-        try {
-          await navigator.clipboard.writeText(value2);
-          setIsCopied(true);
-          onCopySuccess == null ? void 0 : onCopySuccess();
-          setTimeout(() => {
-            setIsCopied(false);
-          }, 1250);
-        } catch (error2) {
-          onCopyError == null ? void 0 : onCopyError(
-            error2 instanceof Error ? error2 : new Error("Failed to copy")
-          );
-        }
-      };
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "button",
+    function commonjsRequire(path) {
+      throw new Error('Could not dynamically require "' + path + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
+    }
+    var ansiOutput = { exports: {} };
+    (function(module2, exports2) {
+      (function(factory) {
         {
-          type: "button",
-          className: clsx("copy-button", styles$1o.copyButton, className2),
-          onClick: handleClick,
-          "aria-label": ariaLabel,
-          disabled: isCopied,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "i",
-            {
-              className: isCopied ? `${ApplicationIcons.confirm} primary` : icon2,
-              "aria-hidden": "true"
-            }
-          )
+          var v = factory(commonjsRequire, exports2);
+          if (v !== void 0) module2.exports = v;
         }
-      );
+      })(function(require2, exports3) {
+        Object.defineProperty(exports3, "__esModule", { value: true });
+        exports3.ANSIOutput = exports3.ANSIColor = exports3.ANSIFont = exports3.ANSIStyle = void 0;
+        let counter = 0;
+        const generateId = () => {
+          return `${++counter}`.padStart(16, "0");
+        };
+        var ANSIStyle;
+        (function(ANSIStyle2) {
+          ANSIStyle2["Bold"] = "ansiBold";
+          ANSIStyle2["Dim"] = "ansiDim";
+          ANSIStyle2["Italic"] = "ansiItalic";
+          ANSIStyle2["Underlined"] = "ansiUnderlined";
+          ANSIStyle2["SlowBlink"] = "ansiSlowBlink";
+          ANSIStyle2["RapidBlink"] = "ansiRapidBlink";
+          ANSIStyle2["Hidden"] = "ansiHidden";
+          ANSIStyle2["CrossedOut"] = "ansiCrossedOut";
+          ANSIStyle2["Fraktur"] = "ansiFraktur";
+          ANSIStyle2["DoubleUnderlined"] = "ansiDoubleUnderlined";
+          ANSIStyle2["Framed"] = "ansiFramed";
+          ANSIStyle2["Encircled"] = "ansiEncircled";
+          ANSIStyle2["Overlined"] = "ansiOverlined";
+          ANSIStyle2["Superscript"] = "ansiSuperscript";
+          ANSIStyle2["Subscript"] = "ansiSubscript";
+        })(ANSIStyle || (exports3.ANSIStyle = ANSIStyle = {}));
+        var ANSIFont;
+        (function(ANSIFont2) {
+          ANSIFont2["AlternativeFont1"] = "ansiAlternativeFont1";
+          ANSIFont2["AlternativeFont2"] = "ansiAlternativeFont2";
+          ANSIFont2["AlternativeFont3"] = "ansiAlternativeFont3";
+          ANSIFont2["AlternativeFont4"] = "ansiAlternativeFont4";
+          ANSIFont2["AlternativeFont5"] = "ansiAlternativeFont5";
+          ANSIFont2["AlternativeFont6"] = "ansiAlternativeFont6";
+          ANSIFont2["AlternativeFont7"] = "ansiAlternativeFont7";
+          ANSIFont2["AlternativeFont8"] = "ansiAlternativeFont8";
+          ANSIFont2["AlternativeFont9"] = "ansiAlternativeFont9";
+        })(ANSIFont || (exports3.ANSIFont = ANSIFont = {}));
+        var ANSIColor;
+        (function(ANSIColor2) {
+          ANSIColor2["Black"] = "ansiBlack";
+          ANSIColor2["Red"] = "ansiRed";
+          ANSIColor2["Green"] = "ansiGreen";
+          ANSIColor2["Yellow"] = "ansiYellow";
+          ANSIColor2["Blue"] = "ansiBlue";
+          ANSIColor2["Magenta"] = "ansiMagenta";
+          ANSIColor2["Cyan"] = "ansiCyan";
+          ANSIColor2["White"] = "ansiWhite";
+          ANSIColor2["BrightBlack"] = "ansiBrightBlack";
+          ANSIColor2["BrightRed"] = "ansiBrightRed";
+          ANSIColor2["BrightGreen"] = "ansiBrightGreen";
+          ANSIColor2["BrightYellow"] = "ansiBrightYellow";
+          ANSIColor2["BrightBlue"] = "ansiBrightBlue";
+          ANSIColor2["BrightMagenta"] = "ansiBrightMagenta";
+          ANSIColor2["BrightCyan"] = "ansiBrightCyan";
+          ANSIColor2["BrightWhite"] = "ansiBrightWhite";
+        })(ANSIColor || (exports3.ANSIColor = ANSIColor = {}));
+        class ANSIOutput {
+          constructor() {
+            //#region Private Properties
+            /**
+             * Gets or sets the parser state.
+             */
+            __publicField(this, "_parserState", ParserState.BufferingOutput);
+            /**
+             * Gets or sets the control sequence that's being parsed.
+             */
+            __publicField(this, "_controlSequence", "");
+            /**
+             * Gets or sets the SGR state.
+             */
+            __publicField(this, "_sgrState");
+            /**
+             * Gets or sets the current set of output lines.
+             */
+            __publicField(this, "_outputLines", []);
+            /**
+             * Gets or sets the output line.
+             */
+            __publicField(this, "_outputLine", 0);
+            /**
+             * Gets or sets the output column.
+             */
+            __publicField(this, "_outputColumn", 0);
+            /**
+             * Gets or sets the buffer.
+             */
+            __publicField(this, "_buffer", "");
+            /**
+             * Gets or sets a value which indicates whether there is a pending newline.
+             */
+            __publicField(this, "_pendingNewline", false);
+          }
+          //#endregion Private Properties
+          //#region Public Properties
+          /**
+           * Gets the output lines.
+           */
+          get outputLines() {
+            this.flushBuffer();
+            return this._outputLines;
+          }
+          //#endregion Public Properties
+          //#region Public Static Methods
+          /**
+           * Processes output and returns the ANSIOutput lines of the output.
+           * @param output The output to process.
+           * @returns The ANSIOutput lines of the output.
+           */
+          static processOutput(output2) {
+            const ansiOutput2 = new ANSIOutput();
+            ansiOutput2.processOutput(output2);
+            return ansiOutput2.outputLines;
+          }
+          //#endregion Public Static Methods
+          //#region Public Methods
+          /**
+           * Processes output.
+           * @param output The output to process.
+           */
+          processOutput(output2) {
+            for (let i2 = 0; i2 < output2.length; i2++) {
+              if (this._pendingNewline) {
+                this.flushBuffer();
+                this._outputLine++;
+                this._outputColumn = 0;
+                this._pendingNewline = false;
+              }
+              const char = output2.charAt(i2);
+              if (this._parserState === ParserState.BufferingOutput) {
+                if (char === "\x1B") {
+                  this.flushBuffer();
+                  this._parserState = ParserState.ControlSequenceStarted;
+                } else if (char === "") {
+                  this.flushBuffer();
+                  this._parserState = ParserState.ParsingControlSequence;
+                } else {
+                  this.processCharacter(char);
+                }
+              } else if (this._parserState === ParserState.ControlSequenceStarted) {
+                if (char === "[") {
+                  this._parserState = ParserState.ParsingControlSequence;
+                } else {
+                  this._parserState = ParserState.BufferingOutput;
+                  this.processCharacter(char);
+                }
+              } else if (this._parserState === ParserState.ParsingControlSequence) {
+                this._controlSequence += char;
+                if (char.match(/^[A-Za-z]$/)) {
+                  this.processControlSequence();
+                }
+              }
+            }
+            this.flushBuffer();
+          }
+          //#endregion Public Methods
+          //#region Private Methods
+          /**
+           * Flushes the buffer to the output line.
+           */
+          flushBuffer() {
+            for (let i2 = this._outputLines.length; i2 < this._outputLine + 1; i2++) {
+              this._outputLines.push(new OutputLine());
+            }
+            if (this._buffer) {
+              const outputLine = this._outputLines[this._outputLine];
+              outputLine.insert(this._buffer, this._outputColumn, this._sgrState);
+              this._outputColumn += this._buffer.length;
+              this._buffer = "";
+            }
+          }
+          /**
+           * Processes a character.
+           * @param char The character.
+           */
+          processCharacter(char) {
+            switch (char) {
+              case "\n":
+                this._pendingNewline = true;
+                break;
+              case "\r":
+                this.flushBuffer();
+                this._outputColumn = 0;
+                break;
+              default:
+                this._buffer += char;
+                break;
+            }
+          }
+          /**
+           * Processes a control sequence.
+           */
+          processControlSequence() {
+            switch (this._controlSequence.charAt(this._controlSequence.length - 1)) {
+              case "A":
+                this.processCUU();
+                break;
+              case "B":
+                this.processCUD();
+                break;
+              case "C":
+                this.processCUF();
+                break;
+              case "D":
+                this.processCUB();
+                break;
+              case "H":
+                this.processCUP();
+                break;
+              case "J":
+                this.processED();
+                break;
+              case "K":
+                this.processEL();
+                break;
+              case "m":
+                this.processSGR();
+                break;
+            }
+            this._controlSequence = "";
+            this._parserState = ParserState.BufferingOutput;
+          }
+          /**
+           * Processes a CUU (Cursor Up) control sequence.
+           */
+          processCUU() {
+            const match = this._controlSequence.match(/^([0-9]*)A$/);
+            if (match) {
+              this._outputLine = Math.max(this._outputLine - rangeParam(match[1], 1, 1), 0);
+            }
+          }
+          /**
+           * Processes a CUD (Cursor Down) control sequence.
+           */
+          processCUD() {
+            const match = this._controlSequence.match(/^([0-9]*)B$/);
+            if (match) {
+              this._outputLine = this._outputLine + rangeParam(match[1], 1, 1);
+            }
+          }
+          /**
+           * Processes a CUF (Cursor Forward) control sequence.
+           */
+          processCUF() {
+            const match = this._controlSequence.match(/^([0-9]*)C$/);
+            if (match) {
+              this._outputColumn = this._outputColumn + rangeParam(match[1], 1, 1);
+            }
+          }
+          /**
+           * Processes a CUB (Cursor Backward) control sequence.
+           */
+          processCUB() {
+            const match = this._controlSequence.match(/^([0-9]*)D$/);
+            if (match) {
+              this._outputColumn = Math.max(this._outputColumn - rangeParam(match[1], 1, 1), 0);
+            }
+          }
+          /**
+           * Processes a CUP (Cursor Position) control sequence.
+           */
+          processCUP() {
+            const match = this._controlSequence.match(/^([0-9]*)(?:;?([0-9]*))H$/);
+            if (match) {
+              this._outputLine = rangeParam(match[1], 1, 1) - 1;
+              this._outputColumn = rangeParam(match[2], 1, 1) - 1;
+            }
+          }
+          /**
+           * Processes an ED (Erase in Display) control sequence.
+           */
+          processED() {
+            const match = this._controlSequence.match(/^([0-9]*)J$/);
+            if (match) {
+              switch (getParam(match[1], 0)) {
+                case 0:
+                  this._outputLines[this._outputLine].clearToEndOfLine(this._outputColumn);
+                  for (let i2 = this._outputLine + 1; i2 < this._outputLines.length; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+                case 1:
+                  this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
+                  for (let i2 = 0; i2 < this._outputLine; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+                case 2:
+                  for (let i2 = 0; i2 < this._outputLines.length; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+              }
+            }
+          }
+          /**
+           * Processes an EL (Erase in Line) control sequence.
+           */
+          processEL() {
+            const match = this._controlSequence.match(/^([0-9]*)K$/);
+            if (match) {
+              const outputLine = this._outputLines[this._outputLine];
+              switch (getParam(match[1], 0)) {
+                case 0:
+                  outputLine.clearToEndOfLine(this._outputColumn);
+                  break;
+                case 1:
+                  outputLine.clearToBeginningOfLine(this._outputColumn);
+                  break;
+                case 2:
+                  outputLine.clearEntireLine();
+                  break;
+              }
+            }
+          }
+          /**
+           * Processes an SGR (Select Graphic Rendition) control sequence.
+           */
+          processSGR() {
+            const sgrState = this._sgrState ? this._sgrState.copy() : new SGRState();
+            const sgrParams = this._controlSequence.slice(0, -1).split(";").map((sgrParam) => sgrParam === "" ? SGRParam.Reset : parseInt(sgrParam, 10));
+            for (let index2 = 0; index2 < sgrParams.length; index2++) {
+              const sgrParam = sgrParams[index2];
+              const processSetColor = () => {
+                if (index2 + 1 === sgrParams.length) {
+                  return void 0;
+                }
+                switch (sgrParams[++index2]) {
+                  case SGRParamColor.Color256: {
+                    if (index2 + 1 === sgrParams.length) {
+                      return void 0;
+                    }
+                    const colorIndex = sgrParams[++index2];
+                    switch (colorIndex) {
+                      case SGRParamIndexedColor.Black:
+                        return ANSIColor.Black;
+                      case SGRParamIndexedColor.Red:
+                        return ANSIColor.Red;
+                      case SGRParamIndexedColor.Green:
+                        return ANSIColor.Green;
+                      case SGRParamIndexedColor.Yellow:
+                        return ANSIColor.Yellow;
+                      case SGRParamIndexedColor.Blue:
+                        return ANSIColor.Blue;
+                      case SGRParamIndexedColor.Magenta:
+                        return ANSIColor.Magenta;
+                      case SGRParamIndexedColor.Cyan:
+                        return ANSIColor.Cyan;
+                      case SGRParamIndexedColor.White:
+                        return ANSIColor.White;
+                      case SGRParamIndexedColor.BrightBlack:
+                        return ANSIColor.BrightBlack;
+                      case SGRParamIndexedColor.BrightRed:
+                        return ANSIColor.BrightRed;
+                      case SGRParamIndexedColor.BrightGreen:
+                        return ANSIColor.BrightGreen;
+                      case SGRParamIndexedColor.BrightYellow:
+                        return ANSIColor.BrightYellow;
+                      case SGRParamIndexedColor.BrightBlue:
+                        return ANSIColor.BrightBlue;
+                      case SGRParamIndexedColor.BrightMagenta:
+                        return ANSIColor.BrightMagenta;
+                      case SGRParamIndexedColor.BrightCyan:
+                        return ANSIColor.BrightCyan;
+                      case SGRParamIndexedColor.BrightWhite:
+                        return ANSIColor.BrightWhite;
+                      default:
+                        if (colorIndex % 1 !== 0) {
+                          return void 0;
+                        }
+                        if (colorIndex >= 16 && colorIndex <= 231) {
+                          let colorNumber = colorIndex - 16;
+                          let blue = colorNumber % 6;
+                          colorNumber = (colorNumber - blue) / 6;
+                          let green2 = colorNumber % 6;
+                          colorNumber = (colorNumber - green2) / 6;
+                          let red2 = colorNumber;
+                          blue = Math.round(blue * 255 / 5);
+                          green2 = Math.round(green2 * 255 / 5);
+                          red2 = Math.round(red2 * 255 / 5);
+                          return "#" + twoDigitHex(red2) + twoDigitHex(green2) + twoDigitHex(blue);
+                        } else if (colorIndex >= 232 && colorIndex <= 255) {
+                          const rgb = Math.round((colorIndex - 232) / 23 * 255);
+                          const grayscale = twoDigitHex(rgb);
+                          return "#" + grayscale + grayscale + grayscale;
+                        } else {
+                          return void 0;
+                        }
+                    }
+                  }
+                  case SGRParamColor.ColorRGB: {
+                    const rgb = [0, 0, 0];
+                    for (let i2 = 0; i2 < 3 && index2 + 1 < sgrParams.length; i2++) {
+                      rgb[i2] = sgrParams[++index2];
+                    }
+                    return "#" + twoDigitHex(rgb[0]) + twoDigitHex(rgb[1]) + twoDigitHex(rgb[2]);
+                  }
+                }
+                return void 0;
+              };
+              switch (sgrParam) {
+                case SGRParam.Reset:
+                  sgrState.reset();
+                  break;
+                case SGRParam.Bold:
+                  sgrState.setStyle(ANSIStyle.Bold);
+                  break;
+                case SGRParam.Dim:
+                  sgrState.setStyle(ANSIStyle.Dim);
+                  break;
+                case SGRParam.Italic:
+                  sgrState.setStyle(ANSIStyle.Italic);
+                  break;
+                case SGRParam.Underlined:
+                  sgrState.setStyle(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
+                  break;
+                case SGRParam.SlowBlink:
+                  sgrState.setStyle(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
+                  break;
+                case SGRParam.RapidBlink:
+                  sgrState.setStyle(ANSIStyle.RapidBlink, ANSIStyle.SlowBlink);
+                  break;
+                case SGRParam.Reversed:
+                  sgrState.setReversed(true);
+                  break;
+                case SGRParam.Hidden:
+                  sgrState.setStyle(ANSIStyle.Hidden);
+                  break;
+                case SGRParam.CrossedOut:
+                  sgrState.setStyle(ANSIStyle.CrossedOut);
+                  break;
+                case SGRParam.PrimaryFont:
+                  sgrState.setFont();
+                  break;
+                case SGRParam.AlternativeFont1:
+                  sgrState.setFont(ANSIFont.AlternativeFont1);
+                  break;
+                case SGRParam.AlternativeFont2:
+                  sgrState.setFont(ANSIFont.AlternativeFont2);
+                  break;
+                case SGRParam.AlternativeFont3:
+                  sgrState.setFont(ANSIFont.AlternativeFont3);
+                  break;
+                case SGRParam.AlternativeFont4:
+                  sgrState.setFont(ANSIFont.AlternativeFont4);
+                  break;
+                case SGRParam.AlternativeFont5:
+                  sgrState.setFont(ANSIFont.AlternativeFont5);
+                  break;
+                case SGRParam.AlternativeFont6:
+                  sgrState.setFont(ANSIFont.AlternativeFont6);
+                  break;
+                case SGRParam.AlternativeFont7:
+                  sgrState.setFont(ANSIFont.AlternativeFont7);
+                  break;
+                case SGRParam.AlternativeFont8:
+                  sgrState.setFont(ANSIFont.AlternativeFont8);
+                  break;
+                case SGRParam.AlternativeFont9:
+                  sgrState.setFont(ANSIFont.AlternativeFont9);
+                  break;
+                case SGRParam.Fraktur:
+                  sgrState.setStyle(ANSIStyle.Fraktur);
+                  break;
+                case SGRParam.DoubleUnderlined:
+                  sgrState.setStyle(ANSIStyle.DoubleUnderlined, ANSIStyle.Underlined);
+                  break;
+                case SGRParam.NormalIntensity:
+                  sgrState.deleteStyles(ANSIStyle.Bold, ANSIStyle.Dim);
+                  break;
+                case SGRParam.NotItalicNotFraktur:
+                  sgrState.deleteStyles(ANSIStyle.Italic, ANSIStyle.Fraktur);
+                  break;
+                case SGRParam.NotUnderlined:
+                  sgrState.deleteStyles(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
+                  break;
+                case SGRParam.NotBlinking:
+                  sgrState.deleteStyles(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
+                  break;
+                case SGRParam.ProportionalSpacing:
+                  break;
+                case SGRParam.NotReversed:
+                  sgrState.setReversed(false);
+                  break;
+                case SGRParam.Reveal:
+                  sgrState.deleteStyles(ANSIStyle.Hidden);
+                  break;
+                case SGRParam.NotCrossedOut:
+                  sgrState.deleteStyles(ANSIStyle.CrossedOut);
+                  break;
+                case SGRParam.ForegroundBlack:
+                  sgrState.setForegroundColor(ANSIColor.Black);
+                  break;
+                case SGRParam.ForegroundRed:
+                  sgrState.setForegroundColor(ANSIColor.Red);
+                  break;
+                case SGRParam.ForegroundGreen:
+                  sgrState.setForegroundColor(ANSIColor.Green);
+                  break;
+                case SGRParam.ForegroundYellow:
+                  sgrState.setForegroundColor(ANSIColor.Yellow);
+                  break;
+                case SGRParam.ForegroundBlue:
+                  sgrState.setForegroundColor(ANSIColor.Blue);
+                  break;
+                case SGRParam.ForegroundMagenta:
+                  sgrState.setForegroundColor(ANSIColor.Magenta);
+                  break;
+                case SGRParam.ForegroundCyan:
+                  sgrState.setForegroundColor(ANSIColor.Cyan);
+                  break;
+                case SGRParam.ForegroundWhite:
+                  sgrState.setForegroundColor(ANSIColor.White);
+                  break;
+                case SGRParam.SetForeground: {
+                  const foregroundColor = processSetColor();
+                  if (foregroundColor) {
+                    sgrState.setForegroundColor(foregroundColor);
+                  }
+                  break;
+                }
+                case SGRParam.DefaultForeground:
+                  sgrState.setForegroundColor();
+                  break;
+                case SGRParam.BackgroundBlack:
+                  sgrState.setBackgroundColor(ANSIColor.Black);
+                  break;
+                case SGRParam.BackgroundRed:
+                  sgrState.setBackgroundColor(ANSIColor.Red);
+                  break;
+                case SGRParam.BackgroundGreen:
+                  sgrState.setBackgroundColor(ANSIColor.Green);
+                  break;
+                case SGRParam.BackgroundYellow:
+                  sgrState.setBackgroundColor(ANSIColor.Yellow);
+                  break;
+                case SGRParam.BackgroundBlue:
+                  sgrState.setBackgroundColor(ANSIColor.Blue);
+                  break;
+                case SGRParam.BackgroundMagenta:
+                  sgrState.setBackgroundColor(ANSIColor.Magenta);
+                  break;
+                case SGRParam.BackgroundCyan:
+                  sgrState.setBackgroundColor(ANSIColor.Cyan);
+                  break;
+                case SGRParam.BackgroundWhite:
+                  sgrState.setBackgroundColor(ANSIColor.White);
+                  break;
+                case SGRParam.SetBackground: {
+                  const backgroundColor = processSetColor();
+                  if (backgroundColor) {
+                    sgrState.setBackgroundColor(backgroundColor);
+                  }
+                  break;
+                }
+                case SGRParam.DefaultBackground:
+                  sgrState.setBackgroundColor();
+                  break;
+                case SGRParam.ForegroundBrightBlack:
+                  sgrState.setForegroundColor(ANSIColor.BrightBlack);
+                  break;
+                case SGRParam.ForegroundBrightRed:
+                  sgrState.setForegroundColor(ANSIColor.BrightRed);
+                  break;
+                case SGRParam.ForegroundBrightGreen:
+                  sgrState.setForegroundColor(ANSIColor.BrightGreen);
+                  break;
+                case SGRParam.ForegroundBrightYellow:
+                  sgrState.setForegroundColor(ANSIColor.BrightYellow);
+                  break;
+                case SGRParam.ForegroundBrightBlue:
+                  sgrState.setForegroundColor(ANSIColor.BrightBlue);
+                  break;
+                case SGRParam.ForegroundBrightMagenta:
+                  sgrState.setForegroundColor(ANSIColor.BrightMagenta);
+                  break;
+                case SGRParam.ForegroundBrightCyan:
+                  sgrState.setForegroundColor(ANSIColor.BrightCyan);
+                  break;
+                case SGRParam.ForegroundBrightWhite:
+                  sgrState.setForegroundColor(ANSIColor.BrightWhite);
+                  break;
+                case SGRParam.BackgroundBrightBlack:
+                  sgrState.setBackgroundColor(ANSIColor.BrightBlack);
+                  break;
+                case SGRParam.BackgroundBrightRed:
+                  sgrState.setBackgroundColor(ANSIColor.BrightRed);
+                  break;
+                case SGRParam.BackgroundBrightGreen:
+                  sgrState.setBackgroundColor(ANSIColor.BrightGreen);
+                  break;
+                case SGRParam.BackgroundBrightYellow:
+                  sgrState.setBackgroundColor(ANSIColor.BrightYellow);
+                  break;
+                case SGRParam.BackgroundBrightBlue:
+                  sgrState.setBackgroundColor(ANSIColor.BrightBlue);
+                  break;
+                case SGRParam.BackgroundBrightMagenta:
+                  sgrState.setBackgroundColor(ANSIColor.BrightMagenta);
+                  break;
+                case SGRParam.BackgroundBrightCyan:
+                  sgrState.setBackgroundColor(ANSIColor.BrightCyan);
+                  break;
+                case SGRParam.BackgroundBrightWhite:
+                  sgrState.setBackgroundColor(ANSIColor.BrightWhite);
+                  break;
+              }
+            }
+            if (!SGRState.equivalent(sgrState, this._sgrState)) {
+              this._sgrState = sgrState;
+            }
+          }
+        }
+        exports3.ANSIOutput = ANSIOutput;
+        var SGRParam;
+        (function(SGRParam2) {
+          SGRParam2[SGRParam2["Reset"] = 0] = "Reset";
+          SGRParam2[SGRParam2["Bold"] = 1] = "Bold";
+          SGRParam2[SGRParam2["Dim"] = 2] = "Dim";
+          SGRParam2[SGRParam2["Italic"] = 3] = "Italic";
+          SGRParam2[SGRParam2["Underlined"] = 4] = "Underlined";
+          SGRParam2[SGRParam2["SlowBlink"] = 5] = "SlowBlink";
+          SGRParam2[SGRParam2["RapidBlink"] = 6] = "RapidBlink";
+          SGRParam2[SGRParam2["Reversed"] = 7] = "Reversed";
+          SGRParam2[SGRParam2["Hidden"] = 8] = "Hidden";
+          SGRParam2[SGRParam2["CrossedOut"] = 9] = "CrossedOut";
+          SGRParam2[SGRParam2["PrimaryFont"] = 10] = "PrimaryFont";
+          SGRParam2[SGRParam2["AlternativeFont1"] = 11] = "AlternativeFont1";
+          SGRParam2[SGRParam2["AlternativeFont2"] = 12] = "AlternativeFont2";
+          SGRParam2[SGRParam2["AlternativeFont3"] = 13] = "AlternativeFont3";
+          SGRParam2[SGRParam2["AlternativeFont4"] = 14] = "AlternativeFont4";
+          SGRParam2[SGRParam2["AlternativeFont5"] = 15] = "AlternativeFont5";
+          SGRParam2[SGRParam2["AlternativeFont6"] = 16] = "AlternativeFont6";
+          SGRParam2[SGRParam2["AlternativeFont7"] = 17] = "AlternativeFont7";
+          SGRParam2[SGRParam2["AlternativeFont8"] = 18] = "AlternativeFont8";
+          SGRParam2[SGRParam2["AlternativeFont9"] = 19] = "AlternativeFont9";
+          SGRParam2[SGRParam2["Fraktur"] = 20] = "Fraktur";
+          SGRParam2[SGRParam2["DoubleUnderlined"] = 21] = "DoubleUnderlined";
+          SGRParam2[SGRParam2["NormalIntensity"] = 22] = "NormalIntensity";
+          SGRParam2[SGRParam2["NotItalicNotFraktur"] = 23] = "NotItalicNotFraktur";
+          SGRParam2[SGRParam2["NotUnderlined"] = 24] = "NotUnderlined";
+          SGRParam2[SGRParam2["NotBlinking"] = 25] = "NotBlinking";
+          SGRParam2[SGRParam2["ProportionalSpacing"] = 26] = "ProportionalSpacing";
+          SGRParam2[SGRParam2["NotReversed"] = 27] = "NotReversed";
+          SGRParam2[SGRParam2["Reveal"] = 28] = "Reveal";
+          SGRParam2[SGRParam2["NotCrossedOut"] = 29] = "NotCrossedOut";
+          SGRParam2[SGRParam2["ForegroundBlack"] = 30] = "ForegroundBlack";
+          SGRParam2[SGRParam2["ForegroundRed"] = 31] = "ForegroundRed";
+          SGRParam2[SGRParam2["ForegroundGreen"] = 32] = "ForegroundGreen";
+          SGRParam2[SGRParam2["ForegroundYellow"] = 33] = "ForegroundYellow";
+          SGRParam2[SGRParam2["ForegroundBlue"] = 34] = "ForegroundBlue";
+          SGRParam2[SGRParam2["ForegroundMagenta"] = 35] = "ForegroundMagenta";
+          SGRParam2[SGRParam2["ForegroundCyan"] = 36] = "ForegroundCyan";
+          SGRParam2[SGRParam2["ForegroundWhite"] = 37] = "ForegroundWhite";
+          SGRParam2[SGRParam2["SetForeground"] = 38] = "SetForeground";
+          SGRParam2[SGRParam2["DefaultForeground"] = 39] = "DefaultForeground";
+          SGRParam2[SGRParam2["BackgroundBlack"] = 40] = "BackgroundBlack";
+          SGRParam2[SGRParam2["BackgroundRed"] = 41] = "BackgroundRed";
+          SGRParam2[SGRParam2["BackgroundGreen"] = 42] = "BackgroundGreen";
+          SGRParam2[SGRParam2["BackgroundYellow"] = 43] = "BackgroundYellow";
+          SGRParam2[SGRParam2["BackgroundBlue"] = 44] = "BackgroundBlue";
+          SGRParam2[SGRParam2["BackgroundMagenta"] = 45] = "BackgroundMagenta";
+          SGRParam2[SGRParam2["BackgroundCyan"] = 46] = "BackgroundCyan";
+          SGRParam2[SGRParam2["BackgroundWhite"] = 47] = "BackgroundWhite";
+          SGRParam2[SGRParam2["SetBackground"] = 48] = "SetBackground";
+          SGRParam2[SGRParam2["DefaultBackground"] = 49] = "DefaultBackground";
+          SGRParam2[SGRParam2["DisableProportionalSpacing"] = 50] = "DisableProportionalSpacing";
+          SGRParam2[SGRParam2["Framed"] = 51] = "Framed";
+          SGRParam2[SGRParam2["Encircled"] = 52] = "Encircled";
+          SGRParam2[SGRParam2["Overlined"] = 53] = "Overlined";
+          SGRParam2[SGRParam2["NotFramedNotEncircled"] = 54] = "NotFramedNotEncircled";
+          SGRParam2[SGRParam2["NotOverlined"] = 55] = "NotOverlined";
+          SGRParam2[SGRParam2["SetUnderline"] = 58] = "SetUnderline";
+          SGRParam2[SGRParam2["DefaultUnderline"] = 59] = "DefaultUnderline";
+          SGRParam2[SGRParam2["IdeogramUnderlineOrRightSideLine"] = 60] = "IdeogramUnderlineOrRightSideLine";
+          SGRParam2[SGRParam2["IdeogramDoubleUnderlineOrDoubleRightSideLine"] = 61] = "IdeogramDoubleUnderlineOrDoubleRightSideLine";
+          SGRParam2[SGRParam2["IdeogramOverlineOrLeftSideLine"] = 62] = "IdeogramOverlineOrLeftSideLine";
+          SGRParam2[SGRParam2["IdeogramDoubleOverlineOrDoubleLeftSideLine"] = 63] = "IdeogramDoubleOverlineOrDoubleLeftSideLine";
+          SGRParam2[SGRParam2["IdeogramStressMarking"] = 64] = "IdeogramStressMarking";
+          SGRParam2[SGRParam2["NoIdeogramAttributes"] = 65] = "NoIdeogramAttributes";
+          SGRParam2[SGRParam2["Superscript"] = 73] = "Superscript";
+          SGRParam2[SGRParam2["Subscript"] = 74] = "Subscript";
+          SGRParam2[SGRParam2["NotSuperscriptNotSubscript"] = 75] = "NotSuperscriptNotSubscript";
+          SGRParam2[SGRParam2["ForegroundBrightBlack"] = 90] = "ForegroundBrightBlack";
+          SGRParam2[SGRParam2["ForegroundBrightRed"] = 91] = "ForegroundBrightRed";
+          SGRParam2[SGRParam2["ForegroundBrightGreen"] = 92] = "ForegroundBrightGreen";
+          SGRParam2[SGRParam2["ForegroundBrightYellow"] = 93] = "ForegroundBrightYellow";
+          SGRParam2[SGRParam2["ForegroundBrightBlue"] = 94] = "ForegroundBrightBlue";
+          SGRParam2[SGRParam2["ForegroundBrightMagenta"] = 95] = "ForegroundBrightMagenta";
+          SGRParam2[SGRParam2["ForegroundBrightCyan"] = 96] = "ForegroundBrightCyan";
+          SGRParam2[SGRParam2["ForegroundBrightWhite"] = 97] = "ForegroundBrightWhite";
+          SGRParam2[SGRParam2["BackgroundBrightBlack"] = 100] = "BackgroundBrightBlack";
+          SGRParam2[SGRParam2["BackgroundBrightRed"] = 101] = "BackgroundBrightRed";
+          SGRParam2[SGRParam2["BackgroundBrightGreen"] = 102] = "BackgroundBrightGreen";
+          SGRParam2[SGRParam2["BackgroundBrightYellow"] = 103] = "BackgroundBrightYellow";
+          SGRParam2[SGRParam2["BackgroundBrightBlue"] = 104] = "BackgroundBrightBlue";
+          SGRParam2[SGRParam2["BackgroundBrightMagenta"] = 105] = "BackgroundBrightMagenta";
+          SGRParam2[SGRParam2["BackgroundBrightCyan"] = 106] = "BackgroundBrightCyan";
+          SGRParam2[SGRParam2["BackgroundBrightWhite"] = 107] = "BackgroundBrightWhite";
+        })(SGRParam || (SGRParam = {}));
+        var SGRParamColor;
+        (function(SGRParamColor2) {
+          SGRParamColor2[SGRParamColor2["Color256"] = 5] = "Color256";
+          SGRParamColor2[SGRParamColor2["ColorRGB"] = 2] = "ColorRGB";
+        })(SGRParamColor || (SGRParamColor = {}));
+        var SGRParamIndexedColor;
+        (function(SGRParamIndexedColor2) {
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Black"] = 0] = "Black";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Red"] = 1] = "Red";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Green"] = 2] = "Green";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Yellow"] = 3] = "Yellow";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Blue"] = 4] = "Blue";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Magenta"] = 5] = "Magenta";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Cyan"] = 6] = "Cyan";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["White"] = 7] = "White";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlack"] = 8] = "BrightBlack";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightRed"] = 9] = "BrightRed";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightGreen"] = 10] = "BrightGreen";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightYellow"] = 11] = "BrightYellow";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlue"] = 12] = "BrightBlue";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightMagenta"] = 13] = "BrightMagenta";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightCyan"] = 14] = "BrightCyan";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightWhite"] = 15] = "BrightWhite";
+        })(SGRParamIndexedColor || (SGRParamIndexedColor = {}));
+        var ParserState;
+        (function(ParserState2) {
+          ParserState2[ParserState2["BufferingOutput"] = 0] = "BufferingOutput";
+          ParserState2[ParserState2["ControlSequenceStarted"] = 1] = "ControlSequenceStarted";
+          ParserState2[ParserState2["ParsingControlSequence"] = 2] = "ParsingControlSequence";
+        })(ParserState || (ParserState = {}));
+        class SGRState {
+          constructor() {
+            //#region Private Properties.
+            /**
+             * Gets or sets the styles.
+             */
+            __publicField(this, "_styles");
+            /**
+             * Gets or sets the foreground color.
+             */
+            __publicField(this, "_foregroundColor");
+            /**
+             * Gets or sets the background color.
+             */
+            __publicField(this, "_backgroundColor");
+            /**
+             * Gets or sets the underlined color.
+             */
+            __publicField(this, "_underlinedColor");
+            /**
+             * Gets or sets a value which indicates whether the foreground and background colors are
+             * reversed.
+             */
+            __publicField(this, "_reversed");
+            /**
+             * Gets or sets the font.
+             */
+            __publicField(this, "_font");
+          }
+          //#endregion Private Properties.
+          //#region Public Methods
+          /**
+           * Resets the SGRState.
+           */
+          reset() {
+            this._styles = void 0;
+            this._foregroundColor = void 0;
+            this._backgroundColor = void 0;
+            this._underlinedColor = void 0;
+            this._reversed = void 0;
+            this._font = void 0;
+          }
+          /**
+           * Creates a copy of the SGRState.
+           * @returns The copy of the SGRState.
+           */
+          copy() {
+            const copy = new SGRState();
+            if (this._styles && this._styles.size) {
+              const styles2 = /* @__PURE__ */ new Set();
+              this._styles.forEach((style2) => styles2.add(style2));
+              copy._styles = styles2;
+            }
+            copy._foregroundColor = this._foregroundColor;
+            copy._backgroundColor = this._backgroundColor;
+            copy._underlinedColor = this._underlinedColor;
+            copy._reversed = this._reversed;
+            copy._font = this._font;
+            return copy;
+          }
+          /**
+           * Sets a style.
+           * @param style The style to set.
+           * @param stylesToDelete The styles to delete.
+           */
+          setStyle(style2, ...stylesToDelete) {
+            if (this._styles) {
+              for (const style3 of stylesToDelete) {
+                this._styles.delete(style3);
+              }
+            } else {
+              this._styles = /* @__PURE__ */ new Set();
+            }
+            this._styles.add(style2);
+          }
+          /**
+           * Deletes styles.
+           * @param stylesToDelete The styles to delete.
+           */
+          deleteStyles(...stylesToDelete) {
+            if (this._styles) {
+              for (const style2 of stylesToDelete) {
+                this._styles.delete(style2);
+              }
+              if (!this._styles.size) {
+                this._styles = void 0;
+              }
+            }
+          }
+          /**
+           * Sets the foreground color.
+           * @param color The foreground color.
+           */
+          setForegroundColor(color) {
+            if (!this._reversed) {
+              this._foregroundColor = color;
+            } else {
+              this._backgroundColor = color;
+            }
+          }
+          /**
+           * Sets the background color.
+           * @param color The background color.
+           */
+          setBackgroundColor(color) {
+            if (!this._reversed) {
+              this._backgroundColor = color;
+            } else {
+              this._foregroundColor = color;
+            }
+          }
+          /**
+           * Sets reversed.
+           * @param reversed A value which indicates whether the foreground and background colors are
+           * reversed.
+           */
+          setReversed(reversed) {
+            if (reversed) {
+              if (!this._reversed) {
+                this._reversed = true;
+                this.reverseForegroundAndBackgroundColors();
+              }
+            } else {
+              if (this._reversed) {
+                this._reversed = void 0;
+                this.reverseForegroundAndBackgroundColors();
+              }
+            }
+          }
+          /**
+           * Sets the font.
+           * @param font The font.
+           */
+          setFont(font) {
+            this._font = font;
+          }
+          /**
+           *
+           * @param left
+           * @param right
+           * @returns
+           */
+          static equivalent(left2, right2) {
+            const setReplacer = (_, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
+            return left2 === right2 || JSON.stringify(left2, setReplacer) === JSON.stringify(right2, setReplacer);
+          }
+          //#endregion Public Methods
+          //#region ANSIFormat Implementation
+          /**
+           * Gets the styles.
+           */
+          get styles() {
+            return !this._styles ? void 0 : [...this._styles];
+          }
+          /**
+           * Gets the foreground color.
+           */
+          get foregroundColor() {
+            if (this._backgroundColor && !this._foregroundColor) {
+              switch (this._backgroundColor) {
+                case ANSIColor.Black:
+                case ANSIColor.BrightBlack:
+                case ANSIColor.Red:
+                case ANSIColor.BrightRed:
+                  return ANSIColor.White;
+                case ANSIColor.Green:
+                case ANSIColor.BrightGreen:
+                case ANSIColor.Yellow:
+                case ANSIColor.BrightYellow:
+                case ANSIColor.Blue:
+                case ANSIColor.BrightBlue:
+                case ANSIColor.Magenta:
+                case ANSIColor.BrightMagenta:
+                case ANSIColor.Cyan:
+                case ANSIColor.BrightCyan:
+                case ANSIColor.White:
+                case ANSIColor.BrightWhite:
+                  return ANSIColor.Black;
+              }
+            }
+            return this._foregroundColor;
+          }
+          /**
+           * Gets the background color.
+           */
+          get backgroundColor() {
+            return this._backgroundColor;
+          }
+          /**
+           * Gets the underlined color.
+           */
+          get underlinedColor() {
+            return this._underlinedColor;
+          }
+          /**
+           * Gets the font.
+           */
+          get font() {
+            return this._font;
+          }
+          //#endregion ANSIFormat Implementation
+          //#region Private Methods
+          /**
+           * Reverses the foreground and background colors.
+           */
+          reverseForegroundAndBackgroundColors() {
+            const foregroundColor = this._foregroundColor;
+            this._foregroundColor = this._backgroundColor;
+            this._backgroundColor = foregroundColor;
+          }
+        }
+        class OutputLine {
+          constructor() {
+            //#region Private Properties
+            /**
+             * Gets the identifier.
+             */
+            __publicField(this, "_id", generateId());
+            /**
+             * Gets or sets the output runs.
+             */
+            __publicField(this, "_outputRuns", []);
+            /**
+             * Gets or sets the total length.
+             */
+            __publicField(this, "_totalLength", 0);
+          }
+          //#endregion Private Properties
+          //#region Public Methods
+          /**
+           * Clears the entire output line.
+           */
+          clearEntireLine() {
+            if (this._totalLength) {
+              this._outputRuns = [new OutputRun2(" ".repeat(this._totalLength))];
+            }
+          }
+          /**
+           * Clears to the end of the output line.
+           * @param column The column at which to clear from.
+           */
+          clearToEndOfLine(column2) {
+            column2 = Math.max(column2, 0);
+            if (column2 >= this._totalLength) {
+              return;
+            }
+            if (column2 === 0) {
+              this.clearEntireLine();
+              return;
+            }
+            let leftOffset = 0;
+            let leftOutputRun;
+            let leftOutputRunIndex = void 0;
+            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 < leftOffset + outputRun.text.length) {
+                leftOutputRun = outputRun;
+                leftOutputRunIndex = index2;
+                break;
+              }
+              leftOffset += outputRun.text.length;
+            }
+            if (leftOutputRun === void 0 || leftOutputRunIndex === void 0) {
+              return;
+            }
+            const leftTextLength = column2 - leftOffset;
+            const erasureText = " ".repeat(this._totalLength - column2);
+            const outputRuns = [];
+            if (!leftTextLength) {
+              outputRuns.push(new OutputRun2(erasureText));
+            } else {
+              const leftText = leftOutputRun.text.slice(0, leftTextLength);
+              outputRuns.push(new OutputRun2(leftText, leftOutputRun.sgrState));
+              outputRuns.push(new OutputRun2(erasureText));
+            }
+            this.outputRuns.splice(leftOutputRunIndex, this._outputRuns.length - leftOutputRunIndex, ...outputRuns);
+          }
+          /**
+           * Clears to the beginning of the output line.
+           * @param column The column at which to clear from.
+           */
+          clearToBeginningOfLine(column2) {
+            column2 = Math.max(column2, 0);
+            if (column2 === 0) {
+              return;
+            }
+            if (column2 >= this._totalLength) {
+              this.clearEntireLine();
+              return;
+            }
+            let rightOffset = 0;
+            let rightOutputRun;
+            let rightOutputRunIndex = void 0;
+            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 >= rightOffset - outputRun.text.length) {
+                rightOutputRun = outputRun;
+                rightOutputRunIndex = index2;
+                break;
+              }
+              rightOffset -= outputRun.text.length;
+            }
+            if (rightOutputRun === void 0 || rightOutputRunIndex === void 0) {
+              return;
+            }
+            const rightTextLength = rightOffset - column2;
+            const erasureText = " ".repeat(column2);
+            const outputRuns = [new OutputRun2(erasureText)];
+            if (rightTextLength) {
+              const rightOutputRunText = rightOutputRun.text.slice(-rightTextLength);
+              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
+            }
+            this.outputRuns.splice(0, this._outputRuns.length - rightOutputRunIndex, ...outputRuns);
+          }
+          /**
+           * Inserts text into the output line.
+           * @param text The text to insert.
+           * @param column The column at which to insert the text.
+           * @param sgrState The SGR state.
+           */
+          insert(text2, column2, sgrState) {
+            if (!text2.length) {
+              return;
+            }
+            if (column2 === this._totalLength) {
+              this._totalLength += text2.length;
+              if (this._outputRuns.length) {
+                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
+                if (SGRState.equivalent(lastOutputRun.sgrState, sgrState)) {
+                  lastOutputRun.appendText(text2);
+                  return;
+                }
+              }
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            if (column2 > this._totalLength) {
+              const spacer = " ".repeat(column2 - this._totalLength);
+              this._totalLength += spacer.length + text2.length;
+              if (!sgrState && this._outputRuns.length) {
+                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
+                if (!lastOutputRun.sgrState) {
+                  lastOutputRun.appendText(spacer);
+                  lastOutputRun.appendText(text2);
+                  return;
+                }
+              }
+              if (!sgrState) {
+                this._outputRuns.push(new OutputRun2(spacer + text2));
+              } else {
+                this._outputRuns.push(new OutputRun2(spacer));
+                this._outputRuns.push(new OutputRun2(text2, sgrState));
+              }
+            }
+            let leftOffset = 0;
+            let leftOutputRunIndex = void 0;
+            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 < leftOffset + outputRun.text.length) {
+                leftOutputRunIndex = index2;
+                break;
+              }
+              leftOffset += outputRun.text.length;
+            }
+            if (leftOutputRunIndex === void 0) {
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            if (column2 + text2.length >= this._totalLength) {
+              const leftTextLength = column2 - leftOffset;
+              const outputRuns2 = [];
+              if (!leftTextLength) {
+                outputRuns2.push(new OutputRun2(text2, sgrState));
+              } else {
+                const leftOutputRun = this._outputRuns[leftOutputRunIndex];
+                const leftText = leftOutputRun.text.slice(0, leftTextLength);
+                if (SGRState.equivalent(leftOutputRun.sgrState, sgrState)) {
+                  outputRuns2.push(new OutputRun2(leftText + text2, sgrState));
+                } else {
+                  outputRuns2.push(new OutputRun2(leftText, leftOutputRun.sgrState));
+                  outputRuns2.push(new OutputRun2(text2, sgrState));
+                }
+              }
+              this.outputRuns.splice(leftOutputRunIndex, 1, ...outputRuns2);
+              this._totalLength = leftOffset + leftTextLength + text2.length;
+              return;
+            }
+            let rightOffset = this._totalLength;
+            let rightOutputRunIndex = void 0;
+            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 + text2.length > rightOffset - outputRun.text.length) {
+                rightOutputRunIndex = index2;
+                break;
+              }
+              rightOffset -= outputRun.text.length;
+            }
+            if (rightOutputRunIndex === void 0) {
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            const outputRuns = [];
+            const leftOutputRunTextLength = column2 - leftOffset;
+            if (leftOutputRunTextLength) {
+              const leftOutputRun = this._outputRuns[leftOutputRunIndex];
+              const leftOutputRunText = leftOutputRun.text.slice(0, leftOutputRunTextLength);
+              outputRuns.push(new OutputRun2(leftOutputRunText, leftOutputRun.sgrState));
+            }
+            outputRuns.push(new OutputRun2(text2, sgrState));
+            const rightOutputRunTextLength = rightOffset - (column2 + text2.length);
+            if (rightOutputRunTextLength) {
+              const rightOutputRun = this._outputRuns[rightOutputRunIndex];
+              const rightOutputRunText = rightOutputRun.text.slice(-rightOutputRunTextLength);
+              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
+            }
+            this._outputRuns.splice(leftOutputRunIndex, rightOutputRunIndex - leftOutputRunIndex + 1, ...outputRuns);
+            if (this._outputRuns.length > 1) {
+              this._outputRuns = OutputRun2.optimizeOutputRuns(this._outputRuns);
+            }
+            this._totalLength = this._outputRuns.reduce((totalLength, outputRun) => totalLength + outputRun.text.length, 0);
+          }
+          //#endregion Public Methods
+          //#region ANSIOutputLine Implementation
+          /**
+           * Gets the identifier.
+           */
+          get id() {
+            return this._id;
+          }
+          /**
+           * Gets the output runs.
+           */
+          get outputRuns() {
+            return this._outputRuns;
+          }
+        }
+        class OutputRun2 {
+          //#endregion Public Properties
+          //#region Constructor
+          /**
+           * Constructor.
+           * @param text The text.
+           * @param sgrState The SGR state.
+           */
+          constructor(text2, sgrState) {
+            //#region Private Properties
+            /**
+             * Gets the identifier.
+             */
+            __publicField(this, "_id", generateId());
+            /**
+             * Gets the SGR state.
+             */
+            __publicField(this, "_sgrState");
+            /**
+             * Gets or sets the text.
+             */
+            __publicField(this, "_text");
+            this._sgrState = sgrState;
+            this._text = text2;
+          }
+          //#endregion Private Properties
+          //#region Public Properties
+          get sgrState() {
+            return this._sgrState;
+          }
+          //#endregion Constructor
+          //#region Public Methods
+          /**
+           * Optimizes a an array of output runs by combining adjacent output runs with equivalent SGR
+           * states.
+           * @param outputRunsIn The output runs to optimize.
+           * @returns The optimized output runs.
+           */
+          static optimizeOutputRuns(outputRunsIn) {
+            const outputRunsOut = [outputRunsIn[0]];
+            for (let i2 = 1, o = 0; i2 < outputRunsIn.length; i2++) {
+              const outputRun = outputRunsIn[i2];
+              if (SGRState.equivalent(outputRunsOut[o].sgrState, outputRun.sgrState)) {
+                outputRunsOut[o]._text += outputRun.text;
+              } else {
+                outputRunsOut[++o] = outputRun;
+              }
+            }
+            return outputRunsOut;
+          }
+          /**
+           * Appends text to the end of the output run.
+           * @param text The text to append.
+           */
+          appendText(text2) {
+            this._text += text2;
+          }
+          //#endregion Public Methods
+          //#region ANSIOutputRun Implementation
+          /**
+           * Gets the identifier.
+           */
+          get id() {
+            return this._id;
+          }
+          /**
+           * Gets the format.
+           */
+          get format() {
+            return this._sgrState;
+          }
+          /**
+           * Gets the text.
+           */
+          get text() {
+            return this._text;
+          }
+        }
+        const rangeParam = (value2, defaultValue, minValue) => {
+          const param = getParam(value2, defaultValue);
+          return Math.max(param, minValue);
+        };
+        const getParam = (value2, defaultValue) => {
+          const param = parseInt(value2);
+          return Number.isNaN(param) ? defaultValue : param;
+        };
+        const twoDigitHex = (value2) => {
+          const hex = Math.max(Math.min(255, value2), 0).toString(16);
+          return hex.length === 2 ? hex : "0" + hex;
+        };
+      });
+    })(ansiOutput, ansiOutput.exports);
+    var ansiOutputExports = ansiOutput.exports;
+    const ANSIDisplay = ({
+      output: output2,
+      style: style2,
+      className: className2
+    }) => {
+      const ansiOutput2 = new ansiOutputExports.ANSIOutput();
+      ansiOutput2.processOutput(output2);
+      let firstOutput = false;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("ansi-display", className2), style: { ...style2 }, children: ansiOutput2.outputLines.map((line2, index2) => {
+        firstOutput = firstOutput || !!line2.outputRuns.length;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "ansi-display-line", children: !line2.outputRuns.length ? firstOutput ? /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}) : null : line2.outputRuns.map((outputRun) => /* @__PURE__ */ jsxRuntimeExports.jsx(OutputRun, { run: outputRun }, outputRun.id)) }, index2);
+      }) });
     };
-    const useResizeObserver = (callback) => {
-      const elementRef = reactExports.useRef(null);
-      const observerRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        const element = elementRef.current;
-        if (!element) return;
-        observerRef.current = new ResizeObserver((entries) => {
-          if (entries[0]) {
-            callback(entries[0]);
+    const kForeground = 0;
+    const kBackground = 1;
+    const OutputRun = ({ run }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: computeCSSProperties(run), children: run.text });
+    };
+    const computeCSSProperties = (outputRun) => {
+      return !outputRun.format ? {} : {
+        ...computeStyles$2(outputRun.format.styles || []),
+        ...computeForegroundBackgroundColor(
+          kForeground,
+          outputRun.format.foregroundColor
+        ),
+        ...computeForegroundBackgroundColor(
+          kBackground,
+          outputRun.format.backgroundColor
+        )
+      };
+    };
+    const computeStyles$2 = (styles2) => {
+      let cssProperties = {};
+      if (styles2) {
+        styles2.forEach((style2) => {
+          switch (style2) {
+            case ansiOutputExports.ANSIStyle.Bold:
+              cssProperties = { ...cssProperties, ...{ fontWeight: "bold" } };
+              break;
+            case ansiOutputExports.ANSIStyle.Dim:
+              cssProperties = { ...cssProperties, ...{ fontWeight: "lighter" } };
+              break;
+            case ansiOutputExports.ANSIStyle.Italic:
+              cssProperties = { ...cssProperties, ...{ fontStyle: "italic" } };
+              break;
+            case ansiOutputExports.ANSIStyle.Underlined:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "underline",
+                  textDecorationStyle: "solid"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.SlowBlink:
+              cssProperties = {
+                ...cssProperties,
+                ...{ animation: "ansi-display-run-blink 1s linear infinite" }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.RapidBlink:
+              cssProperties = {
+                ...cssProperties,
+                ...{ animation: "ansi-display-run-blink 0.5s linear infinite" }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.Hidden:
+              cssProperties = { ...cssProperties, ...{ visibility: "hidden" } };
+              break;
+            case ansiOutputExports.ANSIStyle.CrossedOut:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "line-through",
+                  textDecorationStyle: "solid"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.DoubleUnderlined:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "underline",
+                  textDecorationStyle: "double"
+                }
+              };
+              break;
           }
         });
-        observerRef.current.observe(element);
-        return () => {
-          if (observerRef.current) {
-            observerRef.current.disconnect();
-          }
-        };
-      }, [callback]);
-      return elementRef;
-    };
-    const expandablePanel = "_expandablePanel_elrou_1";
-    const expandableBordered = "_expandableBordered_elrou_5";
-    const expandableCollapsed = "_expandableCollapsed_elrou_18";
-    const moreToggle = "_moreToggle_elrou_22";
-    const bordered = "_bordered_elrou_35";
-    const moreToggleButton = "_moreToggleButton_elrou_39";
-    const separator$5 = "_separator_elrou_45";
-    const styles$1n = {
-      expandablePanel,
-      expandableBordered,
-      expandableCollapsed,
-      moreToggle,
-      bordered,
-      moreToggleButton,
-      separator: separator$5
-    };
-    const ExpandablePanel = reactExports.memo(
-      ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
-        const [collapsed2, setCollapsed] = useCollapsedState(id, collapse);
-        const [showToggle, setShowToggle] = reactExports.useState(false);
-        const baseFontSizeRef = reactExports.useRef(0);
-        const checkOverflow = reactExports.useCallback(
-          (entry2) => {
-            const element = entry2.target;
-            if (baseFontSizeRef.current === 0) {
-              const computedStyle = window.getComputedStyle(element);
-              const rootFontSize = parseFloat(computedStyle.fontSize);
-              baseFontSizeRef.current = rootFontSize;
-            }
-            const maxCollapsedHeight = baseFontSizeRef.current * lines;
-            const contentHeight = element.scrollHeight;
-            setShowToggle(contentHeight > maxCollapsedHeight);
-          },
-          [lines]
-        );
-        const contentRef = useResizeObserver(checkOverflow);
-        const baseStyles = {
-          overflow: "hidden",
-          ...collapsed2 && {
-            maxHeight: `${lines}rem`
-          }
-        };
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "div",
-            {
-              style: baseStyles,
-              ref: contentRef,
-              className: clsx(
-                styles$1n.expandablePanel,
-                collapsed2 ? styles$1n.expandableCollapsed : void 0,
-                border ? styles$1n.expandableBordered : void 0,
-                showToggle ? styles$1n.padBottom : void 0
-              ),
-              children: [
-                children2,
-                showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MoreToggle,
-                  {
-                    collapsed: collapsed2,
-                    setCollapsed,
-                    border: !border
-                  }
-                ) })
-              ]
-            }
-          ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1n.separator) })
-        ] });
       }
-    );
-    const MoreToggle = ({
-      collapsed: collapsed2,
-      border,
-      setCollapsed,
-      style: style2
-    }) => {
-      const text2 = collapsed2 ? "more" : "less";
-      const handleClick = reactExports.useCallback(() => {
-        setCollapsed(!collapsed2);
-      }, [setCollapsed, collapsed2]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(styles$1n.moreToggle, border ? styles$1n.bordered : void 0),
-          style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "button",
-            {
-              className: clsx("btn", styles$1n.moreToggleButton, "text-size-smallest"),
-              onClick: handleClick,
-              children: [
-                text2,
-                "..."
-              ]
-            }
-          )
-        }
-      );
+      return cssProperties;
     };
-    const message$1 = "_message_17kai_1";
-    const systemRole = "_systemRole_17kai_8";
-    const messageGrid = "_messageGrid_17kai_12";
-    const messageContents = "_messageContents_17kai_20";
-    const indented = "_indented_17kai_25";
-    const copyLink$1 = "_copyLink_17kai_29";
-    const styles$1m = {
-      message: message$1,
-      systemRole,
-      messageGrid,
-      messageContents,
-      indented,
-      copyLink: copyLink$1
+    const computeForegroundBackgroundColor = (colorType, color) => {
+      switch (color) {
+        case void 0:
+          return {};
+        case ansiOutputExports.ANSIColor.Black:
+        case ansiOutputExports.ANSIColor.Red:
+        case ansiOutputExports.ANSIColor.Green:
+        case ansiOutputExports.ANSIColor.Yellow:
+        case ansiOutputExports.ANSIColor.Blue:
+        case ansiOutputExports.ANSIColor.Magenta:
+        case ansiOutputExports.ANSIColor.Cyan:
+        case ansiOutputExports.ANSIColor.White:
+        case ansiOutputExports.ANSIColor.BrightBlack:
+        case ansiOutputExports.ANSIColor.BrightRed:
+        case ansiOutputExports.ANSIColor.BrightGreen:
+        case ansiOutputExports.ANSIColor.BrightYellow:
+        case ansiOutputExports.ANSIColor.BrightBlue:
+        case ansiOutputExports.ANSIColor.BrightMagenta:
+        case ansiOutputExports.ANSIColor.BrightCyan:
+        case ansiOutputExports.ANSIColor.BrightWhite:
+          if (colorType === kForeground) {
+            return { color: `var(--${color})` };
+          } else {
+            return { background: `var(--${color})` };
+          }
+        default:
+          if (colorType === kForeground) {
+            return { color };
+          } else {
+            return { background: color };
+          }
+      }
+    };
+    const JSONPanel = ({
+      id,
+      json,
+      data,
+      simple = false,
+      style: style2,
+      className: className2
+    }) => {
+      const sourceCode = reactExports.useMemo(() => {
+        return json || JSON.stringify(resolveBase64(data), void 0, 2);
+      }, [json, data]);
+      const prismParentRef = usePrismHighlight(sourceCode);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "pre",
+        {
+          className: clsx("json-panel", simple ? "simple" : "", className2),
+          style: style2,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { id, className: clsx("source-code", "language-javascript"), children: sourceCode })
+        }
+      ) });
+    };
+    const resolveBase64 = (value2) => {
+      const prefix2 = "data:image";
+      if (Array.isArray(value2)) {
+        return value2.map((v) => resolveBase64(v));
+      }
+      if (value2 && typeof value2 === "object") {
+        const resolvedObject = {};
+        for (const key2 of Object.keys(value2)) {
+          resolvedObject[key2] = resolveBase64(value2[key2]);
+        }
+        return resolvedObject;
+      }
+      if (typeof value2 === "string") {
+        let resolvedValue = value2;
+        if (resolvedValue.startsWith(prefix2)) {
+          resolvedValue = "[base64 image]";
+        }
+        return resolvedValue;
+      }
+      return value2;
     };
     const decodeCache = {};
     function getDecodeCache(exclude) {
@@ -30332,19 +31491,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1l[sup[this.id]];
+      return styles$1p[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1l[sub[this.id]];
+      return styles$1p[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1l[fracNum[this.id]];
+      return styles$1p[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1l[fracDen[this.id]];
+      return styles$1p[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1l[cramp[this.id]];
+      return styles$1p[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -30372,7 +31531,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1l = [
+    var styles$1p = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -30388,10 +31547,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1l[D],
-      TEXT: styles$1l[T],
-      SCRIPT: styles$1l[S],
-      SCRIPTSCRIPT: styles$1l[SS]
+      DISPLAY: styles$1p[D],
+      TEXT: styles$1p[T],
+      SCRIPT: styles$1p[S],
+      SCRIPTSCRIPT: styles$1p[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -37166,6 +38325,282 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       );
     }
+    const visible = "_visible_tm52u_1";
+    const hidden$2 = "_hidden_tm52u_5";
+    const pills = "_pills_tm52u_9";
+    const pill = "_pill_tm52u_9";
+    const styles$1o = {
+      visible,
+      hidden: hidden$2,
+      pills,
+      pill
+    };
+    const NavPills = ({ id, children: children2 }) => {
+      const defaultNav = children2 ? children2[0].props["title"] : "";
+      const [activeItem, setActiveItem] = useProperty(id, "active", {
+        defaultValue: defaultNav
+      });
+      if (!activeItem || !children2) {
+        return void 0;
+      }
+      const navPills = children2.map((nav2, idx) => {
+        var _a2;
+        const title2 = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          NavPill,
+          {
+            title: title2,
+            activeItem,
+            setActiveItem
+          },
+          `nav-pill-contents-${idx}`
+        );
+      });
+      const navBodies = children2.map((child, idx) => {
+        var _a2;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1o.visible : styles$1o.hidden,
+            children: child
+          },
+          `nav-pill-container-${idx}`
+        );
+      });
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "ul",
+          {
+            className: clsx("nav", "nav-pills", styles$1o.pills),
+            role: "tablist",
+            "aria-orientation": "horizontal",
+            children: navPills
+          }
+        ),
+        navBodies
+      ] });
+    };
+    const NavPill = ({
+      title: title2,
+      activeItem,
+      setActiveItem,
+      children: children2
+    }) => {
+      const active2 = activeItem === title2;
+      const handleClick = reactExports.useCallback(
+        (e) => {
+          const target2 = e.currentTarget.dataset.target;
+          if (target2) {
+            setActiveItem(target2);
+          }
+        },
+        [setActiveItem]
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "nav-item", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            role: "tab",
+            "aria-selected": active2,
+            className: clsx(
+              "nav-link",
+              "text-style-label",
+              active2 ? "active " : "",
+              styles$1o.pill
+            ),
+            "data-target": title2,
+            onClick: handleClick,
+            children: title2
+          }
+        ),
+        children2
+      ] });
+    };
+    const Buckets = {
+      first: 0,
+      intermediate: 10,
+      final: 1e3
+    };
+    const copyButton = "_copyButton_1goi8_1";
+    const styles$1n = {
+      copyButton
+    };
+    const CopyButton = ({
+      icon: icon2 = ApplicationIcons.copy,
+      value: value2,
+      onCopySuccess,
+      onCopyError,
+      className: className2 = "",
+      ariaLabel = "Copy to clipboard"
+    }) => {
+      const [isCopied, setIsCopied] = reactExports.useState(false);
+      const handleClick = async () => {
+        try {
+          await navigator.clipboard.writeText(value2);
+          setIsCopied(true);
+          onCopySuccess == null ? void 0 : onCopySuccess();
+          setTimeout(() => {
+            setIsCopied(false);
+          }, 1250);
+        } catch (error2) {
+          onCopyError == null ? void 0 : onCopyError(
+            error2 instanceof Error ? error2 : new Error("Failed to copy")
+          );
+        }
+      };
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          className: clsx("copy-button", styles$1n.copyButton, className2),
+          onClick: handleClick,
+          "aria-label": ariaLabel,
+          disabled: isCopied,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "i",
+            {
+              className: isCopied ? `${ApplicationIcons.confirm} primary` : icon2,
+              "aria-hidden": "true"
+            }
+          )
+        }
+      );
+    };
+    const useResizeObserver = (callback) => {
+      const elementRef = reactExports.useRef(null);
+      const observerRef = reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        const element = elementRef.current;
+        if (!element) return;
+        observerRef.current = new ResizeObserver((entries) => {
+          if (entries[0]) {
+            callback(entries[0]);
+          }
+        });
+        observerRef.current.observe(element);
+        return () => {
+          if (observerRef.current) {
+            observerRef.current.disconnect();
+          }
+        };
+      }, [callback]);
+      return elementRef;
+    };
+    const expandablePanel = "_expandablePanel_elrou_1";
+    const expandableBordered = "_expandableBordered_elrou_5";
+    const expandableCollapsed = "_expandableCollapsed_elrou_18";
+    const moreToggle = "_moreToggle_elrou_22";
+    const bordered = "_bordered_elrou_35";
+    const moreToggleButton = "_moreToggleButton_elrou_39";
+    const separator$5 = "_separator_elrou_45";
+    const styles$1m = {
+      expandablePanel,
+      expandableBordered,
+      expandableCollapsed,
+      moreToggle,
+      bordered,
+      moreToggleButton,
+      separator: separator$5
+    };
+    const ExpandablePanel = reactExports.memo(
+      ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
+        const [collapsed2, setCollapsed] = useCollapsedState(id, collapse);
+        const [showToggle, setShowToggle] = reactExports.useState(false);
+        const baseFontSizeRef = reactExports.useRef(0);
+        const checkOverflow = reactExports.useCallback(
+          (entry2) => {
+            const element = entry2.target;
+            if (baseFontSizeRef.current === 0) {
+              const computedStyle = window.getComputedStyle(element);
+              const rootFontSize = parseFloat(computedStyle.fontSize);
+              baseFontSizeRef.current = rootFontSize;
+            }
+            const maxCollapsedHeight = baseFontSizeRef.current * lines;
+            const contentHeight = element.scrollHeight;
+            setShowToggle(contentHeight > maxCollapsedHeight);
+          },
+          [lines]
+        );
+        const contentRef = useResizeObserver(checkOverflow);
+        const baseStyles = {
+          overflow: "hidden",
+          ...collapsed2 && {
+            maxHeight: `${lines}rem`
+          }
+        };
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              style: baseStyles,
+              ref: contentRef,
+              className: clsx(
+                styles$1m.expandablePanel,
+                collapsed2 ? styles$1m.expandableCollapsed : void 0,
+                border ? styles$1m.expandableBordered : void 0,
+                showToggle ? styles$1m.padBottom : void 0
+              ),
+              children: [
+                children2,
+                showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MoreToggle,
+                  {
+                    collapsed: collapsed2,
+                    setCollapsed,
+                    border: !border
+                  }
+                ) })
+              ]
+            }
+          ),
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.separator) })
+        ] });
+      }
+    );
+    const MoreToggle = ({
+      collapsed: collapsed2,
+      border,
+      setCollapsed,
+      style: style2
+    }) => {
+      const text2 = collapsed2 ? "more" : "less";
+      const handleClick = reactExports.useCallback(() => {
+        setCollapsed(!collapsed2);
+      }, [setCollapsed, collapsed2]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(styles$1m.moreToggle, border ? styles$1m.bordered : void 0),
+          style: style2,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              className: clsx("btn", styles$1m.moreToggleButton, "text-size-smallest"),
+              onClick: handleClick,
+              children: [
+                text2,
+                "..."
+              ]
+            }
+          )
+        }
+      );
+    };
+    const message$1 = "_message_17kai_1";
+    const systemRole = "_systemRole_17kai_8";
+    const messageGrid = "_messageGrid_17kai_12";
+    const messageContents = "_messageContents_17kai_20";
+    const indented = "_indented_17kai_25";
+    const copyLink$1 = "_copyLink_17kai_29";
+    const styles$1l = {
+      message: message$1,
+      systemRole,
+      messageGrid,
+      messageContents,
+      indented,
+      copyLink: copyLink$1
+    };
     const contentImage = "_contentImage_61gdd_1";
     const reasoning = "_reasoning_61gdd_6";
     const styles$1k = {
@@ -37660,19 +39095,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1m.message,
-            message2.role === "system" ? styles$1m.systemRole : void 0,
-            message2.role === "user" ? styles$1m.userRole : void 0
+            styles$1l.message,
+            message2.role === "system" ? styles$1l.systemRole : void 0,
+            message2.role === "user" ? styles$1l.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1m.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1l.messageGrid, "text-style-label"), children: [
               message2.role,
               messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: messageUrl,
-                  className: clsx(styles$1m.copyLink)
+                  className: clsx(styles$1l.copyLink)
                 }
               ) : ""
             ] }),
@@ -37680,8 +39115,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "div",
               {
                 className: clsx(
-                  styles$1m.messageContents,
-                  indented2 ? styles$1m.indented : void 0
+                  styles$1l.messageContents,
+                  indented2 ? styles$1l.indented : void 0
                 ),
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   ExpandablePanel,
@@ -37917,1399 +39352,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
     };
-    function commonjsRequire(path) {
-      throw new Error('Could not dynamically require "' + path + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
-    }
-    var ansiOutput = { exports: {} };
-    (function(module2, exports2) {
-      (function(factory) {
-        {
-          var v = factory(commonjsRequire, exports2);
-          if (v !== void 0) module2.exports = v;
-        }
-      })(function(require2, exports3) {
-        Object.defineProperty(exports3, "__esModule", { value: true });
-        exports3.ANSIOutput = exports3.ANSIColor = exports3.ANSIFont = exports3.ANSIStyle = void 0;
-        let counter = 0;
-        const generateId = () => {
-          return `${++counter}`.padStart(16, "0");
-        };
-        var ANSIStyle;
-        (function(ANSIStyle2) {
-          ANSIStyle2["Bold"] = "ansiBold";
-          ANSIStyle2["Dim"] = "ansiDim";
-          ANSIStyle2["Italic"] = "ansiItalic";
-          ANSIStyle2["Underlined"] = "ansiUnderlined";
-          ANSIStyle2["SlowBlink"] = "ansiSlowBlink";
-          ANSIStyle2["RapidBlink"] = "ansiRapidBlink";
-          ANSIStyle2["Hidden"] = "ansiHidden";
-          ANSIStyle2["CrossedOut"] = "ansiCrossedOut";
-          ANSIStyle2["Fraktur"] = "ansiFraktur";
-          ANSIStyle2["DoubleUnderlined"] = "ansiDoubleUnderlined";
-          ANSIStyle2["Framed"] = "ansiFramed";
-          ANSIStyle2["Encircled"] = "ansiEncircled";
-          ANSIStyle2["Overlined"] = "ansiOverlined";
-          ANSIStyle2["Superscript"] = "ansiSuperscript";
-          ANSIStyle2["Subscript"] = "ansiSubscript";
-        })(ANSIStyle || (exports3.ANSIStyle = ANSIStyle = {}));
-        var ANSIFont;
-        (function(ANSIFont2) {
-          ANSIFont2["AlternativeFont1"] = "ansiAlternativeFont1";
-          ANSIFont2["AlternativeFont2"] = "ansiAlternativeFont2";
-          ANSIFont2["AlternativeFont3"] = "ansiAlternativeFont3";
-          ANSIFont2["AlternativeFont4"] = "ansiAlternativeFont4";
-          ANSIFont2["AlternativeFont5"] = "ansiAlternativeFont5";
-          ANSIFont2["AlternativeFont6"] = "ansiAlternativeFont6";
-          ANSIFont2["AlternativeFont7"] = "ansiAlternativeFont7";
-          ANSIFont2["AlternativeFont8"] = "ansiAlternativeFont8";
-          ANSIFont2["AlternativeFont9"] = "ansiAlternativeFont9";
-        })(ANSIFont || (exports3.ANSIFont = ANSIFont = {}));
-        var ANSIColor;
-        (function(ANSIColor2) {
-          ANSIColor2["Black"] = "ansiBlack";
-          ANSIColor2["Red"] = "ansiRed";
-          ANSIColor2["Green"] = "ansiGreen";
-          ANSIColor2["Yellow"] = "ansiYellow";
-          ANSIColor2["Blue"] = "ansiBlue";
-          ANSIColor2["Magenta"] = "ansiMagenta";
-          ANSIColor2["Cyan"] = "ansiCyan";
-          ANSIColor2["White"] = "ansiWhite";
-          ANSIColor2["BrightBlack"] = "ansiBrightBlack";
-          ANSIColor2["BrightRed"] = "ansiBrightRed";
-          ANSIColor2["BrightGreen"] = "ansiBrightGreen";
-          ANSIColor2["BrightYellow"] = "ansiBrightYellow";
-          ANSIColor2["BrightBlue"] = "ansiBrightBlue";
-          ANSIColor2["BrightMagenta"] = "ansiBrightMagenta";
-          ANSIColor2["BrightCyan"] = "ansiBrightCyan";
-          ANSIColor2["BrightWhite"] = "ansiBrightWhite";
-        })(ANSIColor || (exports3.ANSIColor = ANSIColor = {}));
-        class ANSIOutput {
-          constructor() {
-            //#region Private Properties
-            /**
-             * Gets or sets the parser state.
-             */
-            __publicField(this, "_parserState", ParserState.BufferingOutput);
-            /**
-             * Gets or sets the control sequence that's being parsed.
-             */
-            __publicField(this, "_controlSequence", "");
-            /**
-             * Gets or sets the SGR state.
-             */
-            __publicField(this, "_sgrState");
-            /**
-             * Gets or sets the current set of output lines.
-             */
-            __publicField(this, "_outputLines", []);
-            /**
-             * Gets or sets the output line.
-             */
-            __publicField(this, "_outputLine", 0);
-            /**
-             * Gets or sets the output column.
-             */
-            __publicField(this, "_outputColumn", 0);
-            /**
-             * Gets or sets the buffer.
-             */
-            __publicField(this, "_buffer", "");
-            /**
-             * Gets or sets a value which indicates whether there is a pending newline.
-             */
-            __publicField(this, "_pendingNewline", false);
-          }
-          //#endregion Private Properties
-          //#region Public Properties
-          /**
-           * Gets the output lines.
-           */
-          get outputLines() {
-            this.flushBuffer();
-            return this._outputLines;
-          }
-          //#endregion Public Properties
-          //#region Public Static Methods
-          /**
-           * Processes output and returns the ANSIOutput lines of the output.
-           * @param output The output to process.
-           * @returns The ANSIOutput lines of the output.
-           */
-          static processOutput(output2) {
-            const ansiOutput2 = new ANSIOutput();
-            ansiOutput2.processOutput(output2);
-            return ansiOutput2.outputLines;
-          }
-          //#endregion Public Static Methods
-          //#region Public Methods
-          /**
-           * Processes output.
-           * @param output The output to process.
-           */
-          processOutput(output2) {
-            for (let i2 = 0; i2 < output2.length; i2++) {
-              if (this._pendingNewline) {
-                this.flushBuffer();
-                this._outputLine++;
-                this._outputColumn = 0;
-                this._pendingNewline = false;
-              }
-              const char = output2.charAt(i2);
-              if (this._parserState === ParserState.BufferingOutput) {
-                if (char === "\x1B") {
-                  this.flushBuffer();
-                  this._parserState = ParserState.ControlSequenceStarted;
-                } else if (char === "") {
-                  this.flushBuffer();
-                  this._parserState = ParserState.ParsingControlSequence;
-                } else {
-                  this.processCharacter(char);
-                }
-              } else if (this._parserState === ParserState.ControlSequenceStarted) {
-                if (char === "[") {
-                  this._parserState = ParserState.ParsingControlSequence;
-                } else {
-                  this._parserState = ParserState.BufferingOutput;
-                  this.processCharacter(char);
-                }
-              } else if (this._parserState === ParserState.ParsingControlSequence) {
-                this._controlSequence += char;
-                if (char.match(/^[A-Za-z]$/)) {
-                  this.processControlSequence();
-                }
-              }
-            }
-            this.flushBuffer();
-          }
-          //#endregion Public Methods
-          //#region Private Methods
-          /**
-           * Flushes the buffer to the output line.
-           */
-          flushBuffer() {
-            for (let i2 = this._outputLines.length; i2 < this._outputLine + 1; i2++) {
-              this._outputLines.push(new OutputLine());
-            }
-            if (this._buffer) {
-              const outputLine = this._outputLines[this._outputLine];
-              outputLine.insert(this._buffer, this._outputColumn, this._sgrState);
-              this._outputColumn += this._buffer.length;
-              this._buffer = "";
-            }
-          }
-          /**
-           * Processes a character.
-           * @param char The character.
-           */
-          processCharacter(char) {
-            switch (char) {
-              case "\n":
-                this._pendingNewline = true;
-                break;
-              case "\r":
-                this.flushBuffer();
-                this._outputColumn = 0;
-                break;
-              default:
-                this._buffer += char;
-                break;
-            }
-          }
-          /**
-           * Processes a control sequence.
-           */
-          processControlSequence() {
-            switch (this._controlSequence.charAt(this._controlSequence.length - 1)) {
-              case "A":
-                this.processCUU();
-                break;
-              case "B":
-                this.processCUD();
-                break;
-              case "C":
-                this.processCUF();
-                break;
-              case "D":
-                this.processCUB();
-                break;
-              case "H":
-                this.processCUP();
-                break;
-              case "J":
-                this.processED();
-                break;
-              case "K":
-                this.processEL();
-                break;
-              case "m":
-                this.processSGR();
-                break;
-            }
-            this._controlSequence = "";
-            this._parserState = ParserState.BufferingOutput;
-          }
-          /**
-           * Processes a CUU (Cursor Up) control sequence.
-           */
-          processCUU() {
-            const match = this._controlSequence.match(/^([0-9]*)A$/);
-            if (match) {
-              this._outputLine = Math.max(this._outputLine - rangeParam(match[1], 1, 1), 0);
-            }
-          }
-          /**
-           * Processes a CUD (Cursor Down) control sequence.
-           */
-          processCUD() {
-            const match = this._controlSequence.match(/^([0-9]*)B$/);
-            if (match) {
-              this._outputLine = this._outputLine + rangeParam(match[1], 1, 1);
-            }
-          }
-          /**
-           * Processes a CUF (Cursor Forward) control sequence.
-           */
-          processCUF() {
-            const match = this._controlSequence.match(/^([0-9]*)C$/);
-            if (match) {
-              this._outputColumn = this._outputColumn + rangeParam(match[1], 1, 1);
-            }
-          }
-          /**
-           * Processes a CUB (Cursor Backward) control sequence.
-           */
-          processCUB() {
-            const match = this._controlSequence.match(/^([0-9]*)D$/);
-            if (match) {
-              this._outputColumn = Math.max(this._outputColumn - rangeParam(match[1], 1, 1), 0);
-            }
-          }
-          /**
-           * Processes a CUP (Cursor Position) control sequence.
-           */
-          processCUP() {
-            const match = this._controlSequence.match(/^([0-9]*)(?:;?([0-9]*))H$/);
-            if (match) {
-              this._outputLine = rangeParam(match[1], 1, 1) - 1;
-              this._outputColumn = rangeParam(match[2], 1, 1) - 1;
-            }
-          }
-          /**
-           * Processes an ED (Erase in Display) control sequence.
-           */
-          processED() {
-            const match = this._controlSequence.match(/^([0-9]*)J$/);
-            if (match) {
-              switch (getParam(match[1], 0)) {
-                case 0:
-                  this._outputLines[this._outputLine].clearToEndOfLine(this._outputColumn);
-                  for (let i2 = this._outputLine + 1; i2 < this._outputLines.length; i2++) {
-                    this._outputLines[i2].clearEntireLine();
-                  }
-                  break;
-                case 1:
-                  this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
-                  for (let i2 = 0; i2 < this._outputLine; i2++) {
-                    this._outputLines[i2].clearEntireLine();
-                  }
-                  break;
-                case 2:
-                  for (let i2 = 0; i2 < this._outputLines.length; i2++) {
-                    this._outputLines[i2].clearEntireLine();
-                  }
-                  break;
-              }
-            }
-          }
-          /**
-           * Processes an EL (Erase in Line) control sequence.
-           */
-          processEL() {
-            const match = this._controlSequence.match(/^([0-9]*)K$/);
-            if (match) {
-              const outputLine = this._outputLines[this._outputLine];
-              switch (getParam(match[1], 0)) {
-                case 0:
-                  outputLine.clearToEndOfLine(this._outputColumn);
-                  break;
-                case 1:
-                  outputLine.clearToBeginningOfLine(this._outputColumn);
-                  break;
-                case 2:
-                  outputLine.clearEntireLine();
-                  break;
-              }
-            }
-          }
-          /**
-           * Processes an SGR (Select Graphic Rendition) control sequence.
-           */
-          processSGR() {
-            const sgrState = this._sgrState ? this._sgrState.copy() : new SGRState();
-            const sgrParams = this._controlSequence.slice(0, -1).split(";").map((sgrParam) => sgrParam === "" ? SGRParam.Reset : parseInt(sgrParam, 10));
-            for (let index2 = 0; index2 < sgrParams.length; index2++) {
-              const sgrParam = sgrParams[index2];
-              const processSetColor = () => {
-                if (index2 + 1 === sgrParams.length) {
-                  return void 0;
-                }
-                switch (sgrParams[++index2]) {
-                  case SGRParamColor.Color256: {
-                    if (index2 + 1 === sgrParams.length) {
-                      return void 0;
-                    }
-                    const colorIndex = sgrParams[++index2];
-                    switch (colorIndex) {
-                      case SGRParamIndexedColor.Black:
-                        return ANSIColor.Black;
-                      case SGRParamIndexedColor.Red:
-                        return ANSIColor.Red;
-                      case SGRParamIndexedColor.Green:
-                        return ANSIColor.Green;
-                      case SGRParamIndexedColor.Yellow:
-                        return ANSIColor.Yellow;
-                      case SGRParamIndexedColor.Blue:
-                        return ANSIColor.Blue;
-                      case SGRParamIndexedColor.Magenta:
-                        return ANSIColor.Magenta;
-                      case SGRParamIndexedColor.Cyan:
-                        return ANSIColor.Cyan;
-                      case SGRParamIndexedColor.White:
-                        return ANSIColor.White;
-                      case SGRParamIndexedColor.BrightBlack:
-                        return ANSIColor.BrightBlack;
-                      case SGRParamIndexedColor.BrightRed:
-                        return ANSIColor.BrightRed;
-                      case SGRParamIndexedColor.BrightGreen:
-                        return ANSIColor.BrightGreen;
-                      case SGRParamIndexedColor.BrightYellow:
-                        return ANSIColor.BrightYellow;
-                      case SGRParamIndexedColor.BrightBlue:
-                        return ANSIColor.BrightBlue;
-                      case SGRParamIndexedColor.BrightMagenta:
-                        return ANSIColor.BrightMagenta;
-                      case SGRParamIndexedColor.BrightCyan:
-                        return ANSIColor.BrightCyan;
-                      case SGRParamIndexedColor.BrightWhite:
-                        return ANSIColor.BrightWhite;
-                      default:
-                        if (colorIndex % 1 !== 0) {
-                          return void 0;
-                        }
-                        if (colorIndex >= 16 && colorIndex <= 231) {
-                          let colorNumber = colorIndex - 16;
-                          let blue = colorNumber % 6;
-                          colorNumber = (colorNumber - blue) / 6;
-                          let green2 = colorNumber % 6;
-                          colorNumber = (colorNumber - green2) / 6;
-                          let red2 = colorNumber;
-                          blue = Math.round(blue * 255 / 5);
-                          green2 = Math.round(green2 * 255 / 5);
-                          red2 = Math.round(red2 * 255 / 5);
-                          return "#" + twoDigitHex(red2) + twoDigitHex(green2) + twoDigitHex(blue);
-                        } else if (colorIndex >= 232 && colorIndex <= 255) {
-                          const rgb = Math.round((colorIndex - 232) / 23 * 255);
-                          const grayscale = twoDigitHex(rgb);
-                          return "#" + grayscale + grayscale + grayscale;
-                        } else {
-                          return void 0;
-                        }
-                    }
-                  }
-                  case SGRParamColor.ColorRGB: {
-                    const rgb = [0, 0, 0];
-                    for (let i2 = 0; i2 < 3 && index2 + 1 < sgrParams.length; i2++) {
-                      rgb[i2] = sgrParams[++index2];
-                    }
-                    return "#" + twoDigitHex(rgb[0]) + twoDigitHex(rgb[1]) + twoDigitHex(rgb[2]);
-                  }
-                }
-                return void 0;
-              };
-              switch (sgrParam) {
-                case SGRParam.Reset:
-                  sgrState.reset();
-                  break;
-                case SGRParam.Bold:
-                  sgrState.setStyle(ANSIStyle.Bold);
-                  break;
-                case SGRParam.Dim:
-                  sgrState.setStyle(ANSIStyle.Dim);
-                  break;
-                case SGRParam.Italic:
-                  sgrState.setStyle(ANSIStyle.Italic);
-                  break;
-                case SGRParam.Underlined:
-                  sgrState.setStyle(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
-                  break;
-                case SGRParam.SlowBlink:
-                  sgrState.setStyle(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
-                  break;
-                case SGRParam.RapidBlink:
-                  sgrState.setStyle(ANSIStyle.RapidBlink, ANSIStyle.SlowBlink);
-                  break;
-                case SGRParam.Reversed:
-                  sgrState.setReversed(true);
-                  break;
-                case SGRParam.Hidden:
-                  sgrState.setStyle(ANSIStyle.Hidden);
-                  break;
-                case SGRParam.CrossedOut:
-                  sgrState.setStyle(ANSIStyle.CrossedOut);
-                  break;
-                case SGRParam.PrimaryFont:
-                  sgrState.setFont();
-                  break;
-                case SGRParam.AlternativeFont1:
-                  sgrState.setFont(ANSIFont.AlternativeFont1);
-                  break;
-                case SGRParam.AlternativeFont2:
-                  sgrState.setFont(ANSIFont.AlternativeFont2);
-                  break;
-                case SGRParam.AlternativeFont3:
-                  sgrState.setFont(ANSIFont.AlternativeFont3);
-                  break;
-                case SGRParam.AlternativeFont4:
-                  sgrState.setFont(ANSIFont.AlternativeFont4);
-                  break;
-                case SGRParam.AlternativeFont5:
-                  sgrState.setFont(ANSIFont.AlternativeFont5);
-                  break;
-                case SGRParam.AlternativeFont6:
-                  sgrState.setFont(ANSIFont.AlternativeFont6);
-                  break;
-                case SGRParam.AlternativeFont7:
-                  sgrState.setFont(ANSIFont.AlternativeFont7);
-                  break;
-                case SGRParam.AlternativeFont8:
-                  sgrState.setFont(ANSIFont.AlternativeFont8);
-                  break;
-                case SGRParam.AlternativeFont9:
-                  sgrState.setFont(ANSIFont.AlternativeFont9);
-                  break;
-                case SGRParam.Fraktur:
-                  sgrState.setStyle(ANSIStyle.Fraktur);
-                  break;
-                case SGRParam.DoubleUnderlined:
-                  sgrState.setStyle(ANSIStyle.DoubleUnderlined, ANSIStyle.Underlined);
-                  break;
-                case SGRParam.NormalIntensity:
-                  sgrState.deleteStyles(ANSIStyle.Bold, ANSIStyle.Dim);
-                  break;
-                case SGRParam.NotItalicNotFraktur:
-                  sgrState.deleteStyles(ANSIStyle.Italic, ANSIStyle.Fraktur);
-                  break;
-                case SGRParam.NotUnderlined:
-                  sgrState.deleteStyles(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
-                  break;
-                case SGRParam.NotBlinking:
-                  sgrState.deleteStyles(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
-                  break;
-                case SGRParam.ProportionalSpacing:
-                  break;
-                case SGRParam.NotReversed:
-                  sgrState.setReversed(false);
-                  break;
-                case SGRParam.Reveal:
-                  sgrState.deleteStyles(ANSIStyle.Hidden);
-                  break;
-                case SGRParam.NotCrossedOut:
-                  sgrState.deleteStyles(ANSIStyle.CrossedOut);
-                  break;
-                case SGRParam.ForegroundBlack:
-                  sgrState.setForegroundColor(ANSIColor.Black);
-                  break;
-                case SGRParam.ForegroundRed:
-                  sgrState.setForegroundColor(ANSIColor.Red);
-                  break;
-                case SGRParam.ForegroundGreen:
-                  sgrState.setForegroundColor(ANSIColor.Green);
-                  break;
-                case SGRParam.ForegroundYellow:
-                  sgrState.setForegroundColor(ANSIColor.Yellow);
-                  break;
-                case SGRParam.ForegroundBlue:
-                  sgrState.setForegroundColor(ANSIColor.Blue);
-                  break;
-                case SGRParam.ForegroundMagenta:
-                  sgrState.setForegroundColor(ANSIColor.Magenta);
-                  break;
-                case SGRParam.ForegroundCyan:
-                  sgrState.setForegroundColor(ANSIColor.Cyan);
-                  break;
-                case SGRParam.ForegroundWhite:
-                  sgrState.setForegroundColor(ANSIColor.White);
-                  break;
-                case SGRParam.SetForeground: {
-                  const foregroundColor = processSetColor();
-                  if (foregroundColor) {
-                    sgrState.setForegroundColor(foregroundColor);
-                  }
-                  break;
-                }
-                case SGRParam.DefaultForeground:
-                  sgrState.setForegroundColor();
-                  break;
-                case SGRParam.BackgroundBlack:
-                  sgrState.setBackgroundColor(ANSIColor.Black);
-                  break;
-                case SGRParam.BackgroundRed:
-                  sgrState.setBackgroundColor(ANSIColor.Red);
-                  break;
-                case SGRParam.BackgroundGreen:
-                  sgrState.setBackgroundColor(ANSIColor.Green);
-                  break;
-                case SGRParam.BackgroundYellow:
-                  sgrState.setBackgroundColor(ANSIColor.Yellow);
-                  break;
-                case SGRParam.BackgroundBlue:
-                  sgrState.setBackgroundColor(ANSIColor.Blue);
-                  break;
-                case SGRParam.BackgroundMagenta:
-                  sgrState.setBackgroundColor(ANSIColor.Magenta);
-                  break;
-                case SGRParam.BackgroundCyan:
-                  sgrState.setBackgroundColor(ANSIColor.Cyan);
-                  break;
-                case SGRParam.BackgroundWhite:
-                  sgrState.setBackgroundColor(ANSIColor.White);
-                  break;
-                case SGRParam.SetBackground: {
-                  const backgroundColor = processSetColor();
-                  if (backgroundColor) {
-                    sgrState.setBackgroundColor(backgroundColor);
-                  }
-                  break;
-                }
-                case SGRParam.DefaultBackground:
-                  sgrState.setBackgroundColor();
-                  break;
-                case SGRParam.ForegroundBrightBlack:
-                  sgrState.setForegroundColor(ANSIColor.BrightBlack);
-                  break;
-                case SGRParam.ForegroundBrightRed:
-                  sgrState.setForegroundColor(ANSIColor.BrightRed);
-                  break;
-                case SGRParam.ForegroundBrightGreen:
-                  sgrState.setForegroundColor(ANSIColor.BrightGreen);
-                  break;
-                case SGRParam.ForegroundBrightYellow:
-                  sgrState.setForegroundColor(ANSIColor.BrightYellow);
-                  break;
-                case SGRParam.ForegroundBrightBlue:
-                  sgrState.setForegroundColor(ANSIColor.BrightBlue);
-                  break;
-                case SGRParam.ForegroundBrightMagenta:
-                  sgrState.setForegroundColor(ANSIColor.BrightMagenta);
-                  break;
-                case SGRParam.ForegroundBrightCyan:
-                  sgrState.setForegroundColor(ANSIColor.BrightCyan);
-                  break;
-                case SGRParam.ForegroundBrightWhite:
-                  sgrState.setForegroundColor(ANSIColor.BrightWhite);
-                  break;
-                case SGRParam.BackgroundBrightBlack:
-                  sgrState.setBackgroundColor(ANSIColor.BrightBlack);
-                  break;
-                case SGRParam.BackgroundBrightRed:
-                  sgrState.setBackgroundColor(ANSIColor.BrightRed);
-                  break;
-                case SGRParam.BackgroundBrightGreen:
-                  sgrState.setBackgroundColor(ANSIColor.BrightGreen);
-                  break;
-                case SGRParam.BackgroundBrightYellow:
-                  sgrState.setBackgroundColor(ANSIColor.BrightYellow);
-                  break;
-                case SGRParam.BackgroundBrightBlue:
-                  sgrState.setBackgroundColor(ANSIColor.BrightBlue);
-                  break;
-                case SGRParam.BackgroundBrightMagenta:
-                  sgrState.setBackgroundColor(ANSIColor.BrightMagenta);
-                  break;
-                case SGRParam.BackgroundBrightCyan:
-                  sgrState.setBackgroundColor(ANSIColor.BrightCyan);
-                  break;
-                case SGRParam.BackgroundBrightWhite:
-                  sgrState.setBackgroundColor(ANSIColor.BrightWhite);
-                  break;
-              }
-            }
-            if (!SGRState.equivalent(sgrState, this._sgrState)) {
-              this._sgrState = sgrState;
-            }
-          }
-        }
-        exports3.ANSIOutput = ANSIOutput;
-        var SGRParam;
-        (function(SGRParam2) {
-          SGRParam2[SGRParam2["Reset"] = 0] = "Reset";
-          SGRParam2[SGRParam2["Bold"] = 1] = "Bold";
-          SGRParam2[SGRParam2["Dim"] = 2] = "Dim";
-          SGRParam2[SGRParam2["Italic"] = 3] = "Italic";
-          SGRParam2[SGRParam2["Underlined"] = 4] = "Underlined";
-          SGRParam2[SGRParam2["SlowBlink"] = 5] = "SlowBlink";
-          SGRParam2[SGRParam2["RapidBlink"] = 6] = "RapidBlink";
-          SGRParam2[SGRParam2["Reversed"] = 7] = "Reversed";
-          SGRParam2[SGRParam2["Hidden"] = 8] = "Hidden";
-          SGRParam2[SGRParam2["CrossedOut"] = 9] = "CrossedOut";
-          SGRParam2[SGRParam2["PrimaryFont"] = 10] = "PrimaryFont";
-          SGRParam2[SGRParam2["AlternativeFont1"] = 11] = "AlternativeFont1";
-          SGRParam2[SGRParam2["AlternativeFont2"] = 12] = "AlternativeFont2";
-          SGRParam2[SGRParam2["AlternativeFont3"] = 13] = "AlternativeFont3";
-          SGRParam2[SGRParam2["AlternativeFont4"] = 14] = "AlternativeFont4";
-          SGRParam2[SGRParam2["AlternativeFont5"] = 15] = "AlternativeFont5";
-          SGRParam2[SGRParam2["AlternativeFont6"] = 16] = "AlternativeFont6";
-          SGRParam2[SGRParam2["AlternativeFont7"] = 17] = "AlternativeFont7";
-          SGRParam2[SGRParam2["AlternativeFont8"] = 18] = "AlternativeFont8";
-          SGRParam2[SGRParam2["AlternativeFont9"] = 19] = "AlternativeFont9";
-          SGRParam2[SGRParam2["Fraktur"] = 20] = "Fraktur";
-          SGRParam2[SGRParam2["DoubleUnderlined"] = 21] = "DoubleUnderlined";
-          SGRParam2[SGRParam2["NormalIntensity"] = 22] = "NormalIntensity";
-          SGRParam2[SGRParam2["NotItalicNotFraktur"] = 23] = "NotItalicNotFraktur";
-          SGRParam2[SGRParam2["NotUnderlined"] = 24] = "NotUnderlined";
-          SGRParam2[SGRParam2["NotBlinking"] = 25] = "NotBlinking";
-          SGRParam2[SGRParam2["ProportionalSpacing"] = 26] = "ProportionalSpacing";
-          SGRParam2[SGRParam2["NotReversed"] = 27] = "NotReversed";
-          SGRParam2[SGRParam2["Reveal"] = 28] = "Reveal";
-          SGRParam2[SGRParam2["NotCrossedOut"] = 29] = "NotCrossedOut";
-          SGRParam2[SGRParam2["ForegroundBlack"] = 30] = "ForegroundBlack";
-          SGRParam2[SGRParam2["ForegroundRed"] = 31] = "ForegroundRed";
-          SGRParam2[SGRParam2["ForegroundGreen"] = 32] = "ForegroundGreen";
-          SGRParam2[SGRParam2["ForegroundYellow"] = 33] = "ForegroundYellow";
-          SGRParam2[SGRParam2["ForegroundBlue"] = 34] = "ForegroundBlue";
-          SGRParam2[SGRParam2["ForegroundMagenta"] = 35] = "ForegroundMagenta";
-          SGRParam2[SGRParam2["ForegroundCyan"] = 36] = "ForegroundCyan";
-          SGRParam2[SGRParam2["ForegroundWhite"] = 37] = "ForegroundWhite";
-          SGRParam2[SGRParam2["SetForeground"] = 38] = "SetForeground";
-          SGRParam2[SGRParam2["DefaultForeground"] = 39] = "DefaultForeground";
-          SGRParam2[SGRParam2["BackgroundBlack"] = 40] = "BackgroundBlack";
-          SGRParam2[SGRParam2["BackgroundRed"] = 41] = "BackgroundRed";
-          SGRParam2[SGRParam2["BackgroundGreen"] = 42] = "BackgroundGreen";
-          SGRParam2[SGRParam2["BackgroundYellow"] = 43] = "BackgroundYellow";
-          SGRParam2[SGRParam2["BackgroundBlue"] = 44] = "BackgroundBlue";
-          SGRParam2[SGRParam2["BackgroundMagenta"] = 45] = "BackgroundMagenta";
-          SGRParam2[SGRParam2["BackgroundCyan"] = 46] = "BackgroundCyan";
-          SGRParam2[SGRParam2["BackgroundWhite"] = 47] = "BackgroundWhite";
-          SGRParam2[SGRParam2["SetBackground"] = 48] = "SetBackground";
-          SGRParam2[SGRParam2["DefaultBackground"] = 49] = "DefaultBackground";
-          SGRParam2[SGRParam2["DisableProportionalSpacing"] = 50] = "DisableProportionalSpacing";
-          SGRParam2[SGRParam2["Framed"] = 51] = "Framed";
-          SGRParam2[SGRParam2["Encircled"] = 52] = "Encircled";
-          SGRParam2[SGRParam2["Overlined"] = 53] = "Overlined";
-          SGRParam2[SGRParam2["NotFramedNotEncircled"] = 54] = "NotFramedNotEncircled";
-          SGRParam2[SGRParam2["NotOverlined"] = 55] = "NotOverlined";
-          SGRParam2[SGRParam2["SetUnderline"] = 58] = "SetUnderline";
-          SGRParam2[SGRParam2["DefaultUnderline"] = 59] = "DefaultUnderline";
-          SGRParam2[SGRParam2["IdeogramUnderlineOrRightSideLine"] = 60] = "IdeogramUnderlineOrRightSideLine";
-          SGRParam2[SGRParam2["IdeogramDoubleUnderlineOrDoubleRightSideLine"] = 61] = "IdeogramDoubleUnderlineOrDoubleRightSideLine";
-          SGRParam2[SGRParam2["IdeogramOverlineOrLeftSideLine"] = 62] = "IdeogramOverlineOrLeftSideLine";
-          SGRParam2[SGRParam2["IdeogramDoubleOverlineOrDoubleLeftSideLine"] = 63] = "IdeogramDoubleOverlineOrDoubleLeftSideLine";
-          SGRParam2[SGRParam2["IdeogramStressMarking"] = 64] = "IdeogramStressMarking";
-          SGRParam2[SGRParam2["NoIdeogramAttributes"] = 65] = "NoIdeogramAttributes";
-          SGRParam2[SGRParam2["Superscript"] = 73] = "Superscript";
-          SGRParam2[SGRParam2["Subscript"] = 74] = "Subscript";
-          SGRParam2[SGRParam2["NotSuperscriptNotSubscript"] = 75] = "NotSuperscriptNotSubscript";
-          SGRParam2[SGRParam2["ForegroundBrightBlack"] = 90] = "ForegroundBrightBlack";
-          SGRParam2[SGRParam2["ForegroundBrightRed"] = 91] = "ForegroundBrightRed";
-          SGRParam2[SGRParam2["ForegroundBrightGreen"] = 92] = "ForegroundBrightGreen";
-          SGRParam2[SGRParam2["ForegroundBrightYellow"] = 93] = "ForegroundBrightYellow";
-          SGRParam2[SGRParam2["ForegroundBrightBlue"] = 94] = "ForegroundBrightBlue";
-          SGRParam2[SGRParam2["ForegroundBrightMagenta"] = 95] = "ForegroundBrightMagenta";
-          SGRParam2[SGRParam2["ForegroundBrightCyan"] = 96] = "ForegroundBrightCyan";
-          SGRParam2[SGRParam2["ForegroundBrightWhite"] = 97] = "ForegroundBrightWhite";
-          SGRParam2[SGRParam2["BackgroundBrightBlack"] = 100] = "BackgroundBrightBlack";
-          SGRParam2[SGRParam2["BackgroundBrightRed"] = 101] = "BackgroundBrightRed";
-          SGRParam2[SGRParam2["BackgroundBrightGreen"] = 102] = "BackgroundBrightGreen";
-          SGRParam2[SGRParam2["BackgroundBrightYellow"] = 103] = "BackgroundBrightYellow";
-          SGRParam2[SGRParam2["BackgroundBrightBlue"] = 104] = "BackgroundBrightBlue";
-          SGRParam2[SGRParam2["BackgroundBrightMagenta"] = 105] = "BackgroundBrightMagenta";
-          SGRParam2[SGRParam2["BackgroundBrightCyan"] = 106] = "BackgroundBrightCyan";
-          SGRParam2[SGRParam2["BackgroundBrightWhite"] = 107] = "BackgroundBrightWhite";
-        })(SGRParam || (SGRParam = {}));
-        var SGRParamColor;
-        (function(SGRParamColor2) {
-          SGRParamColor2[SGRParamColor2["Color256"] = 5] = "Color256";
-          SGRParamColor2[SGRParamColor2["ColorRGB"] = 2] = "ColorRGB";
-        })(SGRParamColor || (SGRParamColor = {}));
-        var SGRParamIndexedColor;
-        (function(SGRParamIndexedColor2) {
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Black"] = 0] = "Black";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Red"] = 1] = "Red";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Green"] = 2] = "Green";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Yellow"] = 3] = "Yellow";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Blue"] = 4] = "Blue";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Magenta"] = 5] = "Magenta";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Cyan"] = 6] = "Cyan";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["White"] = 7] = "White";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlack"] = 8] = "BrightBlack";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightRed"] = 9] = "BrightRed";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightGreen"] = 10] = "BrightGreen";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightYellow"] = 11] = "BrightYellow";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlue"] = 12] = "BrightBlue";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightMagenta"] = 13] = "BrightMagenta";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightCyan"] = 14] = "BrightCyan";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightWhite"] = 15] = "BrightWhite";
-        })(SGRParamIndexedColor || (SGRParamIndexedColor = {}));
-        var ParserState;
-        (function(ParserState2) {
-          ParserState2[ParserState2["BufferingOutput"] = 0] = "BufferingOutput";
-          ParserState2[ParserState2["ControlSequenceStarted"] = 1] = "ControlSequenceStarted";
-          ParserState2[ParserState2["ParsingControlSequence"] = 2] = "ParsingControlSequence";
-        })(ParserState || (ParserState = {}));
-        class SGRState {
-          constructor() {
-            //#region Private Properties.
-            /**
-             * Gets or sets the styles.
-             */
-            __publicField(this, "_styles");
-            /**
-             * Gets or sets the foreground color.
-             */
-            __publicField(this, "_foregroundColor");
-            /**
-             * Gets or sets the background color.
-             */
-            __publicField(this, "_backgroundColor");
-            /**
-             * Gets or sets the underlined color.
-             */
-            __publicField(this, "_underlinedColor");
-            /**
-             * Gets or sets a value which indicates whether the foreground and background colors are
-             * reversed.
-             */
-            __publicField(this, "_reversed");
-            /**
-             * Gets or sets the font.
-             */
-            __publicField(this, "_font");
-          }
-          //#endregion Private Properties.
-          //#region Public Methods
-          /**
-           * Resets the SGRState.
-           */
-          reset() {
-            this._styles = void 0;
-            this._foregroundColor = void 0;
-            this._backgroundColor = void 0;
-            this._underlinedColor = void 0;
-            this._reversed = void 0;
-            this._font = void 0;
-          }
-          /**
-           * Creates a copy of the SGRState.
-           * @returns The copy of the SGRState.
-           */
-          copy() {
-            const copy = new SGRState();
-            if (this._styles && this._styles.size) {
-              const styles2 = /* @__PURE__ */ new Set();
-              this._styles.forEach((style2) => styles2.add(style2));
-              copy._styles = styles2;
-            }
-            copy._foregroundColor = this._foregroundColor;
-            copy._backgroundColor = this._backgroundColor;
-            copy._underlinedColor = this._underlinedColor;
-            copy._reversed = this._reversed;
-            copy._font = this._font;
-            return copy;
-          }
-          /**
-           * Sets a style.
-           * @param style The style to set.
-           * @param stylesToDelete The styles to delete.
-           */
-          setStyle(style2, ...stylesToDelete) {
-            if (this._styles) {
-              for (const style3 of stylesToDelete) {
-                this._styles.delete(style3);
-              }
-            } else {
-              this._styles = /* @__PURE__ */ new Set();
-            }
-            this._styles.add(style2);
-          }
-          /**
-           * Deletes styles.
-           * @param stylesToDelete The styles to delete.
-           */
-          deleteStyles(...stylesToDelete) {
-            if (this._styles) {
-              for (const style2 of stylesToDelete) {
-                this._styles.delete(style2);
-              }
-              if (!this._styles.size) {
-                this._styles = void 0;
-              }
-            }
-          }
-          /**
-           * Sets the foreground color.
-           * @param color The foreground color.
-           */
-          setForegroundColor(color) {
-            if (!this._reversed) {
-              this._foregroundColor = color;
-            } else {
-              this._backgroundColor = color;
-            }
-          }
-          /**
-           * Sets the background color.
-           * @param color The background color.
-           */
-          setBackgroundColor(color) {
-            if (!this._reversed) {
-              this._backgroundColor = color;
-            } else {
-              this._foregroundColor = color;
-            }
-          }
-          /**
-           * Sets reversed.
-           * @param reversed A value which indicates whether the foreground and background colors are
-           * reversed.
-           */
-          setReversed(reversed) {
-            if (reversed) {
-              if (!this._reversed) {
-                this._reversed = true;
-                this.reverseForegroundAndBackgroundColors();
-              }
-            } else {
-              if (this._reversed) {
-                this._reversed = void 0;
-                this.reverseForegroundAndBackgroundColors();
-              }
-            }
-          }
-          /**
-           * Sets the font.
-           * @param font The font.
-           */
-          setFont(font) {
-            this._font = font;
-          }
-          /**
-           *
-           * @param left
-           * @param right
-           * @returns
-           */
-          static equivalent(left2, right2) {
-            const setReplacer = (_, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
-            return left2 === right2 || JSON.stringify(left2, setReplacer) === JSON.stringify(right2, setReplacer);
-          }
-          //#endregion Public Methods
-          //#region ANSIFormat Implementation
-          /**
-           * Gets the styles.
-           */
-          get styles() {
-            return !this._styles ? void 0 : [...this._styles];
-          }
-          /**
-           * Gets the foreground color.
-           */
-          get foregroundColor() {
-            if (this._backgroundColor && !this._foregroundColor) {
-              switch (this._backgroundColor) {
-                case ANSIColor.Black:
-                case ANSIColor.BrightBlack:
-                case ANSIColor.Red:
-                case ANSIColor.BrightRed:
-                  return ANSIColor.White;
-                case ANSIColor.Green:
-                case ANSIColor.BrightGreen:
-                case ANSIColor.Yellow:
-                case ANSIColor.BrightYellow:
-                case ANSIColor.Blue:
-                case ANSIColor.BrightBlue:
-                case ANSIColor.Magenta:
-                case ANSIColor.BrightMagenta:
-                case ANSIColor.Cyan:
-                case ANSIColor.BrightCyan:
-                case ANSIColor.White:
-                case ANSIColor.BrightWhite:
-                  return ANSIColor.Black;
-              }
-            }
-            return this._foregroundColor;
-          }
-          /**
-           * Gets the background color.
-           */
-          get backgroundColor() {
-            return this._backgroundColor;
-          }
-          /**
-           * Gets the underlined color.
-           */
-          get underlinedColor() {
-            return this._underlinedColor;
-          }
-          /**
-           * Gets the font.
-           */
-          get font() {
-            return this._font;
-          }
-          //#endregion ANSIFormat Implementation
-          //#region Private Methods
-          /**
-           * Reverses the foreground and background colors.
-           */
-          reverseForegroundAndBackgroundColors() {
-            const foregroundColor = this._foregroundColor;
-            this._foregroundColor = this._backgroundColor;
-            this._backgroundColor = foregroundColor;
-          }
-        }
-        class OutputLine {
-          constructor() {
-            //#region Private Properties
-            /**
-             * Gets the identifier.
-             */
-            __publicField(this, "_id", generateId());
-            /**
-             * Gets or sets the output runs.
-             */
-            __publicField(this, "_outputRuns", []);
-            /**
-             * Gets or sets the total length.
-             */
-            __publicField(this, "_totalLength", 0);
-          }
-          //#endregion Private Properties
-          //#region Public Methods
-          /**
-           * Clears the entire output line.
-           */
-          clearEntireLine() {
-            if (this._totalLength) {
-              this._outputRuns = [new OutputRun2(" ".repeat(this._totalLength))];
-            }
-          }
-          /**
-           * Clears to the end of the output line.
-           * @param column The column at which to clear from.
-           */
-          clearToEndOfLine(column2) {
-            column2 = Math.max(column2, 0);
-            if (column2 >= this._totalLength) {
-              return;
-            }
-            if (column2 === 0) {
-              this.clearEntireLine();
-              return;
-            }
-            let leftOffset = 0;
-            let leftOutputRun;
-            let leftOutputRunIndex = void 0;
-            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 < leftOffset + outputRun.text.length) {
-                leftOutputRun = outputRun;
-                leftOutputRunIndex = index2;
-                break;
-              }
-              leftOffset += outputRun.text.length;
-            }
-            if (leftOutputRun === void 0 || leftOutputRunIndex === void 0) {
-              return;
-            }
-            const leftTextLength = column2 - leftOffset;
-            const erasureText = " ".repeat(this._totalLength - column2);
-            const outputRuns = [];
-            if (!leftTextLength) {
-              outputRuns.push(new OutputRun2(erasureText));
-            } else {
-              const leftText = leftOutputRun.text.slice(0, leftTextLength);
-              outputRuns.push(new OutputRun2(leftText, leftOutputRun.sgrState));
-              outputRuns.push(new OutputRun2(erasureText));
-            }
-            this.outputRuns.splice(leftOutputRunIndex, this._outputRuns.length - leftOutputRunIndex, ...outputRuns);
-          }
-          /**
-           * Clears to the beginning of the output line.
-           * @param column The column at which to clear from.
-           */
-          clearToBeginningOfLine(column2) {
-            column2 = Math.max(column2, 0);
-            if (column2 === 0) {
-              return;
-            }
-            if (column2 >= this._totalLength) {
-              this.clearEntireLine();
-              return;
-            }
-            let rightOffset = 0;
-            let rightOutputRun;
-            let rightOutputRunIndex = void 0;
-            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 >= rightOffset - outputRun.text.length) {
-                rightOutputRun = outputRun;
-                rightOutputRunIndex = index2;
-                break;
-              }
-              rightOffset -= outputRun.text.length;
-            }
-            if (rightOutputRun === void 0 || rightOutputRunIndex === void 0) {
-              return;
-            }
-            const rightTextLength = rightOffset - column2;
-            const erasureText = " ".repeat(column2);
-            const outputRuns = [new OutputRun2(erasureText)];
-            if (rightTextLength) {
-              const rightOutputRunText = rightOutputRun.text.slice(-rightTextLength);
-              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
-            }
-            this.outputRuns.splice(0, this._outputRuns.length - rightOutputRunIndex, ...outputRuns);
-          }
-          /**
-           * Inserts text into the output line.
-           * @param text The text to insert.
-           * @param column The column at which to insert the text.
-           * @param sgrState The SGR state.
-           */
-          insert(text2, column2, sgrState) {
-            if (!text2.length) {
-              return;
-            }
-            if (column2 === this._totalLength) {
-              this._totalLength += text2.length;
-              if (this._outputRuns.length) {
-                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
-                if (SGRState.equivalent(lastOutputRun.sgrState, sgrState)) {
-                  lastOutputRun.appendText(text2);
-                  return;
-                }
-              }
-              this._outputRuns.push(new OutputRun2(text2, sgrState));
-              return;
-            }
-            if (column2 > this._totalLength) {
-              const spacer = " ".repeat(column2 - this._totalLength);
-              this._totalLength += spacer.length + text2.length;
-              if (!sgrState && this._outputRuns.length) {
-                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
-                if (!lastOutputRun.sgrState) {
-                  lastOutputRun.appendText(spacer);
-                  lastOutputRun.appendText(text2);
-                  return;
-                }
-              }
-              if (!sgrState) {
-                this._outputRuns.push(new OutputRun2(spacer + text2));
-              } else {
-                this._outputRuns.push(new OutputRun2(spacer));
-                this._outputRuns.push(new OutputRun2(text2, sgrState));
-              }
-            }
-            let leftOffset = 0;
-            let leftOutputRunIndex = void 0;
-            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 < leftOffset + outputRun.text.length) {
-                leftOutputRunIndex = index2;
-                break;
-              }
-              leftOffset += outputRun.text.length;
-            }
-            if (leftOutputRunIndex === void 0) {
-              this._outputRuns.push(new OutputRun2(text2, sgrState));
-              return;
-            }
-            if (column2 + text2.length >= this._totalLength) {
-              const leftTextLength = column2 - leftOffset;
-              const outputRuns2 = [];
-              if (!leftTextLength) {
-                outputRuns2.push(new OutputRun2(text2, sgrState));
-              } else {
-                const leftOutputRun = this._outputRuns[leftOutputRunIndex];
-                const leftText = leftOutputRun.text.slice(0, leftTextLength);
-                if (SGRState.equivalent(leftOutputRun.sgrState, sgrState)) {
-                  outputRuns2.push(new OutputRun2(leftText + text2, sgrState));
-                } else {
-                  outputRuns2.push(new OutputRun2(leftText, leftOutputRun.sgrState));
-                  outputRuns2.push(new OutputRun2(text2, sgrState));
-                }
-              }
-              this.outputRuns.splice(leftOutputRunIndex, 1, ...outputRuns2);
-              this._totalLength = leftOffset + leftTextLength + text2.length;
-              return;
-            }
-            let rightOffset = this._totalLength;
-            let rightOutputRunIndex = void 0;
-            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 + text2.length > rightOffset - outputRun.text.length) {
-                rightOutputRunIndex = index2;
-                break;
-              }
-              rightOffset -= outputRun.text.length;
-            }
-            if (rightOutputRunIndex === void 0) {
-              this._outputRuns.push(new OutputRun2(text2, sgrState));
-              return;
-            }
-            const outputRuns = [];
-            const leftOutputRunTextLength = column2 - leftOffset;
-            if (leftOutputRunTextLength) {
-              const leftOutputRun = this._outputRuns[leftOutputRunIndex];
-              const leftOutputRunText = leftOutputRun.text.slice(0, leftOutputRunTextLength);
-              outputRuns.push(new OutputRun2(leftOutputRunText, leftOutputRun.sgrState));
-            }
-            outputRuns.push(new OutputRun2(text2, sgrState));
-            const rightOutputRunTextLength = rightOffset - (column2 + text2.length);
-            if (rightOutputRunTextLength) {
-              const rightOutputRun = this._outputRuns[rightOutputRunIndex];
-              const rightOutputRunText = rightOutputRun.text.slice(-rightOutputRunTextLength);
-              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
-            }
-            this._outputRuns.splice(leftOutputRunIndex, rightOutputRunIndex - leftOutputRunIndex + 1, ...outputRuns);
-            if (this._outputRuns.length > 1) {
-              this._outputRuns = OutputRun2.optimizeOutputRuns(this._outputRuns);
-            }
-            this._totalLength = this._outputRuns.reduce((totalLength, outputRun) => totalLength + outputRun.text.length, 0);
-          }
-          //#endregion Public Methods
-          //#region ANSIOutputLine Implementation
-          /**
-           * Gets the identifier.
-           */
-          get id() {
-            return this._id;
-          }
-          /**
-           * Gets the output runs.
-           */
-          get outputRuns() {
-            return this._outputRuns;
-          }
-        }
-        class OutputRun2 {
-          //#endregion Public Properties
-          //#region Constructor
-          /**
-           * Constructor.
-           * @param text The text.
-           * @param sgrState The SGR state.
-           */
-          constructor(text2, sgrState) {
-            //#region Private Properties
-            /**
-             * Gets the identifier.
-             */
-            __publicField(this, "_id", generateId());
-            /**
-             * Gets the SGR state.
-             */
-            __publicField(this, "_sgrState");
-            /**
-             * Gets or sets the text.
-             */
-            __publicField(this, "_text");
-            this._sgrState = sgrState;
-            this._text = text2;
-          }
-          //#endregion Private Properties
-          //#region Public Properties
-          get sgrState() {
-            return this._sgrState;
-          }
-          //#endregion Constructor
-          //#region Public Methods
-          /**
-           * Optimizes a an array of output runs by combining adjacent output runs with equivalent SGR
-           * states.
-           * @param outputRunsIn The output runs to optimize.
-           * @returns The optimized output runs.
-           */
-          static optimizeOutputRuns(outputRunsIn) {
-            const outputRunsOut = [outputRunsIn[0]];
-            for (let i2 = 1, o = 0; i2 < outputRunsIn.length; i2++) {
-              const outputRun = outputRunsIn[i2];
-              if (SGRState.equivalent(outputRunsOut[o].sgrState, outputRun.sgrState)) {
-                outputRunsOut[o]._text += outputRun.text;
-              } else {
-                outputRunsOut[++o] = outputRun;
-              }
-            }
-            return outputRunsOut;
-          }
-          /**
-           * Appends text to the end of the output run.
-           * @param text The text to append.
-           */
-          appendText(text2) {
-            this._text += text2;
-          }
-          //#endregion Public Methods
-          //#region ANSIOutputRun Implementation
-          /**
-           * Gets the identifier.
-           */
-          get id() {
-            return this._id;
-          }
-          /**
-           * Gets the format.
-           */
-          get format() {
-            return this._sgrState;
-          }
-          /**
-           * Gets the text.
-           */
-          get text() {
-            return this._text;
-          }
-        }
-        const rangeParam = (value2, defaultValue, minValue) => {
-          const param = getParam(value2, defaultValue);
-          return Math.max(param, minValue);
-        };
-        const getParam = (value2, defaultValue) => {
-          const param = parseInt(value2);
-          return Number.isNaN(param) ? defaultValue : param;
-        };
-        const twoDigitHex = (value2) => {
-          const hex = Math.max(Math.min(255, value2), 0).toString(16);
-          return hex.length === 2 ? hex : "0" + hex;
-        };
-      });
-    })(ansiOutput, ansiOutput.exports);
-    var ansiOutputExports = ansiOutput.exports;
-    const ANSIDisplay = ({
-      output: output2,
-      style: style2,
-      className: className2
-    }) => {
-      const ansiOutput2 = new ansiOutputExports.ANSIOutput();
-      ansiOutput2.processOutput(output2);
-      let firstOutput = false;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("ansi-display", className2), style: { ...style2 }, children: ansiOutput2.outputLines.map((line2, index2) => {
-        firstOutput = firstOutput || !!line2.outputRuns.length;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "ansi-display-line", children: !line2.outputRuns.length ? firstOutput ? /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}) : null : line2.outputRuns.map((outputRun) => /* @__PURE__ */ jsxRuntimeExports.jsx(OutputRun, { run: outputRun }, outputRun.id)) }, index2);
-      }) });
-    };
-    const kForeground = 0;
-    const kBackground = 1;
-    const OutputRun = ({ run }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: computeCSSProperties(run), children: run.text });
-    };
-    const computeCSSProperties = (outputRun) => {
-      return !outputRun.format ? {} : {
-        ...computeStyles$2(outputRun.format.styles || []),
-        ...computeForegroundBackgroundColor(
-          kForeground,
-          outputRun.format.foregroundColor
-        ),
-        ...computeForegroundBackgroundColor(
-          kBackground,
-          outputRun.format.backgroundColor
-        )
-      };
-    };
-    const computeStyles$2 = (styles2) => {
-      let cssProperties = {};
-      if (styles2) {
-        styles2.forEach((style2) => {
-          switch (style2) {
-            case ansiOutputExports.ANSIStyle.Bold:
-              cssProperties = { ...cssProperties, ...{ fontWeight: "bold" } };
-              break;
-            case ansiOutputExports.ANSIStyle.Dim:
-              cssProperties = { ...cssProperties, ...{ fontWeight: "lighter" } };
-              break;
-            case ansiOutputExports.ANSIStyle.Italic:
-              cssProperties = { ...cssProperties, ...{ fontStyle: "italic" } };
-              break;
-            case ansiOutputExports.ANSIStyle.Underlined:
-              cssProperties = {
-                ...cssProperties,
-                ...{
-                  textDecorationLine: "underline",
-                  textDecorationStyle: "solid"
-                }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.SlowBlink:
-              cssProperties = {
-                ...cssProperties,
-                ...{ animation: "ansi-display-run-blink 1s linear infinite" }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.RapidBlink:
-              cssProperties = {
-                ...cssProperties,
-                ...{ animation: "ansi-display-run-blink 0.5s linear infinite" }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.Hidden:
-              cssProperties = { ...cssProperties, ...{ visibility: "hidden" } };
-              break;
-            case ansiOutputExports.ANSIStyle.CrossedOut:
-              cssProperties = {
-                ...cssProperties,
-                ...{
-                  textDecorationLine: "line-through",
-                  textDecorationStyle: "solid"
-                }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.DoubleUnderlined:
-              cssProperties = {
-                ...cssProperties,
-                ...{
-                  textDecorationLine: "underline",
-                  textDecorationStyle: "double"
-                }
-              };
-              break;
-          }
-        });
-      }
-      return cssProperties;
-    };
-    const computeForegroundBackgroundColor = (colorType, color) => {
-      switch (color) {
-        case void 0:
-          return {};
-        case ansiOutputExports.ANSIColor.Black:
-        case ansiOutputExports.ANSIColor.Red:
-        case ansiOutputExports.ANSIColor.Green:
-        case ansiOutputExports.ANSIColor.Yellow:
-        case ansiOutputExports.ANSIColor.Blue:
-        case ansiOutputExports.ANSIColor.Magenta:
-        case ansiOutputExports.ANSIColor.Cyan:
-        case ansiOutputExports.ANSIColor.White:
-        case ansiOutputExports.ANSIColor.BrightBlack:
-        case ansiOutputExports.ANSIColor.BrightRed:
-        case ansiOutputExports.ANSIColor.BrightGreen:
-        case ansiOutputExports.ANSIColor.BrightYellow:
-        case ansiOutputExports.ANSIColor.BrightBlue:
-        case ansiOutputExports.ANSIColor.BrightMagenta:
-        case ansiOutputExports.ANSIColor.BrightCyan:
-        case ansiOutputExports.ANSIColor.BrightWhite:
-          if (colorType === kForeground) {
-            return { color: `var(--${color})` };
-          } else {
-            return { background: `var(--${color})` };
-          }
-        default:
-          if (colorType === kForeground) {
-            return { color };
-          } else {
-            return { background: color };
-          }
-      }
-    };
     const table$2 = "_table_1t3ts_1";
     const cell$3 = "_cell_1t3ts_11";
     const compact = "_compact_1t3ts_15";
@@ -39389,48 +39431,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return entries;
       }
     };
-    const JSONPanel = ({
-      id,
-      json,
-      data,
-      simple = false,
-      style: style2,
-      className: className2
-    }) => {
-      const sourceCode = reactExports.useMemo(() => {
-        return json || JSON.stringify(resolveBase64(data), void 0, 2);
-      }, [json, data]);
-      const prismParentRef = usePrismHighlight(sourceCode);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "pre",
-        {
-          className: clsx("json-panel", simple ? "simple" : "", className2),
-          style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { id, className: clsx("source-code", "language-javascript"), children: sourceCode })
-        }
-      ) });
-    };
-    const resolveBase64 = (value2) => {
-      const prefix2 = "data:image";
-      if (Array.isArray(value2)) {
-        return value2.map((v) => resolveBase64(v));
-      }
-      if (value2 && typeof value2 === "object") {
-        const resolvedObject = {};
-        for (const key2 of Object.keys(value2)) {
-          resolvedObject[key2] = resolveBase64(value2[key2]);
-        }
-        return resolvedObject;
-      }
-      if (typeof value2 === "string") {
-        let resolvedValue = value2;
-        if (resolvedValue.startsWith(prefix2)) {
-          resolvedValue = "[base64 image]";
-        }
-        return resolvedValue;
-      }
-      return value2;
-    };
     const query = "_query_seqs2_1";
     const summary$3 = "_summary_seqs2_6";
     const preWrap = "_preWrap_seqs2_10";
@@ -39444,13 +39444,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const RenderedContent = ({
       id,
       entry: entry2,
-      renderOptions = { renderString: "markdown" }
+      renderOptions = { renderString: "markdown" },
+      renderObject
     }) => {
       if (entry2.value === null) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
       }
-      const renderer = Object.keys(contentRenderers).map((key2) => {
-        return contentRenderers[key2];
+      const renderers = contentRenderers(renderObject);
+      const renderer = Object.keys(renderers).map((key2) => {
+        return renderers[key2];
       }).sort((a, b) => {
         return a.bucket - b.bucket;
       }).find((renderer2) => {
@@ -39474,205 +39476,214 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       })();
       return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: displayValue });
     };
-    const contentRenderers = {
-      AnsiString: {
-        bucket: Buckets.first,
-        canRender: (entry2) => {
-          return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
-        },
-        render: (_id, entry2, _options) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
-          };
-        }
-      },
-      JsonString: {
-        bucket: Buckets.first,
-        canRender: (entry2) => {
-          if (typeof entry2.value === "string") {
-            const trimmed = entry2.value.trim();
-            return isJson(trimmed);
-          }
-          return false;
-        },
-        render: (_id, entry2, _options) => {
-          const obj = lib$1.parse(entry2.value);
-          return { rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj }) };
-        }
-      },
-      Model: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object" && entry2.value._model;
-        },
-        render: (_id, entry2, _options) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
-              " ",
-              entry2.value._model
-            ] })
-          };
-        }
-      },
-      Boolean: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "boolean";
-        },
-        render: (id, entry2, options2) => {
-          entry2.value = entry2.value.toString();
-          return contentRenderers.String.render(id, entry2, options2);
-        }
-      },
-      Number: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "number";
-        },
-        render: (id, entry2, options2) => {
-          entry2.value = formatNumber(entry2.value);
-          return contentRenderers.String.render(id, entry2, options2);
-        }
-      },
-      String: {
-        bucket: Buckets.final,
-        canRender: (entry2) => {
-          return typeof entry2.value === "string";
-        },
-        render: (_id, entry2, options2) => {
-          const rendered = entry2.value.trim();
-          if (options2.renderString === "markdown") {
+    const contentRenderers = (renderObject) => {
+      const contentRenderers2 = {
+        AnsiString: {
+          bucket: Buckets.first,
+          canRender: (entry2) => {
+            return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
+          },
+          render: (_id, entry2, _options) => {
             return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: rendered })
-            };
-          } else {
-            return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1c.preWrap, styles$1c.preCompact), children: rendered })
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
             };
           }
-        }
-      },
-      Array: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          const isArray = Array.isArray(entry2.value);
-          if (isArray) {
-            if (entry2.value.length === 0 || entry2.value.length === 1) {
-              return true;
+        },
+        JsonString: {
+          bucket: Buckets.first,
+          canRender: (entry2) => {
+            if (typeof entry2.value === "string") {
+              const trimmed = entry2.value.trim();
+              return isJson(trimmed);
             }
-            const types2 = new Set(
-              entry2.value.filter((e) => e !== null).map((e) => {
-                return typeof e;
-              })
-            );
-            return types2.size === 1;
-          } else {
             return false;
+          },
+          render: (_id, entry2, _options) => {
+            const obj = lib$1.parse(entry2.value);
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj })
+            };
           }
         },
-        render: (id, entry2, _options) => {
-          const arrayMap = {};
-          entry2.value.forEach((e, index2) => {
-            arrayMap[`[${index2}]`] = e;
-          });
-          const arrayRendered = /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MetaDataView,
-            {
-              id,
-              className: "font-size-small",
-              entries: arrayMap,
-              tableOptions: "borderless,sm",
-              compact: true
+        Model: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object" && entry2.value._model;
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
+                " ",
+                entry2.value._model
+              ] })
+            };
+          }
+        },
+        Boolean: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "boolean";
+          },
+          render: (id, entry2, options2) => {
+            entry2.value = entry2.value.toString();
+            return contentRenderers2.String.render(id, entry2, options2);
+          }
+        },
+        Number: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "number";
+          },
+          render: (id, entry2, options2) => {
+            entry2.value = formatNumber(entry2.value);
+            return contentRenderers2.String.render(id, entry2, options2);
+          }
+        },
+        String: {
+          bucket: Buckets.final,
+          canRender: (entry2) => {
+            return typeof entry2.value === "string";
+          },
+          render: (_id, entry2, options2) => {
+            const rendered = entry2.value.trim();
+            if (options2.renderString === "markdown") {
+              return {
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: rendered })
+              };
+            } else {
+              return {
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1c.preWrap, styles$1c.preCompact), children: rendered })
+              };
             }
-          );
-          return { rendered: arrayRendered };
-        }
-      },
-      ChatMessage: ChatMessageRenderer,
-      web_search: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object" && entry2.name === "web_search";
+          }
         },
-        render: (_id, entry2, _options) => {
-          const results = [];
-          results.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1c.query, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
-              " ",
-              entry2.value.query
-            ] })
-          );
-          entry2.value.results.forEach(
-            (result2) => {
-              results.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
+        Array: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            const isArray = Array.isArray(entry2.value);
+            if (isArray) {
+              if (entry2.value.length === 0 || entry2.value.length === 1) {
+                return true;
+              }
+              const types2 = new Set(
+                entry2.value.filter((e) => e !== null).map((e) => {
+                  return typeof e;
+                })
               );
-              results.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1c.summary), children: result2.summary })
-              );
+              return types2.size === 1;
+            } else {
+              return false;
             }
-          );
-          return {
-            rendered: results
-          };
-        }
-      },
-      web_browser: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          var _a2;
-          return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
-        },
-        render: (_id, entry2, _options) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1c.preWrap, children: entry2.value })
-          };
-        }
-      },
-      Html: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object" && entry2.value._html;
-        },
-        render: (_id, entry2, _options) => {
-          return {
-            rendered: entry2.value._html
-          };
-        }
-      },
-      Image: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
-        },
-        render: (_id, entry2, _options) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
-          };
-        }
-      },
-      Object: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object";
-        },
-        render: (id, entry2, _options) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          },
+          render: (id, entry2, _options) => {
+            const arrayMap = {};
+            entry2.value.forEach((e, index2) => {
+              arrayMap[`[${index2}]`] = e;
+            });
+            const arrayRendered = renderObject ? renderObject(arrayMap) : /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataView,
               {
                 id,
-                className: "text-size-smaller",
-                entries: entry2.value,
+                className: "font-size-small",
+                entries: arrayMap,
                 tableOptions: "borderless,sm",
                 compact: true
               }
-            )
-          };
+            );
+            return { rendered: arrayRendered };
+          }
+        },
+        ChatMessage: ChatMessageRenderer,
+        web_search: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object" && entry2.name === "web_search";
+          },
+          render: (_id, entry2, _options) => {
+            const results = [];
+            results.push(
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1c.query, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
+                " ",
+                entry2.value.query
+              ] })
+            );
+            entry2.value.results.forEach(
+              (result2) => {
+                results.push(
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
+                );
+                results.push(
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1c.summary), children: result2.summary })
+                );
+              }
+            );
+            return {
+              rendered: results
+            };
+          }
+        },
+        web_browser: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            var _a2;
+            return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1c.preWrap, children: entry2.value })
+            };
+          }
+        },
+        Html: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object" && entry2.value._html;
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: entry2.value._html
+            };
+          }
+        },
+        Image: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
+            };
+          }
+        },
+        Object: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object";
+          },
+          render: (id, entry2, _options) => {
+            if (renderObject) {
+              return { rendered: renderObject(entry2.value) };
+            } else {
+              return {
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MetaDataView,
+                  {
+                    id,
+                    className: "text-size-smaller",
+                    entries: entry2.value,
+                    tableOptions: "borderless,sm",
+                    compact: true
+                  }
+                )
+              };
+            }
+          }
         }
-      }
+      };
+      return contentRenderers2;
     };
     const otherScoreDescriptor = () => {
       return {
@@ -44542,7 +44553,7 @@ categories: ${categories.join(" ")}`;
     };
     const table$1 = "_table_12koy_1";
     const scorer = "_scorer_12koy_5";
-    const value$2 = "_value_12koy_6";
+    const value$1 = "_value_12koy_6";
     const label$6 = "_label_12koy_11";
     const groupSeparator = "_groupSeparator_12koy_28";
     const tableBody = "_tableBody_12koy_33";
@@ -44550,7 +44561,7 @@ categories: ${categories.join(" ")}`;
     const styles$Y = {
       table: table$1,
       scorer,
-      value: value$2,
+      value: value$1,
       label: label$6,
       groupSeparator,
       tableBody,
@@ -48886,13 +48897,11 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
-    const grid$5 = "_grid_1t3vp_1";
-    const cell$2 = "_cell_1t3vp_8";
-    const value$1 = "_value_1t3vp_13";
+    const grid$5 = "_grid_14885_1";
+    const cell$2 = "_cell_14885_8";
     const styles$R = {
       grid: grid$5,
-      cell: cell$2,
-      value: value$1
+      cell: cell$2
     };
     const MetaDataGrid = ({
       id,
@@ -48929,7 +48938,25 @@ categories: ${categories.join(" ")}`;
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.value, `${baseId}-value`, fontStyle), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.value, `${baseId}-value`, fontStyle), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RenderedContent,
+            {
+              id: id2,
+              entry: entry2,
+              renderObject: (obj) => {
+                return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MetaDataGrid,
+                  {
+                    id: id2,
+                    className: clsx(styles$R.nested),
+                    entries: obj,
+                    size,
+                    plain
+                  }
+                );
+              }
+            }
+          ) })
         ] }, `${baseId}-record-${index2}`);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$R.grid), style: style2, children: entryEls });
@@ -54839,14 +54866,14 @@ self.onmessage = function (e) {
       }
       return { package: "", module: name2 };
     };
-    const eventRow = "_eventRow_1vspp_1";
-    const selected$1 = "_selected_1vspp_8";
-    const toggle = "_toggle_1vspp_12";
-    const eventLink = "_eventLink_1vspp_17";
-    const label$5 = "_label_1vspp_28";
-    const icon = "_icon_1vspp_34";
-    const progress$2 = "_progress_1vspp_38";
-    const popover = "_popover_1vspp_42";
+    const eventRow = "_eventRow_1dssq_1";
+    const selected$1 = "_selected_1dssq_8";
+    const toggle = "_toggle_1dssq_12";
+    const eventLink = "_eventLink_1dssq_17";
+    const label$5 = "_label_1dssq_28";
+    const icon = "_icon_1dssq_34";
+    const progress$2 = "_progress_1dssq_38";
+    const popover = "_popover_1dssq_42";
     const styles$y = {
       eventRow,
       selected: selected$1,
