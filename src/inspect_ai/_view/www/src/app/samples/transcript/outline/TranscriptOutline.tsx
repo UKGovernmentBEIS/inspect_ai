@@ -162,19 +162,6 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   }, [eventNodes]);
 
   const elementIds = allNodesList.map((node) => node.id);
-
-  const parentNodeId = (id: string) => {
-    return id.substring(0, id.lastIndexOf("."));
-  };
-  const childId = (id: string) => {
-    const last = id.split(".").pop();
-    if (last) {
-      return Number(last);
-    } else {
-      return -1;
-    }
-  };
-
   const findNearestOutlineAbove = useCallback(
     (targetId: string): EventNode | null => {
       const targetIndex = allNodesList.findIndex(
