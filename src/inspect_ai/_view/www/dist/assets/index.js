@@ -22952,46 +22952,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       return logger;
     };
-    function throttle$1(func, wait, options2 = {}) {
-      let context;
-      let args;
-      let result2;
-      let timeout = null;
-      let previous = 0;
-      const later = function() {
-        previous = options2.leading === false ? 0 : Date.now();
-        timeout = null;
-        result2 = func.apply(context, args === null ? [] : args);
-        if (!timeout) {
-          context = null;
-          args = null;
-        }
-      };
-      return function(...callArgs) {
-        const now2 = Date.now();
-        if (!previous && options2.leading === false) {
-          previous = now2;
-        }
-        const remaining = wait - (now2 - previous);
-        context = this;
-        args = callArgs;
-        if (remaining <= 0 || remaining > wait) {
-          if (timeout) {
-            clearTimeout(timeout);
-            timeout = null;
-          }
-          previous = now2;
-          result2 = func.apply(context, args);
-          if (!timeout) {
-            context = null;
-            args = null;
-          }
-        } else if (!timeout && options2.trailing !== false) {
-          timeout = setTimeout(later, remaining);
-        }
-        return result2;
-      };
-    }
     function debounce$2(func, wait, options2 = {}) {
       let timeout = null;
       let context;
@@ -43676,125 +43636,91 @@ categories: ${categories.join(" ")}`;
       }, []);
       return throttledCallback;
     }
-    function useScrollTracking(elementIds, onElementVisible, scrollRef, options2) {
-      const positionCache = reactExports.useRef({});
-      const idsRef = reactExports.useRef(elementIds);
-      const selectedIdRef = reactExports.useRef(null);
-      const isScrollingRef = reactExports.useRef(false);
-      const getAbsScrollTop = reactExports.useCallback(() => {
-        const scrollTop = (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current.scrollTop : (window.scrollY || document.documentElement.scrollTop) - document.documentElement.getBoundingClientRect().top;
-        return scrollTop;
-      }, [scrollRef]);
-      const updateCache = reactExports.useCallback(() => {
-        if (elementIds.length === 0) return;
-        for (const elementId of elementIds) {
-          if (!positionCache.current[elementId] || positionCache.current[elementId].stale) {
-            const el = document.getElementById(elementId);
-            if (el) {
-              let absolutePosition = 0;
-              if (scrollRef == null ? void 0 : scrollRef.current) {
-                const scrollContainer = scrollRef.current;
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const elementRect = el.getBoundingClientRect();
-                absolutePosition = elementRect.top - containerRect.top;
-              } else {
-                let currentEl = el;
-                while (currentEl && currentEl !== document.body) {
-                  absolutePosition += currentEl.offsetTop;
-                  currentEl = currentEl.offsetParent;
-                }
-              }
-              log.debug(`Absolute position for ${elementId}:`, absolutePosition);
-              positionCache.current[elementId] = {
-                position: absolutePosition,
-                stale: false
-              };
-            }
-          }
-        }
-      }, [elementIds, scrollRef]);
-      const findLargestElLessThanOrEqual = (position) => {
-        let bestKey = null;
-        let bestValue = -Infinity;
-        for (const [key2, value2] of Object.entries(positionCache.current)) {
-          if (value2.position <= position && value2.position > bestValue) {
-            bestKey = key2;
-            bestValue = value2.position;
-          }
-        }
-        return bestKey;
-      };
-      const selectedElementId = reactExports.useCallback(() => {
-        if (elementIds.length === 0) {
-          return null;
-        }
-        const hasAllPositions = elementIds.every(
-          (id) => positionCache.current[id] && !positionCache.current[id].stale
-        );
-        if (!hasAllPositions) {
-          updateCache();
-        }
+    function useScrollTrack(elementIds, onElementVisible, scrollRef, options2) {
+      const currentVisibleRef = reactExports.useRef(null);
+      const lastCheckRef = reactExports.useRef(0);
+      const rafRef = reactExports.useRef(null);
+      const findTopmostVisibleElement = reactExports.useCallback(() => {
+        const container2 = scrollRef == null ? void 0 : scrollRef.current;
+        const containerRect = container2 == null ? void 0 : container2.getBoundingClientRect();
         const topOffset = 60;
-        const currentScrollPosition = getAbsScrollTop() + topOffset;
-        if ((scrollRef == null ? void 0 : scrollRef.current) && scrollRef.current.scrollHeight - scrollRef.current.scrollTop <= scrollRef.current.clientHeight + 10) {
-          log.debug("At bottom of scroll area, selecting last element");
-          return elementIds[elementIds.length - 1];
-        }
-        const position = currentScrollPosition;
-        log.debug("Current scroll position for selection:", position);
-        const el = findLargestElLessThanOrEqual(position);
-        if (el === null && elementIds.length > 0) {
-          return elementIds[0];
-        }
-        return el;
-      }, [elementIds, scrollRef, getAbsScrollTop, updateCache, options2]);
-      reactExports.useEffect(() => {
-        const oldIds = new Set(idsRef.current);
-        const newIds = new Set(elementIds);
-        if (idsRef.current !== elementIds) {
-          Object.keys(positionCache.current).forEach((id) => {
-            if (!newIds.has(id)) {
-              delete positionCache.current[id];
+        const viewportTop = containerRect ? containerRect.top + topOffset : topOffset;
+        const viewportBottom = containerRect ? containerRect.bottom : window.innerHeight;
+        let topmostId = null;
+        let topmostPosition = Infinity;
+        const sampleRate = Math.max(1, Math.floor(elementIds.length / 100));
+        for (let i2 = 0; i2 < elementIds.length; i2 += sampleRate) {
+          const id = elementIds[i2];
+          const element = document.getElementById(id);
+          if (element) {
+            const rect = element.getBoundingClientRect();
+            if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
+              if (rect.top < topmostPosition) {
+                topmostPosition = rect.top;
+                topmostId = id;
+              }
             }
-          });
-          const hasNewIds = elementIds.some((id) => !oldIds.has(id));
-          if (hasNewIds) {
-            updateCache();
           }
-          idsRef.current = elementIds;
         }
-      }, [elementIds, updateCache]);
-      const handleScrollEnd = reactExports.useCallback(
-        throttle$1(() => {
-          isScrollingRef.current = false;
-          updateCache();
-          const selectedId = selectedElementId();
-          if (selectedId !== null && selectedId !== selectedIdRef.current) {
-            if (onElementVisible) {
-              onElementVisible(selectedId);
+        if (topmostId) {
+          const candidateIndex = elementIds.indexOf(topmostId);
+          const searchStart = Math.max(0, candidateIndex - sampleRate);
+          const searchEnd = Math.min(
+            elementIds.length,
+            candidateIndex + sampleRate
+          );
+          for (let i2 = searchStart; i2 < searchEnd; i2++) {
+            const id = elementIds[i2];
+            const element = document.getElementById(id);
+            if (element) {
+              const rect = element.getBoundingClientRect();
+              if (rect.bottom >= viewportTop && rect.top <= viewportBottom && rect.top < topmostPosition) {
+                topmostPosition = rect.top;
+                topmostId = id;
+              }
             }
-            selectedIdRef.current = selectedId;
           }
-        }, 100),
-        [updateCache, selectedElementId, onElementVisible]
-      );
-      const handleScroll = useRafThrottle(() => {
-        if (elementIds.length === 0) return;
-        isScrollingRef.current = true;
-        handleScrollEnd();
-      }, [elementIds, handleScrollEnd]);
+        }
+        return topmostId;
+      }, [elementIds, scrollRef, options2 == null ? void 0 : options2.topOffset]);
+      const checkVisibility = reactExports.useCallback(() => {
+        const now2 = Date.now();
+        const checkInterval = 100;
+        if (now2 - lastCheckRef.current < checkInterval) {
+          return;
+        }
+        lastCheckRef.current = now2;
+        const topmostId = findTopmostVisibleElement();
+        if (topmostId !== currentVisibleRef.current) {
+          currentVisibleRef.current = topmostId;
+          if (topmostId) {
+            onElementVisible(topmostId);
+          }
+        }
+      }, [findTopmostVisibleElement, onElementVisible, options2 == null ? void 0 : options2.checkInterval]);
+      const handleScroll = reactExports.useCallback(() => {
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+        }
+        rafRef.current = requestAnimationFrame(() => {
+          checkVisibility();
+          rafRef.current = null;
+        });
+      }, [checkVisibility]);
       reactExports.useEffect(() => {
         if (elementIds.length === 0) return;
         const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || window;
-        updateCache();
-        handleScroll();
-        scrollElement.addEventListener("scroll", handleScroll);
-        window.addEventListener("resize", updateCache);
+        checkVisibility();
+        scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+        const intervalId = setInterval(checkVisibility, 1e3);
         return () => {
           scrollElement.removeEventListener("scroll", handleScroll);
-          window.removeEventListener("resize", updateCache);
+          clearInterval(intervalId);
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+          }
         };
-      }, [elementIds, handleScroll, scrollRef, updateCache]);
+      }, [elementIds, scrollRef, handleScroll, checkVisibility]);
     }
     const dirname$1 = "_dirname_1qban_1";
     const directoryLink = "_directoryLink_1qban_7";
@@ -55259,7 +55185,7 @@ self.onmessage = function (e) {
           requestAnimationFrame(checkScrollStabilized);
         }
       }, [sampleDetailNavigation.event, setSelectedOutlineId, scrollRef]);
-      const flattenedNodes = reactExports.useMemo(() => {
+      const outlineNodeList = reactExports.useMemo(() => {
         const nodeList = flatTree(
           eventNodes,
           (collapsedEvents ? collapsedEvents[kCollapseScope] : void 0) || defaultCollapsedIds,
@@ -55280,11 +55206,15 @@ self.onmessage = function (e) {
         );
         return collapseTurns(makeTurns(nodeList));
       }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
-      const outlineIds = flattenedNodes.map((n) => n.id);
-      useScrollTracking(
-        outlineIds,
+      const allNodesList = reactExports.useMemo(() => {
+        return flatTree(eventNodes, null);
+      }, [eventNodes]);
+      const elementIds = allNodesList.map((node2) => node2.id);
+      useScrollTrack(
+        elementIds,
         (id2) => {
           if (!isProgrammaticScrolling.current) {
+            console.log(id2);
             setSelectedOutlineId(id2);
           }
         },
@@ -55312,14 +55242,14 @@ self.onmessage = function (e) {
               {
                 collapseScope: kCollapseScope,
                 node: node2,
-                running: running2 && index2 === flattenedNodes.length - 1,
+                running: running2 && index2 === outlineNodeList.length - 1,
                 selected: selectedOutlineId ? selectedOutlineId === node2.id : index2 === 0
               },
               node2.id
             );
           }
         },
-        [flattenedNodes, running2, selectedOutlineId]
+        [outlineNodeList, running2, selectedOutlineId]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         Kr,
@@ -55328,7 +55258,7 @@ self.onmessage = function (e) {
           customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
           id,
           style: { ...style2 },
-          data: [...flattenedNodes, EventPaddingNode],
+          data: [...outlineNodeList, EventPaddingNode],
           defaultItemHeight: 50,
           itemContent: renderRow,
           atBottomThreshold: 30,

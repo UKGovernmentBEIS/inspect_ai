@@ -12,10 +12,7 @@ import { EventNode } from "../types";
 
 import clsx from "clsx";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import {
-  useScrollTracking,
-  useVirtuosoState,
-} from "../../../../state/scrolling";
+import { useScrollTrack, useVirtuosoState } from "../../../../state/scrolling";
 import { useStore } from "../../../../state/store";
 import { flatTree } from "../transform/treeify";
 
@@ -132,7 +129,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
     }
   }, [sampleDetailNavigation.event, setSelectedOutlineId, scrollRef]);
 
-  const flattenedNodes = useMemo(() => {
+  const outlineNodeList = useMemo(() => {
     // flattten the event tree
     const nodeList = flatTree(
       eventNodes,
@@ -159,12 +156,19 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
     return collapseTurns(makeTurns(nodeList));
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
-  const outlineIds = flattenedNodes.map((n) => n.id);
-  useScrollTracking(
-    outlineIds,
+  // Event node, for scroll tracking
+  const allNodesList = useMemo(() => {
+    return flatTree(eventNodes, null);
+  }, [eventNodes]);
+
+  const elementIds = allNodesList.map((node) => node.id);
+
+  useScrollTrack(
+    elementIds,
     (id: string) => {
-      // Only update selectedOutlineId if we're not in programmatic scrolling
       if (!isProgrammaticScrolling.current) {
+        // TODO: find the best outline parent for this node
+        console.log(id);
         setSelectedOutlineId(id);
       }
     },
@@ -196,7 +200,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
             collapseScope={kCollapseScope}
             node={node}
             key={node.id}
-            running={running && index === flattenedNodes.length - 1}
+            running={running && index === outlineNodeList.length - 1}
             selected={
               selectedOutlineId ? selectedOutlineId === node.id : index === 0
             }
@@ -204,7 +208,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         );
       }
     },
-    [flattenedNodes, running, selectedOutlineId],
+    [outlineNodeList, running, selectedOutlineId],
   );
 
   return (
@@ -213,7 +217,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
       id={id}
       style={{ ...style }}
-      data={[...flattenedNodes, EventPaddingNode]}
+      data={[...outlineNodeList, EventPaddingNode]}
       defaultItemHeight={50}
       itemContent={renderRow}
       atBottomThreshold={30}
