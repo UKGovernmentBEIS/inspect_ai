@@ -2,8 +2,9 @@ from random import randint
 from typing import Generator
 
 import anyio
+import pytest
 from test_helpers.limits import check_limit_event, find_limit_event
-from test_helpers.utils import sleep_for_solver
+from test_helpers.utils import skip_if_no_docker, sleep_for_solver
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -292,6 +293,23 @@ def test_working_limit_reporting():
     for sample in log.samples:
         waiting_time += sample.total_time - sample.working_time + 0.1
     assert waiting_time > 3
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_working_limit_does_not_raise_during_sandbox_teardown() -> None:
+    # Historical issue: the working limit was not being disabled before sandbox
+    # teardown. If the working limit was exceeded by the time of tearing down the
+    # sandbox, we'd raise an error at the point of trying to acquire a semaphore before
+    # calling out to Docker.
+    working_limit = 1
+    log = eval(
+        Task(solver=sleep_for_solver(seconds=2)),
+        model="mockllm/model",
+        working_limit=working_limit,
+        sandbox="docker",
+    )[0]
+    assert log.status == "success"
 
 
 def check_working_limit_event(log: EvalLog, working_limit: int):
