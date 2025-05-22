@@ -30,6 +30,28 @@ def view(
     log_level: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
+    """Run the Inspect View server.
+
+    ::: callout-note
+    The `view()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
+    Args:
+        log_dir: Directory to view logs from.
+        recursive: Recursively list files in `log_dir`.
+        host: Tcp/ip host (defaults to "127.0.0.1").
+        port: Tcp/ip port (defaults to 7575).
+        authorization: Validate requests by checking for this authorization header.
+        log_level: Level for logging to the console: "debug", "http", "sandbox",
+            "info", "warning", "error", or "critical" (defaults to "warning").
+        fs_options: Additional arguments to pass through to the filesystem provider
+            (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
+            public S3 bucket with no credentials.
+    """
     init_dotenv()
     init_logger(log_level)
 

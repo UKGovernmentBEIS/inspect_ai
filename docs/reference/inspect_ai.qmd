@@ -2,9 +2,6 @@
 title: inspect_ai
 ---
 
-<!-- TODO: Main reference page? -->
-<!-- TODO: CLI reference -->
-
 ## Evaluation
 
 ### eval
@@ -19,6 +16,10 @@ title: inspect_ai
 ### Epochs
 ### TaskInfo
 ### Tasks
+
+## View
+
+### view
 
 ## Decorators
 

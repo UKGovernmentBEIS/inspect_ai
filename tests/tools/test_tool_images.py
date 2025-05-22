@@ -2,7 +2,6 @@ from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_openai,
-    skip_if_trio,
 )
 
 from inspect_ai import Task, eval, task
@@ -58,7 +57,6 @@ def test_openai_responses_tool_image_result():
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_tool_image_result():
     check_tool_image_result("google/gemini-1.5-pro")
 
