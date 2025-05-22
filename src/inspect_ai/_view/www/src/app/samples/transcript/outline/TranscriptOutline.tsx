@@ -32,6 +32,7 @@ import {
 } from "./tree-visitors";
 
 const kCollapseScope = "transcript-outline";
+const kFramesToStabilize = 10;
 
 interface TranscriptOutlineProps {
   eventNodes: EventNode[];
@@ -86,11 +87,50 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   );
   const sampleDetailNavigation = useSampleDetailNavigation();
 
+  // Flag to indicate programmatic scrolling is in progress
+  const isProgrammaticScrolling = useRef(false);
+  // Last position to check for scroll stabilization
+  const lastScrollPosition = useRef<number | null>(null);
+  // Frame count for detecting scroll stabilization
+  const stableFrameCount = useRef(0);
+
   useEffect(() => {
     if (sampleDetailNavigation.event) {
+      // Set the flag to indicate we're in programmatic scrolling
+      isProgrammaticScrolling.current = true;
+      lastScrollPosition.current = null;
+      stableFrameCount.current = 0;
+
       setSelectedOutlineId(sampleDetailNavigation.event);
+
+      // Start monitoring to detect when scrolling has stabilized
+      const checkScrollStabilized = () => {
+        if (!isProgrammaticScrolling.current) return;
+
+        const currentPosition = scrollRef?.current?.scrollTop ?? null;
+
+        if (currentPosition === lastScrollPosition.current) {
+          stableFrameCount.current++;
+
+          // If position has been stable for a few frames, consider scrolling complete
+          if (stableFrameCount.current >= kFramesToStabilize) {
+            isProgrammaticScrolling.current = false;
+            return;
+          }
+        } else {
+          // Reset stability counter if position changed
+          stableFrameCount.current = 0;
+          lastScrollPosition.current = currentPosition;
+        }
+
+        // Continue checking until scrolling stabilizes
+        requestAnimationFrame(checkScrollStabilized);
+      };
+
+      // Start the RAF loop to detect scroll stabilization
+      requestAnimationFrame(checkScrollStabilized);
     }
-  }, [sampleDetailNavigation.event]);
+  }, [sampleDetailNavigation.event, setSelectedOutlineId, scrollRef]);
 
   const flattenedNodes = useMemo(() => {
     // flattten the event tree
@@ -123,7 +163,10 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   useScrollTracking(
     outlineIds,
     (id: string) => {
-      setSelectedOutlineId(id);
+      // Only update selectedOutlineId if we're not in programmatic scrolling
+      if (!isProgrammaticScrolling.current) {
+        setSelectedOutlineId(id);
+      }
     },
     scrollRef,
   );
