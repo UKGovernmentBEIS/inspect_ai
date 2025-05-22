@@ -37057,7 +37057,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ref,
             dangerouslySetInnerHTML: markup,
             style: style2,
-            className: clsx(className2, "markdown-content", "text-size-base")
+            className: clsx(className2, "markdown-content")
           }
         );
       }
@@ -48886,9 +48886,9 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
-    const grid$5 = "_grid_ax2xo_1";
-    const cell$2 = "_cell_ax2xo_8";
-    const value$1 = "_value_ax2xo_13";
+    const grid$5 = "_grid_1t3vp_1";
+    const cell$2 = "_cell_1t3vp_8";
+    const value$1 = "_value_1t3vp_13";
     const styles$R = {
       grid: grid$5,
       cell: cell$2,
@@ -55026,7 +55026,6 @@ self.onmessage = function (e) {
           break;
         case "span_begin":
           entries = {
-            type: node2.event.type,
             name: node2.event.name,
             started: formatDateTime(new Date(node2.event.timestamp)),
             working_start: formatTime$1(node2.event.working_start)
@@ -55034,7 +55033,6 @@ self.onmessage = function (e) {
           break;
         default:
           entries = {
-            event: node2.event.event,
             started: formatDateTime(new Date(node2.event.timestamp)),
             working_start: formatTime$1(node2.event.working_start)
           };

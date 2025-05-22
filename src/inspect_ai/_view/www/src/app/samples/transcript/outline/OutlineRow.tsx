@@ -214,7 +214,6 @@ export const summarizeNode = (node: EventNode): ReactNode => {
       break;
     case "span_begin":
       entries = {
-        type: node.event.type,
         name: node.event.name,
         started: formatDateTime(new Date(node.event.timestamp)),
         working_start: formatTime(node.event.working_start),
@@ -222,7 +221,6 @@ export const summarizeNode = (node: EventNode): ReactNode => {
       break;
     default:
       entries = {
-        event: node.event.event,
         started: formatDateTime(new Date(node.event.timestamp)),
         working_start: formatTime(node.event.working_start),
       };
