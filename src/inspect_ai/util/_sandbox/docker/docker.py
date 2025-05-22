@@ -46,6 +46,7 @@ from .compose import (
     compose_up,
 )
 from .config import CONFIG_FILES, DOCKERFILE
+from .docker_reuse import DockerReuseConfig
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -65,9 +66,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         return 2 * count
 
     @classmethod
+    def is_reuse_sandbox(cls) -> bool:
+        return False
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
+        if cls.is_reuse_sandbox():
+            config = None
+
         # validate prereqs
         await validate_prereqs()
 
@@ -158,6 +166,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         """Get the project name of the current sandbox. (Only applicable to docker compose based sandboxes.)"""
         return self._project.name
 
+    @classmethod
+    def get_compose_project_name(cls, config, task_name) -> str:
+        return task_project_name(task_name)
+
     @override
     @classmethod
     async def sample_init(
@@ -175,8 +187,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         sample = sample_active()
         project = await ComposeProject.create(
-            name=task_project_name(task_name),
-            config=config,
+            name=cls.get_compose_project_name(config, task_name),
+            config=None if isinstance(config, DockerReuseConfig) else config,
             sample_id=sample.sample.id if sample is not None else None,
             epoch=sample.epoch if sample is not None else None,
             env=env,
