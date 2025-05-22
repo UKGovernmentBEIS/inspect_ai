@@ -45,9 +45,10 @@ def sync_view_schema() -> None:
                 "false",
             ],
             cwd=WWW_DIR,
+            check=True,
         )
 
-        subprocess.run(["yarn", "prettier:write"], cwd=types_path.parent)
+        subprocess.run(["yarn", "prettier:write"], cwd=types_path.parent, check=True)
 
         shutil.copyfile(types_path, vs_code_types_path)
 
