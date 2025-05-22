@@ -43643,7 +43643,7 @@ categories: ${categories.join(" ")}`;
       const findTopmostVisibleElement = reactExports.useCallback(() => {
         const container2 = scrollRef == null ? void 0 : scrollRef.current;
         const containerRect = container2 == null ? void 0 : container2.getBoundingClientRect();
-        const topOffset = 60;
+        const topOffset = 30;
         const viewportTop = containerRect ? containerRect.top + topOffset : topOffset;
         const viewportBottom = containerRect ? containerRect.bottom : window.innerHeight;
         let topmostId = null;
@@ -55191,36 +55191,29 @@ self.onmessage = function (e) {
         return flatTree(eventNodes, null);
       }, [eventNodes]);
       const elementIds = allNodesList.map((node2) => node2.id);
-      const parentNodeId = (id2) => {
-        return id2.substring(0, id2.lastIndexOf("."));
-      };
-      const childId = (id2) => {
-        const last = id2.split(".").pop();
-        if (last) {
-          return Number(last);
-        } else {
-          return -1;
-        }
-      };
+      const findNearestOutlineAbove = reactExports.useCallback(
+        (targetId) => {
+          const targetIndex = allNodesList.findIndex(
+            (node2) => node2.id === targetId
+          );
+          if (targetIndex === -1) return null;
+          const outlineIds = new Set(outlineNodeList.map((node2) => node2.id));
+          for (let i2 = targetIndex; i2 >= 0; i2--) {
+            if (outlineIds.has(allNodesList[i2].id)) {
+              return allNodesList[i2];
+            }
+          }
+          return null;
+        },
+        [allNodesList, outlineNodeList]
+      );
       useScrollTrack(
         elementIds,
         (id2) => {
           if (!isProgrammaticScrolling.current) {
-            let parentId = "";
-            const targetNode = allNodesList.find((node2) => node2.id === id2);
-            for (let i2 = outlineNodeList.length - 1; i2 >= 0; i2--) {
-              const node2 = outlineNodeList[i2];
-              if (parentNodeId(node2.id) === parentNodeId(id2) && node2.event.event === "span_begin" && childId(node2.id) < childId(id2) && node2.depth === (targetNode == null ? void 0 : targetNode.depth)) {
-                parentId = node2.id;
-                break;
-              }
-              if (id2.startsWith(node2.id) && parentId.length < node2.id.length) {
-                parentId = node2.id;
-                break;
-              }
-            }
-            if (parentId) {
-              setSelectedOutlineId(parentId);
+            const parentNode = findNearestOutlineAbove(id2);
+            if (parentNode) {
+              setSelectedOutlineId(parentNode.id);
             }
           }
         },

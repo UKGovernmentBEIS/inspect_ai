@@ -175,38 +175,35 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
     }
   };
 
+  const findNearestOutlineAbove = useCallback(
+    (targetId: string): EventNode | null => {
+      const targetIndex = allNodesList.findIndex(
+        (node) => node.id === targetId,
+      );
+      if (targetIndex === -1) return null;
+
+      const outlineIds = new Set(outlineNodeList.map((node) => node.id));
+
+      // Search backwards from target position (inclusive)
+      for (let i = targetIndex; i >= 0; i--) {
+        if (outlineIds.has(allNodesList[i].id)) {
+          return allNodesList[i];
+        }
+      }
+
+      return null;
+    },
+    [allNodesList, outlineNodeList],
+  );
+
   useScrollTrack(
     elementIds,
     (id: string) => {
       if (!isProgrammaticScrolling.current) {
         // If the ID is not in the list, return
-        let parentId = "";
-
-        const targetNode = allNodesList.find((node) => node.id === id);
-        for (let i = outlineNodeList.length - 1; i >= 0; i--) {
-          const node = outlineNodeList[i];
-
-          // If there is a span 'above' this node with the same parentID,
-          // treat that as a parent (this would be an injected span like the
-          // 'turns' span most likely)
-          if (
-            parentNodeId(node.id) === parentNodeId(id) &&
-            node.event.event === "span_begin" &&
-            childId(node.id) < childId(id) &&
-            node.depth === targetNode?.depth
-          ) {
-            parentId = node.id;
-            break;
-          }
-
-          if (id.startsWith(node.id) && parentId.length < node.id.length) {
-            parentId = node.id;
-            break;
-          }
-        }
-
-        if (parentId) {
-          setSelectedOutlineId(parentId);
+        const parentNode = findNearestOutlineAbove(id);
+        if (parentNode) {
+          setSelectedOutlineId(parentNode.id);
         }
       }
     },
