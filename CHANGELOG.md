@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.99 (22 May 2025)
 
 - Exported `view()` function for running Inspect View from Python.
 - Always return tasks in the same order they were passed to `eval()` or `eval_set()`.
