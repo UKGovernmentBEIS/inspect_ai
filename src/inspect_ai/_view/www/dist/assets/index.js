@@ -52473,7 +52473,7 @@ self.onmessage = function (e) {
             {
               output: event.error.traceback_ansi,
               style: {
-                fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)",
+                fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                 margin: "0.5em 0"
               }
             }
@@ -61749,7 +61749,7 @@ ${events}
                           output: sample2.error.traceback_ansi,
                           className: clsx("text-size-small", styles$A.ansi),
                           style: {
-                            fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                            fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                             margin: "0.5em 0"
                           }
                         }
@@ -61764,7 +61764,7 @@ ${events}
                             output: retry.traceback_ansi,
                             className: clsx("text-size-small", styles$A.ansi),
                             style: {
-                              fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                              fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                               margin: "0.5em 0"
                             }
                           }

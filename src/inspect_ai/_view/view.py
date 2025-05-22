@@ -32,14 +32,6 @@ def view(
 ) -> None:
     """Run the Inspect View server.
 
-    ::: callout-note
-    The `view()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Args:
         log_dir: Directory to view logs from.
         recursive: Recursively list files in `log_dir`.

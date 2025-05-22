@@ -146,7 +146,7 @@ def copy_log_files(
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
         eval_logs = log_files_from_ls(
-            log_fs.ls(log_dir, recursive=True), ["json", "eval"], True
+            log_fs.ls(log_dir, recursive=True), ["json", "eval"], False
         )
         if len(eval_logs) == 0:
             raise PrerequisiteError(
@@ -201,8 +201,10 @@ def move_output(
                 output_fs.mkdir(dir_path)
             tick()
 
-            # Copy the files
-            for working_file in files:
+            # Copy the files, preserving relative mtime ordering
+            for _, working_file in sorted(
+                (os.stat(os.path.join(root, f)).st_mtime, f) for f in files
+            ):
                 target_path = (
                     os.path.join(relative_dir, working_file)
                     if relative_dir != "."

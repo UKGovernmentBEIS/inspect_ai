@@ -356,12 +356,9 @@ class AnthropicAPI(ModelAPI):
         if isinstance(ex, APIStatusError):
             # for unknown reasons, anthropic does not always set status_code == 529
             # for "overloaded_error" so we check for it explicitly
-            if (
-                isinstance(ex.body, dict)
-                and isinstance(ex.body.get("error", {}), dict)
-                and ex.body.get("error", {}).get("type", "") == "overloaded_error"
-            ):
-                return True
+            if isinstance(ex.body, dict):
+                if "overloaded_error" in str(ex.body):
+                    return True
 
             # standard http status code checking
             return is_retryable_http_status(ex.status_code)
