@@ -260,6 +260,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#view" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">view</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
  <span class="menu-text">task</span></a>
   </div>
@@ -637,6 +643,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.agent.html#agent_with" class="sidebar-item-text sidebar-link">
  <span class="menu-text">agent_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#is_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">is_agent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2070,6 +2082,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#taskinfo" id="toc-taskinfo" class="nav-link" data-scroll-target="#taskinfo">TaskInfo</a></li>
   <li><a href="#tasks-1" id="toc-tasks-1" class="nav-link" data-scroll-target="#tasks-1">Tasks</a></li>
   </ul></li>
+  <li><a href="#view" id="toc-view" class="nav-link" data-scroll-target="#view">View</a>
+  <ul class="collapse">
+  <li><a href="#view-1" id="toc-view-1" class="nav-link" data-scroll-target="#view-1">view</a></li>
+  </ul></li>
   <li><a href="#decorators" id="toc-decorators" class="nav-link" data-scroll-target="#decorators">Decorators</a>
   <ul class="collapse">
   <li><a href="#task-1" id="toc-task-1" class="nav-link" data-scroll-target="#task-1">task</a></li>
@@ -2099,15 +2115,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<!-- TODO: Main reference page? -->
-<!-- TODO: CLI reference -->
 <section id="evaluation" class="level2">
 <h2 class="anchored" data-anchor-id="evaluation">Evaluation</h2>
 <section id="eval" class="level3">
 <h3 class="anchored" data-anchor-id="eval">eval</h3>
 <p>Evaluate tasks using a Model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/eval.py#L70">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/eval.py#L70">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">eval</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -2318,7 +2332,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_retry">eval_retry</h3>
 <p>Retry a previously failed evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/eval.py#L554">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/eval.py#L554">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_retry(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    tasks: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo <span class="op">|</span> EvalLog <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[EvalLogInfo] <span class="op">|</span> <span class="bu">list</span>[EvalLog],</span>
@@ -2454,7 +2468,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_set">eval_set</h3>
 <p>Evaluate a set of tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/evalset.py#L57">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/evalset.py#L57">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_set(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -2690,7 +2704,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="score">score</h3>
 <p>Score an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/score.py#L37">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/score.py#L37">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -2725,7 +2739,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Evaluation task.</p>
 <p>Tasks are the basis for defining and running evaluations.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L41">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/task/task.py#L41">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -2735,7 +2749,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L47">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/task/task.py#L47">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -2757,7 +2771,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">=</span> <span class="dv">0</span>,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="dv">0</span>,</span>
 <span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[TaskDeprecatedArgs],</span>
 <span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2834,7 +2848,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Task name. If not specified is automatically determined based on the name of the task directory (or “task”) if its anonymous task (e.g.&nbsp;created in a notebook and passed to eval() directly)</p>
 </dd>
-<dt><code class="ref-definition">version</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">version</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Version of task (to distinguish evolutions of the task spec or breaking changes to it)</p>
 </dd>
@@ -2856,7 +2870,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task adapted with alternate values for one or more options.</p>
 <p>This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task_with">task_with()</a></span> you should create the underlying task multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L180">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/task/task.py#L180">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_with(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    task: Task,</span>
@@ -2974,7 +2988,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task epochs.</p>
 <p>Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Epochs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -2984,7 +2998,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Task epochs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, epochs: <span class="bu">int</span>, reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -3005,7 +3019,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskinfo">TaskInfo</h3>
 <p>Task information (file, name, and attributes).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L296">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/task/task.py#L296">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3031,7 +3045,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>One or more tasks.</p>
 <p>Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/tasks.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/task/tasks.py#L6">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Tasks: TypeAlias <span class="op">=</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
@@ -3052,15 +3066,64 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
+<section id="view" class="level2">
+<h2 class="anchored" data-anchor-id="view">View</h2>
+<section id="view-1" class="level3">
+<h3 class="anchored" data-anchor-id="view-1">view</h3>
+<p>Run the Inspect View server.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_view/view.py#L24">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> view(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    recursive: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    host: <span class="bu">str</span> <span class="op">=</span> DEFAULT_SERVER_HOST,</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    port: <span class="bu">int</span> <span class="op">=</span> DEFAULT_VIEW_PORT,</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    authorization: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    log_level: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code class="ref-definition">log_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Directory to view logs from.</p>
+</dd>
+<dt><code class="ref-definition">recursive</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dd>
+<p>Recursively list files in <code>log_dir</code>.</p>
+</dd>
+<dt><code class="ref-definition">host</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Tcp/ip host (defaults to “127.0.0.1”).</p>
+</dd>
+<dt><code class="ref-definition">port</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dd>
+<p>Tcp/ip port (defaults to 7575).</p>
+</dd>
+<dt><code class="ref-definition">authorization</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Validate requests by checking for this authorization header.</p>
+</dd>
+<dt><code class="ref-definition">log_level</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Level for logging to the console: “debug”, “http”, “sandbox”, “info”, “warning”, “error”, or “critical” (defaults to “warning”).</p>
+</dd>
+<dt><code class="ref-definition">fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dd>
+<p>Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>). Use <code>{"anon": True }</code> if you are accessing a public S3 bucket with no credentials.</p>
+</dd>
+</dl>
+</section>
+</section>
 <section id="decorators" class="level2">
 <h2 class="anchored" data-anchor-id="decorators">Decorators</h2>
 <section id="task-1" class="level3">
 <h3 class="anchored" data-anchor-id="task-1">task</h3>
 <p>Decorator for registering tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/registry.py#L96">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/714d940e5b6decfd3e3cbd8c4b336dcca45704f1/src/inspect_ai/_eval/registry.py#L96">Source</a>
 </div>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">*args</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
 <dd>

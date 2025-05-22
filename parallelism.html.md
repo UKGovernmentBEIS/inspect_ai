@@ -490,9 +490,8 @@ using Trio, including:
     [s3fs](https://s3fs.readthedocs.io/en/latest/) package, which
     currently works only with asyncio.
 
-3.  The [Google](providers.qmd#google) and
-    [Bedrock](providers.qmd#aws-bedrock) providers both depend on
-    asyncio so cannot be used with the Trio backend.
+3.  The [Bedrock](providers.qmd#aws-bedrock) provider depends on asyncio
+    so cannot be used with the Trio backend.
 
 ### Portable Async
 

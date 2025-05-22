@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.aisi.org.uk/dataframe.html</loc>
-    <lastmod>2025-05-15T17:52:10.359Z</lastmod>
+    <lastmod>2025-05-16T16:53:19.145Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.util.html</loc>
@@ -14,7 +14,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.agent.html</loc>
-    <lastmod>2025-04-10T07:08:47.828Z</lastmod>
+    <lastmod>2025-05-16T16:15:53.014Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_list.html</loc>
@@ -50,7 +50,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.html</loc>
-    <lastmod>2025-05-10T12:31:02.750Z</lastmod>
+    <lastmod>2025-05-22T11:05:37.699Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/tracing.html</loc>
@@ -78,11 +78,11 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/parallelism.html</loc>
-    <lastmod>2025-03-16T18:56:45.632Z</lastmod>
+    <lastmod>2025-05-22T11:05:37.698Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reasoning.html</loc>
-    <lastmod>2025-05-10T12:31:02.749Z</lastmod>
+    <lastmod>2025-05-22T11:05:37.698Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/human-agent.html</loc>
@@ -130,7 +130,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/agents.html</loc>
-    <lastmod>2025-05-13T19:01:14.305Z</lastmod>
+    <lastmod>2025-05-16T16:53:13.886Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/approval.html</loc>
@@ -234,6 +234,6 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/errors-and-limits.html</loc>
-    <lastmod>2025-05-10T12:31:02.746Z</lastmod>
+    <lastmod>2025-05-20T22:30:24.165Z</lastmod>
   </url>
 </urlset>

@@ -335,12 +335,35 @@ raise LimitExceededError(
 ## Scoped Limits
 
 You can also apply limits at arbitrary scopes, independent of the sample
-or agent-scoped limits. For instance, applied to a specific agent or
-within a specific block of code. For example:
+or agent-scoped limits. For instance, applied to a specific block of
+code. For example:
 
 ``` python
 with token_limit(1024*500):
     ...
+```
+
+A `LimitExceededError` will be raised if the limit is exceeded. The
+`source` field on `LimitExceededError` will be set to the `Limit`
+instance that was exceeded.
+
+The `apply_limits()` function accepts a list of `Limit` instances. If
+any of the limits passed in are exceeded, the `limit_error` property on
+the `LimitScope` yielded when opening the context manager will be set to
+the exception. By default, all `LimitExceededError` exceptions are
+propagated. However, if `catch_errors` is true, errors which are as a
+direct result of exceeding one of the limits passed to it will be
+caught. It will always allow `LimitExceededError` exceptions triggered
+by other limits (e.g. Sample scoped limits) to propagate up the call
+stack.
+
+``` python
+with apply_limits(
+    [token_limit(1000), message_limit(10)], catch_errors=True
+) as limit_scope:
+    ...
+if limit_scope.limit_error:
+    print(f"One of our limits was hit: {limit_scope.limit_error}")
 ```
 
 ### Message Limit
@@ -466,22 +489,18 @@ this is handled differs depending on how the agent was executed:
 - For agents used via `as_solver()`, if a limit is exceeded then the
   sample will terminate (this is exactly how sample-level limits work).
 
-- For agents that are `run()` directly, by default an exception is
-  thrown and the sample terminates. You may on the other hand catch the
-  exception and take another action:
+- For agents that are `run()` directly with limits, their limit
+  exceptions will be caught and returned in the tuple. Limits other than
+  the ones passed to `run()` will propagate up the stack.
 
   ``` python
   from inspect_ai.agent import run
 
-  try:
-      state = await run(
-          agent=web_surfer(), 
-          input="What were the 3 most popular movies of 2020?",
-          limits=[token_limit(1024*500)])
-      )
-  except LimitExceededError as ex:
-      if ex.type == "token":
-          ...
-      else:
-          raise
+  state, limit_error = await run(
+      agent=web_surfer(), 
+      input="What were the 3 most popular movies of 2020?",
+      limits=[token_limit(1024*500)])
+  )
+  if limit_error:
+      ...
   ```

@@ -1,16 +1,13 @@
 # inspect_ai
 
 
-<!-- TODO: Main reference page? -->
-<!-- TODO: CLI reference -->
-
 ## Evaluation
 
 ### eval
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/eval.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/eval.py#L70)
 
 ``` python
 def eval(
@@ -210,7 +207,7 @@ Model generation options.
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/eval.py#L554)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/eval.py#L554)
 
 ``` python
 def eval_retry(
@@ -339,7 +336,7 @@ Model API)
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/evalset.py#L57)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/evalset.py#L57)
 
 ``` python
 def eval_set(
@@ -563,7 +560,7 @@ Model generation options.
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/score.py#L37)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/score.py#L37)
 
 ``` python
 def score(
@@ -595,7 +592,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L41)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/task/task.py#L41)
 
 ``` python
 class Task
@@ -606,7 +603,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/task/task.py#L47)
 
 ``` python
 def __init__(
@@ -629,7 +626,7 @@ def __init__(
     time_limit: int | None = None,
     working_limit: int | None = None,
     name: str | None = None,
-    version: int = 0,
+    version: int | str = 0,
     metadata: dict[str, Any] | None = None,
     **kwargs: Unpack[TaskDeprecatedArgs],
 ) -> None
@@ -703,7 +700,7 @@ Task name. If not specified is automatically determined based on the
 name of the task directory (or “task”) if its anonymous task
 (e.g. created in a notebook and passed to eval() directly)
 
-`version` int  
+`version` int \| str  
 Version of task (to distinguish evolutions of the task spec or breaking
 changes to it)
 
@@ -721,7 +718,7 @@ This function modifies the passed task in place and returns it. If you
 want to create multiple variations of a single task using `task_with()`
 you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L180)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/task/task.py#L180)
 
 ``` python
 def task_with(
@@ -836,7 +833,7 @@ Number of epochs to repeat samples over and optionally one or more
 reducers used to combine scores from samples across epochs. If not
 specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -847,7 +844,7 @@ class Epochs
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -864,7 +861,7 @@ One or more reducers used to combine scores from samples across epochs
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/task.py#L296)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/task/task.py#L296)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -890,7 +887,7 @@ including directory names, task functions, task classes, and task
 instances (a single task or list of tasks can be specified). None is a
 request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -912,13 +909,57 @@ Tasks: TypeAlias = (
 )
 ```
 
+## View
+
+### view
+
+Run the Inspect View server.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_view/view.py#L24)
+
+``` python
+def view(
+    log_dir: str | None = None,
+    recursive: bool = True,
+    host: str = DEFAULT_SERVER_HOST,
+    port: int = DEFAULT_VIEW_PORT,
+    authorization: str | None = None,
+    log_level: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None
+```
+
+`log_dir` str \| None  
+Directory to view logs from.
+
+`recursive` bool  
+Recursively list files in `log_dir`.
+
+`host` str  
+Tcp/ip host (defaults to “127.0.0.1”).
+
+`port` int  
+Tcp/ip port (defaults to 7575).
+
+`authorization` str \| None  
+Validate requests by checking for this authorization header.
+
+`log_level` str \| None  
+Level for logging to the console: “debug”, “http”, “sandbox”, “info”,
+“warning”, “error”, or “critical” (defaults to “warning”).
+
+`fs_options` dict\[str, Any\]  
+Additional arguments to pass through to the filesystem provider
+(e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
+public S3 bucket with no credentials.
+
 ## Decorators
 
 ### task
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/2f377ec2c13920d76bcdd82398b1b4ee86281585/src/inspect_ai/_eval/registry.py#L96)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0e09a1dd322c69c6beb64aaa961c6c876c19d0c7/src/inspect_ai/_eval/registry.py#L96)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any

@@ -185,11 +185,11 @@ most recent of which are:
 
 - [Gemini 2.5
   Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash):
-  `google/gemini-2.5-flash-preview-04-17`
+  `google/gemini-2.5-flash-preview-05-20`
 
 - [Gemini 2.5
   Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro):
-  `google/gemini-2.5-pro-preview-03-25`
+  `google/gemini-2.5-pro-preview-05-06`
 
 You can use the `--reasoning-tokens` option to control the amount of
 reasoning used by these models. For example:
@@ -200,9 +200,8 @@ inspect eval math.py \
   --reasoning-tokens 4096
 ```
 
-The Gemini API includes support for including reasoning in model output,
-however this feature is not yet enabled for any of their deployed
-reasoning models.
+The most recent Gemini models also include support for including a
+reasoning summary in model output.
 
 ## Grok
 

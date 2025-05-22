@@ -322,16 +322,6 @@ continue and what the message is.
 
 ### Submit Tool
 
-> [!NOTE]
->
-> The ability to disable the submit tool described below is available
-> only in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 As described above, the `react()` agent uses a special `submit()` tool
 internally to enable the model to signal explicitly when it is complete
 and has an answer. The use of a `submit()` tool has a couple of

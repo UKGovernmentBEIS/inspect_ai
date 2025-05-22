@@ -637,14 +637,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="google-gemini">Google Gemini</h2>
 <p>Google currently makes available several Gemini reasoning models, the most recent of which are:</p>
 <ul>
-<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash">Gemini 2.5 Flash</a>: <code>google/gemini-2.5-flash-preview-04-17</code></p></li>
-<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro">Gemini 2.5 Pro</a>: <code>google/gemini-2.5-pro-preview-03-25</code></p></li>
+<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash">Gemini 2.5 Flash</a>: <code>google/gemini-2.5-flash-preview-05-20</code></p></li>
+<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro">Gemini 2.5 Pro</a>: <code>google/gemini-2.5-pro-preview-05-06</code></p></li>
 </ul>
 <p>You can use the <code>--reasoning-tokens</code> option to control the amount of reasoning used by these models. For example:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-2.5-flash-preview-04-17 <span class="dt">\</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The Gemini API includes support for including reasoning in model output, however this feature is not yet enabled for any of their deployed reasoning models.</p>
+<p>The most recent Gemini models also include support for including a reasoning summary in model output.</p>
 </section>
 <section id="grok" class="level2">
 <h2 class="anchored" data-anchor-id="grok">Grok</h2>

@@ -179,16 +179,6 @@ evals_df(logs)
 
 ### Parallel Reading
 
-> [!NOTE]
->
-> The parallel reading feature described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `samples_df()`, `messages_df()`, and `events_df()` functions can be
 slow to run if you are reading full samples from hundreds of logs,
 especially logs with larger samples (e.g. agent trajectories).
