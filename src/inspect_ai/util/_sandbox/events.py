@@ -164,6 +164,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     ) -> None:
         pass
 
+    @override
+    def project_name(self) -> str:
+        """Get the project name of the current sandbox. (Only applicable to docker compose based sandboxes.)"""
+        return self._sandbox.project_name()
+
 
 def content_display(content: str | bytes) -> str:
     if isinstance(content, str):
