@@ -35,8 +35,7 @@ class LimitExceededError(Exception):
        value: Value compared to.
        limit: Limit applied.
        message (str | None): Optional. Human readable message.
-       source (Limit | None): Optional. The `Limit` instance which was responsible for
-         raising this error.
+       source (Limit | None): Optional. The `Limit` instance which was responsible for raising this error.
     """
 
     def __init__(

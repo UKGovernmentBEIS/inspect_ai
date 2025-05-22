@@ -1,3 +1,7 @@
+## Unreleased
+
+- `time_limit()` and `working_limit()` context managers for scoped application of time limits.
+
 ## v0.3.99 (22 May 2025)
 
 - Exported `view()` function for running Inspect View from Python.

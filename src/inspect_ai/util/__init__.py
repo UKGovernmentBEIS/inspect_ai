@@ -6,7 +6,9 @@ from inspect_ai.util._limit import (
     LimitScope,
     apply_limits,
     message_limit,
+    time_limit,
     token_limit,
+    working_limit,
 )
 
 from ._collect import collect
@@ -81,6 +83,8 @@ __all__ = [
     "subtask",
     "throttle",
     "token_limit",
+    "time_limit",
+    "working_limit",
     "trace_action",
     "trace_message",
     "RegistryType",
