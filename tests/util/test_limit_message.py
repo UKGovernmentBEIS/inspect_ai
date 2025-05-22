@@ -87,6 +87,14 @@ def test_ancestor_limits_are_restored() -> None:
     assert exc_info.value.limit == 10
 
 
+def test_get_usage_raises_error() -> None:
+    with message_limit(10) as limit:
+        with pytest.raises(NotImplementedError) as exc_info:
+            limit.get_usage()
+
+    assert "is not supported" in str(exc_info.value), str(exc_info.value)
+
+
 def test_cannot_reuse_context_manager() -> None:
     limit = message_limit(10)
     with limit:
