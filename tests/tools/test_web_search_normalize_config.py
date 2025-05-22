@@ -137,7 +137,7 @@ class TestNormalizeConfig:
     def test_invalid_provider_in_list(self) -> None:
         """Test handling of invalid provider names."""
         with pytest.raises(ValueError, match=r"Invalid provider: 'invalid_provider'"):
-            _normalize_config(["invalid_provider"])
+            _normalize_config(["invalid_provider"])  # type: ignore
 
     def test_direct_providers_dict(self) -> None:
         """Test passing a Providers dict directly."""
