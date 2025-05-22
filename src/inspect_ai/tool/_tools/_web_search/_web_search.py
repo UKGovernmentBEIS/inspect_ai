@@ -34,17 +34,6 @@ class Providers(TypedDict, total=False):
     openai: dict[str, Any] | None
 
 
-def test(providers: list[Provider | Providers]) -> None:
-    pass
-
-
-# test("google")
-test(["google"])
-test(["tavily", "google"])
-test(["openai", {"tavily": {"max_results": 5}}])
-test(["openai", {"tavily": None}])
-
-
 class WebSearchDeprecatedArgs(TypedDict, total=False):
     provider: Literal["tavily", "google"] | None
     num_results: int | None
@@ -62,29 +51,60 @@ def web_search(
 
     A tool that can be registered for use by models to search the web. Use
     the `use_tools()` solver to make the tool available (e.g.
-    `use_tools(web_search(provider="tavily"))`))
+    `use_tools(web_search("tavily"))`))
 
-    A web search is conducted using the specified provider.
-    - When using Tavily, all logic for relevance and summarization is handled by
-    the Tavily API.
-    - When using Google, the results are parsed for relevance using the specified
-    model, and the top 'num_results' relevant pages are returned.
+    A web search is conducted using the specified provider. Providers are split
+    into two categories:
+    - External providers: "google" and "tavily" - these require API keys and
+      make external API calls to perform the search.
+    - Internal providers: "openai" - these use the model's built-in search
+      capability and do not require separate API keys.
+
+    Internal providers will be prioritized if running on the corresponding model
+    (e.g., "openai" provider will be used when running on OpenAI models). If an
+    internal provider is specified but the evaluation is run with a different
+    model, a fallback external provider must also be specified.
 
     See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
     Args:
-      providers: Configuration for the search providers to use. Can be a list of provider names
-        or a dictionary specifying provider options.
-      **deprecated_args: Deprecated keyword arguments for backward compatibility, including:
-        provider: DEPRECATED - use providers instead
-        num_results: The number of search result pages used to provide information
-          back to the model.
-        max_provider_calls: Maximum number of search calls to make to the search
-          provider.
-        max_connections: Maximum number of concurrent connections to API endpoint
-          of search provider.
-        model: Model used to parse web pages for relevance - used only by the
-          `google` provider.
+      providers: Configuration for the search providers to use. Currently supported
+        providers are "google", "tavily", and "openai". The `providers` parameter
+        supports several formats based on either a `str` specifying a provider or
+        a `dict` whose keys are the provider names and whose values are the
+        provider-specific options. A single value or a list of these can be passed.
+
+        Single provider:
+        ```
+        web_search("tavily")
+        web_search({"tavily": {"max_results": 5}})  # Tavily-specific options
+        ```
+
+        Multiple providers:
+        ```
+        # "openai" used for OpenAI models, "tavily" as fallback
+        web_search(["openai", "tavily"])
+        # The None value means to use the provider with default options
+        web_search({"openai": None, "tavily": {"max_results": 5}}
+        ```
+
+        Mixed format:
+        ```
+        web_search(["openai", {"tavily": {"max_results": 5}}])
+        ```
+
+        When specified in the `dict` format, the `None` value for a provider means
+        to use the provider with default options.
+
+        Provider-specific options:
+        - tavily: Supports options like `max_results`, `search_depth`, etc.
+          See https://docs.tavily.com/documentation/api-reference/endpoint/search
+        - openai: Supports OpenAI's web search parameters.
+          See https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses
+        - google: Supports options like `num_results`, `max_provider_calls`,
+          `max_connections`, and `model`
+
+      **deprecated_args: Deprecated arguments.
 
     Returns:
        A tool that can be registered for use by models to search the web.
