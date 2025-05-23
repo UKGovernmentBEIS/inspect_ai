@@ -23,8 +23,9 @@ Inspect has several standard tools built-in, including:
   with a desktop computer (viewed through screenshots) that supports
   mouse and keyboard interaction.
 
-- [Web Search](tools-standard.qmd#sec-web-search), which uses the Google
-  Search API to execute and summarise web searches.
+- [Web Search](tools-standard.qmd#sec-web-search), which uses a search
+  provider (either built in to the model or external) to execute and
+  summarize web searches.
 
 - [Think](tools-standard.qmd#sec-think), which provides models the
   ability to include an additional thinking step as part of getting to
@@ -577,79 +578,108 @@ inspect eval computer.py --no-internal-tools
 
 ## Web Search
 
+> [!NOTE]
+>
+> The “openai” web search provider described below is available only in
+> the development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
 The `web_search()` tool provides models the ability to enhance their
-context window by performing a search. By default web searches retrieve
-10 results from a provider, uses a model to determine if the contents is
-relevant then returns the top 3 relevant search results to the main
-model. Here is the definition of the `web_search()` function:
+context window by performing a search. Web searches are executed using a
+provider. Providers are split into two categories:
 
-``` python
-def web_search(
-    provider: Literal["tavily", "google"],
-    num_results: int = 3,
-    max_provider_calls: int = 3,
-    max_connections: int = 10,
-    model: str | Model | None = None,
-) -> Tool:
-    ...
-```
+- Internal providers: “openai” - these use the model’s built-in search
+  capability and do not require separate API keys. These work only for
+  their respective model provider (e.g. the “openai” search provider
+  works only for `openai/*` models).
 
-You can use the `web_search()` tool like this:
+- External providers: “tavily” and “google”. These are external services
+  that work with any model and require separate accounts and API keys.
+
+Internal providers will be prioritized if running on the corresponding
+model (e.g., “openai” provider will be used when running on `openai`
+models). If an internal provider is specified but the evaluation is run
+with a different model, a fallback external provider must also be
+specified.
+
+You can configure the `web_search()` tool in various ways:
 
 ``` python
 from inspect_ai.tool import web_search
 
-solver=[
-    use_tools(web_search(provider="tavily")), 
-    generate()
-],
+# single provider
+web_search("tavily")
+
+# with internal provider and fallback
+web_search(["openai", "tavili"])
+
+# provider with specific options
+web_search({"tavily": {"max_results": 5}})
+
+# multiple providers with options
+web_search([{"openai": None}, {"google": {"num_results": 5}}])
 ```
 
-Web search options include:
+### OpenAI Options
 
-- `provider`—Web search provider (currently only Tavily and Google fare
-  supported, see below for instructions on setup and configuration).
+The `web_search()` tool can use OpenAI’s built-in search capability when
+running on OpenAI models. This provider does not require any API keys
+beyond what’s needed for the model itself.
 
-- `num_results`—The number of search result pages used to provide
-  information back to the model (defaults to 3).
+For more details on OpenAI’s web search parameters, see [OpenAI Web
+Search
+Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
-- `max_provider_calls`—Number of times to retrieve more links from the
-  search provider in case previous ones were irrelevant (used only by
-  the Google provider and defaults to 3).
+Note that when using the “openai” provider, you should also specify a
+fallback external provider (like “tavily” or “google”) if you are also
+running the evaluation with non-OpenAI model.
 
-- `max_connections`—Maximum number of concurrent connections to the
-  search API provider (defaults to 10).
-
-- `model`—Model to use to determine if search results are relevant (used
-  only by the Google provider and defaults to the model currently being
-  evaluated).
-
-#### Tavily Provider
+### Tavily Options
 
 The `web_search()` tool can use [Tavily](https://tavily.com/)’s Research
-API. To use it you will therefore need to setup your own Tavily account
-. Then, ensure that the following environment variable is defined:
+API. To use it you will need to set up your own Tavily account. Then,
+ensure that the following environment variable is defined:
 
 - `TAVILY_API_KEY` — Tavily Research API key
 
-When using this provider, `num_results` specifies the number of webpage
-results used to create a summarized response to the query.
+Tavily supports the following options:
 
-#### Google Provider
+| Option | Description |
+|----|----|
+| `max_results` | Number of results to return |
+| `search_depth` | Can be “basic” or “advanced” |
+| `topic` | Can be “general” or “news” |
+| `include_domains` / `exclude_domains` | Lists of domains to include or exclude |
+| `time_range` | Time range for search results (e.g., “day”, “week”, “month”) |
+| `max_connections` | Maximum number of concurrent connections |
+
+For more options, see the [Tavily API
+Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
+
+#### Google Options
 
 The `web_search()` can use [Google Programmable Search
 Engine](https://programmablesearchengine.google.com/about/). To use it
-you will therefore need to setup your own Google Programmable Search
-Engine and also enable the [Programmable Search Element Paid
+you will need to set up your own Google Programmable Search Engine and
+also enable the [Programmable Search Element Paid
 API](https://developers.google.com/custom-search/docs/paid_element).
 Then, ensure that the following environment variables are defined:
 
 - `GOOGLE_CSE_ID` — Google Custom Search Engine ID
-
 - `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
 
-When using this provider, `num_results` specifies the number of relevant
-webpages whose contents are returned.
+Google supports the following options:
+
+| Option | Description |
+|----|----|
+| `num_results` | The number of relevant webpages whose contents are returned |
+| `max_provider_calls` | Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3) |
+| `max_connections` | Maximum number of concurrent connections (defaults to 10) |
+| `model` | Model to use to determine if search results are relevant (defaults to the model being evaluated) |
 
 ## Think
 

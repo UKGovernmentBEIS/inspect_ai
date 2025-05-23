@@ -508,7 +508,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#approval" id="toc-approval" class="nav-link" data-scroll-target="#approval">Approval</a></li>
   <li><a href="#tool-binding-1" id="toc-tool-binding-1" class="nav-link" data-scroll-target="#tool-binding-1">Tool Binding</a></li>
   </ul></li>
-  <li><a href="#sec-web-search" id="toc-sec-web-search" class="nav-link" data-scroll-target="#sec-web-search">Web Search</a></li>
+  <li><a href="#sec-web-search" id="toc-sec-web-search" class="nav-link" data-scroll-target="#sec-web-search">Web Search</a>
+  <ul class="collapse">
+  <li><a href="#openai-options" id="toc-openai-options" class="nav-link" data-scroll-target="#openai-options">OpenAI Options</a></li>
+  <li><a href="#tavily-options" id="toc-tavily-options" class="nav-link" data-scroll-target="#tavily-options">Tavily Options</a></li>
+  </ul></li>
   <li><a href="#sec-think" id="toc-sec-think" class="nav-link" data-scroll-target="#sec-think">Think</a>
   <ul class="collapse">
   <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a></li>
@@ -549,7 +553,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><a href="./tools-standard.html#sec-text-editor">Text Editor</a> which enables viewing, creating and editing text files.</p></li>
 <li><p><a href="./tools-standard.html#sec-web-browser">Web Browser</a>, which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.</p></li>
 <li><p><a href="./tools-standard.html#sec-computer">Computer</a>, which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.</p></li>
-<li><p><a href="./tools-standard.html#sec-web-search">Web Search</a>, which uses the Google Search API to execute and summarise web searches.</p></li>
+<li><p><a href="./tools-standard.html#sec-web-search">Web Search</a>, which uses a search provider (either built in to the model or external) to execute and summarize web searches.</p></li>
 <li><p><a href="./tools-standard.html#sec-think">Think</a>, which provides models the ability to include an additional thinking step as part of getting to its final answer.</p></li>
 </ul>
 </section>
@@ -891,8 +895,8 @@ Sandbox Dependencies
 <p>The computer tool supports the following options:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 26%">
-<col style="width: 73%">
+<col style="width: 40%">
+<col style="width: 60%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -993,46 +997,131 @@ Sandbox Dependencies
 </section>
 <section id="sec-web-search" class="level2">
 <h2 class="anchored" data-anchor-id="sec-web-search">Web Search</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> function:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    provider: Literal[<span class="st">"tavily"</span>, <span class="st">"google"</span>],</span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    num_results: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>,</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    max_provider_calls: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>,</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">=</span> <span class="dv">10</span>,</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Tool:</span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool like this:</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The “openai” web search provider described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:</p>
+<ul>
+<li><p>Internal providers: “openai” - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
+<li><p>External providers: “tavily” and “google”. These are external services that work with any model and require separate accounts and API keys.</p></li>
+</ul>
+<p>Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on <code>openai</code> models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.</p>
+<p>You can configure the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool in various ways:</p>
 <div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> web_search</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>[</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    use_tools(web_search(provider<span class="op">=</span><span class="st">"tavily"</span>)), </span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    generate()</span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>],</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Web search options include:</p>
-<ul>
-<li><p><code>provider</code>—Web search provider (currently only Tavily and Google fare supported, see below for instructions on setup and configuration).</p></li>
-<li><p><code>num_results</code>—The number of search result pages used to provide information back to the model (defaults to 3).</p></li>
-<li><p><code>max_provider_calls</code>—Number of times to retrieve more links from the search provider in case previous ones were irrelevant (used only by the Google provider and defaults to 3).</p></li>
-<li><p><code>max_connections</code>—Maximum number of concurrent connections to the search API provider (defaults to 10).</p></li>
-<li><p><code>model</code>—Model to use to determine if search results are relevant (used only by the Google provider and defaults to the model currently being evaluated).</p></li>
-</ul>
-<section id="tavily-provider" class="level4">
-<h4 class="anchored" data-anchor-id="tavily-provider">Tavily Provider</h4>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use <a href="https://tavily.com/">Tavily</a>’s Research API. To use it you will therefore need to setup your own Tavily account . Then, ensure that the following environment variable is defined:</p>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co"># single provider</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>web_search(<span class="st">"tavily"</span>)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="co"># with internal provider and fallback</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"tavili"</span>])</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="co"># provider with specific options</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>web_search({<span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}})</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple providers with options</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>web_search([{<span class="st">"openai"</span>: <span class="va">None</span>}, {<span class="st">"google"</span>: {<span class="st">"num_results"</span>: <span class="dv">5</span>}}])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="openai-options" class="level3">
+<h3 class="anchored" data-anchor-id="openai-options">OpenAI Options</h3>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use OpenAI’s built-in search capability when running on OpenAI models. This provider does not require any API keys beyond what’s needed for the model itself.</p>
+<p>For more details on OpenAI’s web search parameters, see <a href="https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses">OpenAI Web Search Documentation</a>.</p>
+<p>Note that when using the “openai” provider, you should also specify a fallback external provider (like “tavily” or “google”) if you are also running the evaluation with non-OpenAI model.</p>
+</section>
+<section id="tavily-options" class="level3">
+<h3 class="anchored" data-anchor-id="tavily-options">Tavily Options</h3>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use <a href="https://tavily.com/">Tavily</a>’s Research API. To use it you will need to set up your own Tavily account. Then, ensure that the following environment variable is defined:</p>
 <ul>
 <li><code>TAVILY_API_KEY</code> — Tavily Research API key</li>
 </ul>
-<p>When using this provider, <code>num_results</code> specifies the number of webpage results used to create a summarized response to the query.</p>
-</section>
-<section id="google-provider" class="level4">
-<h4 class="anchored" data-anchor-id="google-provider">Google Provider</h4>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> can use <a href="https://programmablesearchengine.google.com/about/">Google Programmable Search Engine</a>. To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the <a href="https://developers.google.com/custom-search/docs/paid_element">Programmable Search Element Paid API</a>. Then, ensure that the following environment variables are defined:</p>
+<p>Tavily supports the following options:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 40%">
+<col style="width: 60%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>max_results</code></td>
+<td>Number of results to return</td>
+</tr>
+<tr class="even">
+<td><code>search_depth</code></td>
+<td>Can be “basic” or “advanced”</td>
+</tr>
+<tr class="odd">
+<td><code>topic</code></td>
+<td>Can be “general” or “news”</td>
+</tr>
+<tr class="even">
+<td><code>include_domains</code> / <code>exclude_domains</code></td>
+<td>Lists of domains to include or exclude</td>
+</tr>
+<tr class="odd">
+<td><code>time_range</code></td>
+<td>Time range for search results (e.g., “day”, “week”, “month”)</td>
+</tr>
+<tr class="even">
+<td><code>max_connections</code></td>
+<td>Maximum number of concurrent connections</td>
+</tr>
+</tbody>
+</table>
+<p>For more options, see the <a href="https://docs.tavily.com/documentation/api-reference/endpoint/search">Tavily API Documentation</a>.</p>
+<section id="google-options" class="level4">
+<h4 class="anchored" data-anchor-id="google-options">Google Options</h4>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> can use <a href="https://programmablesearchengine.google.com/about/">Google Programmable Search Engine</a>. To use it you will need to set up your own Google Programmable Search Engine and also enable the <a href="https://developers.google.com/custom-search/docs/paid_element">Programmable Search Element Paid API</a>. Then, ensure that the following environment variables are defined:</p>
 <ul>
-<li><p><code>GOOGLE_CSE_ID</code> — Google Custom Search Engine ID</p></li>
-<li><p><code>GOOGLE_CSE_API_KEY</code> — Google API key used to enable the Search API</p></li>
+<li><code>GOOGLE_CSE_ID</code> — Google Custom Search Engine ID</li>
+<li><code>GOOGLE_CSE_API_KEY</code> — Google API key used to enable the Search API</li>
 </ul>
-<p>When using this provider, <code>num_results</code> specifies the number of relevant webpages whose contents are returned.</p>
+<p>Google supports the following options:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 40%">
+<col style="width: 60%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>num_results</code></td>
+<td>The number of relevant webpages whose contents are returned</td>
+</tr>
+<tr class="even">
+<td><code>max_provider_calls</code></td>
+<td>Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3)</td>
+</tr>
+<tr class="odd">
+<td><code>max_connections</code></td>
+<td>Maximum number of concurrent connections (defaults to 10)</td>
+</tr>
+<tr class="even">
+<td><code>model</code></td>
+<td>Model to use to determine if search results are relevant (defaults to the model being evaluated)</td>
+</tr>
+</tbody>
+</table>
+</section>
 </section>
 </section>
 <section id="sec-think" class="level2">
@@ -1685,7 +1774,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","loop":false});
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","descPosition":"bottom","selector":".lightbox","closeEffect":"zoom","loop":false});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
