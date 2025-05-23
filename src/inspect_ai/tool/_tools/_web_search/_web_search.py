@@ -18,8 +18,8 @@ from ._tavily import TavilyOptions, tavily_search_provider
 from ._web_search_provider import SearchProvider
 
 Provider: TypeAlias = Literal[
-    "openai", "anthropic", "tavily", "google", "exa"
-]  # , "gemini"
+    "gemini", "openai", "anthropic", "tavily", "google", "exa"
+]
 valid_providers = set(get_args(Provider))
 
 
@@ -34,6 +34,7 @@ valid_providers = set(get_args(Provider))
 class Providers(TypedDict, total=False):
     openai: dict[str, Any] | Literal[True]
     anthropic: dict[str, Any] | Literal[True]
+    gemini: dict[str, Any] | Literal[True]
     tavily: dict[str, Any] | Literal[True]
     google: dict[str, Any] | Literal[True]
     exa: dict[str, Any] | Literal[True]
@@ -42,6 +43,7 @@ class Providers(TypedDict, total=False):
 class _NormalizedProviders(TypedDict, total=False):
     openai: dict[str, Any]
     anthropic: dict[str, Any]
+    gemini: dict[str, Any]
     tavily: dict[str, Any]
     google: dict[str, Any]
     exa: dict[str, Any]

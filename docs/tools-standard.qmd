@@ -368,9 +368,9 @@ inspect eval computer.py --no-internal-tools
 
 The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
 
--   Internal providers: "openai" and "anthropic" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
+-   Internal providers: "openai", "anthropic", and "gemini" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
 
--   External providers: "tavily", "exa", and "google". These are external services that work with any model and require separate accounts and API keys.
+-   External providers: "tavily", "exa", and "google". These are external services that work with any model and require separate accounts and API keys. Note that "google" is different from "gemini" - "google" refers to Google's Programmable Search Engine service, while "gemini" refers to Google's built-in search capability for Gemini models.
 
 Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
 
@@ -384,6 +384,9 @@ web_search("tavily")
 
 # with internal provider and fallback
 web_search(["openai", "tavily"])
+
+# with gemini provider and fallback
+web_search(["gemini", "tavily"])
 
 # provider with specific options
 web_search({"tavily": {"max_results": 5}})
@@ -422,6 +425,20 @@ For more details on Anthropic's web search parameters, see [Anthropic Web Search
 
 Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Anthropic model.
 
+### Gemini Options
+
+The `web_search()` tool can use Google's built-in search capability (called grounding) when running on Gemini 2.0 models and later. This provider does not require any API keys beyond what's needed for the model itself.
+
+This is distinct from the "google" provider (described below), which uses Google's external Programmable Search Engine service and requires separate API keys.
+
+For more details, see [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/grounding).
+
+Note that when using the "gemini" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Gemini models.
+
+::: callout-warning
+Google's search grounding does not currently support use with other tools. Attempting to use `web_search("gemini")` alongside other tools will result in an error.
+:::
+
 ### Tavily Options
 
 The `web_search()` tool can use [Tavily](https://tavily.com/)'s Research API. To use it you will need to set up your own Tavily account. Then, ensure that the following environment variable is defined:
@@ -459,7 +476,9 @@ For more details, see the [Exa API Documentation](https://docs.exa.ai/reference/
 
 #### Google Options
 
-The `web_search()` can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will need to set up your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+The `web_search()` tool can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/) as an external provider. This is different from the "gemini" provider (described above), which uses Google's built-in search capability for Gemini models.
+
+To use the "google" provider you will need to set up your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
 
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API

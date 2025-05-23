@@ -17,6 +17,7 @@
 - Inspect View: Correctly update browser URL when navigation between samples.
 - Web Search: Added provider for [Exa](https://exa.ai/exa-api) Search API.
 - OpenAI: Work around OpenAI Responses API issue by filtering out leading consecutive reasoning blocks.
+- Web Search: Added provider for Google's [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/grounding) .
 - Bugfix: Properly honor `responses_api=False` when pass as an OpenAI model config arg.
 - Bugfix: Limits passed to handoffs can be used multiple times (if agent is handed off to multiple times).
 - Bugfix: Replace invalid surrogate characters when serializing strings to JSON.
