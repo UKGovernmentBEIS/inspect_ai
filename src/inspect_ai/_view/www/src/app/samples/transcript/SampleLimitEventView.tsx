@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { FC } from "react";
 import { SampleLimitEvent, Type10 } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
@@ -55,13 +56,13 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
 
   return (
     <EventPanel
-      id={eventNode.id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       title={title}
       icon={icon}
       className={className}
     >
-      {eventNode.event.message}
+      <div className={clsx("text-size-smaller")}>{eventNode.event.message}</div>
     </EventPanel>
   );
 };

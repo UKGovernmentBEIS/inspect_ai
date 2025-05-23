@@ -19,10 +19,9 @@ export const ErrorEventView: FC<ErrorEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  const id = eventNode.id;
   return (
     <EventPanel
-      id={id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       title="Error"
       className={className}

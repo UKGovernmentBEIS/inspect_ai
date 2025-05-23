@@ -1,0 +1,45 @@
+.eventRow {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  column-gap: 3px;
+  cursor: pointer;
+}
+
+.eventRow.selected {
+  font-weight: 800;
+}
+
+.eventRow .toggle {
+  font-size: 0.7em;
+  margin-top: 4px;
+}
+
+.eventLink {
+  color: var(--bs-body);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.eventLink:hover {
+  text-decoration: underline;
+  color: var(--bs-link-hover-color);
+}
+
+.label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon {
+  margin-right: 3px;
+}
+
+.progress {
+  margin-left: 0.3em !important;
+}
+
+.popover {
+  min-width: 300px;
+  max-width: 80%;
+}

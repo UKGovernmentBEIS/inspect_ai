@@ -7,6 +7,7 @@ interface PulsingDotsProps {
   dotsCount?: number;
   subtle?: boolean;
   size?: "small" | "medium" | "large";
+  className?: string | string[];
 }
 
 export const PulsingDots: FC<PulsingDotsProps> = ({
@@ -14,6 +15,7 @@ export const PulsingDots: FC<PulsingDotsProps> = ({
   dotsCount = 3,
   subtle = true,
   size = "small",
+  className,
 }) => {
   return (
     <div
@@ -24,6 +26,7 @@ export const PulsingDots: FC<PulsingDotsProps> = ({
           : size === "medium"
             ? styles.medium
             : styles.large,
+        className,
       )}
       role="status"
     >
@@ -35,7 +38,7 @@ export const PulsingDots: FC<PulsingDotsProps> = ({
               styles.dot,
               subtle ? styles.subtle : styles.primary,
             )}
-            style={{ animationDelay: `${index * 0.15}s` }}
+            style={{ animationDelay: `${index * 0.2}s` }}
           />
         ))}
       </div>

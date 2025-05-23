@@ -9,6 +9,7 @@ const loggingIcons: Record<string, string> = {
 };
 
 export const ApplicationIcons = {
+  agent: "bi bi-grid", // bi bi-x-diamond
   approve: "bi bi-shield",
   approvals: {
     approve: "bi bi-shield-check",
@@ -56,7 +57,7 @@ export const ApplicationIcons = {
   json: "bi bi-filetype-json",
   limits: {
     messages: "bi bi-chat-right-text",
-    custom: "bi bi-person-workspace",
+    custom: "bi bi-exclamation-triangle",
     operator: "bi bi-person-workspace",
     tokens: "bi bi-list",
     time: "bi bi-clock",
@@ -91,6 +92,7 @@ export const ApplicationIcons = {
   sandbox: "bi bi-box-seam",
   scorer: "bi bi-calculator",
   search: "bi bi-search",
+  sidebar: "bi bi-list",
   solvers: {
     default: "bi bi-arrow-return-right",
     generate: "bi bi-share",
@@ -106,5 +108,6 @@ export const ApplicationIcons = {
     open: "bi bi-caret-down-fill",
     closed: "bi bi-caret-right-fill",
   },
+  turns: "bi bi-chat-left-text", // bi bi-repeat
   usage: "bi bi-stopwatch",
 };

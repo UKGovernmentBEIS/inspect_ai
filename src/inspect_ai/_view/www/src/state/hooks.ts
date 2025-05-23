@@ -270,16 +270,17 @@ export const useLogSelection = () => {
 };
 
 export const useCollapseSampleEvent = (
+  scope: string,
   id: string,
 ): [boolean, (collapsed: boolean) => void] => {
   const collapsed = useStore((state) => state.sample.collapsedEvents);
   const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
 
   return useMemo(() => {
-    const isCollapsed = collapsed !== null && collapsed[id] === true;
+    const isCollapsed = collapsed !== null && collapsed[scope][id] === true;
     const set = (value: boolean) => {
       log.debug("Set collapsed", id, value);
-      collapseEvent(id, value);
+      collapseEvent(scope, id, value);
     };
     return [isCollapsed, set];
   }, [collapsed, collapseEvent, id]);
@@ -505,4 +506,53 @@ export const useSetSelectedLogIndex = () => {
       clearCollapsedEvents,
     ],
   );
+};
+
+export const useSamplePopover = (id: string) => {
+  const setVisiblePopover = useStore(
+    (store) => store.sampleActions.setVisiblePopover,
+  );
+  const clearVisiblePopover = useStore(
+    (store) => store.sampleActions.clearVisiblePopover,
+  );
+  const visiblePopover = useStore((store) => store.sample.visiblePopover);
+  const timerRef = useRef<number | null>(null);
+
+  const show = useCallback(() => {
+    if (timerRef.current) {
+      return; // Timer already running
+    }
+
+    timerRef.current = window.setTimeout(() => {
+      setVisiblePopover(id);
+      timerRef.current = null;
+    }, 250);
+  }, [id, setVisiblePopover]);
+
+  const hide = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    clearVisiblePopover();
+  }, [clearVisiblePopover]);
+
+  // Clear the timeout when component unmounts
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const isShowing = useMemo(() => {
+    return visiblePopover === id;
+  }, [id, visiblePopover]);
+
+  return {
+    show,
+    hide,
+    isShowing,
+  };
 };

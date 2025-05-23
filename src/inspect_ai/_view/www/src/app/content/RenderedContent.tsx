@@ -1,16 +1,14 @@
-import JSON5 from "json5";
-import { ApplicationIcons } from "../appearance/icons";
-
-import { ChatMessageRenderer } from "../../app/samples/chat/ChatMessageRenderer";
-import { ANSIDisplay } from "../../components/AnsiDisplay";
-import { formatNumber } from "../../utils/format";
-import { MetaDataView } from "./MetaDataView";
-
 import clsx from "clsx";
+import JSON5 from "json5";
 import { FC, Fragment, isValidElement, JSX, ReactNode } from "react";
+import { ANSIDisplay } from "../../components/AnsiDisplay";
 import JSONPanel from "../../components/JsonPanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
+import { formatNumber } from "../../utils/format";
 import { isJson } from "../../utils/json";
+import { ApplicationIcons } from "../appearance/icons";
+import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
+import { MetaDataView } from "./MetaDataView";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer, RenderOptions } from "./types";
 
@@ -18,6 +16,7 @@ interface RenderedContentProps {
   id: string;
   entry: { name: string; value: unknown };
   renderOptions?: RenderOptions;
+  renderObject?(entry: any): ReactNode;
 }
 
 /**
@@ -27,15 +26,16 @@ export const RenderedContent: FC<RenderedContentProps> = ({
   id,
   entry,
   renderOptions = { renderString: "markdown" },
+  renderObject,
 }): JSX.Element => {
   // Explicitly specify return type
   if (entry.value === null) {
     return <span>[null]</span>;
   }
-
-  const renderer = Object.keys(contentRenderers)
+  const renderers = contentRenderers(renderObject);
+  const renderer = Object.keys(renderers)
     .map((key) => {
-      return contentRenderers[key];
+      return renderers[key];
     })
     .sort((a, b) => {
       return a.bucket - b.bucket;
@@ -70,216 +70,231 @@ export const RenderedContent: FC<RenderedContentProps> = ({
  * Object containing different content renderers.
  * Each renderer is responsible for rendering a specific type of content.
  */
-const contentRenderers: Record<string, ContentRenderer> = {
-  AnsiString: {
-    bucket: Buckets.first,
-    canRender: (entry) => {
-      return (
-        typeof entry.value === "string" && entry.value.indexOf("\u001b") > -1
-      );
-    },
-    render: (_id, entry, _options) => {
-      return {
-        rendered: <ANSIDisplay output={entry.value} />,
-      };
-    },
-  },
-  JsonString: {
-    bucket: Buckets.first,
-    canRender: (entry) => {
-      if (typeof entry.value === "string") {
-        const trimmed = entry.value.trim();
-        return isJson(trimmed);
-      }
-      return false;
-    },
-    render: (_id, entry, _options) => {
-      const obj = JSON5.parse(entry.value);
-      return { rendered: <JSONPanel data={obj as Record<string, unknown>} /> };
-    },
-  },
-
-  Model: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return typeof entry.value === "object" && entry.value._model;
-    },
-    render: (_id, entry, _options) => {
-      return {
-        rendered: (
-          <Fragment>
-            <i className={ApplicationIcons.model} /> {entry.value._model}
-          </Fragment>
-        ),
-      };
-    },
-  },
-  Boolean: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return typeof entry.value === "boolean";
-    },
-    render: (id, entry, options) => {
-      entry.value = entry.value.toString();
-      return contentRenderers.String.render(id, entry, options);
-    },
-  },
-  Number: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return typeof entry.value === "number";
-    },
-    render: (id, entry, options) => {
-      entry.value = formatNumber(entry.value);
-      return contentRenderers.String.render(id, entry, options);
-    },
-  },
-  String: {
-    bucket: Buckets.final,
-    canRender: (entry) => {
-      return typeof entry.value === "string";
-    },
-    render: (_id, entry, options) => {
-      const rendered = entry.value.trim();
-      if (options.renderString === "markdown") {
+const contentRenderers: (
+  renderObject?: (object: any) => ReactNode,
+) => Record<string, ContentRenderer> = (renderObject) => {
+  const contentRenderers: Record<string, ContentRenderer> = {
+    AnsiString: {
+      bucket: Buckets.first,
+      canRender: (entry) => {
+        return (
+          typeof entry.value === "string" && entry.value.indexOf("\u001b") > -1
+        );
+      },
+      render: (_id, entry, _options) => {
         return {
-          rendered: <MarkdownDiv markdown={rendered} />,
+          rendered: <ANSIDisplay output={entry.value} />,
         };
-      } else {
+      },
+    },
+    JsonString: {
+      bucket: Buckets.first,
+      canRender: (entry) => {
+        if (typeof entry.value === "string") {
+          const trimmed = entry.value.trim();
+          return isJson(trimmed);
+        }
+        return false;
+      },
+      render: (_id, entry, _options) => {
+        const obj = JSON5.parse(entry.value);
+        return {
+          rendered: <JSONPanel data={obj as Record<string, unknown>} />,
+        };
+      },
+    },
+
+    Model: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return typeof entry.value === "object" && entry.value._model;
+      },
+      render: (_id, entry, _options) => {
         return {
           rendered: (
-            <pre className={clsx(styles.preWrap, styles.preCompact)}>
-              {rendered}
-            </pre>
+            <Fragment>
+              <i className={ApplicationIcons.model} /> {entry.value._model}
+            </Fragment>
           ),
         };
-      }
+      },
     },
-  },
-  Array: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      const isArray = Array.isArray(entry.value);
-      if (isArray) {
-        if (entry.value.length === 0 || entry.value.length === 1) {
-          return true;
+    Boolean: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return typeof entry.value === "boolean";
+      },
+      render: (id, entry, options) => {
+        entry.value = entry.value.toString();
+        return contentRenderers.String.render(id, entry, options);
+      },
+    },
+    Number: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return typeof entry.value === "number";
+      },
+      render: (id, entry, options) => {
+        entry.value = formatNumber(entry.value);
+        return contentRenderers.String.render(id, entry, options);
+      },
+    },
+    String: {
+      bucket: Buckets.final,
+      canRender: (entry) => {
+        return typeof entry.value === "string";
+      },
+      render: (_id, entry, options) => {
+        const rendered = entry.value.trim();
+        if (options.renderString === "markdown") {
+          return {
+            rendered: <MarkdownDiv markdown={rendered} />,
+          };
+        } else {
+          return {
+            rendered: (
+              <pre className={clsx(styles.preWrap, styles.preCompact)}>
+                {rendered}
+              </pre>
+            ),
+          };
         }
-        const types = new Set(
-          entry.value
-            .filter((e: unknown) => e !== null)
-            .map((e: unknown) => {
-              return typeof e;
-            }),
-        );
-        return types.size === 1;
-      } else {
-        return false;
-      }
+      },
     },
-    render: (id, entry, _options) => {
-      const arrayMap: Record<string, unknown> = {};
-      entry.value.forEach((e: unknown, index: number) => {
-        arrayMap[`[${index}]`] = e;
-      });
+    Array: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        const isArray = Array.isArray(entry.value);
+        if (isArray) {
+          if (entry.value.length === 0 || entry.value.length === 1) {
+            return true;
+          }
+          const types = new Set(
+            entry.value
+              .filter((e: unknown) => e !== null)
+              .map((e: unknown) => {
+                return typeof e;
+              }),
+          );
+          return types.size === 1;
+        } else {
+          return false;
+        }
+      },
+      render: (id, entry, _options) => {
+        const arrayMap: Record<string, unknown> = {};
+        entry.value.forEach((e: unknown, index: number) => {
+          arrayMap[`[${index}]`] = e;
+        });
 
-      const arrayRendered = (
-        <MetaDataView
-          id={id}
-          className={"font-size-small"}
-          entries={arrayMap}
-          tableOptions="borderless,sm"
-          compact={true}
-        />
-      );
-      return { rendered: arrayRendered };
-    },
-  },
-  ChatMessage: ChatMessageRenderer,
-  web_search: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return typeof entry.value === "object" && entry.name === "web_search";
-    },
-    render: (_id, entry, _options) => {
-      const results: ReactNode[] = [];
-      results.push(
-        <div className={styles.query}>
-          <i className={ApplicationIcons.search}></i> {entry.value.query}
-        </div>,
-      );
-      entry.value.results.forEach(
-        (result: { url: string; summary: string }) => {
-          results.push(
-            <div>
-              <a href={result.url}>{result.url}</a>
-            </div>,
-          );
-          results.push(
-            <div className={clsx("text-size-smaller", styles.summary)}>
-              {result.summary}
-            </div>,
-          );
-        },
-      );
-      return {
-        rendered: results,
-      };
-    },
-  },
-  web_browser: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return (
-        typeof entry.value === "string" && entry.name?.startsWith("web_browser")
-      );
-    },
-    render: (_id, entry, _options) => {
-      return {
-        rendered: <pre className={styles.preWrap}>{entry.value}</pre>,
-      };
-    },
-  },
-  Html: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return typeof entry.value === "object" && entry.value._html;
-    },
-    render: (_id, entry, _options) => {
-      return {
-        rendered: entry.value._html,
-      };
-    },
-  },
-  Image: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return (
-        typeof entry.value === "string" && entry.value.startsWith("data:image/")
-      );
-    },
-    render: (_id, entry, _options) => {
-      return {
-        rendered: <img src={entry.value} />,
-      };
-    },
-  },
-  Object: {
-    bucket: Buckets.intermediate,
-    canRender: (entry) => {
-      return typeof entry.value === "object";
-    },
-    render: (id, entry, _options) => {
-      return {
-        rendered: (
+        const arrayRendered = renderObject ? (
+          renderObject(arrayMap)
+        ) : (
           <MetaDataView
             id={id}
-            className={"text-size-smaller"}
-            entries={entry.value}
+            className={"font-size-small"}
+            entries={arrayMap}
             tableOptions="borderless,sm"
-            compact
+            compact={true}
           />
-        ),
-      };
+        );
+        return { rendered: arrayRendered };
+      },
     },
-  },
+    ChatMessage: ChatMessageRenderer,
+    web_search: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return typeof entry.value === "object" && entry.name === "web_search";
+      },
+      render: (_id, entry, _options) => {
+        const results: ReactNode[] = [];
+        results.push(
+          <div className={styles.query}>
+            <i className={ApplicationIcons.search}></i> {entry.value.query}
+          </div>,
+        );
+        entry.value.results.forEach(
+          (result: { url: string; summary: string }) => {
+            results.push(
+              <div>
+                <a href={result.url}>{result.url}</a>
+              </div>,
+            );
+            results.push(
+              <div className={clsx("text-size-smaller", styles.summary)}>
+                {result.summary}
+              </div>,
+            );
+          },
+        );
+        return {
+          rendered: results,
+        };
+      },
+    },
+    web_browser: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return (
+          typeof entry.value === "string" &&
+          entry.name?.startsWith("web_browser")
+        );
+      },
+      render: (_id, entry, _options) => {
+        return {
+          rendered: <pre className={styles.preWrap}>{entry.value}</pre>,
+        };
+      },
+    },
+    Html: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return typeof entry.value === "object" && entry.value._html;
+      },
+      render: (_id, entry, _options) => {
+        return {
+          rendered: entry.value._html,
+        };
+      },
+    },
+    Image: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return (
+          typeof entry.value === "string" &&
+          entry.value.startsWith("data:image/")
+        );
+      },
+      render: (_id, entry, _options) => {
+        return {
+          rendered: <img src={entry.value} />,
+        };
+      },
+    },
+    Object: {
+      bucket: Buckets.intermediate,
+      canRender: (entry) => {
+        return typeof entry.value === "object";
+      },
+      render: (id, entry, _options) => {
+        if (renderObject) {
+          return { rendered: renderObject(entry.value) };
+        } else {
+          return {
+            rendered: (
+              <MetaDataView
+                id={id}
+                className={"text-size-smaller"}
+                entries={entry.value}
+                tableOptions="borderless,sm"
+                compact
+              />
+            ),
+          };
+        }
+      },
+    },
+  };
+  return contentRenderers;
 };

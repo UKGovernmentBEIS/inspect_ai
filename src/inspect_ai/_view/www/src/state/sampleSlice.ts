@@ -22,16 +22,26 @@ export interface SampleSlice {
     setSelectedSample: (sample: EvalSample) => void;
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
+
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
-    setCollapsedEvents: (collapsed: Record<string, true>) => void;
-    collapseEvent: (id: string, collapsed: boolean) => void;
+    setCollapsedEvents: (
+      scope: string,
+      collapsed: Record<string, boolean>,
+    ) => void;
+    collapseEvent: (scope: string, id: string, collapsed: boolean) => void;
     clearCollapsedEvents: () => void;
 
     setCollapsedIds: (key: string, collapsed: Record<string, true>) => void;
     collapseId: (key: string, id: string, collapsed: boolean) => void;
     clearCollapsedIds: (key: string) => void;
+
+    setVisiblePopover: (id: string) => void;
+    clearVisiblePopover: () => void;
+
+    setSelectedOutlineId: (id: string) => void;
+    clearSelectedOutlineId: () => void;
 
     // Loading
     loadSample: (
@@ -56,6 +66,8 @@ const initialState: SampleState = {
   sampleStatus: "ok",
   sampleError: undefined,
 
+  visiblePopover: undefined,
+
   // signals that the sample needs to be reloaded
   sampleNeedsReload: 0,
 
@@ -64,6 +76,7 @@ const initialState: SampleState = {
   collapsedEvents: null,
 
   collapsedIdBuckets: {},
+  selectedOutlineId: undefined,
 };
 
 export const createSampleSlice = (
@@ -130,25 +143,37 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
-      setCollapsedEvents: (collapsed: Record<string, true>) => {
-        set((state) => {
-          state.sample.collapsedEvents = collapsed;
-        });
-      },
-      clearCollapsedEvents: () => {
-        set((state) => {
-          state.sample.collapsedEvents = null;
-        });
-      },
-      collapseEvent: (id: string, collapsed: boolean) => {
+      setCollapsedEvents: (
+        scope: string,
+        collapsed: Record<string, boolean>,
+      ) => {
         set((state) => {
           if (state.sample.collapsedEvents === null) {
             state.sample.collapsedEvents = {};
           }
+          state.sample.collapsedEvents[scope] = collapsed;
+        });
+      },
+      clearCollapsedEvents: () => {
+        set((state) => {
+          if (state.sample.collapsedEvents !== null) {
+            state.sample.collapsedEvents = null;
+          }
+        });
+      },
+      collapseEvent: (scope: string, id: string, collapsed: boolean) => {
+        set((state) => {
+          if (state.sample.collapsedEvents === null) {
+            state.sample.collapsedEvents = {};
+          }
+          if (!state.sample.collapsedEvents[scope]) {
+            state.sample.collapsedEvents[scope] = {};
+          }
+
           if (collapsed) {
-            state.sample.collapsedEvents[id] = true;
+            state.sample.collapsedEvents[scope][id] = true;
           } else {
-            delete state.sample.collapsedEvents[id];
+            delete state.sample.collapsedEvents[scope][id];
           }
         });
       },
@@ -174,7 +199,26 @@ export const createSampleSlice = (
           delete state.sample.collapsedIdBuckets[key];
         });
       },
-
+      setVisiblePopover: (id: string) => {
+        set((state) => {
+          state.sample.visiblePopover = id;
+        });
+      },
+      clearVisiblePopover: () => {
+        set((state) => {
+          state.sample.visiblePopover = undefined;
+        });
+      },
+      setSelectedOutlineId: (id: string) => {
+        set((state) => {
+          state.sample.selectedOutlineId = id;
+        });
+      },
+      clearSelectedOutlineId: () => {
+        set((state) => {
+          state.sample.selectedOutlineId = undefined;
+        });
+      },
       pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
         // Poll running sample
         const state = get();

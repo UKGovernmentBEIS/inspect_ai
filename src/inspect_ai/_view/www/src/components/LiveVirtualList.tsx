@@ -36,6 +36,9 @@ interface LiveVirtualListProps<T> {
   // The initial index to scroll to when loading
   initialTopMostItemIndex?: number;
 
+  // The offset to use when scrolling items
+  offsetTop?: number;
+
   components?: Components<T>;
 }
 
@@ -51,6 +54,7 @@ export const LiveVirtualList = <T,>({
   live,
   showProgress,
   initialTopMostItemIndex,
+  offsetTop,
   components,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
@@ -170,7 +174,8 @@ export const LiveVirtualList = <T,>({
         listHandle.current?.scrollToIndex({
           index: initialTopMostItemIndex,
           align: "start",
-          behavior: "auto",
+          behavior: "smooth",
+          offset: offsetTop ? -offsetTop : undefined,
         });
       }, 50);
 
