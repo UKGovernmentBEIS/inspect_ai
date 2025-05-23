@@ -10,14 +10,9 @@ import {
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import { useParams } from "react-router-dom";
 import { CopyButton } from "../../../../components/CopyButton";
 import { useCollapseSampleEvent, useProperty } from "../../../../state/hooks";
-import {
-  sampleEventUrl,
-  supportsLinking,
-  toFullUrl,
-} from "../../../routing/url";
+import { supportsLinking, useSampleEventUrl } from "../../../routing/url";
 import { kTranscriptCollapseScope } from "../types";
 import styles from "./EventPanel.module.css";
 
@@ -62,18 +57,8 @@ export const EventPanel: FC<EventPanelProps> = ({
   const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
   const useBottomDongle = isCollapsible && collapseControl === "bottom";
 
-  // Get all URL parameters at component level
-  const { logPath, sampleId, epoch } = useParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
-
-  const url =
-    logPath && supportsLinking()
-      ? toFullUrl(sampleEventUrl(eventNodeId, logPath, sampleId, epoch))
-      : undefined;
+  const sampleEventUrl = useSampleEventUrl(eventNodeId);
+  const url = supportsLinking() ? sampleEventUrl : undefined;
 
   const pillId = (index: number) => {
     return `${eventNodeId}-nav-pill-${index}`;

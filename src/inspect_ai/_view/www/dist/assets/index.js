@@ -43311,6 +43311,28 @@ categories: ${categories.join(" ")}`;
       );
       return `${baseUrl2}?event=${eventId}`;
     };
+    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return targetLogPath ? sampleEventUrl(
+          eventId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
+        ) : void 0;
+      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
     const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
       const baseUrl2 = sampleUrl(
         logPath,
@@ -43321,8 +43343,11 @@ categories: ${categories.join(" ")}`;
       return `${baseUrl2}?message=${messageId}`;
     };
     const logUrl = (log_file, log_dir, tabId) => {
+      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
+    };
+    const makeLogPath = (log_file, log_dir) => {
       const pathSegment = directoryRelativeUrl(log_file, log_dir);
-      return logUrlRaw(pathSegment, tabId);
+      return pathSegment;
     };
     const logUrlRaw = (log_segment, tabId) => {
       if (tabId) {
@@ -54826,8 +54851,7 @@ self.onmessage = function (e) {
       const popoverId = `${node2.id}-popover`;
       const { isShowing } = useSamplePopover(popoverId);
       const ref = reactExports.useRef(null);
-      const { logPath, sampleId, epoch } = useParams();
-      const url = logPath ? sampleEventUrl(node2.id, logPath, sampleId, epoch) : void 0;
+      const sampleEventUrl2 = useSampleEventUrl(node2.id);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
@@ -54851,7 +54875,15 @@ self.onmessage = function (e) {
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$y.label), "data-depth": node2.depth, children: [
                 icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$y.icon) }) : void 0,
-                url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, className: clsx(styles$y.eventLink), ref, children: parsePackageName(labelForNode(node2)).module }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, children: parsePackageName(labelForNode(node2)).module }),
+                sampleEventUrl2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  Link,
+                  {
+                    to: sampleEventUrl2,
+                    className: clsx(styles$y.eventLink),
+                    ref,
+                    children: parsePackageName(labelForNode(node2)).module
+                  }
+                ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, children: parsePackageName(labelForNode(node2)).module }),
                 running2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   PulsingDots,
                   {
@@ -55499,8 +55531,8 @@ self.onmessage = function (e) {
       );
       const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
       const useBottomDongle = isCollapsible && collapseControl === "bottom";
-      const { logPath, sampleId, epoch } = useParams();
-      const url = logPath && supportsLinking() ? toFullUrl(sampleEventUrl(eventNodeId, logPath, sampleId, epoch)) : void 0;
+      const sampleEventUrl2 = useSampleEventUrl(eventNodeId);
+      const url = supportsLinking() ? sampleEventUrl2 : void 0;
       const pillId = (index2) => {
         return `${eventNodeId}-nav-pill-${index2}`;
       };

@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, ReactNode, useRef } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { PopOver } from "../../../../components/PopOver";
 import { PulsingDots } from "../../../../components/PulsingDots";
 import {
@@ -11,7 +11,7 @@ import { formatDateTime, formatTime } from "../../../../utils/format";
 import { parsePackageName } from "../../../../utils/python";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { MetaDataGrid } from "../../../content/MetaDataGrid";
-import { sampleEventUrl } from "../../../routing/url";
+import { useSampleEventUrl } from "../../../routing/url";
 import { kSandboxSignalName } from "../transform/fixups";
 import { EventNode } from "../types";
 import styles from "./OutlineRow.module.css";
@@ -42,16 +42,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
   const ref = useRef(null);
 
   // Get all URL parameters at component level
-  const { logPath, sampleId, epoch } = useParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
-
-  const url = logPath
-    ? sampleEventUrl(node.id, logPath, sampleId, epoch)
-    : undefined;
+  const sampleEventUrl = useSampleEventUrl(node.id);
 
   return (
     <>
@@ -73,8 +64,12 @@ export const OutlineRow: FC<OutlineRowProps> = ({
         </div>
         <div className={clsx(styles.label)} data-depth={node.depth}>
           {icon ? <i className={clsx(icon, styles.icon)} /> : undefined}
-          {url ? (
-            <Link to={url} className={clsx(styles.eventLink)} ref={ref}>
+          {sampleEventUrl ? (
+            <Link
+              to={sampleEventUrl}
+              className={clsx(styles.eventLink)}
+              ref={ref}
+            >
               {parsePackageName(labelForNode(node)).module}
             </Link>
           ) : (
