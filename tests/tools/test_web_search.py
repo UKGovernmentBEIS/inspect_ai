@@ -1,9 +1,11 @@
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from inspect_ai.tool._tools._web_search._web_search import (
     Providers,
+    _create_external_provider,
     _normalize_config,
 )
 
@@ -163,3 +165,47 @@ class TestNormalizeConfig:
             model=None,
         )
         assert result == {"google": {"num_results": 5}}
+
+
+class TestCreateExternalProvider:
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "TAVILY_API_KEY"
+        else default,
+    )
+    def test_tavily_provider_with_normal_config(self, mock_environ_get) -> None:
+        assert callable(_create_external_provider({"tavily": {"max_results": 5}}))
+
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "TAVILY_API_KEY"
+        else default,
+    )
+    def test_tavily_provider_with_none(self, mock_environ_get) -> None:
+        assert callable(_create_external_provider({"tavily": None}))
+
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "TAVILY_API_KEY"
+        else default,
+    )
+    def test_tavily_provider_with_bogus_config(self, mock_environ_get) -> None:
+        with pytest.raises(ValidationError):
+            _create_external_provider({"tavily": {"max_results": "bogus"}})
+
+    @patch(
+        "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys",
+        return_value=("fake-key", "fake-cse-id"),
+    )
+    def test_google_provider_with_normal_config(self, mock_google_api_keys) -> None:
+        assert callable(_create_external_provider({"google": {"max_results": 5}}))
+
+    @patch(
+        "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys",
+        return_value=("fake-key", "fake-cse-id"),
+    )
+    def test_google_provider_with_none(self, mock_google_api_keys) -> None:
+        assert callable(_create_external_provider({"google": None}))

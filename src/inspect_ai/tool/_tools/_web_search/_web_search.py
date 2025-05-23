@@ -270,10 +270,10 @@ def _get_config_via_back_compat(
 def _create_external_provider(
     providers: Providers,
 ) -> Callable[[str], Awaitable[str | None]]:
-    if tavily := providers.get("tavily", None):
-        return tavily_search_provider(tavily)
+    if "tavily" in providers:
+        return tavily_search_provider(providers.get("tavily", None))
 
-    if google := providers.get("google", None):
-        return google_search_provider(google)
+    if "google" in providers:
+        return google_search_provider(providers.get("google", None))
 
     raise ValueError("No valid provider found.")
