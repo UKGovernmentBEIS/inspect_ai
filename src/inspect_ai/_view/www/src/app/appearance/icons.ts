@@ -51,6 +51,8 @@ export const ApplicationIcons = {
   eval: "bi bi-info-circle-fill",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  file: "bi bi-file-code",
+  folder: "bi bi-folder",
   fork: "bi bi-signpost-split",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",

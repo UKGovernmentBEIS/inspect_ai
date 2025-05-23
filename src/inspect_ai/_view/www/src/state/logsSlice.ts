@@ -1,5 +1,6 @@
+import { EvalLog } from "../@types/log";
 import { LogsState } from "../app/types";
-import { EvalLogHeader, LogFiles } from "../client/api/types";
+import { EvalLogHeader, LogFile, LogFiles } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";
@@ -17,6 +18,7 @@ export interface LogsSlice {
     // Update State
     setLogs: (logs: LogFiles) => void;
     setLogHeaders: (headers: Record<string, EvalLogHeader>) => void;
+    loadHeaders: (logs: LogFile[]) => Promise<EvalLog[]>;
     setHeadersLoading: (loading: boolean) => void;
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
@@ -74,6 +76,15 @@ export const createLogsSlice = (
         set((state) => {
           state.logs.logHeaders = headers;
         }),
+      loadHeaders: async (logs: LogFile[]) => {
+        const api = get().api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return [];
+        }
+        log.debug("LOADING LOG HEADERS");
+        return await api.get_log_headers(logs.map((log) => log.name));
+      },
       setHeadersLoading: (loading: boolean) =>
         set((state) => {
           state.logs.headersLoading = loading;

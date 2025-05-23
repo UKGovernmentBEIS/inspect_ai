@@ -11,7 +11,7 @@ import {
   bySample,
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
-import { SampleSummary } from "../client/api/types";
+import { EvalLogHeader, LogFile, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
@@ -555,4 +555,53 @@ export const useSamplePopover = (id: string) => {
     hide,
     isShowing,
   };
+};
+
+export const useLogs = () => {
+  // Loading logs
+  const load = useStore((state) => state.logsActions.loadLogs);
+  const setLogs = useStore((state) => state.logsActions.setLogs);
+  const setStatus = useStore((state) => state.appActions.setStatus);
+
+  const loadLogs = useCallback(async () => {
+    const exec = async () => {
+      setStatus({ loading: true, error: undefined });
+      const logs = await load();
+      setLogs(logs);
+      setStatus({ loading: false, error: undefined });
+    };
+    exec().catch((e) => {
+      log.error("Error loading logs", e);
+      setStatus({ loading: false, error: e });
+    });
+  }, [load, setLogs, setStatus]);
+
+  // Loading headers
+  const headers = useStore((state) => state.logsActions.loadHeaders);
+  const setHeaders = useStore((state) => state.logsActions.setLogHeaders);
+  const allLogFiles = useStore((state) => state.logs.logs.files);
+  const loadHeaders = useCallback(
+    async (logFiles: LogFile[] = allLogFiles) => {
+      const exec = async () => {
+        const logHeaders = await headers(logFiles);
+        const result: Record<string, EvalLogHeader> = {};
+        for (var i = 0; i < logFiles.length; i++) {
+          const logFile = logFiles[i];
+          const logHeader = logHeaders[i];
+          if (logHeader) {
+            result[logFile.name] = logHeader as EvalLogHeader;
+          }
+        }
+        setHeaders(result);
+      };
+      exec().catch((e) => {
+        log.error("Error loading log headers", e);
+        setHeaders({});
+      });
+    },
+    [headers],
+  );
+
+  // load a specific set of log headers (perhaps we an optional list of logs?)
+  return { loadLogs, loadHeaders };
 };

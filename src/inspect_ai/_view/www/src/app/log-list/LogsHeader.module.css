@@ -1,0 +1,13 @@
+.header {
+  border-bottom: solid var(--bs-border-color) 1px;
+  background: var(--bs-secondary-bg);
+  display: grid;
+  grid-template-columns: max-content max-content;
+  justify-content: space-between;
+  padding: 0.2em 1em;
+  --bs-breadcrumb-divider: ">";
+}
+
+.breadcrumbs {
+  margin-bottom: 0;
+}
