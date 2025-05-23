@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added native OpenAI web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
+
 ## v0.3.99 (22 May 2025)
 
 - Exported `view()` function for running Inspect View from Python.

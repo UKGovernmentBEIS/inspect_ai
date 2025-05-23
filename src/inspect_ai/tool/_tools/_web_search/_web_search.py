@@ -46,23 +46,32 @@ class WebSearchDeprecatedArgs(TypedDict, total=False):
 @tool
 def web_search(
     providers: Provider | Providers | list[Provider | Providers],
-    **deprecated_args: Unpack[WebSearchDeprecatedArgs],
+    **deprecated: Unpack[WebSearchDeprecatedArgs],
 ) -> Tool:
     """Web search tool.
 
-    A tool that can be registered for use by models to search the web. Use
-    the `use_tools()` solver to make the tool available (e.g.
-    `use_tools(web_search("tavily"))`))
+    ::: callout-note
+    The "openai" web search provider described below is available only in the development version of Inspect.
+    To install the development version from GitHub:
 
-    A web search is conducted using the specified provider. Providers are split
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
+    Web searches are executed using a provider. Providers are split
     into two categories:
-    - External providers: "google" and "tavily" - these require API keys and
-      make external API calls to perform the search.
+
     - Internal providers: "openai" - these use the model's built-in search
-      capability and do not require separate API keys.
+      capability and do not require separate API keys. These work only for
+      their respective model provider (e.g. the "openai" search provider
+      works only for `openai/*` models).
+
+    - External providers: "tavily" and "google". These are external services
+      that work with any m odel and require separate accounts and API keys.
 
     Internal providers will be prioritized if running on the corresponding model
-    (e.g., "openai" provider will be used when running on OpenAI models). If an
+    (e.g., "openai" provider will be used when running on `openai` models). If an
     internal provider is specified but the evaluation is run with a different
     model, a fallback external provider must also be specified.
 
@@ -70,7 +79,7 @@ def web_search(
 
     Args:
       providers: Configuration for the search providers to use. Currently supported
-        providers are "google", "tavily", and "openai". The `providers` parameter
+        providers are "openai","tavily", and "google", The `providers` parameter
         supports several formats based on either a `str` specifying a provider or
         a `dict` whose keys are the provider names and whose values are the
         provider-specific options. A single value or a list of these can be passed.
@@ -85,6 +94,7 @@ def web_search(
         ```
         # "openai" used for OpenAI models, "tavily" as fallback
         web_search(["openai", "tavily"])
+
         # The None value means to use the provider with default options
         web_search({"openai": None, "tavily": {"max_results": 5}}
         ```
@@ -98,19 +108,21 @@ def web_search(
         to use the provider with default options.
 
         Provider-specific options:
-        - tavily: Supports options like `max_results`, `search_depth`, etc.
-          See https://docs.tavily.com/documentation/api-reference/endpoint/search
         - openai: Supports OpenAI's web search parameters.
           See https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses
+
+        - tavily: Supports options like `max_results`, `search_depth`, etc.
+          See https://docs.tavily.com/documentation/api-reference/endpoint/search
+
         - google: Supports options like `num_results`, `max_provider_calls`,
           `max_connections`, and `model`
 
-      **deprecated_args: Deprecated arguments.
+      **deprecated: Deprecated arguments.
 
     Returns:
        A tool that can be registered for use by models to search the web.
     """
-    normalized_providers = _normalize_config(providers, **deprecated_args)
+    normalized_providers = _normalize_config(providers, **deprecated)
 
     search_provider: Callable[[str], Awaitable[str | None]] | None = None
 
@@ -142,7 +154,7 @@ def web_search(
 
 def _normalize_config(
     providers: Provider | Providers | list[Provider | Providers] | None,
-    **deprecated_args: Unpack[WebSearchDeprecatedArgs],
+    **deprecated: Unpack[WebSearchDeprecatedArgs],
 ) -> Providers:
     """
     Deal with breaking changes in the web_search parameter list.
@@ -162,7 +174,7 @@ def _normalize_config(
     # - Only deprecated_provider is set
     #     convert to new config format - including processing old other params
 
-    deprecated_provider = deprecated_args.get("provider", None)
+    deprecated_provider = deprecated.get("provider", None)
     # Case 1.
     if deprecated_provider and providers:
         raise ValueError("`provider` is deprecated. Please only specify `providers`.")
@@ -175,10 +187,10 @@ def _normalize_config(
     ):
         raise ValueError("`providers` must be specified.")
 
-    num_results = deprecated_args.get("num_results", None)
-    max_provider_calls = deprecated_args.get("max_provider_calls", None)
-    max_connections = deprecated_args.get("max_connections", None)
-    model = deprecated_args.get("model", None)
+    num_results = deprecated.get("num_results", None)
+    max_provider_calls = deprecated.get("max_provider_calls", None)
+    max_connections = deprecated.get("max_connections", None)
+    model = deprecated.get("model", None)
 
     # Getting here means that we have either a providers or a deprecated_provider
     if deprecated_provider:

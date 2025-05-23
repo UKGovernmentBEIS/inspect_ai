@@ -1,5 +1,6 @@
 ---
 title: Standard Tools
+tbl-colwidths: [40,60]
 ---
 
 ## Overview
@@ -53,7 +54,7 @@ Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the
 
 A task configured to use the bash session tool might look like this:
 
-```python
+``` python
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, system_message, use_tools
@@ -89,7 +90,7 @@ The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd
 
 A task configured to use the text editor tool might look like this (note that this task is also configured to use the `bash_session()` tool):
 
-```python
+``` python
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, system_message, use_tools
@@ -118,30 +119,23 @@ Note that we provide a `timeout` for the bash session and text editor tools (thi
 
 The schema for the `text_editor()` tool is based on the standard Anthropic [text editor tool type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool). The `text_editor()` works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
 
-
 ## Web Browser {#sec-web-browser}
 
 The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
-
 
 ### Configuration
 
 Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
 
-Note that Playwright (used for the `web_browser()` tool) does not support some versions of Linux (e.g. Kali Linux). 
-
+Note that Playwright (used for the `web_browser()` tool) does not support some versions of Linux (e.g. Kali Linux).
 
 ::: {.callout-note appearance="simple" collapse="true"}
 ### Sandbox Dependencies
 
-
 {{< include _sandbox-dockerfile.md >}}
 
-
 {{< include _sandbox-image.md >}}
-
 :::
-
 
 ### Task Setup
 
@@ -201,7 +195,7 @@ In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`
 
 ## Computer {#sec-computer}
 
-The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. 
+The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures.
 
 The computer tool works with any model that supports image input. It also binds directly to the internal computer tool definitions for Anthropic and OpenAI models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`).
 
@@ -259,7 +253,7 @@ def computer_task():
 
 To evaluate the task with models tuned for computer use:
 
-```bash
+``` bash
 inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
 inspect eval computer.py --model openai/computer-use-preview
 ```
@@ -269,7 +263,7 @@ inspect eval computer.py --model openai/computer-use-preview
 The computer tool supports the following options:
 
 | Option | Description |
-|-------------------|-----------------------------------------------------|
+|---------------------|---------------------------------------------------|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
 | `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
 
@@ -372,108 +366,97 @@ inspect eval computer.py --no-internal-tools
 
 ## Web Search {#sec-web-search}
 
-The `web_search()` tool provides models the ability to enhance their context window by performing a search. The search providers are split into two categories:
+::: callout-note
+The "openai" web search provider described below is available only in the development version of Inspect. To install the development version from GitHub:
 
-- External providers: "google" and "tavily" - these require API keys and make external API calls to perform the search.
-- Internal providers: "openai" - these use the model's built-in search capability and do not require separate API keys.
-
-Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on OpenAI models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
-
-Here is the updated definition of the `web_search()` function:
-
-``` python
-def web_search(
-    providers: Provider | Providers | list[Provider | Providers],
-    **deprecated_args: Unpack[WebSearchDeprecatedArgs],
-) -> Tool:
-    ...
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
+:::
+
+The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
+
+-   Internal providers: "openai" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
+
+-   External providers: "tavily" and "google". These are external services that work with any model and require separate accounts and API keys.
+
+Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
 
 You can configure the `web_search()` tool in various ways:
 
 ``` python
 from inspect_ai.tool import web_search
 
-# Single provider
-solver=[
-    use_tools(web_search("tavily")), 
-    generate()
-]
+# single provider
+web_search("tavily")
 
-# With internal provider and fallback
-solver=[
-    use_tools(web_search(["openai", "google"])),  # "openai" used for OpenAI models, "google" as fallback
-    generate()
-]
+# with internal provider and fallback
+web_search(["openai", "tavili"])
 
-# Provider with specific options
-solver=[
-    use_tools(web_search({"tavily": {"max_results": 5}})),
-    generate()
-]
+# provider with specific options
+web_search({"tavily": {"max_results": 5}})
 
-# Multiple providers with options
-solver=[
-    use_tools(web_search([{"openai": None}, {"google": {"num_results": 5}}])),  # With fallback
-    generate()
-],
+# multiple providers with options
+web_search([{"openai": None}, {"google": {"num_results": 5}}])
 ```
 
-### Provider-Specific Options
+### OpenAI Options
 
-Each provider supports different configuration options:
+The `web_search()` tool can use OpenAI's built-in search capability when running on OpenAI models. This provider does not require any API keys beyond what's needed for the model itself.
 
-#### Tavily Provider
+For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
+
+Note that when using the "openai" provider, you should also specify a fallback external provider (like "tavily" or "google") if you are also running the evaluation with non-OpenAI model.
+
+### Tavily Options
 
 The `web_search()` tool can use [Tavily](https://tavily.com/)'s Research API. To use it you will need to set up your own Tavily account. Then, ensure that the following environment variable is defined:
 
 -   `TAVILY_API_KEY` — Tavily Research API key
 
 Tavily supports the following options:
--   `max_results` — Number of results to return (replaces the deprecated `num_results`)
--   `search_depth` — Can be "basic" or "advanced"
--   `topic` — Can be "general" or "news"
--   `include_domains`/`exclude_domains` — Lists of domains to include or exclude
--   `time_range` — Time range for search results (e.g., "day", "week", "month")
--   `max_connections` — Maximum number of concurrent connections
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `max_results` | Number of results to return |
+| `search_depth` | Can be "basic" or "advanced" |
+| `topic` | Can be "general" or "news" |
+| `include_domains` / `exclude_domains` | Lists of domains to include or exclude |
+| `time_range` | Time range for search results (e.g., "day", "week", "month") |
+| `max_connections` | Maximum number of concurrent connections |
 
 For more options, see the [Tavily API Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
 
-#### Google Provider
+#### Google Options
 
 The `web_search()` can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will need to set up your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
 
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
 
-Google supports the following options:
--   `num_results` — The number of relevant webpages whose contents are returned
--   `max_provider_calls` — Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3)
--   `max_connections` — Maximum number of concurrent connections (defaults to 10)
--   `model` — Model to use to determine if search results are relevant (defaults to the model being evaluated)
 
-#### OpenAI Provider
+Google supports the following options: 
 
-The `web_search()` tool can use OpenAI's built-in search capability when running on OpenAI models. This provider does not require any API keys beyond what's needed for the model itself.
-
-For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
-
-Note that when using the "openai" provider, you should also specify a fallback external provider (like "google" or "tavily") to use when the evaluation is run with a non-OpenAI model.
-
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `num_results` | The number of relevant webpages whose contents are returned  |
+| `max_provider_calls` | Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3)  |
+| `max_connections` | Maximum number of concurrent connections (defaults to 10) |
+| `model` | Model to use to determine if search results are relevant (defaults to the model being evaluated) |
 
 ## Think {#sec-think}
 
-The `think()` tool provides models with the ability to include an additional thinking step as part of getting to its final answer. 
- 
-Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios. 
+The `think()` tool provides models with the ability to include an additional thinking step as part of getting to its final answer.
+
+Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios.
 
 ### Usage
 
 You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
 
-1. Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
-2. Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and
-3. Sequential decision making. When each action builds on previous ones and mistakes are costly (often found in multi-step domains).
+1.  Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
+2.  Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and
+3.  Sequential decision making. When each action builds on previous ones and mistakes are costly (often found in multi-step domains).
 
 Use the `think()` tool alongside other tools like this:
 
@@ -505,7 +488,7 @@ def intercode_ctf():
 
 In the original [think tool article]((https://www.anthropic.com/engineering/claude-think-tool)) (which was based on experimenting with Claude) they found that providing clear instructions on when and how to use the `think()` tool for the particular problem domain it is being used within could sometimes be helpful. For example, here's the prompt they used with SWE-Bench:
 
-```python
+``` python
 from textwrap import dedent
 
 from inspect_ai import Task, task
@@ -546,11 +529,11 @@ def swe_bench():
 
 ### System Prompt
 
-In the article they also found that when tool instructions are long and/or complex, including instructions about the `think()` tool in the system prompt can be more effective than placing them in the tool description itself. 
+In the article they also found that when tool instructions are long and/or complex, including instructions about the `think()` tool in the system prompt can be more effective than placing them in the tool description itself.
 
 Here's an example of moving the custom `think()` prompt into the system prompt (note that this was *not* done in the article's SWE-Bench experiment, this is merely an example):
 
-```python
+``` python
 from textwrap import dedent
 
 from inspect_ai import Task, task
@@ -591,4 +574,3 @@ def swe_bench():
 ```
 
 Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.
-
