@@ -42,6 +42,7 @@ from .._openai import (
     openai_media_filter,
     openai_should_retry,
 )
+from .._openai_responses import is_native_tool_configured
 from .openai_o1 import generate_o1
 from .util import environment_prerequisite_error, model_base_url
 
@@ -241,7 +242,7 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 **self.completion_params(config, False),
             )
-        elif self.responses_api:
+        elif self.responses_api or is_native_tool_configured(tools, config):
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
