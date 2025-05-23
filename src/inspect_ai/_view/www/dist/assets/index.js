@@ -22529,6 +22529,26 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       trackedConnections.set(options2.name, newConnection);
       return { type: "tracked", store, ...newConnection };
     };
+    const removeStoreFromTrackedConnections = (name2, store) => {
+      if (store === void 0) return;
+      const connectionInfo = trackedConnections.get(name2);
+      if (!connectionInfo) return;
+      delete connectionInfo.stores[store];
+      if (Object.keys(connectionInfo.stores).length === 0) {
+        trackedConnections.delete(name2);
+      }
+    };
+    const findCallerName = (stack2) => {
+      var _a2, _b2;
+      if (!stack2) return void 0;
+      const traceLines = stack2.split("\n");
+      const apiSetStateLineIndex = traceLines.findIndex(
+        (traceLine) => traceLine.includes("api.setState")
+      );
+      if (apiSetStateLineIndex < 0) return void 0;
+      const callerLine = ((_a2 = traceLines[apiSetStateLineIndex + 1]) == null ? void 0 : _a2.trim()) || "";
+      return (_b2 = /.+ (.+) .+/.exec(callerLine)) == null ? void 0 : _b2[1];
+    };
     const devtoolsImpl = (fn2, devtoolsOptions = {}) => (set2, get2, api2) => {
       const { enabled, anonymousActionType, store, ...options2 } = devtoolsOptions;
       let extensionConnector;
@@ -22544,7 +22564,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       api2.setState = (state, replace2, nameOrAction) => {
         const r2 = set2(state, replace2);
         if (!isRecording) return r2;
-        const action = nameOrAction === void 0 ? { type: anonymousActionType || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
+        const inferredActionType = findCallerName(new Error().stack);
+        const action = nameOrAction === void 0 ? { type: anonymousActionType || inferredActionType || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
         if (store === void 0) {
           connection == null ? void 0 : connection.send(action, get2());
           return r2;
@@ -22560,6 +22581,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         );
         return r2;
+      };
+      api2.devtools = {
+        cleanup: () => {
+          if (connection && typeof connection.unsubscribe === "function") {
+            connection.unsubscribe();
+          }
+          removeStoreFromTrackedConnections(options2.name, store);
+        }
       };
       const setStateFromDevtools = (...a) => {
         const originalIsRecording = isRecording;
@@ -22584,14 +22613,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (api2.dispatchFromDevtools && typeof api2.dispatch === "function") {
         let didWarnAboutReservedActionType = false;
         const originalDispatch = api2.dispatch;
-        api2.dispatch = (...a) => {
-          if ((__vite_import_meta_env__ ? "development" : void 0) !== "production" && a[0].type === "__setState" && !didWarnAboutReservedActionType) {
+        api2.dispatch = (...args) => {
+          if ((__vite_import_meta_env__ ? "development" : void 0) !== "production" && args[0].type === "__setState" && !didWarnAboutReservedActionType) {
             console.warn(
               '[zustand devtools middleware] "__setState" action type is reserved to set state from the devtools. Avoid using it.'
             );
             didWarnAboutReservedActionType = true;
           }
-          originalDispatch(...a);
+          originalDispatch(...args);
         };
       }
       connection.subscribe((message2) => {
@@ -22695,7 +22724,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return initialState2;
     };
     const devtools = devtoolsImpl;
-    const parseJsonThen = (stringified, f) => {
+    const parseJsonThen = (stringified, fn2) => {
       let parsed;
       try {
         parsed = JSON.parse(stringified);
@@ -22705,7 +22734,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           e
         );
       }
-      if (parsed !== void 0) f(parsed);
+      if (parsed !== void 0) fn2(parsed);
     };
     function createJSONStorage(getStorage, options2) {
       let storage2;
@@ -22729,10 +22758,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           return parse2(str2);
         },
-        setItem: (name2, newValue) => storage2.setItem(
-          name2,
-          JSON.stringify(newValue, void 0)
-        ),
+        setItem: (name2, newValue) => storage2.setItem(name2, JSON.stringify(newValue, void 0)),
         removeItem: (name2) => storage2.removeItem(name2)
       };
       return persistStorage;
@@ -22897,9 +22923,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const persist = persistImpl;
     const immerImpl = (initializer) => (set2, get2, store) => {
-      store.setState = (updater, replace2, ...a) => {
+      store.setState = (updater, replace2, ...args) => {
         const nextState = typeof updater === "function" ? produce(updater) : updater;
-        return set2(nextState, replace2, ...a);
+        return set2(nextState, replace2, ...args);
       };
       return initializer(store.setState, get2, store);
     };
