@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Added native OpenAI web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
+- Limit `docker compose` concurrency to 2 * `os.cpu_count()` by default (override with `INSPECT_DOCKER_CLI_CONCURRENCY` environment variable).
 
 ## v0.3.99 (22 May 2025)
 
