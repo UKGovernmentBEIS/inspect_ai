@@ -91,7 +91,6 @@ export const createLogSlice = (
     logActions: {
       selectSample: (index: number) =>
         set((state) => {
-          console.log("selectSample", index);
           state.log.selectedSampleIndex = index;
         }),
 

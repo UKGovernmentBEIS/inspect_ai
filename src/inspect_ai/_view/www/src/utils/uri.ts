@@ -30,3 +30,20 @@ export const directoryRelativeUrl = (file: string, dir?: string): string => {
   // If path can't be made relative, return undefined
   return encodeURIComponent(file);
 };
+
+export const join = (file: string, dir?: string): string => {
+  if (!dir) {
+    return file;
+  }
+
+  // Normalize paths to ensure consistent directory separators
+  const normalizedFile = file.replace(/\\/g, "/");
+  const normalizedLogDir = dir.replace(/\\/g, "/");
+
+  // Ensure log_dir ends with a trailing slash
+  const dirWithSlash = normalizedLogDir.endsWith("/")
+    ? normalizedLogDir
+    : normalizedLogDir + "/";
+
+  return dirWithSlash + normalizedFile;
+};

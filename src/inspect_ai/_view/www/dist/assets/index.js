@@ -16181,12 +16181,12 @@ var require_assets = __commonJS({
         }
       });
     }
-    function matchRoutes(routes, locationArg, basename = "/") {
-      return matchRoutesImpl(routes, locationArg, basename, false);
+    function matchRoutes(routes, locationArg, basename2 = "/") {
+      return matchRoutesImpl(routes, locationArg, basename2, false);
     }
-    function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
+    function matchRoutesImpl(routes, locationArg, basename2, allowPartial) {
       let location2 = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
-      let pathname = stripBasename(location2.pathname || "/", basename);
+      let pathname = stripBasename(location2.pathname || "/", basename2);
       if (pathname == null) {
         return null;
       }
@@ -16441,12 +16441,12 @@ var require_assets = __commonJS({
         return value2;
       }
     }
-    function stripBasename(pathname, basename) {
-      if (basename === "/") return pathname;
-      if (!pathname.toLowerCase().startsWith(basename.toLowerCase())) {
+    function stripBasename(pathname, basename2) {
+      if (basename2 === "/") return pathname;
+      if (!pathname.toLowerCase().startsWith(basename2.toLowerCase())) {
         return null;
       }
-      let startIndex2 = basename.endsWith("/") ? basename.length - 1 : basename.length;
+      let startIndex2 = basename2.endsWith("/") ? basename2.length - 1 : basename2.length;
       let nextChar = pathname.charAt(startIndex2);
       if (nextChar && nextChar !== "/") {
         return null;
@@ -16623,7 +16623,7 @@ var require_assets = __commonJS({
         manifest
       );
       let inFlightDataRoutes;
-      let basename = init.basename || "/";
+      let basename2 = init.basename || "/";
       let dataStrategyImpl = init.dataStrategy || defaultDataStrategyWithMiddleware;
       let future = {
         unstable_middleware: false,
@@ -16635,7 +16635,7 @@ var require_assets = __commonJS({
       let getScrollRestorationKey2 = null;
       let getScrollPosition = null;
       let initialScrollRestored = init.hydrationData != null;
-      let initialMatches = matchRoutes(dataRoutes, init.history.location, basename);
+      let initialMatches = matchRoutes(dataRoutes, init.history.location, basename2);
       let initialMatchesIsFOW = false;
       let initialErrors = null;
       let initialized;
@@ -16937,7 +16937,7 @@ var require_assets = __commonJS({
         let normalizedPath = normalizeTo(
           state.location,
           state.matches,
-          basename,
+          basename2,
           to2,
           opts == null ? void 0 : opts.fromRouteId,
           opts == null ? void 0 : opts.relative
@@ -17040,7 +17040,7 @@ var require_assets = __commonJS({
         let matches = (opts == null ? void 0 : opts.initialHydration) && state.matches && state.matches.length > 0 && !initialMatchesIsFOW ? (
           // `matchRoutes()` has already been called if we're in here via `router.initialize()`
           state.matches
-        ) : matchRoutes(routesToUse, location2, basename);
+        ) : matchRoutes(routesToUse, location2, basename2);
         let flushSync = (opts && opts.flushSync) === true;
         if (matches && state.initialized && !isRevalidationRequired && isHashChangeOnly(state.location, location2) && !(opts && opts.submission && isMutationMethod(opts.submission.formMethod))) {
           completeNavigation(location2, { matches }, { flushSync });
@@ -17242,7 +17242,7 @@ var require_assets = __commonJS({
             let location22 = normalizeRedirectLocation(
               result2.response.headers.get("Location"),
               new URL(request.url),
-              basename
+              basename2
             );
             replace2 = location22 === state.location.pathname + state.location.search;
           }
@@ -17338,7 +17338,7 @@ var require_assets = __commonJS({
           fetchLoadMatches,
           fetchRedirectIds,
           routesToUse,
-          basename,
+          basename2,
           init.patchRoutesOnNavigation != null,
           pendingActionResult
         );
@@ -17469,12 +17469,12 @@ var require_assets = __commonJS({
         let normalizedPath = normalizeTo(
           state.location,
           state.matches,
-          basename,
+          basename2,
           href2,
           routeId,
           opts == null ? void 0 : opts.relative
         );
-        let matches = matchRoutes(routesToUse, normalizedPath, basename);
+        let matches = matchRoutes(routesToUse, normalizedPath, basename2);
         let fogOfWar = checkFogOfWar(matches, routesToUse, normalizedPath);
         if (fogOfWar.active && fogOfWar.matches) {
           matches = fogOfWar.matches;
@@ -17644,7 +17644,7 @@ var require_assets = __commonJS({
           abortController.signal
         );
         let routesToUse = inFlightDataRoutes || dataRoutes;
-        let matches = state.navigation.state !== "idle" ? matchRoutes(routesToUse, state.navigation.location, basename) : state.matches;
+        let matches = state.navigation.state !== "idle" ? matchRoutes(routesToUse, state.navigation.location, basename2) : state.matches;
         invariant(matches, "Didn't find any matches after fetcher action");
         let loadId = ++incrementingLoadId;
         fetchReloadIds.set(key2, loadId);
@@ -17668,7 +17668,7 @@ var require_assets = __commonJS({
           fetchLoadMatches,
           fetchRedirectIds,
           routesToUse,
-          basename,
+          basename2,
           init.patchRoutesOnNavigation != null,
           [match.route.id, actionResult]
         );
@@ -17863,7 +17863,7 @@ var require_assets = __commonJS({
         location2 = normalizeRedirectLocation(
           location2,
           new URL(request.url),
-          basename
+          basename2
         );
         let redirectLocation = createLocation(state.location, location2, {
           _isRedirect: true
@@ -17876,7 +17876,7 @@ var require_assets = __commonJS({
             const url = createBrowserURLImpl(location2, true);
             isDocumentReload = // Hard reload if it's an absolute URL to a new origin
             url.origin !== routerWindow.location.origin || // Hard reload if it's an absolute URL that does not match our basename
-            stripBasename(url.pathname, basename) == null;
+            stripBasename(url.pathname, basename2) == null;
           }
           if (isDocumentReload) {
             if (replace2) {
@@ -17953,7 +17953,7 @@ var require_assets = __commonJS({
                 request,
                 routeId,
                 matches,
-                basename
+                basename2
               )
             };
           } else {
@@ -18204,7 +18204,7 @@ var require_assets = __commonJS({
             let fogMatches = matchRoutesImpl(
               routesToUse,
               pathname,
-              basename,
+              basename2,
               true
             );
             return { active: true, matches: fogMatches || [] };
@@ -18213,7 +18213,7 @@ var require_assets = __commonJS({
               let partialMatches = matchRoutesImpl(
                 routesToUse,
                 pathname,
-                basename,
+                basename2,
                 true
               );
               return { active: true, matches: partialMatches };
@@ -18258,14 +18258,14 @@ var require_assets = __commonJS({
           if (signal.aborted) {
             return { type: "aborted" };
           }
-          let newMatches = matchRoutes(routesToUse, pathname, basename);
+          let newMatches = matchRoutes(routesToUse, pathname, basename2);
           if (newMatches) {
             return { type: "success", matches: newMatches };
           }
           let newPartialMatches = matchRoutesImpl(
             routesToUse,
             pathname,
-            basename,
+            basename2,
             true
           );
           if (!newPartialMatches || partialMatches.length === newPartialMatches.length && partialMatches.every(
@@ -18302,7 +18302,7 @@ var require_assets = __commonJS({
       }
       router = {
         get basename() {
-          return basename;
+          return basename2;
         },
         get future() {
           return future;
@@ -18342,7 +18342,7 @@ var require_assets = __commonJS({
     function isSubmissionNavigation(opts) {
       return opts != null && ("formData" in opts && opts.formData != null || "body" in opts && opts.body !== void 0);
     }
-    function normalizeTo(location2, matches, basename, to2, fromRouteId, relative) {
+    function normalizeTo(location2, matches, basename2, to2, fromRouteId, relative) {
       let contextualMatches;
       let activeRouteMatch;
       if (fromRouteId) {
@@ -18361,7 +18361,7 @@ var require_assets = __commonJS({
       let path = resolveTo(
         to2 ? to2 : ".",
         getResolveToMatches(contextualMatches),
-        stripBasename(location2.pathname, basename) || location2.pathname,
+        stripBasename(location2.pathname, basename2) || location2.pathname,
         relative === "path"
       );
       if (to2 == null) {
@@ -18381,8 +18381,8 @@ var require_assets = __commonJS({
           path.search = qs ? `?${qs}` : "";
         }
       }
-      if (basename !== "/") {
-        path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+      if (basename2 !== "/") {
+        path.pathname = path.pathname === "/" ? basename2 : joinPaths([basename2, path.pathname]);
       }
       return createPath(path);
     }
@@ -18493,7 +18493,7 @@ var require_assets = __commonJS({
       parsedPath.search = `?${searchParams}`;
       return { path: createPath(parsedPath), submission };
     }
-    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, hasPatchRoutesOnNavigation, pendingActionResult) {
+    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename2, hasPatchRoutesOnNavigation, pendingActionResult) {
       var _a2;
       let actionResult = pendingActionResult ? isErrorResult(pendingActionResult[1]) ? pendingActionResult[1].error : pendingActionResult[1].data : void 0;
       let currentUrl = history2.createURL(state.location);
@@ -18574,7 +18574,7 @@ var require_assets = __commonJS({
         }
         let fetcher = state.fetchers.get(key2);
         let isMidInitialLoad = fetcher && fetcher.state !== "idle" && fetcher.data === void 0;
-        let fetcherMatches = matchRoutes(routesToUse, f.path, basename);
+        let fetcherMatches = matchRoutes(routesToUse, f.path, basename2);
         if (!fetcherMatches) {
           if (hasPatchRoutesOnNavigation && isMidInitialLoad) {
             return;
@@ -19322,7 +19322,7 @@ var require_assets = __commonJS({
       }
       return { type: "data", data: result2 };
     }
-    function normalizeRelativeRoutingRedirectResponse(response, request, routeId, matches, basename) {
+    function normalizeRelativeRoutingRedirectResponse(response, request, routeId, matches, basename2) {
       let location2 = response.headers.get("Location");
       invariant(
         location2,
@@ -19336,18 +19336,18 @@ var require_assets = __commonJS({
         location2 = normalizeTo(
           new URL(request.url),
           trimmedMatches,
-          basename,
+          basename2,
           location2
         );
         response.headers.set("Location", location2);
       }
       return response;
     }
-    function normalizeRedirectLocation(location2, currentUrl, basename) {
+    function normalizeRedirectLocation(location2, currentUrl, basename2) {
       if (ABSOLUTE_URL_REGEX.test(location2)) {
         let normalizedLocation = location2;
         let url = normalizedLocation.startsWith("//") ? new URL(currentUrl.protocol + normalizedLocation) : new URL(normalizedLocation);
-        let isSameBasename = stripBasename(url.pathname, basename) != null;
+        let isSameBasename = stripBasename(url.pathname, basename2) != null;
         if (url.origin === currentUrl.origin && isSameBasename) {
           return url.pathname + url.search + url.hash;
         }
@@ -19852,11 +19852,11 @@ var require_assets = __commonJS({
         // router loaded. We can help them understand how to avoid that.
         `useHref() may be used only in the context of a <Router> component.`
       );
-      let { basename, navigator: navigator2 } = reactExports.useContext(NavigationContext);
+      let { basename: basename2, navigator: navigator2 } = reactExports.useContext(NavigationContext);
       let { hash: hash2, pathname, search } = useResolvedPath(to2, { relative });
       let joinedPathname = pathname;
-      if (basename !== "/") {
-        joinedPathname = pathname === "/" ? basename : joinPaths([basename, pathname]);
+      if (basename2 !== "/") {
+        joinedPathname = pathname === "/" ? basename2 : joinPaths([basename2, pathname]);
       }
       return navigator2.createHref({ pathname: joinedPathname, search, hash: hash2 });
     }
@@ -19891,7 +19891,7 @@ var require_assets = __commonJS({
         `useNavigate() may be used only in the context of a <Router> component.`
       );
       let dataRouterContext = reactExports.useContext(DataRouterContext);
-      let { basename, navigator: navigator2 } = reactExports.useContext(NavigationContext);
+      let { basename: basename2, navigator: navigator2 } = reactExports.useContext(NavigationContext);
       let { matches } = reactExports.useContext(RouteContext);
       let { pathname: locationPathname } = useLocation();
       let routePathnamesJson = JSON.stringify(getResolveToMatches(matches));
@@ -19913,8 +19913,8 @@ var require_assets = __commonJS({
             locationPathname,
             options2.relative === "path"
           );
-          if (dataRouterContext == null && basename !== "/") {
-            path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+          if (dataRouterContext == null && basename2 !== "/") {
+            path.pathname = path.pathname === "/" ? basename2 : joinPaths([basename2, path.pathname]);
           }
           (!!options2.replace ? navigator2.replace : navigator2.push)(
             path,
@@ -19923,7 +19923,7 @@ var require_assets = __commonJS({
           );
         },
         [
-          basename,
+          basename2,
           navigator2,
           routePathnamesJson,
           locationPathname,
@@ -20516,20 +20516,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           })
         };
       }, [router]);
-      let basename = router.basename || "/";
+      let basename2 = router.basename || "/";
       let dataRouterContext = reactExports.useMemo(
         () => ({
           router,
           navigator: navigator2,
           static: false,
-          basename
+          basename: basename2
         }),
-        [router, navigator2, basename]
+        [router, navigator2, basename2]
       );
       return /* @__PURE__ */ reactExports.createElement(reactExports.Fragment, null, /* @__PURE__ */ reactExports.createElement(DataRouterContext.Provider, { value: dataRouterContext }, /* @__PURE__ */ reactExports.createElement(DataRouterStateContext.Provider, { value: state }, /* @__PURE__ */ reactExports.createElement(FetchersContext.Provider, { value: fetcherData.current }, /* @__PURE__ */ reactExports.createElement(ViewTransitionContext.Provider, { value: vtContext }, /* @__PURE__ */ reactExports.createElement(
         Router,
         {
-          basename,
+          basename: basename2,
           location: state.location,
           navigationType: state.historyAction,
           navigator: navigator2
@@ -20599,15 +20599,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         !useInRouterContext(),
         `You cannot render a <Router> inside another <Router>. You should never have more than one in your app.`
       );
-      let basename = basenameProp.replace(/^\/*/, "/");
+      let basename2 = basenameProp.replace(/^\/*/, "/");
       let navigationContext = reactExports.useMemo(
         () => ({
-          basename,
+          basename: basename2,
           navigator: navigator2,
           static: staticProp,
           future: {}
         }),
-        [basename, navigator2, staticProp]
+        [basename2, navigator2, staticProp]
       );
       if (typeof locationProp === "string") {
         locationProp = parsePath$1(locationProp);
@@ -20620,7 +20620,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         key: key2 = "default"
       } = locationProp;
       let locationContext = reactExports.useMemo(() => {
-        let trailingPathname = stripBasename(pathname, basename);
+        let trailingPathname = stripBasename(pathname, basename2);
         if (trailingPathname == null) {
           return null;
         }
@@ -20634,10 +20634,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           },
           navigationType
         };
-      }, [basename, pathname, search, hash2, state, key2, navigationType]);
+      }, [basename2, pathname, search, hash2, state, key2, navigationType]);
       warning(
         locationContext != null,
-        `<Router basename="${basename}"> is not able to match the URL "${pathname}${search}${hash2}" because it does not start with the basename, so the <Router> won't render anything.`
+        `<Router basename="${basename2}"> is not able to match the URL "${pathname}${search}${hash2}" because it does not start with the basename, so the <Router> won't render anything.`
       );
       if (locationContext == null) {
         return null;
@@ -20720,7 +20720,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return encType;
     }
-    function getFormSubmissionInfo(target2, basename) {
+    function getFormSubmissionInfo(target2, basename2) {
       let method;
       let action;
       let encType;
@@ -20728,7 +20728,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let body2;
       if (isFormElement(target2)) {
         let attr = target2.getAttribute("action");
-        action = attr ? stripBasename(attr, basename) : null;
+        action = attr ? stripBasename(attr, basename2) : null;
         method = target2.getAttribute("method") || defaultMethod;
         encType = getFormEncType(target2.getAttribute("enctype")) || defaultEncType;
         formData = new FormData(target2);
@@ -20740,7 +20740,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           );
         }
         let attr = target2.getAttribute("formaction") || form.getAttribute("action");
-        action = attr ? stripBasename(attr, basename) : null;
+        action = attr ? stripBasename(attr, basename2) : null;
         method = target2.getAttribute("formmethod") || form.getAttribute("method") || defaultMethod;
         encType = getFormEncType(target2.getAttribute("formenctype")) || getFormEncType(form.getAttribute("enctype")) || defaultEncType;
         formData = new FormData(form, target2);
@@ -20921,7 +20921,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     }
     Object.getOwnPropertyNames(Object.prototype).sort().join("\0");
     var NO_BODY_STATUS_CODES = /* @__PURE__ */ new Set([100, 101, 204, 205]);
-    function singleFetchUrl(reqUrl, basename) {
+    function singleFetchUrl(reqUrl, basename2) {
       let url = typeof reqUrl === "string" ? new URL(
         reqUrl,
         // This can be called during the SSR flow via PrefetchPageLinksImpl so
@@ -20930,8 +20930,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ) : reqUrl;
       if (url.pathname === "/") {
         url.pathname = "_root.data";
-      } else if (basename && stripBasename(url.pathname, basename) === "/") {
-        url.pathname = `${basename.replace(/\/$/, "")}/_root.data`;
+      } else if (basename2 && stripBasename(url.pathname, basename2) === "/") {
+        url.pathname = `${basename2.replace(/\/$/, "")}/_root.data`;
       } else {
         url.pathname = `${url.pathname.replace(/\/$/, "")}.data`;
       }
@@ -21068,7 +21068,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     }) {
       let location2 = useLocation();
       let { manifest, routeModules } = useFrameworkContext();
-      let { basename } = useDataRouterContext2();
+      let { basename: basename2 } = useDataRouterContext2();
       let { loaderData, matches } = useDataRouterStateContext();
       let newMatchesForData = reactExports.useMemo(
         () => getNewMatchesForLinks(
@@ -21115,7 +21115,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (routesParams.size === 0) {
           return [];
         }
-        let url = singleFetchUrl(page, basename);
+        let url = singleFetchUrl(page, basename2);
         if (foundOptOutRoute && routesParams.size > 0) {
           url.searchParams.set(
             "_routes",
@@ -21124,7 +21124,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         return [url.pathname + url.search];
       }, [
-        basename,
+        basename2,
         loaderData,
         location2,
         manifest,
@@ -21238,7 +21238,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         viewTransition,
         ...rest
       }, forwardedRef) {
-        let { basename } = reactExports.useContext(NavigationContext);
+        let { basename: basename2 } = reactExports.useContext(NavigationContext);
         let isAbsolute = typeof to2 === "string" && ABSOLUTE_URL_REGEX2.test(to2);
         let absoluteHref;
         let isExternal = false;
@@ -21248,7 +21248,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             try {
               let currentUrl = new URL(window.location.href);
               let targetUrl = to2.startsWith("//") ? new URL(currentUrl.protocol + to2) : new URL(to2);
-              let path = stripBasename(targetUrl.pathname, basename);
+              let path = stripBasename(targetUrl.pathname, basename2);
               if (targetUrl.origin === currentUrl.origin && path != null) {
                 to2 = path + targetUrl.search + targetUrl.hash;
               } else {
@@ -21315,7 +21315,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         let path = useResolvedPath(to2, { relative: rest.relative });
         let location2 = useLocation();
         let routerState = reactExports.useContext(DataRouterStateContext);
-        let { navigator: navigator2, basename } = reactExports.useContext(NavigationContext);
+        let { navigator: navigator2, basename: basename2 } = reactExports.useContext(NavigationContext);
         let isTransitioning = routerState != null && // Conditional usage is OK here because the usage of a data router is static
         // eslint-disable-next-line react-hooks/rules-of-hooks
         useViewTransitionState(path) && viewTransition === true;
@@ -21327,8 +21327,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           nextLocationPathname = nextLocationPathname ? nextLocationPathname.toLowerCase() : null;
           toPathname = toPathname.toLowerCase();
         }
-        if (nextLocationPathname && basename) {
-          nextLocationPathname = stripBasename(nextLocationPathname, basename) || nextLocationPathname;
+        if (nextLocationPathname && basename2) {
+          nextLocationPathname = stripBasename(nextLocationPathname, basename2) || nextLocationPathname;
         }
         const endSlashPosition = toPathname !== "/" && toPathname.endsWith("/") ? toPathname.length - 1 : toPathname.length;
         let isActive = locationPathname === toPathname || !end2 && locationPathname.startsWith(toPathname) && locationPathname.charAt(endSlashPosition) === "/";
@@ -21505,13 +21505,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "useSubmit"
         /* UseSubmit */
       );
-      let { basename } = reactExports.useContext(NavigationContext);
+      let { basename: basename2 } = reactExports.useContext(NavigationContext);
       let currentRouteId = useRouteId();
       return reactExports.useCallback(
         async (target2, options2 = {}) => {
           let { action, method, encType, formData, body: body2 } = getFormSubmissionInfo(
             target2,
-            basename
+            basename2
           );
           if (options2.navigate === false) {
             let key2 = options2.fetcherKey || getUniqueFetcherId();
@@ -21538,11 +21538,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             });
           }
         },
-        [router, basename, currentRouteId]
+        [router, basename2, currentRouteId]
       );
     }
     function useFormAction(action, { relative } = {}) {
-      let { basename } = reactExports.useContext(NavigationContext);
+      let { basename: basename2 } = reactExports.useContext(NavigationContext);
       let routeContext = reactExports.useContext(RouteContext);
       invariant(routeContext, "useFormAction must be used inside a RouteContext");
       let [match] = routeContext.matches.slice(-1);
@@ -21563,8 +21563,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if ((!action || action === ".") && match.route.index) {
         path.search = path.search ? path.search.replace(/^\?/, "?index&") : "?index";
       }
-      if (basename !== "/") {
-        path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+      if (basename2 !== "/") {
+        path.pathname = path.pathname === "/" ? basename2 : joinPaths([basename2, path.pathname]);
       }
       return createPath(path);
     }
@@ -21574,7 +21574,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         vtContext != null,
         "`useViewTransitionState` must be used within `react-router-dom`'s `RouterProvider`.  Did you accidentally import `RouterProvider` from `react-router`?"
       );
-      let { basename } = useDataRouterContext3(
+      let { basename: basename2 } = useDataRouterContext3(
         "useViewTransitionState"
         /* useViewTransitionState */
       );
@@ -21582,8 +21582,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (!vtContext.isTransitioning) {
         return false;
       }
-      let currentPath = stripBasename(vtContext.currentLocation.pathname, basename) || vtContext.currentLocation.pathname;
-      let nextPath = stripBasename(vtContext.nextLocation.pathname, basename) || vtContext.nextLocation.pathname;
+      let currentPath = stripBasename(vtContext.currentLocation.pathname, basename2) || vtContext.currentLocation.pathname;
+      let nextPath = stripBasename(vtContext.nextLocation.pathname, basename2) || vtContext.nextLocation.pathname;
       return matchPath(path.pathname, nextPath) != null || matchPath(path.pathname, currentPath) != null;
     }
     /* @__PURE__ */ new Set([
@@ -23683,6 +23683,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setLogHeaders: (headers) => set2((state) => {
             state.logs.logHeaders = headers;
           }),
+          loadHeaders: async (logs) => {
+            const api2 = get2().api;
+            if (!api2) {
+              console.error("API not initialized in LogsStore");
+              return [];
+            }
+            log$5.debug("LOADING LOG HEADERS");
+            return await api2.get_log_headers(logs.map((log2) => log2.name));
+          },
           setHeadersLoading: (loading) => set2((state) => {
             state.logs.headersLoading = loading;
           }),
@@ -24503,6 +24512,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       confirm: "bi bi-check",
       copy: "bi bi-copy",
       error: "bi bi-exclamation-circle",
+      file: "bi bi-file-code",
+      folder: "bi bi-folder",
       info: "bi bi-info-circle",
       input: "bi bi-terminal",
       limits: {
@@ -24584,6 +24595,41 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return this.props.children;
       }
     }
+    function r(e) {
+      var t2, f, n = "";
+      if ("string" == typeof e || "number" == typeof e) n += e;
+      else if ("object" == typeof e) if (Array.isArray(e)) {
+        var o = e.length;
+        for (t2 = 0; t2 < o; t2++) e[t2] && (f = r(e[t2])) && (n && (n += " "), n += f);
+      } else for (f in e) e[f] && (n && (n += " "), n += f);
+      return n;
+    }
+    function clsx() {
+      for (var e, t2, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t2 = r(e)) && (n && (n += " "), n += t2);
+      return n;
+    }
+    const wrapper$4 = "_wrapper_1tajk_1";
+    const container$l = "_container_1tajk_12";
+    const animate = "_animate_1tajk_21";
+    const styles$1y = {
+      wrapper: wrapper$4,
+      container: container$l,
+      animate
+    };
+    const ProgressBar = ({ animating }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1y.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(styles$1y.container),
+          role: "progressbar",
+          "aria-label": "Basic example",
+          "aria-valuenow": 25,
+          "aria-valuemin": 0,
+          "aria-valuemax": 100,
+          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1y.animate })
+        }
+      ) });
+    };
     const arrayToString = (val) => {
       val = Array.isArray(val) ? val : [val];
       return val.join(", ");
@@ -24702,23 +24748,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const durationSec = durationMs / 1e3;
       return formatTime$1(durationSec);
     }
-    function r(e) {
-      var t2, f, n = "";
-      if ("string" == typeof e || "number" == typeof e) n += e;
-      else if ("object" == typeof e) if (Array.isArray(e)) {
-        var o = e.length;
-        for (t2 = 0; t2 < o; t2++) e[t2] && (f = r(e[t2])) && (n && (n += " "), n += f);
-      } else for (f in e) e[f] && (n && (n += " "), n += f);
-      return n;
-    }
-    function clsx() {
-      for (var e, t2, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t2 = r(e)) && (n && (n += " "), n += t2);
-      return n;
-    }
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1v = {
+    const styles$1x = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24734,9 +24767,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1v.circle,
+                styles$1x.circle,
                 "text-size-small",
-                score2 ? styles$1v.green : styles$1v.red
+                score2 ? styles$1x.green : styles$1x.red
               ),
               children: String(score2)
             }
@@ -24804,11 +24837,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return [val];
       }
     };
-    const container$l = "_container_1ramc_1";
+    const container$k = "_container_1ramc_1";
     const key$1 = "_key_1ramc_12";
     const value$2 = "_value_1ramc_16";
-    const styles$1u = {
-      container: container$l,
+    const styles$1w = {
+      container: container$k,
       key: key$1,
       value: value$2
     };
@@ -24850,12 +24883,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1w.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1w.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1w.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -28856,7 +28889,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       }
     }
-    function list$1(state, startLine, endLine, silent) {
+    function list$2(state, startLine, endLine, silent) {
       let max2, pos2, start2, token2;
       let nextLine = startLine;
       let tight = true;
@@ -29468,7 +29501,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
       ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
       ["hr", hr$1, ["paragraph", "reference", "blockquote", "list"]],
-      ["list", list$1, ["paragraph", "reference", "blockquote"]],
+      ["list", list$2, ["paragraph", "reference", "blockquote"]],
       ["reference", reference$1],
       ["html_block", html_block, ["paragraph", "reference", "blockquote"]],
       ["heading", heading$1, ["paragraph", "reference", "blockquote"]],
@@ -31493,19 +31526,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1t[sup[this.id]];
+      return styles$1v[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1t[sub[this.id]];
+      return styles$1v[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1t[fracNum[this.id]];
+      return styles$1v[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1t[fracDen[this.id]];
+      return styles$1v[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1t[cramp[this.id]];
+      return styles$1v[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -31533,7 +31566,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1t = [
+    var styles$1v = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -31549,10 +31582,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1t[D],
-      TEXT: styles$1t[T],
-      SCRIPT: styles$1t[S],
-      SCRIPTSCRIPT: styles$1t[SS]
+      DISPLAY: styles$1v[D],
+      TEXT: styles$1v[T],
+      SCRIPT: styles$1v[S],
+      SCRIPTSCRIPT: styles$1v[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -38338,7 +38371,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1s = {
+    const styles$1u = {
       visible,
       hidden: hidden$2,
       pills,
@@ -38370,7 +38403,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1s.visible : styles$1s.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1u.visible : styles$1u.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -38380,7 +38413,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1s.pills),
+            className: clsx("nav", "nav-pills", styles$1u.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -38416,7 +38449,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$1s.pill
+              styles$1u.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -38432,7 +38465,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       final: 1e3
     };
     const copyButton = "_copyButton_1goi8_1";
-    const styles$1r = {
+    const styles$1t = {
       copyButton
     };
     const CopyButton = ({
@@ -38462,7 +38495,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "button",
         {
           type: "button",
-          className: clsx("copy-button", styles$1r.copyButton, className2),
+          className: clsx("copy-button", styles$1t.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -38503,7 +38536,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const bordered = "_bordered_elrou_35";
     const moreToggleButton = "_moreToggleButton_elrou_39";
     const separator$5 = "_separator_elrou_45";
-    const styles$1q = {
+    const styles$1s = {
       expandablePanel,
       expandableBordered,
       expandableCollapsed,
@@ -38545,10 +38578,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                styles$1q.expandablePanel,
-                collapsed2 ? styles$1q.expandableCollapsed : void 0,
-                border ? styles$1q.expandableBordered : void 0,
-                showToggle ? styles$1q.padBottom : void 0
+                styles$1s.expandablePanel,
+                collapsed2 ? styles$1s.expandableCollapsed : void 0,
+                border ? styles$1s.expandableBordered : void 0,
+                showToggle ? styles$1s.padBottom : void 0
               ),
               children: [
                 children2,
@@ -38563,7 +38596,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.separator) })
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1s.separator) })
         ] });
       }
     );
@@ -38580,12 +38613,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1q.moreToggle, border ? styles$1q.bordered : void 0),
+          className: clsx(styles$1s.moreToggle, border ? styles$1s.bordered : void 0),
           style: style2,
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              className: clsx("btn", styles$1q.moreToggleButton, "text-size-smallest"),
+              className: clsx("btn", styles$1s.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
                 text2,
@@ -41946,7 +41979,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const key = "_key_1ltuo_1";
     const pre = "_pre_1ltuo_16";
     const treeIcon = "_treeIcon_1ltuo_20";
-    const styles$1p = {
+    const styles$1r = {
       keyPairContainer,
       key,
       pre,
@@ -42128,7 +42161,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$1p.keyPairContainer, "text-size-small"),
+            className: clsx(styles$1r.keyPairContainer, "text-size-small"),
             style: {
               paddingLeft: `${item2.depth * 20}px`
             },
@@ -42139,7 +42172,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   "data-index": index2,
                   className: clsx(
                     kRecordTreeKey,
-                    styles$1p.key,
+                    styles$1r.key,
                     "font-monospace",
                     "text-style-secondary"
                   ),
@@ -42149,16 +42182,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1p.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1r.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
-                          styles$1p.treeIcon
+                          styles$1r.treeIcon
                         )
                       }
                     ) }) : void 0 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1p.pre), children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1r.pre), children: [
                       item2.key,
                       ":"
                     ] })
@@ -42327,6 +42360,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return encodeURIComponent(file);
     };
+    const join = (file, dir) => {
+      if (!dir) {
+        return file;
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      return dirWithSlash + normalizedFile;
+    };
+    const kLogsRoutUrlPattern = "/logs";
     const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
     const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
     const baseUrl = (logPath, sampleId, sampleEpoch) => {
@@ -42435,7 +42478,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const indented = "_indented_1ivu3_25";
     const copyLink$1 = "_copyLink_1ivu3_29";
     const metadataLabel = "_metadataLabel_1ivu3_39";
-    const styles$1o = {
+    const styles$1q = {
       message: message$1,
       systemRole,
       messageGrid,
@@ -42446,22 +42489,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const webSearch = "_webSearch_1376z_1";
     const query$1 = "_query_1376z_8";
-    const styles$1n = {
+    const styles$1p = {
       webSearch,
       query: query$1
     };
     const WebSearch = ({ query: query2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1n.webSearch, "text-size-smaller"), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1p.webSearch, "text-size-smaller"), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1n.query, "text-size-smallest"), children: query2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1p.query, "text-size-smallest"), children: query2 })
       ] });
     };
     const contentData = "_contentData_1sd1z_1";
-    const styles$1m = {
+    const styles$1o = {
       contentData
     };
     const result$1 = "_result_1mixg_12";
-    const styles$1l = {
+    const styles$1n = {
       result: result$1
     };
     const WebSearchResults = ({
@@ -42472,7 +42515,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           "div",
           {
             className: clsx(
-              styles$1l.label,
+              styles$1n.label,
               "text-style-label",
               "text-style-secondary",
               "text-size-smaller"
@@ -42480,10 +42523,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             children: "Results"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx(styles$1l.results, "text-size-smaller"), children: results.map((result2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx(styles$1n.results, "text-size-smaller"), children: results.map((result2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
           "li",
           {
-            className: clsx(styles$1l.result, "text-style-secondary"),
+            className: clsx(styles$1n.result, "text-style-secondary"),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               "a",
               {
@@ -42507,17 +42550,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       );
       if (!renderer) {
         const { encrypted_content, ...record } = renderableData;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1o.contentData), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           RecordTree,
           {
             id: `${id}-tree`,
             record,
-            className: clsx(styles$1m.data),
+            className: clsx(styles$1o.data),
             defaultExpandLevel: 0
           }
         ) });
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: renderer.render(renderableData) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1o.contentData), children: renderer.render(renderableData) });
     };
     const webSearchServerToolRenderer = {
       name: "WebSearch",
@@ -42559,7 +42602,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             {
               id: data.name || "server-tool",
               record: data,
-              className: clsx(styles$1m.data)
+              className: clsx(styles$1o.data)
             }
           )
         ] });
@@ -42580,7 +42623,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const citations = "_citations_t2k1z_1";
     const citationLink = "_citationLink_t2k1z_9";
-    const styles$1k = {
+    const styles$1m = {
       citations,
       citationLink
     };
@@ -42588,7 +42631,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (citations2.length === 0) {
         return void 0;
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitation, { citation })
       ] }, index2)) });
@@ -42608,7 +42651,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         href: citation.url,
         target: "_blank",
         rel: "noopener noreferrer",
-        className: clsx(styles$1k.citationLink),
+        className: clsx(styles$1m.citationLink),
         title: `${citation.cited_text || ""}
 ${citation.url}`,
         children: children2
@@ -42617,7 +42660,7 @@ ${citation.url}`,
     const OtherCitation = ({ children: children2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: children2 });
     const contentImage = "_contentImage_8rgix_1";
     const reasoning = "_reasoning_8rgix_6";
-    const styles$1j = {
+    const styles$1l = {
       contentImage,
       reasoning
     };
@@ -42625,7 +42668,7 @@ ${citation.url}`,
     const output = "_output_bv5nm_6";
     const textOutput = "_textOutput_bv5nm_10";
     const textCode = "_textCode_bv5nm_18";
-    const styles$1i = {
+    const styles$1k = {
       toolImage,
       output,
       textOutput,
@@ -42647,7 +42690,7 @@ ${citation.url}`,
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "img",
                   {
-                    className: clsx(styles$1i.toolImage),
+                    className: clsx(styles$1k.toolImage),
                     src: out.image
                   },
                   key2
@@ -42663,10 +42706,10 @@ ${citation.url}`,
           /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.output), children: outputs });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1i.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1i.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1k.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1k.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({
       contents: contents2,
@@ -42747,7 +42790,7 @@ ${citation.url}`,
           if (!r2.reasoning && !r2.redacted) {
             return void 0;
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1j.reasoning, "text-size-small"), children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1l.reasoning, "text-size-small"), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -42772,7 +42815,7 @@ ${citation.url}`,
         render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1j.contentImage }, key2);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1l.contentImage }, key2);
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
           }
@@ -42942,13 +42985,13 @@ ${citation.url}`,
       };
     };
     const toolCallView = "_toolCallView_16q6n_1";
-    const styles$1h = {
+    const styles$1j = {
       toolCallView
     };
     const outputPre = "_outputPre_1jznn_1";
     const toolView = "_toolView_1jznn_7";
     const outputCode = "_outputCode_1jznn_15";
-    const styles$1g = {
+    const styles$1i = {
       outputPre,
       toolView,
       outputCode
@@ -42963,7 +43006,7 @@ ${citation.url}`,
           {
             markdown: toolCallView2.content,
             ref: prismParentRef,
-            className: clsx("tool-output", styles$1g.toolView)
+            className: clsx("tool-output", styles$1i.toolView)
           }
         );
       }
@@ -42971,7 +43014,7 @@ ${citation.url}`,
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "pre",
         {
-          className: clsx("tool-output", styles$1g.outputPre, styles$1g.bottomMargin),
+          className: clsx("tool-output", styles$1i.outputPre, styles$1i.bottomMargin),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "code",
             {
@@ -42979,7 +43022,7 @@ ${citation.url}`,
                 "source-code",
                 "sourceCode",
                 highlightLanguage ? `language-${highlightLanguage}` : void 0,
-                styles$1g.outputCode
+                styles$1i.outputCode
               ),
               children: formattedContent
             }
@@ -42989,14 +43032,14 @@ ${citation.url}`,
     };
     const image = "_image_a8byr_1";
     const toolTitle = "_toolTitle_a8byr_6";
-    const styles$1f = {
+    const styles$1h = {
       image,
       toolTitle
     };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1f.image) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1f.toolTitle), children: title2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1h.image) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1h.toolTitle), children: title2 })
       ] });
     };
     const ToolCallView = ({
@@ -43040,7 +43083,7 @@ ${citation.url}`,
       });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
       const context = defaultContext();
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1h.toolCallView), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1j.toolCallView), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43087,7 +43130,7 @@ ${citation.url}`,
     };
     const content$2 = "_content_1b2jp_1";
     const codeCompact = "_codeCompact_1b2jp_5";
-    const styles$1e = {
+    const styles$1g = {
       content: content$2,
       codeCompact
     };
@@ -43120,7 +43163,7 @@ ${citation.url}`,
           }
           const resolvedToolOutput = resolveToolMessage(toolMessage);
           if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1e.codeCompact), children: [
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1g.codeCompact), children: [
               "tool: ",
               functionCall
             ] }) }, `tool-call-${idx}`);
@@ -43141,7 +43184,7 @@ ${citation.url}`,
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) }),
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1g.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) }),
           toolCalls
         ] });
       } else {
@@ -43213,19 +43256,19 @@ ${citation.url}`,
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1o.message,
-            message2.role === "system" ? styles$1o.systemRole : void 0,
-            message2.role === "user" ? styles$1o.userRole : void 0
+            styles$1q.message,
+            message2.role === "system" ? styles$1q.systemRole : void 0,
+            message2.role === "user" ? styles$1q.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1q.messageGrid, "text-style-label"), children: [
               message2.role,
               supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: toFullUrl(messageUrl),
-                  className: clsx(styles$1o.copyLink)
+                  className: clsx(styles$1q.copyLink)
                 }
               ) : ""
             ] }),
@@ -43233,8 +43276,8 @@ ${citation.url}`,
               "div",
               {
                 className: clsx(
-                  styles$1o.messageContents,
-                  indented2 ? styles$1o.indented : void 0
+                  styles$1q.messageContents,
+                  indented2 ? styles$1q.indented : void 0
                 ),
                 children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43259,7 +43302,7 @@ ${citation.url}`,
                     LabeledValue,
                     {
                       label: "Metadata",
-                      className: clsx(styles$1o.metadataLabel, "text-size-smaller"),
+                      className: clsx(styles$1q.metadataLabel, "text-size-smaller"),
                       children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                         RecordTree,
                         {
@@ -43280,12 +43323,12 @@ ${citation.url}`,
     const grid$7 = "_grid_rmdrx_1";
     const number$1 = "_number_rmdrx_7";
     const user = "_user_rmdrx_11";
-    const container$k = "_container_rmdrx_16";
-    const styles$1d = {
+    const container$j = "_container_rmdrx_16";
+    const styles$1f = {
       grid: grid$7,
       number: number$1,
       user,
-      container: container$k
+      container: container$j
     };
     const ChatMessageRow = ({
       parentName,
@@ -43301,9 +43344,9 @@ ${citation.url}`,
             "div",
             {
               className: clsx(
-                styles$1d.grid,
-                styles$1d.container,
-                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1d.user : void 0
+                styles$1f.grid,
+                styles$1f.container,
+                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1f.user : void 0
               ),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43312,7 +43355,7 @@ ${citation.url}`,
                     className: clsx(
                       "text-size-smaller",
                       "text-style-secondary",
-                      styles$1d.number
+                      styles$1f.number
                     ),
                     children: number2
                   }
@@ -43337,9 +43380,9 @@ ${citation.url}`,
           "div",
           {
             className: clsx(
-              styles$1d.container,
-              styles$1d.simple,
-              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1d.user : void 0
+              styles$1f.container,
+              styles$1f.simple,
+              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1f.user : void 0
             ),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43492,7 +43535,7 @@ ${citation.url}`,
     const compact = "_compact_1t3ts_15";
     const cellKey = "_cellKey_1t3ts_19";
     const cellValue = "_cellValue_1t3ts_31";
-    const styles$1c = {
+    const styles$1e = {
       table: table$2,
       cell: cell$3,
       compact,
@@ -43520,15 +43563,15 @@ ${citation.url}`,
             "td",
             {
               className: clsx(
-                styles$1c.cell,
-                styles$1c.cellKey,
+                styles$1e.cell,
+                styles$1e.cellKey,
                 "text-size-small",
                 "text-style-label"
               ),
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1c.cell, styles$1c.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1e.cell, styles$1e.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
         ] }, id2);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43538,8 +43581,8 @@ ${citation.url}`,
           className: clsx(
             "table",
             tblClz,
-            styles$1c.table,
-            compact2 ? styles$1c.compact : void 0,
+            styles$1e.table,
+            compact2 ? styles$1e.compact : void 0,
             className2
           ),
           style: style2,
@@ -43570,7 +43613,7 @@ ${citation.url}`,
     const summary$3 = "_summary_seqs2_6";
     const preWrap = "_preWrap_seqs2_10";
     const preCompact = "_preCompact_seqs2_15";
-    const styles$1b = {
+    const styles$1d = {
       query,
       summary: summary$3,
       preWrap,
@@ -43688,7 +43731,7 @@ ${citation.url}`,
               };
             } else {
               return {
-                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1b.preWrap, styles$1b.preCompact), children: rendered })
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1d.preWrap, styles$1d.preCompact), children: rendered })
               };
             }
           }
@@ -43738,7 +43781,7 @@ ${citation.url}`,
           render: (_id, entry2, _options) => {
             const results = [];
             results.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1b.query, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1d.query, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
                 " ",
                 entry2.value.query
@@ -43750,7 +43793,7 @@ ${citation.url}`,
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
                 );
                 results.push(
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1b.summary), children: result2.summary })
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1d.summary), children: result2.summary })
                 );
               }
             );
@@ -43767,7 +43810,7 @@ ${citation.url}`,
           },
           render: (_id, entry2, _options) => {
             return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1b.preWrap, children: entry2.value })
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1d.preWrap, children: entry2.value })
             };
           }
         },
@@ -43841,7 +43884,7 @@ ${citation.url}`,
     const green = "_green_1iagp_12";
     const red = "_red_1iagp_18";
     const orange = "_orange_1iagp_24";
-    const styles$1a = {
+    const styles$1c = {
       circle,
       green,
       red,
@@ -43882,22 +43925,22 @@ ${citation.url}`,
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$1a.circle, styles$1a.green),
+                className: clsx("text-size-small", styles$1c.circle, styles$1c.green),
                 children: "C"
               }
             );
           } else if (score2 === "I") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1a.circle, styles$1a.red), children: "I" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1c.circle, styles$1c.red), children: "I" });
           } else if (score2 === "P") {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$1a.circle, styles$1a.orange),
+                className: clsx("text-size-small", styles$1c.circle, styles$1c.orange),
                 children: "P"
               }
             );
           } else if (score2 === "N") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1a.circle, styles$1a.red), children: "N" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1c.circle, styles$1c.red), children: "N" });
           } else {
             return String(score2);
           }
@@ -46926,10 +46969,10 @@ categories: ${categories.join(" ")}`;
       return { result: result2, error: error2, allErrors: errorCount === samples.length };
     };
     const flex$1 = "_flex_1kye9_1";
-    const label$8 = "_label_1kye9_5";
-    const styles$19 = {
+    const label$9 = "_label_1kye9_5";
+    const styles$1b = {
       flex: flex$1,
-      label: label$8
+      label: label$9
     };
     const SortFilter = ({ sort, setSort, epochs }) => {
       const options2 = [
@@ -46961,7 +47004,7 @@ categories: ${categories.join(" ")}`;
         },
         [setSort]
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.flex, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1b.flex, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -46970,7 +47013,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$19.label
+              styles$1b.label
             ),
             children: "Sort:"
           }
@@ -47494,6 +47537,221 @@ categories: ${categories.join(" ")}`;
         isShowing
       };
     };
+    const useLogs = () => {
+      const load = useStore((state) => state.logsActions.loadLogs);
+      const setLogs = useStore((state) => state.logsActions.setLogs);
+      const setStatus = useStore((state) => state.appActions.setStatus);
+      const loadLogs = reactExports.useCallback(async () => {
+        const exec2 = async () => {
+          setStatus({ loading: true, error: void 0 });
+          const logs = await load();
+          setLogs(logs);
+          setStatus({ loading: false, error: void 0 });
+        };
+        exec2().catch((e) => {
+          log.error("Error loading logs", e);
+          setStatus({ loading: false, error: e });
+        });
+      }, [load, setLogs, setStatus]);
+      const headers = useStore((state) => state.logsActions.loadHeaders);
+      const setHeaders = useStore((state) => state.logsActions.setLogHeaders);
+      const allLogFiles = useStore((state) => state.logs.logs.files);
+      const loadHeaders = reactExports.useCallback(
+        async (logFiles = allLogFiles) => {
+          const exec2 = async () => {
+            const logHeaders = await headers(logFiles);
+            const result2 = {};
+            for (var i2 = 0; i2 < logFiles.length; i2++) {
+              const logFile = logFiles[i2];
+              const logHeader = logHeaders[i2];
+              if (logHeader) {
+                result2[logFile.name] = logHeader;
+              }
+            }
+            setHeaders(result2);
+          };
+          exec2().catch((e) => {
+            log.error("Error loading log headers", e);
+            setHeaders({});
+          });
+        },
+        [headers]
+      );
+      return { loadLogs, loadHeaders };
+    };
+    const filename = (path) => {
+      if (!path) {
+        return "";
+      }
+      path = path.endsWith("/") ? path.slice(0, -1) : path;
+      const pathparts = path.split("/");
+      const basename2 = pathparts.slice(-1)[0];
+      if (basename2.startsWith(".") && !basename2.substring(1).includes(".")) {
+        return basename2;
+      }
+      const match = basename2.match(/(.*)\.\S+$/);
+      if (match) {
+        return match[1];
+      } else {
+        return path;
+      }
+    };
+    const basename = (path) => {
+      if (!path) {
+        return "";
+      }
+      path = path.endsWith("/") ? path.slice(0, -1) : path;
+      const pathparts = path.split("/");
+      return pathparts.slice(-1)[0];
+    };
+    const dirname$1 = (path) => {
+      path = path.endsWith("/") ? path.slice(0, -1) : path;
+      const pathparts = path.split("/");
+      if (pathparts.length > 1) {
+        pathparts.pop();
+        return pathparts.join("/");
+      }
+      return "";
+    };
+    const footer$1 = "_footer_vkofn_1";
+    const spinnerContainer$1 = "_spinnerContainer_vkofn_11";
+    const spinner$2 = "_spinner_vkofn_11";
+    const label$8 = "_label_vkofn_25";
+    const styles$1a = {
+      footer: footer$1,
+      spinnerContainer: spinnerContainer$1,
+      spinner: spinner$2,
+      label: label$8
+    };
+    const LogListFooter = ({
+      itemCount,
+      running: running2
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$1a.footer), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1a.spinnerContainer), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx("spinner-border", styles$1a.spinner),
+              role: "status",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$1a.label), children: "running..." })
+        ] }) : void 0 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${itemCount} items` })
+      ] });
+    };
+    const panel$3 = "_panel_cg8hm_1";
+    const list$1 = "_list_cg8hm_8";
+    const styles$19 = {
+      panel: panel$3,
+      list: list$1
+    };
+    const header$4 = "_header_fev74_1";
+    const breadcrumbs = "_breadcrumbs_fev74_11";
+    const styles$18 = {
+      header: header$4,
+      breadcrumbs
+    };
+    const LogsHeader = ({ segments }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "nav",
+        {
+          className: clsx("text-size-smaller", styles$18.header),
+          "aria-label": "breadcrumb",
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$18.breadcrumbs), children: segments == null ? void 0 : segments.map((segment, index2) => {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "li",
+              {
+                className: clsx(
+                  styles$18.pathLink,
+                  "breadcrumb-item",
+                  index2 === segments.length - 1 ? "active" : void 0
+                ),
+                children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$18.pathSegment), children: segment.text }, index2)
+              },
+              index2
+            );
+          }) })
+        }
+      );
+    };
+    const rootName = (relativePath) => {
+      const parts = relativePath.split("/");
+      if (parts.length === 0) {
+        return "";
+      }
+      return parts[0];
+    };
+    const LogListView = () => {
+      const loading = useStore((state) => state.app.status.loading);
+      const { loadLogs } = useLogs();
+      const logs = useStore((state) => state.logs.logs);
+      const { logPath } = useParams();
+      const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
+      const baseLogDir = dirname$1(logs.log_dir || "");
+      const baseLogName = basename(logs.log_dir || "");
+      const pathSegments = logPath ? decodeURIComponent(logPath).split("/") : void 0;
+      const dirSegments = pathSegments ? pathSegments.map((segment) => {
+        return {
+          text: segment,
+          url: logUrl(segment, logs.log_dir)
+        };
+      }) : [];
+      const segments = [
+        { text: baseLogDir },
+        { text: baseLogName, url: logUrl("", logs.log_dir) },
+        ...dirSegments
+      ];
+      const logItems = reactExports.useMemo(() => {
+        const itemNames = [];
+        for (const logFile of logs.files) {
+          const name2 = logFile.name;
+          if (name2.startsWith(currentDir)) {
+            const relativePath = directoryRelativeUrl(name2, currentDir);
+            const root2 = rootName(relativePath);
+            itemNames.push(decodeURIComponent(root2));
+          }
+        }
+        const items = new Set(itemNames);
+        const result2 = [];
+        for (const item2 of items) {
+          result2.push({
+            id: item2,
+            name: item2,
+            type: item2.endsWith(".json") || item2.endsWith(".eval") ? "file" : "folder",
+            url: logUrl(item2, currentDir)
+          });
+        }
+        return result2;
+      }, [logPath, logs.files]);
+      reactExports.useEffect(() => {
+        const exec2 = async () => {
+          await loadLogs();
+        };
+        exec2();
+      }, [loadLogs]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$19.panel), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(LogsHeader, { segments }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$19.list), children: logItems.map((logItem) => /* @__PURE__ */ jsxRuntimeExports.jsx(LogsRow, { item: logItem })) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(LogListFooter, { itemCount: logItems.length, running: loading })
+      ] });
+    };
+    const LogsRow = ({ item: item2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "i",
+          {
+            className: clsx(
+              item2.type === "file" ? ApplicationIcons.file : ApplicationIcons.folder
+            )
+          }
+        ) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, children: item2.name }) : item2.name })
+      ] });
+    };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
       const storeHideFind = useStore((state) => state.appActions.hideFind);
@@ -47617,32 +47875,10 @@ categories: ${categories.join(" ")}`;
         )
       ] });
     };
-    const wrapper$4 = "_wrapper_1tajk_1";
-    const container$j = "_container_1tajk_12";
-    const animate = "_animate_1tajk_21";
-    const styles$18 = {
-      wrapper: wrapper$4,
-      container: container$j,
-      animate
-    };
-    const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(styles$18.container),
-          role: "progressbar",
-          "aria-label": "Basic example",
-          "aria-valuenow": 25,
-          "aria-valuemin": 0,
-          "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.animate })
-        }
-      ) });
-    };
-    const dirname$1 = "_dirname_1qban_1";
+    const dirname = "_dirname_1qban_1";
     const directoryLink = "_directoryLink_1qban_7";
     const styles$17 = {
-      dirname: dirname$1,
+      dirname,
       directoryLink
     };
     const LogDirectoryTitleView = ({
@@ -48196,30 +48432,6 @@ categories: ${categories.join(" ")}`;
     const navbarWrapper = "_navbarWrapper_838qu_48";
     const styles$11 = {
       navbarWrapper
-    };
-    const filename = (path) => {
-      if (!path) {
-        return "";
-      }
-      const pathparts = path.split("/");
-      const basename = pathparts.slice(-1)[0];
-      if (basename.startsWith(".") && !basename.substring(1).includes(".")) {
-        return basename;
-      }
-      const match = basename.match(/(.*)\.\S+$/);
-      if (match) {
-        return match[1];
-      } else {
-        return path;
-      }
-    };
-    const dirname = (path) => {
-      const pathparts = path.split("/");
-      if (pathparts.length > 1) {
-        pathparts.pop();
-        return pathparts.join("/");
-      }
-      return "";
     };
     const container$g = "_container_q17yq_1";
     const grid$6 = "_grid_q17yq_10";
@@ -51491,7 +51703,7 @@ self.onmessage = function (e) {
           if (context !== null) {
             const data = lib$1.parse(context);
             if (data.log_dir || data.log_file) {
-              const log_dir2 = data.log_dir || dirname(data.log_file);
+              const log_dir2 = data.log_dir || dirname$1(data.log_file);
               const api2 = simpleHttpApi(log_dir2, data.log_file);
               return clientApi(api2, data.log_file);
             }
@@ -88025,6 +88237,19 @@ Supported expressions:
       ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
+    const RouteDispatcher = () => {
+      const { logPath } = useParams();
+      if (!logPath) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(LogListView, {});
+      }
+      const decodedLogPath = decodeURIComponent(logPath);
+      const isLogFile = decodedLogPath.endsWith(".eval") || decodedLogPath.endsWith(".json");
+      if (isLogFile) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {});
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(LogListView, {});
+      }
+    };
     const AppLayout = () => {
       const location2 = useLocation();
       reactExports.useEffect(() => {
@@ -88046,8 +88271,12 @@ Supported expressions:
               element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
             },
             {
+              path: kLogsRoutUrlPattern,
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListView, {})
+            },
+            {
               path: kLogRouteUrlPattern,
-              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(RouteDispatcher, {})
             },
             {
               path: kSampleRouteUrlPattern,
