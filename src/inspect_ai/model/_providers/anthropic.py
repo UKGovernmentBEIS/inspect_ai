@@ -622,11 +622,9 @@ def _web_search_tool_param(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
 
-    foo = WebSearchTool20250305Param(
+    return WebSearchTool20250305Param(
         name="web_search", type="web_search_20250305", **(maybe_anthropic_options)
     )
-
-    return foo
 
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
