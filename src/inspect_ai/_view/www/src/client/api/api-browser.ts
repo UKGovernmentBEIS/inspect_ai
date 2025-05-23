@@ -113,11 +113,11 @@ async function eval_log_sample_data(
   params.append("log", log_file);
   params.append("id", String(id));
   params.append("epoch", String(epoch));
-  if (last_event) {
+  if (last_event !== undefined) {
     params.append("last-event-id", String(last_event));
   }
 
-  if (last_attachment) {
+  if (last_attachment !== undefined) {
     params.append("after-attachment-id", String(last_attachment));
   }
 

@@ -1,6 +1,7 @@
 export const resolveAttachments = <T>(
   value: T,
   attachments: Record<string, string>,
+  onFailedResolve?: (attachmentId: string) => void,
 ): T => {
   const CONTENT_PROTOCOL = "tc://";
   const ATTACHMENT_PROTOCOL = "attachment://";
@@ -56,6 +57,9 @@ export const resolveAttachments = <T>(
         const attachment = attachments[attachmentId];
 
         // Return the attachment content if it exists, otherwise return the original string
+        if (attachment === undefined && onFailedResolve) {
+          onFailedResolve(attachmentId);
+        }
         return (attachment !== undefined ? attachment : value) as unknown as T;
       }
 
@@ -66,6 +70,9 @@ export const resolveAttachments = <T>(
     if (value.startsWith(ATTACHMENT_PROTOCOL)) {
       const attachmentId = value.slice(ATTACHMENT_PROTOCOL.length);
       const attachment = attachments[attachmentId];
+      if (attachment === undefined && onFailedResolve) {
+        onFailedResolve(attachmentId);
+      }
 
       // Return the attachment content if it exists, otherwise return the original string
       return (attachment !== undefined ? attachment : value) as unknown as T;
