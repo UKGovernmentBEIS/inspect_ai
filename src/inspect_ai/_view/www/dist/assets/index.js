@@ -43646,8 +43646,26 @@ categories: ${categories.join(" ")}`;
         const topOffset = 30;
         const viewportTop = containerRect ? containerRect.top + topOffset : topOffset;
         const viewportBottom = containerRect ? containerRect.bottom : window.innerHeight;
-        let topmostId = null;
-        let topmostPosition = Infinity;
+        const viewportHeight = viewportBottom - viewportTop;
+        let detectionPoint = viewportTop;
+        if (container2) {
+          const scrollHeight = container2.scrollHeight;
+          const scrollTop = container2.scrollTop;
+          const clientHeight = container2.clientHeight;
+          const maxScroll = scrollHeight - clientHeight;
+          const scrollProgress = maxScroll > 0 ? scrollTop / maxScroll : 0;
+          const slideThreshold = 0.8;
+          if (scrollProgress > slideThreshold) {
+            const slideProgress = (scrollProgress - slideThreshold) / (1 - slideThreshold);
+            const easedProgress = Math.pow(slideProgress, 3);
+            detectionPoint = viewportTop + viewportHeight * 0.9 * easedProgress;
+          }
+          if (scrollProgress >= 0.99) {
+            detectionPoint = viewportBottom - 50;
+          }
+        }
+        let closestId = null;
+        let closestDistance = Infinity;
         const elementIdSet = new Set(elementIds);
         const elements = container2 ? container2.querySelectorAll("[id]") : document.querySelectorAll("[id]");
         for (const element of elements) {
@@ -43655,14 +43673,16 @@ categories: ${categories.join(" ")}`;
           if (elementIdSet.has(id)) {
             const rect = element.getBoundingClientRect();
             if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
-              if (rect.top < topmostPosition) {
-                topmostPosition = rect.top;
-                topmostId = id;
+              const elementCenter = rect.top + rect.height / 2;
+              const distance = Math.abs(elementCenter - detectionPoint);
+              if (distance < closestDistance) {
+                closestDistance = distance;
+                closestId = id;
               }
             }
           }
         }
-        return topmostId;
+        return closestId;
       }, [elementIds, scrollRef, options2 == null ? void 0 : options2.topOffset]);
       const checkVisibility = reactExports.useCallback(() => {
         const now2 = Date.now();

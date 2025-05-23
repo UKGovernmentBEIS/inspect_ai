@@ -260,9 +260,45 @@ export function useScrollTrack(
     const viewportBottom = containerRect
       ? containerRect.bottom
       : window.innerHeight;
+    const viewportHeight = viewportBottom - viewportTop;
 
-    let topmostId: string | null = null;
-    let topmostPosition = Infinity;
+    // Calculate dynamic threshold based on scroll position
+    let detectionPoint = viewportTop;
+
+    if (container) {
+      // This will track the scroll position and select which element is 'showing'
+      // This is generally the item at the the top of the viewport (threshold).
+      // As we get to the bottom of the scroll area, though, we will actually start
+      // sliding the detection point down to the bottom of the viewport so that every
+      // item can be selected.
+      const scrollHeight = container.scrollHeight;
+      const scrollTop = container.scrollTop;
+      const clientHeight = container.clientHeight;
+      const maxScroll = scrollHeight - clientHeight;
+
+      // Calculate how close we are to the bottom (0 = at top, 1 = at bottom)
+      const scrollProgress = maxScroll > 0 ? scrollTop / maxScroll : 0;
+
+      // Start sliding only in the last 20% of scroll
+      const slideThreshold = 0.8;
+      if (scrollProgress > slideThreshold) {
+        // Calculate how far through the slide zone we are (0 to 1)
+        const slideProgress =
+          (scrollProgress - slideThreshold) / (1 - slideThreshold);
+        // Use a steeper curve (power of 3) for faster transition
+        const easedProgress = Math.pow(slideProgress, 3);
+        // Slide all the way from top to bottom of viewport
+        detectionPoint = viewportTop + viewportHeight * 0.9 * easedProgress;
+      }
+
+      // When fully scrolled to bottom, use bottom of viewport
+      if (scrollProgress >= 0.99) {
+        detectionPoint = viewportBottom - 50; // Slight offset from absolute bottom
+      }
+    }
+
+    let closestId: string | null = null;
+    let closestDistance = Infinity;
 
     // Create a Set for O(1) lookup
     const elementIdSet = new Set(elementIds);
@@ -281,15 +317,19 @@ export function useScrollTrack(
 
         // Check if element is in viewport
         if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
-          if (rect.top < topmostPosition) {
-            topmostPosition = rect.top;
-            topmostId = id;
+          // Calculate distance from detection point to element's vertical center
+          const elementCenter = rect.top + rect.height / 2;
+          const distance = Math.abs(elementCenter - detectionPoint);
+
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestId = id;
           }
         }
       }
     }
 
-    return topmostId;
+    return closestId;
   }, [elementIds, scrollRef, options?.topOffset]);
 
   const checkVisibility = useCallback(() => {
