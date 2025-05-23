@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import abc
 import logging
+import time
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from types import TracebackType
 from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
 
+import anyio
 from typing_extensions import Self
 
 from inspect_ai._util.logger import warn_once
@@ -33,22 +35,23 @@ class LimitExceededError(Exception):
        value: Value compared to.
        limit: Limit applied.
        message (str | None): Optional. Human readable message.
-       source (Limit | None): Optional. The `Limit` instance which was responsible for
-         raising this error.
+       source (Limit | None): Optional. The `Limit` instance which was responsible for raising this error.
     """
 
     def __init__(
         self,
         type: Literal["message", "time", "working", "token", "operator", "custom"],
         *,
-        value: int,
-        limit: int,
+        value: float,
+        limit: float,
         message: str | None = None,
         source: Limit | None = None,
     ) -> None:
         self.type = type
         self.value = value
+        self.value_str = self._format_float_or_int(value)
         self.limit = limit
+        self.limit_str = self._format_float_or_int(limit)
         self.message = f"Exceeded {type} limit: {limit:,}"
         self.source = source
         super().__init__(message)
@@ -59,6 +62,12 @@ class LimitExceededError(Exception):
             "LimitExceededError.with_state() is deprecated (no longer required).",
         )
         return self
+
+    def _format_float_or_int(self, value: float | int) -> str:
+        if isinstance(value, int):
+            return f"{value:,}"
+        else:
+            return f"{value:,.2f}"
 
 
 class Limit(abc.ABC):
@@ -112,18 +121,20 @@ def apply_limits(
         False, all `LimitExceededError` exceptions will be allowed to propagate.
     """
     limit_scope = LimitScope()
-    with ExitStack() as stack:
-        for limit in limits:
-            stack.enter_context(limit)
-        try:
+    # Try scope is outside the `with ExitStack()` so that we can catch any errors raised
+    # when exiting it (which will be where time_limit() would raise LimitExceededError).
+    try:
+        with ExitStack() as stack:
+            for limit in limits:
+                stack.enter_context(limit)
             yield limit_scope
-        except LimitExceededError as e:
-            # If it was not one of the limits we applied.
-            if e.source is None or e.source not in limits:
-                raise
-            limit_scope.limit_error = e
-            if not catch_errors:
-                raise
+    except LimitExceededError as e:
+        # If it was not one of the limits we applied.
+        if e.source is None or e.source not in limits:
+            raise
+        limit_scope.limit_error = e
+        if not catch_errors:
+            raise
 
 
 class LimitScope:
@@ -220,6 +231,62 @@ def check_message_limit(count: int, raise_for_equal: bool) -> None:
     node.check(count, raise_for_equal)
 
 
+def time_limit(limit: float | None) -> _TimeLimit:
+    """Limits the wall clock time which can elapse.
+
+    The timer starts when the context manager is opened and stops when it is closed.
+
+    These limits can be stacked.
+
+    When a limit is exceeded, the code block is cancelled and a `LimitExceededError` is
+    raised.
+
+    Uses anyio's cancellation scopes meaning that the operations within the context
+    manager block are cancelled if the limit is exceeded. The `LimitExceededError` is
+    therefore raised at the level that the `time_limit()` context manager was opened,
+    not at the level of the operation which caused the limit to be exceeded (e.g. a call
+    to `generate()`). Ensure you handle `LimitExceededError` at the level of opening the context manager.
+
+    Args:
+      limit: The maximum number of seconds that can pass while the context manager is
+        open. A value of None means unlimited time.
+    """
+    return _TimeLimit(limit)
+
+
+def working_limit(limit: float | None) -> _WorkingLimit:
+    """Limits the working time which can elapse.
+
+    Working time is the wall clock time minus any waiting time e.g. waiting before
+    retrying in response to rate limits or waiting on a semaphore.
+
+    The timer starts when the context manager is opened and stops when it is closed.
+
+    These limits can be stacked.
+
+    When a limit is exceeded, a `LimitExceededError` is raised.
+
+    Args:
+      limit: The maximum number of seconds of working that can pass while the context
+        manager is open. A value of None means unlimited time.
+    """
+    return _WorkingLimit(limit)
+
+
+def record_waiting_time(waiting_time: float) -> None:
+    node = working_limit_tree.get()
+    if node is None:
+        return
+    node.record_waiting_time(waiting_time)
+
+
+def check_working_limit() -> None:
+    node = working_limit_tree.get()
+    if node is None:
+        return
+    node.check()
+
+
 class _Tree(Generic[TNode]):
     """A tree data structure of limit nodes.
 
@@ -253,6 +320,7 @@ token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
 # Store the message limit leaf node so that we know which limit to check in
 # check_message_limit().
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
+working_limit_tree: _Tree[_WorkingLimit] = _Tree("working_limit_tree")
 
 
 class _Node:
@@ -312,7 +380,7 @@ class _TokenLimit(Limit, _Node):
         self._limit = value
 
     def record(self, usage: ModelUsage) -> None:
-        """Record model usage for this node and its parent nodes."""
+        """Record model usage for this node and its ancestor nodes."""
         if self.parent is not None:
             self.parent.record(usage)
         self._usage += usage
@@ -414,3 +482,106 @@ class _MessageLimit(Limit, _Node):
             raise ValueError(
                 f"Message limit value must be a non-negative integer or None: {value}"
             )
+
+
+class _TimeLimit(Limit):
+    def __init__(self, limit: float | None) -> None:
+        super().__init__()
+        _validate_time_limit("Time", limit)
+        self._limit = limit
+
+    def __enter__(self) -> Limit:
+        super()._check_reuse()
+        # Unlike the other limits, this one is not stored in a tree. Anyio handles all
+        # of the state.
+        self._cancel_scope = anyio.move_on_after(self._limit)
+        self._cancel_scope.__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+        self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
+        if self._cancel_scope.cancel_called and self._limit is not None:
+            message = f"Time limit exceeded. limit: {self._limit} seconds"
+            transcript()._event(
+                SampleLimitEvent(type="time", message=message, limit=self._limit)
+            )
+            raise LimitExceededError(
+                "time",
+                value=self._limit,
+                limit=self._limit,
+                message=message,
+                source=self,
+            ) from exc_val
+
+
+class _WorkingLimit(Limit, _Node):
+    def __init__(self, limit: float | None) -> None:
+        super().__init__()
+        _validate_time_limit("Working time", limit)
+        self._limit = limit
+        self.parent: _WorkingLimit | None = None
+
+    def __enter__(self) -> Limit:
+        super()._check_reuse()
+        self._start_time = time.monotonic()
+        self._waiting_time = 0.0
+        working_limit_tree.push(self)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._pop_and_check_identity(working_limit_tree)
+
+    def record_waiting_time(self, waiting_time: float) -> None:
+        """Record waiting time for this node and its ancestor nodes."""
+        if self.parent is not None:
+            self.parent.record_waiting_time(waiting_time)
+        self._waiting_time += waiting_time
+
+    def check(self) -> None:
+        """Check if this working time limit or any ancestor limits have been exceeded.
+
+        The checks occur from root to leaf. This is so that if multiple limits are
+        simultaneously exceeded, the outermost (closest to root) one raises the error,
+        preventing certain sub-agent architectures from ending up in an infinite loop.
+        """
+        if self.parent is not None:
+            self.parent.check()
+        self._check_self()
+
+    def _check_self(self) -> None:
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+        if self._limit is None:
+            return
+        working_time = time.monotonic() - self._start_time - self._waiting_time
+        if working_time > self._limit:
+            message = f"Working time limit exceeded. limit: {self._limit} seconds"
+            transcript()._event(
+                SampleLimitEvent(type="working", message=message, limit=self._limit)
+            )
+            raise LimitExceededError(
+                "working",
+                value=working_time,
+                limit=self._limit,
+                message=message,
+                source=self,
+            )
+
+
+def _validate_time_limit(name: str, value: float | None) -> None:
+    if value is not None and value < 0:
+        raise ValueError(
+            f"{name} limit value must be a non-negative float or None: {value}"
+        )

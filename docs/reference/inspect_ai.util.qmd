@@ -11,9 +11,11 @@ title: "inspect_ai.util"
 
 ## Limits
 
-### apply_limits
 ### message_limit
 ### token_limit
+### time_limit
+### working_limit
+### apply_limits
 ### Limit
 ### LimitExceededError
 
