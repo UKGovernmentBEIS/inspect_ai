@@ -54824,7 +54824,7 @@ self.onmessage = function (e) {
       const icon2 = iconForNode(node2);
       const toggle2 = toggleIcon(node2, collapsed2);
       const popoverId = `${node2.id}-popover`;
-      const { show, hide: hide2, isShowing } = useSamplePopover(popoverId);
+      const { isShowing } = useSamplePopover(popoverId);
       const ref = reactExports.useRef(null);
       const { logPath, sampleId, epoch } = useParams();
       const url = logPath ? sampleEventUrl(node2.id, logPath, sampleId, epoch) : void 0;
@@ -54851,17 +54851,7 @@ self.onmessage = function (e) {
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$y.label), "data-depth": node2.depth, children: [
                 icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$y.icon) }) : void 0,
-                url ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  Link,
-                  {
-                    to: url,
-                    className: clsx(styles$y.eventLink),
-                    ref,
-                    onMouseOver: show,
-                    onMouseLeave: hide2,
-                    children: parsePackageName(labelForNode(node2)).module
-                  }
-                ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, onMouseOver: show, onMouseLeave: hide2, children: parsePackageName(labelForNode(node2)).module }),
+                url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, className: clsx(styles$y.eventLink), ref, children: parsePackageName(labelForNode(node2)).module }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, children: parsePackageName(labelForNode(node2)).module }),
                 running2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   PulsingDots,
                   {

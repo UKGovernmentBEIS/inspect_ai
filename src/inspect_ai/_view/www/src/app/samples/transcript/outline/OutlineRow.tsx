@@ -37,7 +37,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
   const toggle = toggleIcon(node, collapsed);
 
   const popoverId = `${node.id}-popover`;
-  const { show, hide, isShowing } = useSamplePopover(popoverId);
+  const { isShowing } = useSamplePopover(popoverId);
 
   const ref = useRef(null);
 
@@ -74,19 +74,11 @@ export const OutlineRow: FC<OutlineRowProps> = ({
         <div className={clsx(styles.label)} data-depth={node.depth}>
           {icon ? <i className={clsx(icon, styles.icon)} /> : undefined}
           {url ? (
-            <Link
-              to={url}
-              className={clsx(styles.eventLink)}
-              ref={ref}
-              onMouseOver={show}
-              onMouseLeave={hide}
-            >
+            <Link to={url} className={clsx(styles.eventLink)} ref={ref}>
               {parsePackageName(labelForNode(node)).module}
             </Link>
           ) : (
-            <span ref={ref} onMouseOver={show} onMouseLeave={hide}>
-              {parsePackageName(labelForNode(node)).module}
-            </span>
+            <span ref={ref}>{parsePackageName(labelForNode(node)).module}</span>
           )}
           {running ? (
             <PulsingDots
