@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
+from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._display import display_type
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
@@ -303,18 +304,26 @@ async def compose_command(
     # build final command
     compose_command = compose_command + command
 
-    # function to run command
+    # set a concurrency limit for docker CLI invocations.
+    # this should help with running more containers in parallel while avoiding hangs on some systems
+    DEFAULT_CLI_CONCURRENCY = min((os.cpu_count() or 1) * 2, 4)
+    docker_cli_concurrency = int(
+        os.environ.get("INSPECT_DOCKER_CLI_CONCURRENCY", DEFAULT_CLI_CONCURRENCY)
+    )
+
+    # function to run command (wrapped in concurrency limiter)
     async def run_command(command_timeout: int | None) -> ExecResult[str]:
-        result = await subprocess(
-            compose_command,
-            input=input,
-            cwd=cwd,
-            env=env,
-            timeout=command_timeout,
-            capture_output=capture_output,
-            output_limit=output_limit,
-        )
-        return result
+        async with concurrency("docker-cli", docker_cli_concurrency):
+            result = await subprocess(
+                compose_command,
+                input=input,
+                cwd=cwd,
+                env=env,
+                timeout=command_timeout,
+                capture_output=capture_output,
+                output_limit=output_limit,
+            )
+            return result
 
     # we have observed underlying unreliability in docker compose in some linux
     # environments on EC2 -- this exhibits in very simple commands (e.g. compose config)
