@@ -306,7 +306,7 @@ async def compose_command(
 
     # set a concurrency limit for docker CLI invocations.
     # this should help with running more containers in parallel while avoiding hangs on some systems
-    DEFAULT_CLI_CONCURRENCY = min((os.cpu_count() or 1) * 2, 4)
+    DEFAULT_CLI_CONCURRENCY = max((os.cpu_count() or 1) * 2, 4)
     docker_cli_concurrency = int(
         os.environ.get("INSPECT_DOCKER_CLI_CONCURRENCY", DEFAULT_CLI_CONCURRENCY)
     )
