@@ -9,7 +9,11 @@ import {
 import { CopyButton } from "../../../components/CopyButton";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { ApplicationIcons } from "../../appearance/icons";
-import { supportsLinking, useSampleMessageUrl } from "../../routing/url";
+import {
+  supportsLinking,
+  toFullUrl,
+  useSampleMessageUrl,
+} from "../../routing/url";
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { ChatViewToolCallStyle } from "./types";
@@ -30,7 +34,6 @@ export const ChatMessage: FC<ChatMessageProps> = ({
   toolCallStyle,
 }) => {
   const messageUrl = useSampleMessageUrl(message.id);
-  console.log("messageUrl", messageUrl);
 
   const collapse = message.role === "system" || message.role === "user";
   return (
@@ -48,7 +51,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
         {supportsLinking() && messageUrl ? (
           <CopyButton
             icon={ApplicationIcons.link}
-            value={messageUrl}
+            value={toFullUrl(messageUrl)}
             className={clsx(styles.copyLink)}
           />
         ) : (

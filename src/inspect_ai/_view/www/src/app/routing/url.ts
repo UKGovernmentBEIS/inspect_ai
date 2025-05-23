@@ -75,13 +75,11 @@ export const useSampleMessageUrl = (
 
   const eventUrl = useMemo(() => {
     return messageId && targetLogPath
-      ? toFullUrl(
-          sampleMessageUrl(
-            messageId,
-            targetLogPath,
-            sampleId || urlSampleId,
-            sampleEpoch || urlEpoch,
-          ),
+      ? sampleMessageUrl(
+          messageId,
+          targetLogPath,
+          sampleId || urlSampleId,
+          sampleEpoch || urlEpoch,
         )
       : undefined;
   }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
@@ -114,13 +112,11 @@ export const useSampleEventUrl = (
 
   const eventUrl = useMemo(() => {
     return targetLogPath
-      ? toFullUrl(
-          sampleEventUrl(
-            eventId,
-            targetLogPath,
-            sampleId || urlSampleId,
-            sampleEpoch || urlEpoch,
-          ),
+      ? sampleEventUrl(
+          eventId,
+          targetLogPath,
+          sampleId || urlSampleId,
+          sampleEpoch || urlEpoch,
         )
       : undefined;
   }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);

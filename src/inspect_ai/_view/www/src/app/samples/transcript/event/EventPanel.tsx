@@ -12,7 +12,11 @@ import { EventNavs } from "./EventNavs";
 
 import { CopyButton } from "../../../../components/CopyButton";
 import { useCollapseSampleEvent, useProperty } from "../../../../state/hooks";
-import { supportsLinking, useSampleEventUrl } from "../../../routing/url";
+import {
+  supportsLinking,
+  toFullUrl,
+  useSampleEventUrl,
+} from "../../../routing/url";
 import { kTranscriptCollapseScope } from "../types";
 import styles from "./EventPanel.module.css";
 
@@ -58,7 +62,8 @@ export const EventPanel: FC<EventPanelProps> = ({
   const useBottomDongle = isCollapsible && collapseControl === "bottom";
 
   const sampleEventUrl = useSampleEventUrl(eventNodeId);
-  const url = supportsLinking() ? sampleEventUrl : undefined;
+  const url =
+    supportsLinking() && sampleEventUrl ? toFullUrl(sampleEventUrl) : undefined;
 
   const pillId = (index: number) => {
     return `${eventNodeId}-nav-pill-${index}`;

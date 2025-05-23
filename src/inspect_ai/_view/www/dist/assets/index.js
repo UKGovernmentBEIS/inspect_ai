@@ -38602,13 +38602,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         targetLogPath = makeLogPath(log_file, log_dir);
       }
       const eventUrl = reactExports.useMemo(() => {
-        return messageId && targetLogPath ? toFullUrl(
-          sampleMessageUrl(
-            messageId,
-            targetLogPath,
-            urlSampleId,
-            urlEpoch
-          )
+        return messageId && targetLogPath ? sampleMessageUrl(
+          messageId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
         ) : void 0;
       }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
       return eventUrl;
@@ -38626,13 +38624,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         targetLogPath = makeLogPath(log_file, log_dir);
       }
       const eventUrl = reactExports.useMemo(() => {
-        return targetLogPath ? toFullUrl(
-          sampleEventUrl(
-            eventId,
-            targetLogPath,
-            urlSampleId,
-            urlEpoch
-          )
+        return targetLogPath ? sampleEventUrl(
+          eventId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
         ) : void 0;
       }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
       return eventUrl;
@@ -39169,7 +39165,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       toolCallStyle
     }) => {
       const messageUrl = useSampleMessageUrl(message2.id);
-      console.log("messageUrl", messageUrl);
       const collapse = message2.role === "system" || message2.role === "user";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
@@ -39188,7 +39183,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
-                  value: messageUrl,
+                  value: toFullUrl(messageUrl),
                   className: clsx(styles$1l.copyLink)
                 }
               ) : ""
@@ -55556,7 +55551,7 @@ self.onmessage = function (e) {
       const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
       const useBottomDongle = isCollapsible && collapseControl === "bottom";
       const sampleEventUrl2 = useSampleEventUrl(eventNodeId);
-      const url = supportsLinking() ? sampleEventUrl2 : void 0;
+      const url = supportsLinking() && sampleEventUrl2 ? toFullUrl(sampleEventUrl2) : void 0;
       const pillId = (index2) => {
         return `${eventNodeId}-nav-pill-${index2}`;
       };
