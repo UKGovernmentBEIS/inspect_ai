@@ -40,7 +40,6 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     numbered = true,
     scrollRef,
     running,
-    getMessageUrl,
   }) => {
     const collapsedMessages = useMemo(() => {
       return resolveMessages(messages);
@@ -68,7 +67,6 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           resolvedMessage={item}
           indented={indented}
           toolCallStyle={toolCallStyle}
-          getMessageUrl={getMessageUrl}
           highlightUserMessage={true}
         />
       );

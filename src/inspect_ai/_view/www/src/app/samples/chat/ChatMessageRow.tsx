@@ -13,7 +13,6 @@ interface ChatMessageRowProps {
   toolCallStyle: ChatViewToolCallStyle;
   indented?: boolean;
   padded?: boolean;
-  getMessageUrl?: (id: string) => string | undefined;
   highlightUserMessage?: boolean;
 }
 
@@ -26,7 +25,6 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   resolvedMessage,
   toolCallStyle,
   indented,
-  getMessageUrl,
   highlightUserMessage,
 }) => {
   if (number) {
@@ -56,7 +54,6 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
             toolMessages={resolvedMessage.toolMessages}
             indented={indented}
             toolCallStyle={toolCallStyle}
-            getMessageUrl={getMessageUrl}
           />
         </div>
 
@@ -82,7 +79,6 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
           toolMessages={resolvedMessage.toolMessages}
           indented={indented}
           toolCallStyle={toolCallStyle}
-          getMessageUrl={getMessageUrl}
         />
         {resolvedMessage.message.role === "user" ? (
           <div style={{ height: "10px" }}></div>

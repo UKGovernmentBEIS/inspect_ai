@@ -38,12 +38,7 @@ import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/navigationHooks";
-import {
-  sampleMessageUrl,
-  sampleUrl,
-  supportsLinking,
-  toFullUrl,
-} from "../routing/url";
+import { sampleUrl } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
@@ -127,12 +122,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     sampleId?: string;
     epoch?: string;
   }>();
-
-  const getMessageUrl = (id: string) => {
-    return id && urlLogPath && supportsLinking()
-      ? toFullUrl(sampleMessageUrl(id, urlLogPath, urlSampleId, urlEpoch))
-      : undefined;
-  };
 
   // Tab selection
   const onSelectedTab = useCallback(
@@ -244,7 +233,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             scrollRef={scrollRef}
             toolCallStyle="complete"
             running={running}
-            getMessageUrl={getMessageUrl}
           />
         </TabPanel>
         <TabPanel

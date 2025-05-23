@@ -50,7 +50,7 @@ export const sampleEventUrl = (
 };
 
 export const useSampleMessageUrl = (
-  messageId: string,
+  messageId: string | null,
   sampleId?: string | number,
   sampleEpoch?: string | number,
 ) => {
@@ -74,7 +74,7 @@ export const useSampleMessageUrl = (
   }
 
   const eventUrl = useMemo(() => {
-    return targetLogPath
+    return messageId && targetLogPath
       ? toFullUrl(
           sampleMessageUrl(
             messageId,

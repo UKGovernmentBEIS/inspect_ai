@@ -38547,6 +38547,128 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       );
     };
+    const directoryRelativeUrl = (file, dir) => {
+      if (!dir) {
+        return encodeURIComponent(file);
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      if (normalizedFile.startsWith(dirWithSlash)) {
+        const relativePath = normalizedFile.substring(dirWithSlash.length);
+        const segments = relativePath.split("/");
+        const encodedSegments = segments.map(
+          (segment) => encodeURIComponent(segment)
+        );
+        return encodedSegments.join("/");
+      }
+      return encodeURIComponent(file);
+    };
+    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
+    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+    const baseUrl = (logPath, sampleId, sampleEpoch) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return sampleUrl(logPath, sampleId, sampleEpoch);
+      } else {
+        return logUrl(logPath);
+      }
+    };
+    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+      } else {
+        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
+      }
+    };
+    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleTranscriptTabId
+      );
+      return `${baseUrl2}?event=${eventId}`;
+    };
+    const useSampleMessageUrl = (messageId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return messageId && targetLogPath ? toFullUrl(
+          sampleMessageUrl(
+            messageId,
+            targetLogPath,
+            urlSampleId,
+            urlEpoch
+          )
+        ) : void 0;
+      }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return targetLogPath ? toFullUrl(
+          sampleEventUrl(
+            eventId,
+            targetLogPath,
+            urlSampleId,
+            urlEpoch
+          )
+        ) : void 0;
+      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleMessagesTabId
+      );
+      return `${baseUrl2}?message=${messageId}`;
+    };
+    const logUrl = (log_file, log_dir, tabId) => {
+      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
+    };
+    const makeLogPath = (log_file, log_dir) => {
+      const pathSegment = directoryRelativeUrl(log_file, log_dir);
+      return pathSegment;
+    };
+    const logUrlRaw = (log_segment, tabId) => {
+      if (tabId) {
+        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+      } else {
+        return `/logs/${encodeURIComponent(log_segment)}`;
+      }
+    };
+    const supportsLinking = () => {
+      return (
+        //location.hostname !== "localhost" &&
+        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
+      );
+    };
+    const toFullUrl = (path) => {
+      return `${window.location.origin}${window.location.pathname}#${path}`;
+    };
     const message$1 = "_message_17kai_1";
     const systemRole = "_systemRole_17kai_8";
     const messageGrid = "_messageGrid_17kai_12";
@@ -39044,10 +39166,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       message: message2,
       toolMessages,
       indented: indented2,
-      toolCallStyle,
-      getMessageUrl
+      toolCallStyle
     }) => {
-      const messageUrl = message2.id && getMessageUrl ? getMessageUrl(message2.id) : void 0;
+      const messageUrl = useSampleMessageUrl(message2.id);
+      console.log("messageUrl", messageUrl);
       const collapse = message2.role === "system" || message2.role === "user";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
@@ -39062,7 +39184,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1l.messageGrid, "text-style-label"), children: [
               message2.role,
-              messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
@@ -39118,7 +39240,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       resolvedMessage,
       toolCallStyle,
       indented: indented2,
-      getMessageUrl,
       highlightUserMessage
     }) => {
       if (number2) {
@@ -39150,8 +39271,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     message: resolvedMessage.message,
                     toolMessages: resolvedMessage.toolMessages,
                     indented: indented2,
-                    toolCallStyle,
-                    getMessageUrl
+                    toolCallStyle
                   }
                 )
               ]
@@ -39176,8 +39296,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   message: resolvedMessage.message,
                   toolMessages: resolvedMessage.toolMessages,
                   indented: indented2,
-                  toolCallStyle,
-                  getMessageUrl
+                  toolCallStyle
                 }
               ),
               resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
@@ -43268,99 +43387,6 @@ categories: ${categories.join(" ")}`;
         hide: hide2,
         isShowing
       };
-    };
-    const directoryRelativeUrl = (file, dir) => {
-      if (!dir) {
-        return encodeURIComponent(file);
-      }
-      const normalizedFile = file.replace(/\\/g, "/");
-      const normalizedLogDir = dir.replace(/\\/g, "/");
-      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-      if (normalizedFile.startsWith(dirWithSlash)) {
-        const relativePath = normalizedFile.substring(dirWithSlash.length);
-        const segments = relativePath.split("/");
-        const encodedSegments = segments.map(
-          (segment) => encodeURIComponent(segment)
-        );
-        return encodedSegments.join("/");
-      }
-      return encodeURIComponent(file);
-    };
-    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
-    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
-    const baseUrl = (logPath, sampleId, sampleEpoch) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return sampleUrl(logPath, sampleId, sampleEpoch);
-      } else {
-        return logUrl(logPath);
-      }
-    };
-    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
-      } else {
-        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
-      }
-    };
-    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleTranscriptTabId
-      );
-      return `${baseUrl2}?event=${eventId}`;
-    };
-    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
-      const {
-        logPath: urlLogPath,
-        sampleId: urlSampleId,
-        epoch: urlEpoch
-      } = useParams();
-      const log_file = useStore((state) => state.logs.selectedLogFile);
-      const log_dir = useStore((state) => state.logs.logs.log_dir);
-      let targetLogPath = urlLogPath;
-      if (!targetLogPath && log_file) {
-        targetLogPath = makeLogPath(log_file, log_dir);
-      }
-      const eventUrl = reactExports.useMemo(() => {
-        return targetLogPath ? sampleEventUrl(
-          eventId,
-          targetLogPath,
-          urlSampleId,
-          urlEpoch
-        ) : void 0;
-      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-      return eventUrl;
-    };
-    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleMessagesTabId
-      );
-      return `${baseUrl2}?message=${messageId}`;
-    };
-    const logUrl = (log_file, log_dir, tabId) => {
-      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
-    };
-    const makeLogPath = (log_file, log_dir) => {
-      const pathSegment = directoryRelativeUrl(log_file, log_dir);
-      return pathSegment;
-    };
-    const logUrlRaw = (log_segment, tabId) => {
-      if (tabId) {
-        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
-      } else {
-        return `/logs/${encodeURIComponent(log_segment)}`;
-      }
-    };
-    const supportsLinking = () => {
-      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:";
-    };
-    const toFullUrl = (path) => {
-      return `${window.location.origin}${window.location.pathname}#${path}`;
     };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
@@ -51831,8 +51857,7 @@ self.onmessage = function (e) {
         indented: indented2,
         numbered = true,
         scrollRef,
-        running: running2,
-        getMessageUrl
+        running: running2
       }) => {
         const collapsedMessages = reactExports.useMemo(() => {
           return resolveMessages(messages);
@@ -51856,7 +51881,6 @@ self.onmessage = function (e) {
               resolvedMessage: item2,
               indented: indented2,
               toolCallStyle,
-              getMessageUrl,
               highlightUserMessage: true
             }
           );
@@ -64616,9 +64640,6 @@ ${events}
         sampleId: urlSampleId,
         epoch: urlEpoch
       } = useParams();
-      const getMessageUrl = (id2) => {
-        return id2 && urlLogPath && supportsLinking() ? toFullUrl(sampleMessageUrl(id2, urlLogPath, urlSampleId, urlEpoch)) : void 0;
-      };
       const onSelectedTab = reactExports.useCallback(
         (e) => {
           const el = e.currentTarget;
@@ -64722,8 +64743,7 @@ ${events}
                       indented: true,
                       scrollRef,
                       toolCallStyle: "complete",
-                      running: running2,
-                      getMessageUrl
+                      running: running2
                     },
                     `${baseId}-chat-${id}`
                   )

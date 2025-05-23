@@ -9,6 +9,7 @@ import {
 import { CopyButton } from "../../../components/CopyButton";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { ApplicationIcons } from "../../appearance/icons";
+import { supportsLinking, useSampleMessageUrl } from "../../routing/url";
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { ChatViewToolCallStyle } from "./types";
@@ -19,7 +20,6 @@ interface ChatMessageProps {
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
-  getMessageUrl?: (id: string) => string | undefined;
 }
 
 export const ChatMessage: FC<ChatMessageProps> = ({
@@ -28,10 +28,9 @@ export const ChatMessage: FC<ChatMessageProps> = ({
   toolMessages,
   indented,
   toolCallStyle,
-  getMessageUrl,
 }) => {
-  const messageUrl =
-    message.id && getMessageUrl ? getMessageUrl(message.id) : undefined;
+  const messageUrl = useSampleMessageUrl(message.id);
+  console.log("messageUrl", messageUrl);
 
   const collapse = message.role === "system" || message.role === "user";
   return (
@@ -46,7 +45,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
     >
       <div className={clsx(styles.messageGrid, "text-style-label")}>
         {message.role}
-        {messageUrl ? (
+        {supportsLinking() && messageUrl ? (
           <CopyButton
             icon={ApplicationIcons.link}
             value={messageUrl}
