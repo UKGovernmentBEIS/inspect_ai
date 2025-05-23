@@ -1,5 +1,4 @@
 import os
-from dataclasses import asdict
 from typing import Awaitable, Callable, Literal
 
 import httpx
@@ -26,7 +25,7 @@ class TavilyOptions(BaseModel):
         None
     )
     days: int | None = None
-    include_answer: bool | None = None
+    include_answer: bool | Literal["basic", "advanced"] | None = None
     include_raw_content: bool | None = None
     include_images: bool | None = None
     include_image_descriptions: bool | None = None
@@ -61,12 +60,14 @@ def tavily_search_provider(
     api_options = (
         {
             k: v
-            for k, v in asdict(options).items()
+            for k, v in options.model_dump().items()
             if v is not None and k != "max_connections"
         }
         if options
         else {}
     )
+    if not api_options.get("include_answer", False):
+        api_options["include_answer"] = True
 
     tavily_api_key = os.environ.get("TAVILY_API_KEY", None)
     if not tavily_api_key:
