@@ -31,6 +31,7 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    WebSearchTool20250305Param,
     message_create_params,
 )
 from anthropic.types.beta import (
@@ -521,7 +522,11 @@ class AnthropicAPI(ModelAPI):
         self, tool: ToolInfo, config: GenerateConfig
     ) -> Optional["ToolParamDef"]:
         return (
-            (self.computer_use_tool_param(tool) or self.text_editor_tool_param(tool))
+            (
+                self.computer_use_tool_param(tool)
+                or self.text_editor_tool_param(tool)
+                or self.web_search_tool_param(tool)
+            )
             if config.internal_tools is not False
             else None
         )
@@ -597,6 +602,29 @@ class AnthropicAPI(ModelAPI):
         # not a text_editor tool
         else:
             return None
+
+    def web_search_tool_param(
+        self, tool: ToolInfo
+    ) -> WebSearchTool20250305Param | None:
+        if tool.name == "web_search" and tool.options and "anthropic" in tool.options:
+            return _web_search_tool_param(tool.options["anthropic"])
+        else:
+            return None
+
+
+def _web_search_tool_param(
+    maybe_anthropic_options: object,
+) -> WebSearchTool20250305Param:
+    if maybe_anthropic_options is None:
+        maybe_anthropic_options = {}
+    elif not isinstance(maybe_anthropic_options, dict):
+        raise TypeError(
+            f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
+        )
+
+    return WebSearchTool20250305Param(
+        name="web_search", type="web_search_20250305", **(maybe_anthropic_options)
+    )
 
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
