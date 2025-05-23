@@ -251,7 +251,7 @@ export function useScrollTrack(
   const findTopmostVisibleElement = useCallback(() => {
     const container = scrollRef?.current;
     const containerRect = container?.getBoundingClientRect();
-    const topOffset = options?.topOffset ?? 30;
+    const topOffset = options?.topOffset ?? 50;
 
     // Define viewport bounds
     const viewportTop = containerRect

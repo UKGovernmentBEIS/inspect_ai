@@ -43643,7 +43643,7 @@ categories: ${categories.join(" ")}`;
       const findTopmostVisibleElement = reactExports.useCallback(() => {
         const container2 = scrollRef == null ? void 0 : scrollRef.current;
         const containerRect = container2 == null ? void 0 : container2.getBoundingClientRect();
-        const topOffset = 30;
+        const topOffset = 50;
         const viewportTop = containerRect ? containerRect.top + topOffset : topOffset;
         const viewportBottom = containerRect ? containerRect.bottom : window.innerHeight;
         const viewportHeight = viewportBottom - viewportTop;
