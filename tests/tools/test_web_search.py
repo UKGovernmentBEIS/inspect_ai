@@ -168,13 +168,31 @@ class TestNormalizeConfig:
 
 
 class TestCreateExternalProvider:
-    def test_tavily_provider_with_normal_config(self) -> None:
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "TAVILY_API_KEY"
+        else default,
+    )
+    def test_tavily_provider_with_normal_config(self, mock_environ_get) -> None:
         assert callable(_create_external_provider({"tavily": {"max_results": 5}}))
 
-    def test_tavily_provider_with_none(self) -> None:
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "TAVILY_API_KEY"
+        else default,
+    )
+    def test_tavily_provider_with_none(self, mock_environ_get) -> None:
         assert callable(_create_external_provider({"tavily": None}))
 
-    def test_tavily_provider_with_bogus_config(self) -> None:
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "TAVILY_API_KEY"
+        else default,
+    )
+    def test_tavily_provider_with_bogus_config(self, mock_environ_get) -> None:
         with pytest.raises(ValidationError):
             _create_external_provider({"tavily": {"max_results": "bogus"}})
 
