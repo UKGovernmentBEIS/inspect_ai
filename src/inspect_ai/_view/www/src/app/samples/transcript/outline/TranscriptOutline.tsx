@@ -21,6 +21,7 @@ import { kSandboxSignalName } from "../transform/fixups";
 import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";
 import {
+  collapseScoring,
   collapseTurns,
   makeTurns,
   noScorerChildren,
@@ -153,7 +154,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       ],
     );
 
-    return collapseTurns(makeTurns(nodeList));
+    return collapseScoring(collapseTurns(makeTurns(nodeList)));
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
   // Event node, for scroll tracking

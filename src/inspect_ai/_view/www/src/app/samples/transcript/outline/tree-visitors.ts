@@ -1,9 +1,10 @@
-import { SpanBeginEvent } from "../../../../@types/log";
+import { ScoreEvent, SpanBeginEvent } from "../../../../@types/log";
 import { TYPE_SCORER, TYPE_SCORERS } from "../transform/utils";
 import { EventNode } from "../types";
 
 const kTurnType = "turn";
 const kTurnsType = "turns";
+const kCollapsedScoring = "scorings";
 
 // Visitors are used to transform the event tree
 export const removeNodeVisitor = (event: string) => {
@@ -146,6 +147,40 @@ export const collapseTurns = (eventNodes: EventNode[]): EventNode[] => {
       results.push(node);
     }
   }
+  // Handle any remaining collected turns
+  collect();
+  return results;
+};
+
+export const collapseScoring = (eventNodes: EventNode[]): EventNode[] => {
+  const results: EventNode[] = [];
+  const collecting: EventNode[] = [];
+  const collect = () => {
+    if (collecting.length > 0) {
+      const firstScore = collecting[0];
+      const turnNode = new EventNode(
+        firstScore.id,
+        {
+          ...(firstScore.event as ScoreEvent),
+          name: "scoring",
+          type: kCollapsedScoring,
+        },
+        firstScore.depth,
+      );
+      results.push(turnNode);
+      collecting.length = 0;
+    }
+  };
+
+  for (const node of eventNodes) {
+    if (node.event.event === "score") {
+      collecting.push(node);
+    } else {
+      collect();
+      results.push(node);
+    }
+  }
+
   // Handle any remaining collected turns
   collect();
   return results;

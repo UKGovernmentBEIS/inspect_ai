@@ -54993,6 +54993,7 @@ self.onmessage = function (e) {
     const styles$x = {};
     const kTurnType = "turn";
     const kTurnsType = "turns";
+    const kCollapsedScoring = "scorings";
     const removeNodeVisitor = (event) => {
       return {
         visit: (node2) => {
@@ -55112,6 +55113,36 @@ self.onmessage = function (e) {
       collect();
       return results;
     };
+    const collapseScoring = (eventNodes) => {
+      const results = [];
+      const collecting = [];
+      const collect = () => {
+        if (collecting.length > 0) {
+          const firstScore = collecting[0];
+          const turnNode = new EventNode(
+            firstScore.id,
+            {
+              ...firstScore.event,
+              name: "scoring",
+              type: kCollapsedScoring
+            },
+            firstScore.depth
+          );
+          results.push(turnNode);
+          collecting.length = 0;
+        }
+      };
+      for (const node2 of eventNodes) {
+        if (node2.event.event === "score") {
+          collecting.push(node2);
+        } else {
+          collect();
+          results.push(node2);
+        }
+      }
+      collect();
+      return results;
+    };
     const kCollapseScope = "transcript-outline";
     const kFramesToStabilize = 10;
     const EventPaddingNode = {
@@ -55195,7 +55226,7 @@ self.onmessage = function (e) {
             noScorerChildren()
           ]
         );
-        return collapseTurns(makeTurns(nodeList));
+        return collapseScoring(collapseTurns(makeTurns(nodeList)));
       }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
       const allNodesList = reactExports.useMemo(() => {
         return flatTree(eventNodes, null);
