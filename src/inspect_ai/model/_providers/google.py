@@ -26,6 +26,7 @@ from google.genai.types import (
     GenerateContentResponse,
     GenerateContentResponsePromptFeedback,
     GenerateContentResponseUsageMetadata,
+    GoogleSearch,
     HarmBlockThreshold,
     HarmCategory,
     HttpOptions,
@@ -549,7 +550,10 @@ def chat_tools(tools: list[ToolInfo]) -> ToolListUnion:
         )
         for tool in tools
     ]
-    return [Tool(function_declarations=declarations)]
+    return [
+        Tool(function_declarations=declarations),
+        Tool(google_search=GoogleSearch()),
+    ]
 
 
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
