@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Added native OpenAI web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
-- Limit `docker compose` concurrency to 2 * os.cpu_count() by default (override with `INSPECT_DOCKER_CLI_CONCURRENCY` environment variable).
+- Limit `docker compose` concurrency to 2 * os.cpu_count() by default (override with `INSPECT_DOCKER_CLI_CONCURRENCY`).
 - Inspect View: Outline view for transcript which enables high level navigation to solvers, agents, scorers, etc.
 
 ## v0.3.99 (22 May 2025)
