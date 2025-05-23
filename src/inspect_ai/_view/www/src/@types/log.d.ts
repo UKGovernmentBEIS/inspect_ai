@@ -407,6 +407,9 @@ export type Description2 = string;
 export type Type11 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
+export type Options3 = {
+  [k: string]: unknown;
+} | null;
 export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name9 = string;
@@ -1308,6 +1311,7 @@ export interface ToolInfo {
   name: Name8;
   description: Description2;
   parameters: ToolParams;
+  options: Options3;
 }
 /**
  * Description of tool parameters object in JSON Schema format.
