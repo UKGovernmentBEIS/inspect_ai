@@ -58,11 +58,7 @@ def tavily_search_provider(
     # options which will be passed in the request body
     max_connections = (options.max_connections if options else None) or 10
     api_options = (
-        {
-            k: v
-            for k, v in options.model_dump().items()
-            if v is not None and k != "max_connections"
-        }
+        options.model_dump(exclude={"max_connections"}, exclude_none=True)
         if options
         else {}
     )

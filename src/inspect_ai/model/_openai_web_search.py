@@ -14,7 +14,9 @@ def maybe_web_search_tool(tool: ToolInfo) -> WebSearchToolParam | None:
 
 
 def _web_search_tool(maybe_openai_options: object) -> WebSearchToolParam:
-    if not isinstance(maybe_openai_options, dict):
+    if maybe_openai_options is None:
+        maybe_openai_options = {}
+    elif not isinstance(maybe_openai_options, dict):
         raise TypeError(
             f"Expected a dictionary for openai_options, got {type(maybe_openai_options)}"
         )
@@ -26,4 +28,4 @@ def _web_search_tool(maybe_openai_options: object) -> WebSearchToolParam:
         else WebSearchTool(type="web_search_preview")
     )
 
-    return cast(WebSearchToolParam, openai_options.model_dump())
+    return cast(WebSearchToolParam, openai_options.model_dump(exclude_none=True))
