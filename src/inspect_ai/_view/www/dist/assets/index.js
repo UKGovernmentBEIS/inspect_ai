@@ -23751,7 +23751,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
-    const resolveAttachments = (value2, attachments) => {
+    const resolveAttachments = (value2, attachments, onFailedResolve) => {
       const CONTENT_PROTOCOL = "tc://";
       const ATTACHMENT_PROTOCOL = "attachment://";
       if (value2 === null || value2 === void 0) {
@@ -23782,6 +23782,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (updatedValue.startsWith(ATTACHMENT_PROTOCOL)) {
             const attachmentId = updatedValue.slice(ATTACHMENT_PROTOCOL.length);
             const attachment = attachments[attachmentId];
+            if (attachment === void 0 && onFailedResolve) {
+              onFailedResolve(attachmentId);
+            }
             return attachment !== void 0 ? attachment : value2;
           }
           return updatedValue;
@@ -23789,6 +23792,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (value2.startsWith(ATTACHMENT_PROTOCOL)) {
           const attachmentId = value2.slice(ATTACHMENT_PROTOCOL.length);
           const attachment = attachments[attachmentId];
+          if (attachment === void 0 && onFailedResolve) {
+            onFailedResolve(attachmentId);
+          }
           return attachment !== void 0 ? attachment : value2;
         }
       }
@@ -23985,7 +23991,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const existingIndex = pollingState.eventMapping[eventData.event_id];
         const resolvedEvent = resolveAttachments(
           eventData.event,
-          pollingState.attachments
+          pollingState.attachments,
+          (attachmentId) => {
+            const snapshot = {
+              eventId: eventData.event_id,
+              attachmentId,
+              available_attachments: Object.keys(pollingState.attachments)
+            };
+            console.warn(`Unable to resolve attachment ${attachmentId}`, snapshot);
+          }
         );
         if (existingIndex) {
           log$4.debug(`Replace event ${existingIndex}`);
@@ -49443,10 +49457,10 @@ self.onmessage = function (e) {
       params2.append("log", log_file);
       params2.append("id", String(id));
       params2.append("epoch", String(epoch));
-      if (last_event) {
+      if (last_event !== void 0) {
         params2.append("last-event-id", String(last_event));
       }
-      if (last_attachment) {
+      if (last_attachment !== void 0) {
         params2.append("after-attachment-id", String(last_attachment));
       }
       const request = {
