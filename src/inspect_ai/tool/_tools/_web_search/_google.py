@@ -4,6 +4,7 @@ from typing import Awaitable, Callable
 import anyio
 import httpx
 from bs4 import BeautifulSoup, NavigableString
+from pydantic import BaseModel
 from tenacity import (
     retry,
     retry_if_exception,
@@ -21,6 +22,13 @@ DEFAULT_RELEVANCE_PROMPT = """I am trying to answer the following question and n
 Question: {question}
 Page Content: {text}
 """
+
+
+class GoogleOptions(BaseModel):
+    num_results: int | None = None
+    max_provider_calls: int | None = None
+    max_connections: int | None = None
+    model: str | None = None
 
 
 class SearchLink:
@@ -42,11 +50,14 @@ def maybe_get_google_api_keys() -> tuple[str, str] | None:
 
 
 def google_search_provider(
-    num_results: int,
-    max_provider_calls: int,
-    max_connections: int,
-    model: str | None,
+    in_options: dict[str, object] | None = None,
 ) -> Callable[[str], Awaitable[str | None]]:
+    options = GoogleOptions.model_validate(in_options) if in_options else None
+    num_results = (options.num_results if options else None) or 3
+    max_provider_calls = (options.max_provider_calls if options else None) or 3
+    max_connections = (options.max_connections if options else None) or 10
+    model = options.model if options else None
+
     keys = maybe_get_google_api_keys()
     if not keys:
         raise PrerequisiteError(

@@ -92,10 +92,14 @@ export interface SampleState {
   sampleError: Error | undefined;
   sampleNeedsReload: number;
 
+  visiblePopover?: string;
+
   // Events and attachments
   runningEvents: Event[];
-  collapsedEvents: Record<string, true> | null;
+  collapsedEvents: Record<string, Record<string, boolean>> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
+
+  selectedOutlineId?: string;
 }
 
 export type Event =

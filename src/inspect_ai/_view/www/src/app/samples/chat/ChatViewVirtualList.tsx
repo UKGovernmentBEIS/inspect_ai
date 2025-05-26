@@ -16,6 +16,7 @@ interface ChatViewVirtualListProps {
   className?: string | string[];
   messages: Messages;
   initialMessageId?: string | null;
+  topOffset?: number;
   toolCallStyle: ChatViewToolCallStyle;
   indented: boolean;
   numbered?: boolean;
@@ -32,13 +33,13 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     id,
     messages,
     initialMessageId,
+    topOffset,
     className,
     toolCallStyle,
     indented,
     numbered = true,
     scrollRef,
     running,
-    getMessageUrl,
   }) => {
     const collapsedMessages = useMemo(() => {
       return resolveMessages(messages);
@@ -66,7 +67,6 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           resolvedMessage={item}
           indented={indented}
           toolCallStyle={toolCallStyle}
-          getMessageUrl={getMessageUrl}
           highlightUserMessage={true}
         />
       );
@@ -98,6 +98,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         data={collapsedMessages}
         renderRow={renderRow}
         initialTopMostItemIndex={initialMessageIndex}
+        offsetTop={topOffset}
         live={running}
         showProgress={running}
         components={{ Item }}

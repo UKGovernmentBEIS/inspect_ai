@@ -2,7 +2,6 @@ import { FC, memo, RefObject, useEffect, useMemo } from "react";
 import {
   ApprovalEvent,
   ErrorEvent,
-  Events,
   InfoEvent,
   InputEvent,
   LoggerEvent,
@@ -32,20 +31,22 @@ import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
 import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
-import { EventNode } from "./types";
+import { EventNode, kTranscriptCollapseScope } from "./types";
 
 import { useStore } from "../../../state/store";
 import { SpanEventView } from "./SpanEventView";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
-import { fixupEventStream, kSandboxSignalName } from "./transform/fixups";
-import { flatTree, treeifyEvents } from "./transform/treeify";
+import { flatTree } from "./transform/treeify";
 
 interface TranscriptVirtualListProps {
   id: string;
-  events: Events;
+  eventNodes: EventNode[];
+  defaultCollapsedIds: Record<string, boolean>;
   initialEventId: string | null;
+  offsetTop?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   running?: boolean;
+  className?: string | string[];
 }
 
 /**
@@ -53,7 +54,16 @@ interface TranscriptVirtualListProps {
  */
 export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
   (props) => {
-    let { id, scrollRef, events, running, initialEventId } = props;
+    let {
+      id,
+      scrollRef,
+      eventNodes,
+      defaultCollapsedIds,
+      running,
+      initialEventId,
+      offsetTop,
+      className,
+    } = props;
 
     // The list of events that have been collapsed
     const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
@@ -61,92 +71,38 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       (state) => state.sampleActions.setCollapsedEvents,
     );
 
-    // Normalize Events in a flattened filtered list
-    const { eventNodes, defaultCollapsedIds } = useMemo(() => {
-      // Apply fixups to the event string
-      const resolvedEvents = fixupEventStream(events, !running);
-
-      // Build the event tree
-      const eventTree = treeifyEvents(resolvedEvents, 0);
-
-      // Apply collapse filters to the event tree
-      const defaultCollapsedIds: Record<string, true> = {};
-      const findCollapsibleEvents = (nodes: EventNode[]) => {
-        for (const node of nodes) {
-          if (
-            (node.event.event === "step" ||
-              node.event.event === "span_begin" ||
-              node.event.event === "tool" ||
-              node.event.event === "subtask") &&
-            collapseFilters.some((filter) =>
-              filter(
-                node.event as
-                  | StepEvent
-                  | SpanBeginEvent
-                  | ToolEvent
-                  | SubtaskEvent,
-              ),
-            )
-          ) {
-            defaultCollapsedIds[node.id] = true;
-          }
-
-          // Recursively check children
-          findCollapsibleEvents(node.children);
-        }
-      };
-      findCollapsibleEvents(eventTree);
-
+    const flattenedNodes = useMemo(() => {
       // flattten the event tree
-      const eventNodes = flatTree(
-        eventTree,
-        collapsedEvents || defaultCollapsedIds,
+      return flatTree(
+        eventNodes,
+        (collapsedEvents
+          ? collapsedEvents[kTranscriptCollapseScope]
+          : undefined) || defaultCollapsedIds,
       );
-
-      return { eventNodes, defaultCollapsedIds };
-    }, [events, running, collapsedEvents]);
+    }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
     // Update the collapsed events when the default collapsed IDs change
     // This effect only depends on defaultCollapsedIds, not eventNodes
     useEffect(() => {
       // Only initialize collapsedEvents if it's empty
       if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-        setCollapsedEvents(defaultCollapsedIds);
+        setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
       }
     }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
     return (
       <TranscriptVirtualListComponent
         id={id}
-        eventNodes={eventNodes}
+        eventNodes={flattenedNodes}
         initialEventId={initialEventId}
+        offsetTop={offsetTop}
         scrollRef={scrollRef}
         running={running}
+        className={className}
       />
     );
   },
 );
-
-const collapseFilters: Array<
-  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) => boolean
-> = [
-  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
-    event.type === "solver" && event.name === "system_message",
-  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) => {
-    if (event.event === "step" || event.event === "span_begin") {
-      return (
-        event.name === kSandboxSignalName ||
-        event.name === "init" ||
-        event.name === "sample_init"
-      );
-    }
-    return false;
-  },
-  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
-    event.event === "tool" && !event.agent && !event.failed,
-  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
-    event.event === "subtask",
-];
 
 interface RenderedEventNodeProps {
   node: EventNode;

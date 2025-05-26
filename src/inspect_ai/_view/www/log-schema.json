@@ -5632,12 +5632,26 @@
         },
         "parameters": {
           "$ref": "#/$defs/ToolParams"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
         }
       },
       "required": [
         "name",
         "description",
-        "parameters"
+        "parameters",
+        "options"
       ],
       "title": "ToolInfo",
       "type": "object",

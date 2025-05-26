@@ -9,8 +9,3 @@
   font-weight: 400;
   white-space: nowrap;
 }
-
-.value {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
-}

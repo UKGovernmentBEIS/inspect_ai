@@ -10,18 +10,18 @@ import {
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import { useParams } from "react-router-dom";
 import { CopyButton } from "../../../../components/CopyButton";
 import { useCollapseSampleEvent, useProperty } from "../../../../state/hooks";
 import {
-  sampleEventUrl,
   supportsLinking,
   toFullUrl,
+  useSampleEventUrl,
 } from "../../../routing/url";
+import { kTranscriptCollapseScope } from "../types";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
-  id: string;
+  eventNodeId: string;
   depth: number;
   className?: string | string[];
   title?: string;
@@ -42,7 +42,7 @@ interface ChildProps {
  * Renders the StateEventView component.
  */
 export const EventPanel: FC<EventPanelProps> = ({
-  id,
+  eventNodeId,
   depth,
   className,
   title,
@@ -54,26 +54,21 @@ export const EventPanel: FC<EventPanelProps> = ({
   collapsibleContent,
   collapseControl = "top",
 }) => {
-  const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
+  const [collapsed, setCollapsed] = useCollapseSampleEvent(
+    kTranscriptCollapseScope,
+    eventNodeId,
+  );
   const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
   const useBottomDongle = isCollapsible && collapseControl === "bottom";
 
-  // Get all URL parameters at component level
-  const { logPath, sampleId, epoch } = useParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
-
+  const sampleEventUrl = useSampleEventUrl(eventNodeId);
   const url =
-    logPath && supportsLinking()
-      ? toFullUrl(sampleEventUrl(id, logPath, sampleId, epoch))
-      : undefined;
+    supportsLinking() && sampleEventUrl ? toFullUrl(sampleEventUrl) : undefined;
 
   const pillId = (index: number) => {
-    return `${id}-nav-pill-${index}`;
+    return `${eventNodeId}-nav-pill-${index}`;
   };
+
   const filteredArrChildren = (
     Array.isArray(children) ? children : [children]
   ).filter((child) => !!child);
@@ -83,9 +78,13 @@ export const EventPanel: FC<EventPanelProps> = ({
   });
   const defaultPillId = defaultPill !== -1 ? pillId(defaultPill) : pillId(0);
 
-  const [selectedNav, setSelectedNav] = useProperty(id, "selectedNav", {
-    defaultValue: defaultPillId,
-  });
+  const [selectedNav, setSelectedNav] = useProperty(
+    eventNodeId,
+    "selectedNav",
+    {
+      defaultValue: defaultPillId,
+    },
+  );
 
   const gridColumns = [];
 
@@ -186,7 +185,7 @@ export const EventPanel: FC<EventPanelProps> = ({
                     ? (child.props as ChildProps)["data-name"] || defaultTitle
                     : defaultTitle;
                 return {
-                  id: `eventpanel-${id}-${index}`,
+                  id: `eventpanel-${eventNodeId}-${index}`,
                   title: title,
                   target: pillId(index),
                 };
@@ -205,7 +204,7 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const card = (
     <div
-      id={id}
+      id={`event-panel-${eventNodeId}`}
       className={clsx(
         className,
         styles.card,

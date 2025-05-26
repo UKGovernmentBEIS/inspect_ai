@@ -4,11 +4,6 @@
   flex-direction: column;
 }
 
-.body {
-  margin-top: 1em;
-  margin-bottom: 1em;
-}
-
 .scroller {
   overflow-y: auto;
   width: 100%;

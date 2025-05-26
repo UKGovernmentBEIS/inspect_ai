@@ -10,8 +10,10 @@ interface TranscriptVirtualListComponentProps {
   id: string;
   eventNodes: EventNode[];
   initialEventId?: string | null;
+  offsetTop?: number;
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
+  className?: string | string[];
 }
 
 /**
@@ -19,7 +21,15 @@ interface TranscriptVirtualListComponentProps {
  */
 export const TranscriptVirtualListComponent: FC<
   TranscriptVirtualListComponentProps
-> = ({ id, eventNodes, scrollRef, running, initialEventId }) => {
+> = ({
+  id,
+  eventNodes,
+  scrollRef,
+  running,
+  initialEventId,
+  offsetTop,
+  className,
+}) => {
   const initialEventIndex = useMemo(() => {
     if (initialEventId === null || initialEventId === undefined) {
       return undefined;
@@ -35,14 +45,24 @@ export const TranscriptVirtualListComponent: FC<
       const paddingClass = index === 0 ? styles.first : undefined;
 
       const previousIndex = index - 1;
+      const nextIndex = index + 1;
       const previous =
         previousIndex > 0 && previousIndex <= eventNodes.length
           ? eventNodes[previousIndex]
           : undefined;
+      const next =
+        nextIndex < eventNodes.length ? eventNodes[nextIndex] : undefined;
       const attached =
         item.event.event === "tool" &&
         (previous?.event.event === "tool" || previous?.event.event === "model");
+
+      const attachedParent =
+        item.event.event === "model" && next?.event.event === "tool";
       const attachedClass = attached ? styles.attached : undefined;
+      const attachedChildClass = attached ? styles.attachedChild : undefined;
+      const attachedParentClass = attachedParent
+        ? styles.attachedParent
+        : undefined;
 
       return (
         <div
@@ -54,7 +74,10 @@ export const TranscriptVirtualListComponent: FC<
             paddingRight: `${item.depth === 0 ? undefined : ".7em"} `,
           }}
         >
-          <RenderedEventNode node={item} />
+          <RenderedEventNode
+            node={item}
+            className={clsx(attachedParentClass, attachedChildClass)}
+          />
         </div>
       );
     },
@@ -63,10 +86,12 @@ export const TranscriptVirtualListComponent: FC<
 
   return (
     <LiveVirtualList<EventNode>
+      className={className}
       id={id}
       scrollRef={scrollRef}
       data={eventNodes}
       initialTopMostItemIndex={initialEventIndex}
+      offsetTop={offsetTop}
       renderRow={renderRow}
       live={running}
     />

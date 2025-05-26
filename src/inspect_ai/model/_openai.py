@@ -594,7 +594,7 @@ def chat_choices_from_openai(
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=(
                 Logprobs(**choice.logprobs.model_dump())
-                if choice.logprobs is not None
+                if choice.logprobs and choice.logprobs.content is not None
                 else None
             ),
         )

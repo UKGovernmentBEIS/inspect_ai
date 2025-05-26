@@ -15,6 +15,7 @@ import {
   RefObject,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
@@ -37,19 +38,14 @@ import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/navigationHooks";
-import {
-  sampleMessageUrl,
-  sampleUrl,
-  supportsLinking,
-  toFullUrl,
-} from "../routing/url";
+import { sampleUrl } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { SampleScoresView } from "./scores/SampleScoresView";
-import { TranscriptVirtualList } from "./transcript/TranscriptVirtualList";
+import { TranscriptPanel } from "./transcript/TranscriptPanel";
 
 interface SampleDisplayProps {
   id: string;
@@ -87,7 +83,19 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Navigation hook for URL updates
   const navigate = useNavigate();
 
-  const sampleSummary = filteredSamples[selectedSampleIndex];
+  // Ref for samples tabs (used to meaure for offset)
+  const tabsRef: RefObject<HTMLUListElement | null> = useRef(null);
+  const tabsHeight = useMemo(() => {
+    if (tabsRef.current) {
+      const height = tabsRef.current.getBoundingClientRect().height;
+      return height;
+    }
+    return -1;
+  }, [tabsRef.current]);
+
+  const sampleSummary = useMemo(() => {
+    return filteredSamples[selectedSampleIndex];
+  }, [filteredSamples, selectedSampleIndex]);
 
   // Consolidate the events and messages into the proper list
   // whether running or not
@@ -114,12 +122,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     sampleId?: string;
     epoch?: string;
   }>();
-
-  const getMessageUrl = (id: string) => {
-    return id && urlLogPath && supportsLinking()
-      ? toFullUrl(sampleMessageUrl(id, urlLogPath, urlSampleId, urlEpoch))
-      : undefined;
-  };
 
   // Tab selection
   const onSelectedTab = useCallback(
@@ -171,7 +173,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   }
 
   // Is the sample running?
-  const running = isRunning(sampleSummary, runningSampleData);
+  const running = useMemo(() => {
+    return isRunning(sampleSummary, runningSampleData);
+  }, [sampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
 
@@ -182,6 +186,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
       ) : undefined}
       <TabSet
         id={tabsetId}
+        tabsRef={tabsRef}
+        className={clsx(styles.tabControls)}
         tabControlsClassName={clsx("text-size-base")}
         tabPanelsClassName={clsx(styles.tabPanel)}
         tools={tools}
@@ -198,11 +204,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           }
           scrollable={false}
         >
-          <TranscriptVirtualList
+          <TranscriptPanel
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
             initialEventId={sampleDetailNavigation.event}
+            topOffset={tabsHeight}
             running={running}
             scrollRef={scrollRef}
           />
@@ -221,11 +228,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             id={`${baseId}-chat-${id}`}
             messages={sampleMessages}
             initialMessageId={sampleDetailNavigation.message}
+            topOffset={tabsHeight}
             indented={true}
             scrollRef={scrollRef}
             toolCallStyle="complete"
             running={running}
-            getMessageUrl={getMessageUrl}
           />
         </TabPanel>
         <TabPanel

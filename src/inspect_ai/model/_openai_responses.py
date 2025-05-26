@@ -1,6 +1,6 @@
 import json
 from itertools import chain
-from typing import TypedDict, cast
+from typing import Sequence, TypedDict, cast
 
 from openai.types.responses import (
     FunctionToolParam,
@@ -8,6 +8,8 @@ from openai.types.responses import (
     ResponseComputerToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
+    ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
@@ -51,6 +53,7 @@ from inspect_ai.model._openai_computer_use import (
     maybe_computer_use_preview_tool,
     tool_call_from_openai_computer_tool_call,
 )
+from inspect_ai.model._openai_web_search import maybe_web_search_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -174,6 +177,12 @@ def openai_responses_chat_choices(
     return [ChatCompletionChoice(message=message, stop_reason=stop_reason)]
 
 
+def is_native_tool_configured(
+    tools: Sequence[ToolInfo], config: GenerateConfig
+) -> bool:
+    return any(_maybe_native_tool_param(tool, config) is not None for tool in tools)
+
+
 # The next two function perform transformations between OpenAI types an Inspect
 # ChatMessageAssistant. Here is a diagram that helps visualize the transforms.
 # ┌───────────────────────────┐    ┌───────────────────────────┐    ┌───────────────────────────┐
@@ -277,6 +286,13 @@ def _chat_message_assistant_from_openai_response(
                         tool_calls.append(
                             tool_call_from_openai_computer_tool_call(output)
                         )
+                    case ResponseFunctionWebSearch():
+                        # We don't currently capture this since the model did the
+                        # "tool call" internally. It's conceivable that could be
+                        # forced to include it in `.internal` in the future, but
+                        # for now we just ignore it.
+                        # {"id":"ws_682cdcec3fa88198bc10b38fafefbd5e077e89e31fd4a3d5","status":"completed","type":"web_search_call"}
+                        pass
                     case _:
                         raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -399,7 +415,7 @@ def _maybe_native_tool_param(
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_preview_tool(tool)
+            maybe_computer_use_preview_tool(tool) or maybe_web_search_tool(tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
@@ -454,10 +470,11 @@ def _ids_from_assistant_internal(
 
 
 _ResponseToolCallParam = (
-    ResponseFunctionToolCallParam | ResponseComputerToolCallParam
+    ResponseFunctionToolCallParam
+    | ResponseComputerToolCallParam
+    | ResponseFunctionWebSearchParam
     # | ResponseFileSearchToolCallParam
     # | ResponseFunctionToolCallParam
-    # | ResponseFunctionWebSearchParam
 )
 
 

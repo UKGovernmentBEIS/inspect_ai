@@ -19,10 +19,9 @@ export const InputEventView: FC<InputEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  const id = eventNode.id;
   return (
     <EventPanel
-      id={id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       title="Input"
       className={className}

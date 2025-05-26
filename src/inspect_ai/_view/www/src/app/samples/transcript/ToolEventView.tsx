@@ -28,7 +28,6 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  const id = eventNode.id;
 
   // Extract tool input
   const { input, functionCall, highlightLanguage } = useMemo(
@@ -56,7 +55,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
   const title = `Tool: ${event.view?.title || event.function}`;
   return (
     <EventPanel
-      id={id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       title={formatTitle(title, undefined, event.working_time)}
       className={className}
@@ -67,7 +66,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
-          id={`${id}-tool-call`}
+          id={`${eventNode.id}-tool-call`}
           functionCall={functionCall}
           input={input}
           highlightLanguage={highlightLanguage}
@@ -78,7 +77,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
 
         {lastModelNode ? (
           <ChatView
-            id={`${id}-toolcall-chatmessage`}
+            id={`${eventNode.id}-toolcall-chatmessage`}
             messages={lastModelNode.event.output.choices.map((m) => m.message)}
             numbered={false}
             toolCallStyle="compact"

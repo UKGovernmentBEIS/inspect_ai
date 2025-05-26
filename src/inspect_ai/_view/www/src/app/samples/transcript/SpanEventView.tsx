@@ -21,7 +21,6 @@ export const SpanEventView: FC<SpanEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  const id = eventNode.id;
   const descriptor = spanDescriptor(event);
   const title =
     descriptor.name ||
@@ -30,7 +29,7 @@ export const SpanEventView: FC<SpanEventViewProps> = ({
 
   return (
     <EventPanel
-      id={id}
+      eventNodeId={eventNode.id}
       depth={eventNode.depth}
       childIds={children.map((child) => child.id)}
       className={clsx("transcript-span", className)}

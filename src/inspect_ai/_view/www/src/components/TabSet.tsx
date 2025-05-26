@@ -16,6 +16,7 @@ import moduleStyles from "./TabSet.module.css";
 
 interface TabSetProps {
   id: string;
+  tabsRef?: RefObject<HTMLUListElement | null>;
   type?: "tabs" | "pills";
   className?: string | string[];
   tabPanelsClassName?: string | string[];
@@ -33,6 +34,7 @@ interface TabPanelProps {
   style?: CSSProperties;
   scrollable?: boolean;
   scrollRef?: RefObject<HTMLDivElement | null>;
+
   className?: string | string[];
   children?: ReactNode;
   title: string;
@@ -47,6 +49,7 @@ export const TabSet: FC<TabSetProps> = ({
   tabPanelsClassName,
   tabControlsClassName,
   tools,
+  tabsRef,
   children,
 }) => {
   const validTabs = flattenChildren(children);
@@ -55,6 +58,7 @@ export const TabSet: FC<TabSetProps> = ({
   return (
     <Fragment>
       <ul
+        ref={tabsRef}
         id={id}
         className={clsx(
           "nav",
