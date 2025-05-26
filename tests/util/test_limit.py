@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from inspect_ai.model._model_output import ModelUsage
@@ -8,6 +10,7 @@ from inspect_ai.util._limit import (
     check_token_limit,
     message_limit,
     record_model_usage,
+    time_limit,
     token_limit,
 )
 
@@ -24,6 +27,28 @@ def test_can_use_deprecated_sample_limit_exceeded_error() -> None:
     except SampleLimitExceededError as exc_info:
         assert exc_info.__class__ == LimitExceededError
         assert exc_info.type == "token"
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        # ints do not have decimal places
+        (1, "1"),
+        # floats have 2 decimal places
+        (1.2345, "1.23"),
+        # Thousand separators for both ints and floats
+        (200_000, "200,000"),
+        (200_000.0, "200,000.00"),
+        # Negative numbers
+        (-3, "-3"),
+        (-3.4567, "-3.46"),
+    ],
+)
+def test_limit_exceeded_error_string_format(value: int | float, expected: str) -> None:
+    error = LimitExceededError(type="token", value=value, limit=value)
+
+    assert error.limit_str == expected
+    assert error.value_str == expected
 
 
 def test_apply_limits_empty() -> None:
@@ -98,3 +123,16 @@ def test_apply_limits_handles_error_without_source() -> None:
             raise LimitExceededError(type="token", value=11, limit=10)
 
     assert limit_scope.limit_error is None
+
+
+@pytest.mark.anyio
+async def test_apply_limits_handles_time_limit() -> None:
+    # Verifying that apply_limits() catches LimitExceededError even when it is raised
+    # by the closing of its ExitStack.
+    # Unlike other limits, the time_limit() uses anyio to cancel the scope within the
+    # context manager, meaning the LimitExceededError is only raised when exiting the
+    # limit context manager (as a result of a CancelledError).
+    with apply_limits([time_limit(0.1)], catch_errors=True) as limit_scope:
+        await asyncio.sleep(0.5)
+
+    assert limit_scope.limit_error is not None
