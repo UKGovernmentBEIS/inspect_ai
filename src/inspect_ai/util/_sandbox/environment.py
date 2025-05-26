@@ -334,6 +334,10 @@ class SandboxEnvironment(abc.ABC):
         """Standard config files for this provider (used for automatic discovery)"""
         return []
 
+    def project_name(self) -> str:
+        """Get the project name of the current sandbox. (Only applicable to docker compose based sandboxes.)"""
+        raise NotImplementedError("This type of sandbox doesn't have a project name.")
+
     @classmethod
     def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
         """Deserialize a sandbox-specific configuration model from a dict.
