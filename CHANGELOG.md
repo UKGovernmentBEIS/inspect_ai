@@ -1,6 +1,6 @@
 ## Unreleased
 
-- `time_limit()` and `working_limit()` context managers for scoped application of time limits.
+- [time_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#time-limit) and [working_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#working-limit) context managers for scoped application of time limits.
 - Added native OpenAI web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
 - Limit `docker compose` concurrency to 2 * os.cpu_count() by default (override with `INSPECT_DOCKER_CLI_CONCURRENCY`).
 - Inspect View: Outline view for transcript which enables high level navigation to solvers, agents, scorers, etc.
