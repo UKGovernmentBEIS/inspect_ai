@@ -96,6 +96,8 @@ def eval(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    price_limit: float | None = None,
+    price_file: Path | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -164,6 +166,10 @@ def eval(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        price_limit: Limit on price (in USD) for sample. Tokens read from Inspect's
+            cache are treated as non-free for this calculation to ensure fair
+            comparisons when price limits are used.
+        price_file: JSON file mapping model name to pricing details.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
@@ -228,6 +234,8 @@ def eval(
                 token_limit=token_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                price_limit=price_limit,
+                price_file=price_file,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
@@ -283,6 +291,8 @@ async def eval_async(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    price_limit: float | None = None,
+    price_file: Path | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -338,6 +348,10 @@ async def eval_async(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        price_limit: Limit on price (in USD) for sample. Tokens read from Inspect's
+            cache are treated as non-free for this calculation to ensure fair
+            comparisons when price limits are used.
+        price_file: JSON file mapping model name to pricing details.
         max_samples: Maximum number of samples to run in parallel (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
@@ -482,6 +496,8 @@ async def eval_async(
             token_limit=token_limit,
             time_limit=time_limit,
             working_limit=working_limit,
+            price_limit=price_limit,
+            price_file=price_file,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -826,6 +842,8 @@ async def eval_retry_async(
         token_limit = eval_log.eval.config.token_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
+        price_limit = eval_log.eval.config.price_limit
+        price_file = eval_log.eval.config.price_file
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -906,6 +924,8 @@ async def eval_retry_async(
                 token_limit=token_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                price_limit=price_limit,
+                price_file=price_file,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
