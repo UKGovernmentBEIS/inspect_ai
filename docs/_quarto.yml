@@ -92,6 +92,7 @@ website:
          - section: "Agents"
            contents:
                - agents.qmd
+               - react-agent.qmd
                - multi-agent.qmd
                - agent-custom.qmd
                - agent-bridge.qmd

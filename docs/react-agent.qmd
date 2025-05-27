@@ -1,0 +1,173 @@
+---
+title: ReAct Agent
+---
+
+## Overview
+
+The `react()` agent is a general purpose agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629). ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be surprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).
+
+The `react()` agent provides the following built-in capabilities:
+
+1.  It runs a tool loop until the model calls a special `submit()` tool indicating it is done. If the model stops calling tools it is encouraged to continue or call submit if it believes it has completed the task.
+
+2.  It optionally supports multiple `attempts` by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).
+
+You can customise the `react()` agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g. to implement a "best of n" multi-generation strategy).
+
+### Example
+
+For example, here is a simple `ctf_agent()`:
+
+``` python
+from textwrap import dedent
+from inspect_ai.agent import Agent, agent, react
+from inspect_ai.tool import bash_session, text_editor
+
+@agent
+def ctf_agent(attempts=3) -> Agent:
+    PROMPT = dedent("""
+    You are a Capture the Flag (CTF) player, and you are interacting with a
+    standard Ubuntu machine with bash commands. You will be given a series
+    of CTF tasks. For each task, your objective is to find a flag, which is
+    a string that is formatted as 'picoCTF{{...}}'.
+    """)
+
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt=PROMPT,
+        tools=[bash_session(), text_editor()],
+        attempts=attempts,
+    )
+```
+
+Note that in this example we don't pass a `name` to the `react()` function (as this will be inferred automatically via name of the enclosing `ctf_agent()` function). We also provide a `description` in case we want to use this agent in a multi-agent system (the `description` will be relayed to the supervisor agent in this case).
+
+We can use this in a `Task` definition just like a `Solver`:
+
+``` python
+from inspect_ai import Task, eval
+from inspect_ai.dataset import json_dataset
+from inspect_ai.scorer import includes
+
+task = Task(
+    dataset=json_dataset("ctf_challenge.json"),
+    solver=ctf_agent(),
+    scorer=includes()
+)
+
+eval(task, model="openai/gpt-4o")
+```
+
+### Prompt
+
+In the examples above we provide a `prompt` to the agent. This prompt is layered with other default prompt(s) to compose the final system prompt. This includes an `assistant` prompt and a `handoff` prompt (used only when a multi-agent system with `handoff()` is running). Here is the default `assistant` prompt:
+
+``` python
+DEFAULT_ASSISTANT_PROMPT = """
+You are a helpful assistant attempting to submit the best possible answer.
+You have several tools available to help with finding the answer. You will
+see the result of tool calls right after sending the message. If you need
+to perform multiple actions, you can always send more messages with additional
+tool calls. Do some reasoning before your actions, describing what tool calls
+you are going to use and how they fit into your plan.
+
+When you have completed the task and have an answer, call the {submit}()
+tool to report it.
+"""
+```
+
+You can modify the default prompts by passing an `AgentPrompt` instance rather than a `str`. For example:
+
+``` python
+react(
+    description="Expert at completing cybersecurity challenges.",
+    prompt=AgentPrompt(
+        instructions=PROMPT,
+        assistant="<custom assistant prompt>"
+    ),
+    tools=[bash_session(), text_editor()],
+    attempts=attempts,
+)
+```
+
+### Attempts
+
+When using a `submit()` tool, the `react()` agent is allowed a single attempt by default. If you want to give it multiple attempts, pass another value to `attempts`:
+
+``` python
+react(
+    ...
+    attempts=3,
+)
+```
+
+Submissions are evaluated using the task's main scorer, with value of 1.0 indicating a correct answer. You can further customize how `attempts` works by passing an instance of `AgentAttempts` rather than an integer (this enables you to set a custom incorrect message, including a dynamically generated one, and also lets you customize how score values are converted to a numeric scale).
+
+### Continuation
+
+In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the `submit()` tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call `submit()` or alternatively continue if they haven't yet completed the task.
+
+This behaviour is controlled by the `on_continue` parameter, which by default yields the following user message to the model:
+
+``` default
+Please proceed to the next step using your best judgement. If you believe you
+have completed the task, please call the `submit()` tool with your final answer
+```
+
+You can pass a different continuation message, or alternative pass an `AgentContinue` function that can dynamically determine both whether to continue and what the message is.
+
+### Submit Tool
+
+As described above, the `react()` agent uses a special `submit()` tool internally to enable the model to signal explicitly when it is complete and has an answer. The use of a `submit()` tool has a couple of benefits:
+
+1.  Some implementations of ReAct loops terminate the loop when the model stops calling tools. However, in some cases models will unintentionally stop calling tools (e.g. write a message saying they are going to call a tool and then not do it). The use of an explicit `submit()` tool call to signal completion works around this problem, as the model can be encouraged to keep calling tools rather than terminating.
+
+2.  An explicit `submit()` tool call to signal completion enables the implementation of multiple [attempts](#attempts), which is often a good way to model the underlying domain (e.g. a engineer can attempt to fix a bug multiple times with tests providing feedback on success or failure).
+
+That said, the `submit()` tool might not be appropriate for every domain or agent. You can disable the use of the submit tool with:
+
+``` python
+react(
+    ...,
+    submit=False
+)
+```
+
+By default, disabling the submit tool will result in the agent terminating when it stops calling tools. Alternatively, you can manually control termination by providing a custom [on_continue](#continuation) handler. 
+
+### Truncation
+
+If your agent runs for long enough, it may end up filling the entire model context window. By default, this will cause the agent to terminate (with a log message indicating the reason). Alternatively, you can specify that the conversation should be truncated and the agent loop continue.
+
+This behavior is controlled by the `truncation` parameter (which is `"disabled"` by default, doing no truncation). To perform truncation, specify either `"auto"` (which reduces conversation size by roughly 30%) or pass a custom `MessageFilter` function. For example:
+
+``` python
+react(... truncation="auto")
+react(..., truncation=custom_truncation)
+```
+
+The default `"auto"` truncation scheme calls the `trim_messages()` function with a `preserve` ratio of 0.7.
+
+Note that if you enable truncation then a [message limit](errors-and-limits.qmd#message-limit) may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a [time limit](errors-and-limits.qmd#time-limit) and/or [token limit](errors-and-limits.qmd#token-limit).
+
+### Model
+
+The `model` parameter to `react()` agent lets you specify an alternate model to use for the agent loop (if not specified then the default model for the evaluation is used). In some cases you might want to do something fancier than just call a model (e.g. do a "best of n" sampling an pick the best response). Pass a `Agent` as the `model` parameter to implement this type of custom scheme. For example:
+
+``` python
+@agent
+def best_of_n(n: int, discriminator: str | Model):
+
+    async def execute(state: AgentState, tools: list[Tool]):
+        # resolve model
+        discriminator = get_model(discriminator)
+
+        # sample from the model `n` times then use the
+        # `discriminator` to pick the best response and return it
+
+        return state
+
+    return execute
+```
+
+Note that when you pass an `Agent` as the `model` it must include a `tools` parameter so that the ReAct agent can forward its tools.
