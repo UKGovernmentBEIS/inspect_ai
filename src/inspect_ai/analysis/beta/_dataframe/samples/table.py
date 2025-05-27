@@ -364,9 +364,10 @@ def _read_samples_df_serial(
         )
 
     # join eval_records
-    samples_table = samples_table.merge(
-        evals_table, on=EVAL_ID, how="left", suffixes=(SAMPLE_SUFFIX, EVAL_SUFFIX)
-    )
+    if len(samples_table) > 0:
+        samples_table = samples_table.merge(
+            evals_table, on=EVAL_ID, how="left", suffixes=(SAMPLE_SUFFIX, EVAL_SUFFIX)
+        )
 
     # re-order based on original specification
     samples_table = reorder_samples_df_columns(
