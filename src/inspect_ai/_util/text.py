@@ -1,10 +1,17 @@
 import random
 import re
 import string
+import textwrap
 from logging import getLogger
 from typing import List, NamedTuple
 
 logger = getLogger(__name__)
+
+
+def truncate_text(text: str, max_length: int) -> str:
+    if len(text) <= max_length:
+        return text
+    return textwrap.shorten(text, width=max_length, placeholder="...")
 
 
 def strip_punctuation(s: str) -> str:
