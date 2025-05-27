@@ -6,10 +6,7 @@
 }
 
 .list {
-  overflow-y: auto;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 0.5em;
-  height: fit-content;
-  padding: 0.5em;
+  overflow: hidden;
+  height: 100%;
+  min-height: 0;
 }

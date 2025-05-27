@@ -1,4 +1,4 @@
-import { ResultsMetric } from "./navbar/ResultsPanel";
+import { ResultsMetric } from "./title-view/ResultsPanel";
 
 export const metricDisplayName = (metric: ResultsMetric): string => {
   let modifier = undefined;

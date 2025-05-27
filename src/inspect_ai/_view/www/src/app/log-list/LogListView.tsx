@@ -10,8 +10,8 @@ import { Navbar } from "../navbar/Navbar";
 import { logUrl } from "../routing/url";
 import { LogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
+import { LogListGrid } from "./LogListGrid";
 import styles from "./LogListView.module.css";
-import { LogRow } from "./LogRow";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -77,9 +77,7 @@ export const LogListView: FC<LogListViewProps> = () => {
       <Navbar />
       <ProgressBar animating={loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        {logItems.map((logItem) => (
-          <LogRow item={logItem} />
-        ))}
+        <LogListGrid items={logItems} />
       </div>
       <LogListFooter itemCount={logItems.length} running={loading} />
     </div>
