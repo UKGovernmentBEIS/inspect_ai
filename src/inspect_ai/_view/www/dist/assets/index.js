@@ -24583,22 +24583,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const wrapper$4 = "_wrapper_1tajk_1";
     const container$l = "_container_1tajk_12";
     const animate = "_animate_1tajk_21";
-    const styles$1u = {
+    const styles$1v = {
       wrapper: wrapper$4,
       container: container$l,
       animate
     };
     const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1v.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1u.container),
+          className: clsx(styles$1v.container),
           role: "progressbar",
           "aria-label": "Basic example",
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1u.animate })
+          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1v.animate })
         }
       ) });
     };
@@ -24723,7 +24723,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1t = {
+    const styles$1u = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24739,9 +24739,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1t.circle,
+                styles$1u.circle,
                 "text-size-small",
-                score2 ? styles$1t.green : styles$1t.red
+                score2 ? styles$1u.green : styles$1u.red
               ),
               children: String(score2)
             }
@@ -24812,7 +24812,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const container$k = "_container_1ramc_1";
     const key$1 = "_key_1ramc_12";
     const value$2 = "_value_1ramc_16";
-    const styles$1s = {
+    const styles$1t = {
       container: container$k,
       key: key$1,
       value: value$2
@@ -24855,12 +24855,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1s.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1s.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1t.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1t.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1s.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1t.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -31498,19 +31498,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1r[sup[this.id]];
+      return styles$1s[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1r[sub[this.id]];
+      return styles$1s[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1r[fracNum[this.id]];
+      return styles$1s[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1r[fracDen[this.id]];
+      return styles$1s[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1r[cramp[this.id]];
+      return styles$1s[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -31538,7 +31538,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1r = [
+    var styles$1s = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -31554,10 +31554,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1r[D],
-      TEXT: styles$1r[T],
-      SCRIPT: styles$1r[S],
-      SCRIPTSCRIPT: styles$1r[SS]
+      DISPLAY: styles$1s[D],
+      TEXT: styles$1s[T],
+      SCRIPT: styles$1s[S],
+      SCRIPTSCRIPT: styles$1s[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -38336,7 +38336,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1q = {
+    const styles$1r = {
       visible,
       hidden: hidden$2,
       pills,
@@ -38368,7 +38368,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1q.visible : styles$1q.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1r.visible : styles$1r.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -38378,7 +38378,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1q.pills),
+            className: clsx("nav", "nav-pills", styles$1r.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -38414,7 +38414,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$1q.pill
+              styles$1r.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -38430,7 +38430,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       final: 1e3
     };
     const copyButton = "_copyButton_1goi8_1";
-    const styles$1p = {
+    const styles$1q = {
       copyButton
     };
     const CopyButton = ({
@@ -38460,7 +38460,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "button",
         {
           type: "button",
-          className: clsx("copy-button", styles$1p.copyButton, className2),
+          className: clsx("copy-button", styles$1q.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -38501,7 +38501,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const bordered = "_bordered_elrou_35";
     const moreToggleButton = "_moreToggleButton_elrou_39";
     const separator$5 = "_separator_elrou_45";
-    const styles$1o = {
+    const styles$1p = {
       expandablePanel,
       expandableBordered,
       expandableCollapsed,
@@ -38543,10 +38543,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                styles$1o.expandablePanel,
-                collapsed2 ? styles$1o.expandableCollapsed : void 0,
-                border ? styles$1o.expandableBordered : void 0,
-                showToggle ? styles$1o.padBottom : void 0
+                styles$1p.expandablePanel,
+                collapsed2 ? styles$1p.expandableCollapsed : void 0,
+                border ? styles$1p.expandableBordered : void 0,
+                showToggle ? styles$1p.padBottom : void 0
               ),
               children: [
                 children2,
@@ -38561,7 +38561,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1o.separator) })
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1p.separator) })
         ] });
       }
     );
@@ -38578,12 +38578,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1o.moreToggle, border ? styles$1o.bordered : void 0),
+          className: clsx(styles$1p.moreToggle, border ? styles$1p.bordered : void 0),
           style: style2,
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              className: clsx("btn", styles$1o.moreToggleButton, "text-size-smallest"),
+              className: clsx("btn", styles$1p.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
                 text2,
@@ -38728,7 +38728,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const messageContents = "_messageContents_17kai_20";
     const indented = "_indented_17kai_25";
     const copyLink$1 = "_copyLink_17kai_29";
-    const styles$1n = {
+    const styles$1o = {
       message: message$1,
       systemRole,
       messageGrid,
@@ -38738,7 +38738,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const contentImage = "_contentImage_61gdd_1";
     const reasoning = "_reasoning_61gdd_6";
-    const styles$1m = {
+    const styles$1n = {
       contentImage,
       reasoning
     };
@@ -38746,7 +38746,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const output = "_output_bv5nm_6";
     const textOutput = "_textOutput_bv5nm_10";
     const textCode = "_textCode_bv5nm_18";
-    const styles$1l = {
+    const styles$1m = {
       toolImage,
       output,
       textOutput,
@@ -38768,7 +38768,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "img",
                   {
-                    className: clsx(styles$1l.toolImage),
+                    className: clsx(styles$1m.toolImage),
                     src: out.image
                   },
                   key2
@@ -38784,10 +38784,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1l.output), children: outputs });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1l.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1l.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1m.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1m.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({ contents: contents2 }) => {
       if (Array.isArray(contents2)) {
@@ -38852,7 +38852,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (!r2.reasoning && !r2.redacted) {
             return void 0;
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1m.reasoning, "text-size-small"), children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1n.reasoning, "text-size-small"), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -38877,7 +38877,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1m.contentImage }, key2);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1n.contentImage }, key2);
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
           }
@@ -38974,13 +38974,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
     };
     const toolCallView = "_toolCallView_16q6n_1";
-    const styles$1k = {
+    const styles$1l = {
       toolCallView
     };
     const outputPre = "_outputPre_1jznn_1";
     const toolView = "_toolView_1jznn_7";
     const outputCode = "_outputCode_1jznn_15";
-    const styles$1j = {
+    const styles$1k = {
       outputPre,
       toolView,
       outputCode
@@ -38995,7 +38995,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           {
             markdown: toolCallView2.content,
             ref: prismParentRef,
-            className: clsx("tool-output", styles$1j.toolView)
+            className: clsx("tool-output", styles$1k.toolView)
           }
         );
       }
@@ -39003,7 +39003,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "pre",
         {
-          className: clsx("tool-output", styles$1j.outputPre, styles$1j.bottomMargin),
+          className: clsx("tool-output", styles$1k.outputPre, styles$1k.bottomMargin),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "code",
             {
@@ -39011,7 +39011,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 "source-code",
                 "sourceCode",
                 highlightLanguage ? `language-${highlightLanguage}` : void 0,
-                styles$1j.outputCode
+                styles$1k.outputCode
               ),
               children: formattedContent
             }
@@ -39021,14 +39021,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const image = "_image_a8byr_1";
     const toolTitle = "_toolTitle_a8byr_6";
-    const styles$1i = {
+    const styles$1j = {
       image,
       toolTitle
     };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1i.image) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1i.toolTitle), children: title2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1j.image) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1j.toolTitle), children: title2 })
       ] });
     };
     const ToolCallView = ({
@@ -39071,7 +39071,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1k.toolCallView), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1l.toolCallView), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -39117,7 +39117,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const content$2 = "_content_1b2jp_1";
     const codeCompact = "_codeCompact_1b2jp_5";
-    const styles$1h = {
+    const styles$1i = {
       content: content$2,
       codeCompact
     };
@@ -39143,7 +39143,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           const resolvedToolOutput = resolveToolMessage(toolMessage);
           if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1h.codeCompact), children: [
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1i.codeCompact), children: [
               "tool: ",
               functionCall
             ] }) }, `tool-call-${idx}`);
@@ -39164,7 +39164,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1h.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1i.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
           toolCalls
         ] });
       } else {
@@ -39234,19 +39234,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1n.message,
-            message2.role === "system" ? styles$1n.systemRole : void 0,
-            message2.role === "user" ? styles$1n.userRole : void 0
+            styles$1o.message,
+            message2.role === "system" ? styles$1o.systemRole : void 0,
+            message2.role === "user" ? styles$1o.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1n.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.messageGrid, "text-style-label"), children: [
               message2.role,
               supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: toFullUrl(messageUrl),
-                  className: clsx(styles$1n.copyLink)
+                  className: clsx(styles$1o.copyLink)
                 }
               ) : ""
             ] }),
@@ -39254,8 +39254,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "div",
               {
                 className: clsx(
-                  styles$1n.messageContents,
-                  indented2 ? styles$1n.indented : void 0
+                  styles$1o.messageContents,
+                  indented2 ? styles$1o.indented : void 0
                 ),
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   ExpandablePanel,
@@ -39285,7 +39285,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const number$1 = "_number_rmdrx_7";
     const user = "_user_rmdrx_11";
     const container$j = "_container_rmdrx_16";
-    const styles$1g = {
+    const styles$1h = {
       grid: grid$7,
       number: number$1,
       user,
@@ -39305,9 +39305,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "div",
             {
               className: clsx(
-                styles$1g.grid,
-                styles$1g.container,
-                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1g.user : void 0
+                styles$1h.grid,
+                styles$1h.container,
+                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1h.user : void 0
               ),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -39316,7 +39316,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     className: clsx(
                       "text-size-smaller",
                       "text-style-secondary",
-                      styles$1g.number
+                      styles$1h.number
                     ),
                     children: number2
                   }
@@ -39341,9 +39341,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           "div",
           {
             className: clsx(
-              styles$1g.container,
-              styles$1g.simple,
-              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1g.user : void 0
+              styles$1h.container,
+              styles$1h.simple,
+              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1h.user : void 0
             ),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -39494,7 +39494,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const compact = "_compact_1t3ts_15";
     const cellKey = "_cellKey_1t3ts_19";
     const cellValue = "_cellValue_1t3ts_31";
-    const styles$1f = {
+    const styles$1g = {
       table: table$2,
       cell: cell$3,
       compact,
@@ -39522,15 +39522,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "td",
             {
               className: clsx(
-                styles$1f.cell,
-                styles$1f.cellKey,
+                styles$1g.cell,
+                styles$1g.cellKey,
                 "text-size-small",
                 "text-style-label"
               ),
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1f.cell, styles$1f.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1g.cell, styles$1g.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
         ] }, id2);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -39540,8 +39540,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           className: clsx(
             "table",
             tblClz,
-            styles$1f.table,
-            compact2 ? styles$1f.compact : void 0,
+            styles$1g.table,
+            compact2 ? styles$1g.compact : void 0,
             className2
           ),
           style: style2,
@@ -39572,7 +39572,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const summary$3 = "_summary_seqs2_6";
     const preWrap = "_preWrap_seqs2_10";
     const preCompact = "_preCompact_seqs2_15";
-    const styles$1e = {
+    const styles$1f = {
       query,
       summary: summary$3,
       preWrap,
@@ -39690,7 +39690,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               };
             } else {
               return {
-                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1e.preWrap, styles$1e.preCompact), children: rendered })
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1f.preWrap, styles$1f.preCompact), children: rendered })
               };
             }
           }
@@ -39740,7 +39740,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           render: (_id, entry2, _options) => {
             const results = [];
             results.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1e.query, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1f.query, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
                 " ",
                 entry2.value.query
@@ -39752,7 +39752,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
                 );
                 results.push(
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1e.summary), children: result2.summary })
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1f.summary), children: result2.summary })
                 );
               }
             );
@@ -39769,7 +39769,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           },
           render: (_id, entry2, _options) => {
             return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1e.preWrap, children: entry2.value })
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1f.preWrap, children: entry2.value })
             };
           }
         },
@@ -39843,7 +39843,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const green = "_green_1iagp_12";
     const red = "_red_1iagp_18";
     const orange = "_orange_1iagp_24";
-    const styles$1d = {
+    const styles$1e = {
       circle,
       green,
       red,
@@ -39884,22 +39884,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$1d.circle, styles$1d.green),
+                className: clsx("text-size-small", styles$1e.circle, styles$1e.green),
                 children: "C"
               }
             );
           } else if (score2 === "I") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1d.circle, styles$1d.red), children: "I" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1e.circle, styles$1e.red), children: "I" });
           } else if (score2 === "P") {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$1d.circle, styles$1d.orange),
+                className: clsx("text-size-small", styles$1e.circle, styles$1e.orange),
                 children: "P"
               }
             );
           } else if (score2 === "N") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1d.circle, styles$1d.red), children: "N" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1e.circle, styles$1e.red), children: "N" });
           } else {
             return String(score2);
           }
@@ -42880,7 +42880,7 @@ categories: ${categories.join(" ")}`;
     };
     const flex$1 = "_flex_1kye9_1";
     const label$9 = "_label_1kye9_5";
-    const styles$1c = {
+    const styles$1d = {
       flex: flex$1,
       label: label$9
     };
@@ -42914,7 +42914,7 @@ categories: ${categories.join(" ")}`;
         },
         [setSort]
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1c.flex, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1d.flex, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -42923,7 +42923,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$1c.label
+              styles$1d.label
             ),
             children: "Sort:"
           }
@@ -43524,7 +43524,7 @@ categories: ${categories.join(" ")}`;
     };
     const header$4 = "_header_fev74_1";
     const breadcrumbs = "_breadcrumbs_fev74_11";
-    const styles$1b = {
+    const styles$1c = {
       header: header$4,
       breadcrumbs
     };
@@ -43548,18 +43548,18 @@ categories: ${categories.join(" ")}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "nav",
         {
-          className: clsx("text-size-smaller", styles$1b.header),
+          className: clsx("text-size-smaller", styles$1c.header),
           "aria-label": "breadcrumb",
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1b.breadcrumbs), children: segments == null ? void 0 : segments.map((segment, index2) => {
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1c.breadcrumbs), children: segments == null ? void 0 : segments.map((segment, index2) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "li",
               {
                 className: clsx(
-                  styles$1b.pathLink,
+                  styles$1c.pathLink,
                   "breadcrumb-item",
                   index2 === segments.length - 1 ? "active" : void 0
                 ),
-                children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1b.pathSegment), children: segment.text }, index2)
+                children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1c.pathSegment), children: segment.text }, index2)
               },
               index2
             );
@@ -43571,7 +43571,7 @@ categories: ${categories.join(" ")}`;
     const spinnerContainer$1 = "_spinnerContainer_vkofn_11";
     const spinner$2 = "_spinner_vkofn_11";
     const label$8 = "_label_vkofn_25";
-    const styles$1a = {
+    const styles$1b = {
       footer: footer$1,
       spinnerContainer: spinnerContainer$1,
       spinner: spinner$2,
@@ -43581,26 +43581,43 @@ categories: ${categories.join(" ")}`;
       itemCount,
       running: running2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$1a.footer), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1a.spinnerContainer), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$1b.footer), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1b.spinnerContainer), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx("spinner-border", styles$1a.spinner),
+              className: clsx("spinner-border", styles$1b.spinner),
               role: "status",
               children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$1a.label), children: "running..." })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$1b.label), children: "running..." })
         ] }) : void 0 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${itemCount} items` })
       ] });
     };
-    const panel$3 = "_panel_cg8hm_1";
-    const list$1 = "_list_cg8hm_8";
-    const styles$19 = {
+    const panel$3 = "_panel_efqt9_1";
+    const list$1 = "_list_efqt9_8";
+    const styles$1a = {
       panel: panel$3,
       list: list$1
+    };
+    const logLink$1 = "_logLink_1mpgk_1";
+    const styles$19 = {
+      logLink: logLink$1
+    };
+    const LogRow = ({ item: item2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "i",
+          {
+            className: clsx(
+              item2.type === "file" ? ApplicationIcons.file : ApplicationIcons.folder
+            )
+          }
+        ) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$19.logLink), children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, children: item2.name }) : item2.name })
+      ] });
     };
     const rootName = (relativePath) => {
       const parts = relativePath.split("/");
@@ -43643,24 +43660,11 @@ categories: ${categories.join(" ")}`;
         };
         exec2();
       }, [loadLogs]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$19.panel), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1a.panel), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$19.list), children: logItems.map((logItem) => /* @__PURE__ */ jsxRuntimeExports.jsx(LogsRow, { item: logItem })) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1a.list, "text-size-smaller"), children: logItems.map((logItem) => /* @__PURE__ */ jsxRuntimeExports.jsx(LogRow, { item: logItem })) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(LogListFooter, { itemCount: logItems.length, running: loading })
-      ] });
-    };
-    const LogsRow = ({ item: item2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "i",
-          {
-            className: clsx(
-              item2.type === "file" ? ApplicationIcons.file : ApplicationIcons.folder
-            )
-          }
-        ) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, children: item2.name }) : item2.name })
       ] });
     };
     const FindBand = () => {
