@@ -60,8 +60,10 @@ from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
     check_message_limit,
+    check_price_limit,
     check_token_limit,
     record_model_usage,
+    record_model_usage_price,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
@@ -1463,6 +1465,7 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
     record_model_usage(usage)
+    record_model_usage_price(usage)
 
     # compute total tokens
     total_tokens = sample_total_tokens()
@@ -1471,6 +1474,7 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     set_active_sample_total_tokens(total_tokens)
 
     check_token_limit()
+    check_price_limit()
 
 
 def set_model_usage(
