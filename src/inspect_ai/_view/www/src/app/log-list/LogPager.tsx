@@ -1,26 +1,30 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { useStore } from "../../state/store";
 
+import { usePagination } from "../../state/hooks";
 import styles from "./LogPager.module.css";
 
 interface LogPagerProps {
   itemCount: number;
+  logDir: string;
 }
 
-export const LogPager: FC<LogPagerProps> = ({ itemCount }) => {
-  const page = useStore((state) => state.logs.page);
-  const itemsPerPage = useStore((state) => state.logs.itemsPerPage);
+export const LogPager: FC<LogPagerProps> = ({ itemCount, logDir }) => {
+  const { page, itemsPerPage, setPage } = usePagination(logDir);
   const pageCount = Math.ceil(itemCount / itemsPerPage);
-
-  const setPage = useStore((state) => state.logsActions.setPage);
 
   const currentPage = page || 0;
 
   return (
     <nav aria-label="Log Pagination">
       <ul className={clsx("pagination", styles.pager)}>
-        <li className={clsx("page-item", currentPage === 0 ? "disabled" : "", styles.item) }>
+        <li
+          className={clsx(
+            "page-item",
+            currentPage === 0 ? "disabled" : "",
+            styles.item,
+          )}
+        >
           <a
             className={clsx("page-link")}
             onClick={() => {
@@ -39,7 +43,7 @@ export const LogPager: FC<LogPagerProps> = ({ itemCount }) => {
             className={clsx(
               "page-item",
               index === currentPage ? "active" : undefined,
-              styles.item
+              styles.item,
             )}
           >
             <a
@@ -56,7 +60,7 @@ export const LogPager: FC<LogPagerProps> = ({ itemCount }) => {
           className={clsx(
             "page-item",
             currentPage + 1 >= pageCount ? "disabled" : "",
-            styles.item
+            styles.item,
           )}
         >
           <a

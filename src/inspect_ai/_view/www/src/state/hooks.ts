@@ -605,3 +605,33 @@ export const useLogs = () => {
   // load a specific set of log headers (perhaps we an optional list of logs?)
   return { loadLogs, loadHeaders };
 };
+
+export const usePagination = (name: string) => {
+  const defaultPageSize = 20;
+  const page = useStore((state) => state.app.pagination[name]?.page || 0);
+  const itemsPerPage = useStore(
+    (state) => state.app.pagination[name]?.pageSize || defaultPageSize,
+  );
+  const setPagination = useStore((state) => state.appActions.setPagination);
+
+  const setPage = useCallback(
+    (newPage: number) => {
+      setPagination(name, { page: newPage, pageSize: itemsPerPage });
+    },
+    [name, setPagination, itemsPerPage],
+  );
+
+  const setPageSize = useCallback(
+    (newPageSize: number) => {
+      setPagination(name, { page, pageSize: newPageSize });
+    },
+    [name, setPagination, page],
+  );
+
+  return {
+    page,
+    itemsPerPage,
+    setPage,
+    setPageSize,
+  };
+};

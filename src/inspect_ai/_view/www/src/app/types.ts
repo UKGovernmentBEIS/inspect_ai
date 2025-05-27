@@ -51,6 +51,7 @@ export interface AppState {
     sample_epoch?: string;
   };
   rehydrated?: boolean;
+  pagination: Record<string, { page: number; pageSize: number }>;
 }
 
 export interface LogsState {
@@ -59,8 +60,6 @@ export interface LogsState {
   headersLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
-  page?: number;
-  itemsPerPage: number;
 }
 
 export interface LogState {

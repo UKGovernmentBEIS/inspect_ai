@@ -46,6 +46,12 @@ export interface AppSlice {
     setPropertyValue: <T>(bagName: string, key: string, value: T) => void;
     removePropertyValue: (bagName: string, key: string) => void;
 
+    setPagination: (
+      name: string,
+      pagination: { page: number; pageSize: number },
+    ) => void;
+    clearPagination: (name: string) => void;
+
     setUrlHash: (urlHash: string) => void;
   };
 }
@@ -69,6 +75,7 @@ const initialState: AppState = {
   collapsed: {},
   messages: {},
   propertyBags: {},
+  pagination: {},
 };
 
 export const createAppSlice = (
@@ -260,6 +267,19 @@ export const createAppSlice = (
       setUrlHash: (urlHash: string) => {
         set((state) => {
           state.app.urlHash = urlHash;
+        });
+      },
+      setPagination: (
+        name: string,
+        pagination: { page: number; pageSize: number },
+      ) => {
+        set((state) => {
+          state.app.pagination[name] = pagination;
+        });
+      },
+      clearPagination: (name: string) => {
+        set((state) => {
+          delete state.app.pagination[name];
         });
       },
     },

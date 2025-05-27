@@ -3,7 +3,7 @@ import { FC, useEffect, useMemo } from "react";
 
 import { useParams } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useLogs } from "../../state/hooks";
+import { useLogs, usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
@@ -65,8 +65,7 @@ export const LogListView: FC<LogListViewProps> = () => {
     return result;
   }, [logPath, logs.files]);
 
-  const page = useStore((state) => state.logs.page);
-  const itemsPerPage = useStore((state) => state.logs.itemsPerPage);
+  const { page, itemsPerPage } = usePagination(currentDir);
 
   const pageItems = useMemo(() => {
     const start = (page || 0) * itemsPerPage;
@@ -88,7 +87,11 @@ export const LogListView: FC<LogListViewProps> = () => {
       <div className={clsx(styles.list, "text-size-smaller")}>
         <LogListGrid items={pageItems} />
       </div>
-      <LogListFooter itemCount={logItems.length} running={loading} />
+      <LogListFooter
+        logDir={currentDir}
+        itemCount={logItems.length}
+        running={loading}
+      />
     </div>
   );
 };
