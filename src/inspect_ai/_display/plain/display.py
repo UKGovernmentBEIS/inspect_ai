@@ -208,3 +208,4 @@ class PlainTaskDisplay(TaskDisplay):
     def complete(self, result: TaskResult) -> None:
         self.task.result = result
         self._print_status()
+        print("")
