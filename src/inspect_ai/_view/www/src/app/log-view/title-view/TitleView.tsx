@@ -9,11 +9,11 @@ import {
 } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { useTotalSampleCount } from "../../../state/hooks";
-import styles from "./Navbar.module.css";
 import { PrimaryBar } from "./PrimaryBar";
 import { SecondaryBar } from "./SecondaryBar";
+import styles from "./TitleView.module.css";
 
-interface NavBarProps {
+interface TitleViewProps {
   evalSpec?: EvalSpec;
   evalResults?: EvalResults | null;
   runningMetrics?: RunningMetric[];
@@ -26,7 +26,7 @@ interface NavBarProps {
 /**
  * Renders the Navbar
  */
-export const Navbar: FC<NavBarProps> = ({
+export const TitleView: FC<TitleViewProps> = ({
   evalSpec,
   evalPlan,
   evalResults,

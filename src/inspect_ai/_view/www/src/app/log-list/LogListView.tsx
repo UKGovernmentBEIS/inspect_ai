@@ -5,14 +5,13 @@ import { Link, useParams } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { basename, dirname } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
+import { Navbar } from "../navbar/Navbar";
 import { logUrl } from "../routing/url";
 import { LogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import styles from "./LogListView.module.css";
-import { LogsHeader } from "./LogsHeader";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -39,27 +38,6 @@ export const LogListView: FC<LogListViewProps> = () => {
   }>();
 
   const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
-  const baseLogDir = dirname(logs.log_dir || "");
-  const baseLogName = basename(logs.log_dir || "");
-  const pathSegments = logPath
-    ? decodeURIComponent(logPath).split("/")
-    : undefined;
-
-  const dirSegments = pathSegments
-    ? pathSegments.map((segment) => {
-        return {
-          text: segment,
-          url: logUrl(segment, logs.log_dir),
-        };
-      })
-    : [];
-
-  const segments: Array<{ text: string; url?: string }> = [
-    { text: baseLogDir },
-    { text: baseLogName, url: logUrl("", logs.log_dir) },
-    ...dirSegments,
-  ];
-
   const logItems: LogItem[] = useMemo(() => {
     const itemNames: string[] = [];
     for (const logFile of logs.files) {
@@ -96,7 +74,7 @@ export const LogListView: FC<LogListViewProps> = () => {
 
   return (
     <div className={clsx(styles.panel)}>
-      <LogsHeader segments={segments} />
+      <Navbar />
       <ProgressBar animating={loading} />
       <div className={clsx(styles.list)}>
         {logItems.map((logItem) => (
