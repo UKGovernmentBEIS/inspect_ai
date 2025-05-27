@@ -23060,7 +23060,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       listPositions: {},
       collapsed: {},
       messages: {},
-      propertyBags: {}
+      propertyBags: {},
+      pagination: {}
     };
     const createAppSlice = (set2, get2, _store) => {
       const getBoolRecord = (record, name2, defaultValue) => {
@@ -23218,6 +23219,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setUrlHash: (urlHash) => {
             set2((state) => {
               state.app.urlHash = urlHash;
+            });
+          },
+          setPagination: (name2, pagination) => {
+            set2((state) => {
+              state.app.pagination[name2] = pagination;
+            });
+          },
+          clearPagination: (name2) => {
+            set2((state) => {
+              delete state.app.pagination[name2];
             });
           }
         }
@@ -23656,9 +23667,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       logHeaders: {},
       headersLoading: false,
       selectedLogIndex: -1,
-      selectedLogFile: void 0,
-      page: void 0,
-      itemsPerPage: 20
+      selectedLogFile: void 0
     };
     const createLogsSlice = (set2, get2, _store) => {
       const logsPolling = createLogsPolling(get2);
@@ -23767,16 +23776,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 idx !== void 0 && idx > -1 ? idx : 0
               );
             }
-          },
-          setPage: (page) => {
-            set2((state) => {
-              state.logs.page = page;
-            });
-          },
-          clearPage: () => {
-            set2((state) => {
-              state.logs.page = void 0;
-            });
           }
         }
       };
@@ -47591,6 +47590,38 @@ categories: ${categories.join(" ")}`;
       );
       return { loadLogs, loadHeaders };
     };
+    const usePagination = (name2) => {
+      const defaultPageSize2 = 20;
+      const page = useStore((state) => {
+        var _a2;
+        return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.page) || 0;
+      });
+      const itemsPerPage = useStore(
+        (state) => {
+          var _a2;
+          return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.pageSize) || defaultPageSize2;
+        }
+      );
+      const setPagination = useStore((state) => state.appActions.setPagination);
+      const setPage = reactExports.useCallback(
+        (newPage) => {
+          setPagination(name2, { page: newPage, pageSize: itemsPerPage });
+        },
+        [name2, setPagination, itemsPerPage]
+      );
+      const setPageSize = reactExports.useCallback(
+        (newPageSize) => {
+          setPagination(name2, { page, pageSize: newPageSize });
+        },
+        [name2, setPagination, page]
+      );
+      return {
+        page,
+        itemsPerPage,
+        setPage,
+        setPageSize
+      };
+    };
     const filename = (path) => {
       if (!path) {
         return "";
@@ -47690,25 +47721,33 @@ categories: ${categories.join(" ")}`;
       pager,
       item: item$3
     };
-    const LogPager = ({ itemCount }) => {
-      const page = useStore((state) => state.logs.page);
-      const itemsPerPage = useStore((state) => state.logs.itemsPerPage);
+    const LogPager = ({ itemCount, logDir }) => {
+      const { page, itemsPerPage, setPage } = usePagination(logDir);
       const pageCount = Math.ceil(itemCount / itemsPerPage);
-      const setPage = useStore((state) => state.logsActions.setPage);
       const currentPage = page || 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { "aria-label": "Log Pagination", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: clsx("pagination", styles$1a.pager), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: clsx("page-item", currentPage === 0 ? "disabled" : "", styles$1a.item), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "a",
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
           {
-            className: clsx("page-link"),
-            onClick: () => {
-              if (currentPage > 0) {
-                setPage(currentPage - 1);
+            className: clsx(
+              "page-item",
+              currentPage === 0 ? "disabled" : "",
+              styles$1a.item
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                className: clsx("page-link"),
+                onClick: () => {
+                  if (currentPage > 0) {
+                    setPage(currentPage - 1);
+                  }
+                },
+                children: "Previous"
               }
-            },
-            children: "Previous"
+            )
           }
-        ) }),
+        ),
         Array.from({ length: pageCount }, (_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
           "li",
           {
@@ -47756,10 +47795,10 @@ categories: ${categories.join(" ")}`;
     };
     const LogListFooter = ({
       itemCount,
-      running: running2
+      running: running2,
+      logDir
     }) => {
-      const page = useStore((state) => state.logs.page);
-      const itemsPerPage = useStore((state) => state.logs.itemsPerPage);
+      const { page, itemsPerPage } = usePagination(logDir);
       const pageItemCount = Math.min(
         itemsPerPage,
         itemCount - (page || 0) * itemsPerPage
@@ -47779,7 +47818,7 @@ categories: ${categories.join(" ")}`;
           ] }) : void 0,
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${pageItemCount} / ${itemCount} items` })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1b.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1b.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { logDir, itemCount }) })
       ] });
     };
     /**
@@ -50875,8 +50914,7 @@ categories: ${categories.join(" ")}`;
         }
         return result2;
       }, [logPath, logs.files]);
-      const page = useStore((state) => state.logs.page);
-      const itemsPerPage = useStore((state) => state.logs.itemsPerPage);
+      const { page, itemsPerPage } = usePagination(currentDir);
       const pageItems = reactExports.useMemo(() => {
         const start2 = (page || 0) * itemsPerPage;
         const end2 = start2 + itemsPerPage;
@@ -50892,7 +50930,14 @@ categories: ${categories.join(" ")}`;
         /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.list, "text-size-smaller"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListGrid, { items: pageItems }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(LogListFooter, { itemCount: logItems.length, running: loading })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          LogListFooter,
+          {
+            logDir: currentDir,
+            itemCount: logItems.length,
+            running: loading
+          }
+        )
       ] });
     };
     const FindBand = () => {
