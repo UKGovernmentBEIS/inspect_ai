@@ -9,6 +9,7 @@ from rich.text import Text
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai.util._display import display_type
 
 from .display import TaskProfile
 from .rich import is_vscode_notebook, rich_theme
@@ -24,7 +25,13 @@ def task_panel(
     | None,
     footer: RenderableType | tuple[RenderableType, RenderableType] | None,
     log_location: str | None,
-) -> Panel:
+) -> RenderableType:
+    # dispatch to plain handler if we are in plain mode
+    if display_type() == "plain":
+        return task_panel_plain(
+            profile, show_model, body, subtitle, footer, log_location
+        )
+
     # rendering context
     theme = rich_theme()
     console = rich.get_console()
@@ -93,12 +100,69 @@ def task_panel(
     # create panel w/ title
     panel = Panel(
         root,
-        title=f"[bold][{theme.meta}]{task_title(profile, show_model)}[/{theme.meta}][/bold]",
+        title=task_panel_title(profile, show_model),
         title_align="left",
         width=width,
         expand=True,
     )
     return panel
+
+
+def task_panel_plain(
+    profile: TaskProfile,
+    show_model: bool,
+    body: RenderableType,
+    subtitle: RenderableType
+    | str
+    | Tuple[RenderableType | str, RenderableType | str]
+    | None,
+    footer: RenderableType | tuple[RenderableType, RenderableType] | None,
+    log_location: str | None,
+) -> RenderableType:
+    # delimiter text
+    delimeter = "---------------------------------------------------------"
+
+    # root table for output
+    table = Table.grid(expand=False)
+    table.add_column()
+    table.add_row(delimeter)
+
+    # title and subtitle
+    table.add_row(task_panel_title(profile, show_model))
+    if isinstance(subtitle, tuple):
+        subtitle = subtitle[0]
+    table.add_row(subtitle)
+
+    # task info
+    if body:
+        table.add_row(body)
+
+    # footer
+    if isinstance(footer, tuple):
+        footer = footer[0]
+    if footer:
+        table.add_row(footer)
+
+    # log location
+    if log_location:
+        # Print a cwd relative path
+        try:
+            log_location_relative = cwd_relative_path(log_location, walk_up=True)
+        except ValueError:
+            log_location_relative = log_location
+        table.add_row(f"Log: {log_location_relative}")
+
+    table.add_row(delimeter)
+    table.add_row("")
+
+    return table
+
+
+def task_panel_title(profile: TaskProfile, show_model: bool) -> str:
+    theme = rich_theme()
+    return (
+        f"[bold][{theme.meta}]{task_title(profile, show_model)}[/{theme.meta}][/bold]"
+    )
 
 
 def to_renderable(item: RenderableType | str, style: str = "") -> RenderableType:
