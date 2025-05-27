@@ -1,4 +1,8 @@
+from rich.console import RenderableType
+from rich.text import Text
+
 from inspect_ai._util.registry import is_model_dict, is_registry_dict
+from inspect_ai._util.text import truncate_text
 from inspect_ai.log._log import eval_config_defaults
 
 from .display import TaskProfile
@@ -6,7 +10,7 @@ from .display import TaskProfile
 
 def task_config(
     profile: TaskProfile, generate_config: bool = True, style: str = ""
-) -> str:
+) -> RenderableType:
     # merge config
     # wind params back for display
     task_args = dict(profile.task_args)
@@ -39,15 +43,17 @@ def task_config(
         elif name not in ["limit", "model", "response_schema", "log_shared"]:
             if isinstance(value, list):
                 value = ",".join([str(v) for v in value])
+            elif isinstance(value, dict):
+                value = "{...}"
             if isinstance(value, str):
+                value = truncate_text(value, 50)
                 value = value.replace("[", "\\[")
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
     if values:
-        if style:
-            return f"[{style}]{values}[/{style}]"
-        else:
-            return values
+        values_text = Text(values, style=style)
+        values_text.truncate(500, overflow="ellipsis")
+        return values_text
     else:
         return ""
 
