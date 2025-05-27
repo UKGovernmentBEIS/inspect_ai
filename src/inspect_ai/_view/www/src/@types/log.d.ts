@@ -97,6 +97,7 @@ export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
 export type WorkingLimit = number | null;
+export type PriceLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -121,14 +122,14 @@ export type Options = {
 } | null;
 export type Metrics =
   | (
-      | EvalMetricDefinition
-      | {
-          [k: string]: EvalMetricDefinition[];
-        }
-    )[]
-  | {
+    | EvalMetricDefinition
+    | {
       [k: string]: EvalMetricDefinition[];
     }
+  )[]
+  | {
+    [k: string]: EvalMetricDefinition[];
+  }
   | null;
 export type Name4 = string;
 export type Options1 = {
@@ -140,8 +141,8 @@ export type Metadata1 = {
 export type Metrics1 =
   | EvalMetricDefinition[]
   | {
-      [k: string]: EvalMetricDefinition[];
-    }
+    [k: string]: EvalMetricDefinition[];
+  }
   | null;
 export type Name5 = string;
 export type Solver1 = string;
@@ -180,11 +181,11 @@ export type Epoch = number;
 export type Input =
   | string
   | (
-      | ChatMessageSystem
-      | ChatMessageUser
-      | ChatMessageAssistant
-      | ChatMessageTool
-    )[];
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageAssistant
+    | ChatMessageTool
+  )[];
 export type Id1 = string | null;
 export type Content =
   | string
@@ -345,8 +346,8 @@ export type Value1 =
   | boolean
   | (string | number | boolean)[]
   | {
-      [k: string]: string | number | boolean | null;
-    };
+    [k: string]: string | number | boolean | null;
+  };
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata6 = {
@@ -360,11 +361,11 @@ export type Event = "sample_init";
 export type Input1 =
   | string
   | (
-      | ChatMessageSystem
-      | ChatMessageUser
-      | ChatMessageAssistant
-      | ChatMessageTool
-    )[];
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageAssistant
+    | ChatMessageTool
+  )[];
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id6 = number | string | null;
@@ -385,6 +386,7 @@ export type Type15 =
   | "time"
   | "working"
   | "token"
+  | "price"
   | "operator"
   | "custom";
 export type Message2 = string;
@@ -638,6 +640,7 @@ export type Type21 =
   | "working"
   | "message"
   | "token"
+  | "price"
   | "operator"
   | "custom";
 export type Limit2 = number;
@@ -650,8 +653,8 @@ export type Value2 =
   | boolean
   | (string | number | boolean)[]
   | {
-      [k: string]: string | number | boolean | null;
-    };
+    [k: string]: string | number | boolean | null;
+  };
 export type Answer1 = string | null;
 export type Explanation2 = string | null;
 export type Metadata9 = {
@@ -822,6 +825,7 @@ export interface EvalConfig {
   token_limit: TokenLimit;
   time_limit: TimeLimit;
   working_limit: WorkingLimit;
+  price_limit: PriceLimit;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
