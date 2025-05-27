@@ -306,6 +306,9 @@ These sections describe how to create agent evaluations with Inspect:
   pursue more complex, longer horizon tasks. This articles covers the
   basics of using agents in evaluations.
 
+- [ReAct Agent](react-agent.qmd) provides details on using and
+  customizing the built-in ReAct agent.
+
 - [Multi Agent](multi-agent.qmd) covers various ways to compose agents
   together in multi-agent architectures.
 

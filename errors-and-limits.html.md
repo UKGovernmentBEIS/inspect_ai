@@ -552,18 +552,16 @@ eval(
 )
 ```
 
+### Limit Exceeded
+
 Note that when limits are exceeded during an agent’s execution, the way
 this is handled differs depending on how the agent was executed:
-
-- For tool based agents (`handoff()` and `as_tool()`), if a limit is
-  exceeded then a message to that effect is returned to the model but
-  the *sample continues running*.
 
 - For agents used via `as_solver()`, if a limit is exceeded then the
   sample will terminate (this is exactly how sample-level limits work).
 
 - For agents that are `run()` directly with limits, their limit
-  exceptions will be caught and returned in the tuple. Limits other than
+  exceptions will be caught and returned in a tuple. Limits other than
   the ones passed to `run()` will propagate up the stack.
 
   ``` python
@@ -577,3 +575,7 @@ this is handled differs depending on how the agent was executed:
   if limit_error:
       ...
   ```
+
+- For tool based agents (`handoff()` and `as_tool()`), if a limit is
+  exceeded then a message to that effect is returned to the model but
+  the *sample continues running*.

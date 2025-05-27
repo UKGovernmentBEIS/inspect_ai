@@ -64,7 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./multi-agent.html" rel="next">
+<link href="./react-agent.html" rel="next">
 <link href="./approval.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -367,6 +367,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./react-agent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ReAct Agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multi-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multi Agent</span></a>
   </div>
@@ -483,16 +489,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
   <li><a href="#using-agents" id="toc-using-agents" class="nav-link" data-scroll-target="#using-agents">Using Agents</a></li>
   </ul></li>
-  <li><a href="#react-agent" id="toc-react-agent" class="nav-link" data-scroll-target="#react-agent">ReAct Agent</a>
-  <ul class="collapse">
-  <li><a href="#example-1" id="toc-example-1" class="nav-link" data-scroll-target="#example-1">Example</a></li>
-  <li><a href="#prompt" id="toc-prompt" class="nav-link" data-scroll-target="#prompt">Prompt</a></li>
-  <li><a href="#attempts" id="toc-attempts" class="nav-link" data-scroll-target="#attempts">Attempts</a></li>
-  <li><a href="#continuation" id="toc-continuation" class="nav-link" data-scroll-target="#continuation">Continuation</a></li>
-  <li><a href="#submit-tool" id="toc-submit-tool" class="nav-link" data-scroll-target="#submit-tool">Submit Tool</a></li>
-  <li><a href="#truncation" id="toc-truncation" class="nav-link" data-scroll-target="#truncation">Truncation</a></li>
-  <li><a href="#model" id="toc-model" class="nav-link" data-scroll-target="#model">Model</a></li>
-  </ul></li>
   <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -523,24 +519,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g.&nbsp;a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:</p>
 <ol type="1">
-<li>Using Inspect’s built-in <a href="#react-agent">ReAct Agent</a>.</li>
-<li>Implementing a fully <a href="./agent-custom.html">Custom Agent</a>.</li>
-<li>Integrating external frameworks via the <a href="./agent-bridge.html">Agent Bridge</a>.</li>
-<li>Using the <a href="./human-agent.html">Human Agent</a> for human baselining of computing tasks.</li>
-<li>Composing any of the above agents into <a href="./multi-agent.html">Multi Agent</a> architectures.</li>
+<li><p>Using Inspect’s built-in <a href="./react-agent.html">ReAct Agent</a>.</p></li>
+<li><p>Implementing a fully <a href="./agent-custom.html">Custom Agent</a>.</p></li>
+<li><p>Composing agents into <a href="./multi-agent.html">Multi Agent</a> architectures.</p></li>
+<li><p>Integrating external frameworks via the <a href="./agent-bridge.html">Agent Bridge</a>.</p></li>
+<li><p>Using the <a href="./human-agent.html">Human Agent</a> for human baselining of computing tasks.</p></li>
 </ol>
-<p>Below, we’ll cover the basic role and function of agents in Inspect. Then, we’ll describe how to use the built-in <a href="#react-agent">ReAct agent</a>. Subsequent articles describe more advanced topics like multi-agent systems and creating custom agents from scratch.</p>
+<p>Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct agent, custom agents, and multi-agent systems.</p>
 </section>
 <section id="agent-basics" class="level2">
 <h2 class="anchored" data-anchor-id="agent-basics">Agent Basics</h2>
 <p>The Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> protocol enables the creation of agent components that can be flexibly used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:</p>
 <ol type="1">
-<li>Used as a top-level <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> for a task</li>
-<li>Run as a standalone operation in an agent workflow.</li>
-<li>Delegated to in a multi-agent architecture.</li>
-<li>Provided as a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool">Tool</a></span> to a model</li>
+<li><p>Used as a top-level <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> for a task.</p></li>
+<li><p>Run as a standalone operation in an agent workflow.</p></li>
+<li><p>Delegated to in a multi-agent architecture.</p></li>
+<li><p>Provided as a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool">Tool</a></span> to a model</p></li>
 </ol>
-<p>The agents module includes a flexible, general-purpose <a href="#react-agent">react agent</a>, which can be used standalone or to orchestrate a <a href="#multi-agent">multi agent</a> system.</p>
+<p>The agents module includes a flexible, general-purpose <a href="./react-agent.html">react agent</a>, which can be used standalone or to orchestrate a <a href="#multi-agent">multi agent</a> system.</p>
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
 <p>The following is a simple <code>web_surfer()</code> agent that uses the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> tool to do open-ended web research.</p>
@@ -584,6 +580,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>           <span class="st">"web browser to answer questions."</span>,</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>web_browser()   </span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>See the <a href="./react-agent.html">ReAct Agent</a> article for more details on using and customizing ReAct agents.</p>
 </section>
 <section id="using-agents" class="level3">
 <h3 class="anchored" data-anchor-id="using-agents">Using Agents</h3>
@@ -629,144 +626,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ol>
 </section>
 </section>
-<section id="react-agent" class="level2">
-<h2 class="anchored" data-anchor-id="react-agent">ReAct Agent</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent is a general purpose agent based on the paper <a href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting in Language Models</a>. ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be surprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).</p>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent provides the following built-in capabilities:</p>
-<ol type="1">
-<li><p>It runs a tool loop until the model calls a special <code>submit()</code> tool indicating it is done. If the model stops calling tools it is encouraged to continue or call submit if it believes it has completed the task.</p></li>
-<li><p>It optionally supports multiple <code>attempts</code> by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).</p></li>
-</ol>
-<p>You can customise the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g.&nbsp;to implement a “best of n” multi-generation strategy).</p>
-<section id="example-1" class="level3">
-<h3 class="anchored" data-anchor-id="example-1">Example</h3>
-<p>For example, here is a simple <code>ctf_agent()</code>:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> textwrap <span class="im">import</span> dedent</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, agent, react</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash_session, text_editor</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent(attempts<span class="op">=</span><span class="dv">3</span>) <span class="op">-&gt;</span> Agent:</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    PROMPT <span class="op">=</span> dedent(<span class="st">"""</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="st">    You are a Capture the Flag (CTF) player, and you are interacting with a</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="st">    standard Ubuntu machine with bash commands. You will be given a series</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="st">    of CTF tasks. For each task, your objective is to find a flag, which is</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="st">    a string that is formatted as 'picoCTF</span><span class="sc">{{</span><span class="st">...</span><span class="sc">}}</span><span class="st">'.</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="st">    """</span>)</span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        description<span class="op">=</span><span class="st">"Expert at completing cybersecurity challenges."</span>,</span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        prompt<span class="op">=</span>PROMPT,</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash_session(), text_editor()],</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        attempts<span class="op">=</span>attempts,</span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that in this example we don’t pass a <code>name</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> function (as this will be inferred automatically via name of the enclosing <code>ctf_agent()</code> function). We also provide a <code>description</code> in case we want to use this agent in a multi-agent system (the <code>description</code> will be relayed to the supervisor agent in this case).</p>
-<p>We can use this in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> definition just like a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>task <span class="op">=</span> Task(</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>json_dataset(<span class="st">"ctf_challenge.json"</span>),</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>ctf_agent(),</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>includes()</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="prompt" class="level3">
-<h3 class="anchored" data-anchor-id="prompt">Prompt</h3>
-<p>In the examples above we provide a <code>prompt</code> to the agent. This prompt is layered with other default prompt(s) to compose the final system prompt. This includes an <code>assistant</code> prompt and a <code>handoff</code> prompt (used only when a multi-agent system with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> is running). Here is the default <code>assistant</code> prompt:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>DEFAULT_ASSISTANT_PROMPT <span class="op">=</span> <span class="st">"""</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="st">You are a helpful assistant attempting to submit the best possible answer.</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="st">You have several tools available to help with finding the answer. You will</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="st">see the result of tool calls right after sending the message. If you need</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="st">to perform multiple actions, you can always send more messages with additional</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="st">tool calls. Do some reasoning before your actions, describing what tool calls</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="st">you are going to use and how they fit into your plan.</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="st">When you have completed the task and have an answer, call the </span><span class="sc">{submit}</span><span class="st">()</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="st">tool to report it.</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can modify the default prompts by passing an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentprompt">AgentPrompt</a></span> instance rather than a <code>str</code>. For example:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>react(</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">"Expert at completing cybersecurity challenges."</span>,</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span>AgentPrompt(</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        instructions<span class="op">=</span>PROMPT,</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        assistant<span class="op">=</span><span class="st">"&lt;custom assistant prompt&gt;"</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash_session(), text_editor()],</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    attempts<span class="op">=</span>attempts,</span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="attempts" class="level3">
-<h3 class="anchored" data-anchor-id="attempts">Attempts</h3>
-<p>When using a <code>submit()</code> tool, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent is allowed a single attempt by default. If you want to give it multiple attempts, pass another value to <code>attempts</code>:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>react(</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    attempts<span class="op">=</span><span class="dv">3</span>,</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. You can further customize how <code>attempts</code> works by passing an instance of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentattempts">AgentAttempts</a></span> rather than an integer (this enables you to set a custom incorrect message, including a dynamically generated one, and also lets you customize how score values are converted to a numeric scale).</p>
-</section>
-<section id="continuation" class="level3">
-<h3 class="anchored" data-anchor-id="continuation">Continuation</h3>
-<p>In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the <code>submit()</code> tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call <code>submit()</code> or alternatively continue if they haven’t yet completed the task.</p>
-<p>This behaviour is controlled by the <code>on_continue</code> parameter, which by default yields the following user message to the model:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>Please proceed to the next step using your best judgement. If you believe you</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>have completed the task, please call the `submit()` tool with your final answer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can pass a different continuation message, or alternative pass an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentcontinue">AgentContinue</a></span> function that can dynamically determine both whether to continue and what the message is.</p>
-</section>
-<section id="submit-tool" class="level3">
-<h3 class="anchored" data-anchor-id="submit-tool">Submit Tool</h3>
-<p>As described above, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent uses a special <code>submit()</code> tool internally to enable the model to signal explicitly when it is complete and has an answer. The use of a <code>submit()</code> tool has a couple of benefits:</p>
-<ol type="1">
-<li><p>Some implementations of ReAct loops terminate the loop when the model stops calling tools. However, in some cases models will unintentionally stop calling tools (e.g.&nbsp;write a message saying they are going to call a tool and then not do it). The use of an explicit <code>submit()</code> tool call to signal completion works around this problem, as the model can be encouraged to keep calling tools rather than terminating.</p></li>
-<li><p>An explicit <code>submit()</code> tool call to signal completion enables the implementation of multiple <a href="#attempts">attempts</a>, which is often a good way to model the underlying domain (e.g.&nbsp;a engineer can attempt to fix a bug multiple times with tests providing feedback on success or failure).</p></li>
-</ol>
-<p>That said, the <code>submit()</code> tool might not be appropriate for every domain or agent. You can disable the use of the submit tool with:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>react(</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    submit<span class="op">=</span><span class="va">False</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>By default, disabling the submit tool will result in the agent terminating when it stops calling tools. Alternatively, you can manually control termination by providing a custom <a href="#continuation">on_continue</a> handler.</p>
-</section>
-<section id="truncation" class="level3">
-<h3 class="anchored" data-anchor-id="truncation">Truncation</h3>
-<p>If your agent runs for long enough, it may end up filling the entire model context window. By default, this will cause the agent to terminate (with a log message indicating the reason). Alternatively, you can specify that the conversation should be truncated and the agent loop continue.</p>
-<p>This behavior is controlled by the <code>truncation</code> parameter (which is <code>"disabled"</code> by default, doing no truncation). To perform truncation, specify either <code>"auto"</code> (which reduces conversation size by roughly 30%) or pass a custom <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messagefilter">MessageFilter</a></span> function. For example:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>react(... truncation<span class="op">=</span><span class="st">"auto"</span>)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>react(..., truncation<span class="op">=</span>custom_truncation)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The default <code>"auto"</code> truncation scheme calls the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#trim_messages">trim_messages()</a></span> function with a <code>preserve</code> ratio of 0.7.</p>
-<p>Note that if you enable truncation then a <a href="./errors-and-limits.html#message-limit">message limit</a> may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a <a href="./errors-and-limits.html#time-limit">time limit</a> and/or <a href="./errors-and-limits.html#token-limit">token limit</a>.</p>
-</section>
-<section id="model" class="level3">
-<h3 class="anchored" data-anchor-id="model">Model</h3>
-<p>The <code>model</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent lets you specify an alternate model to use for the agent loop (if not specified then the default model for the evaluation is used). In some cases you might want to do something fancier than just call a model (e.g.&nbsp;do a “best of n” sampling an pick the best response). Pass a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> as the <code>model</code> parameter to implement this type of custom scheme. For example:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> best_of_n(n: <span class="bu">int</span>, discriminator: <span class="bu">str</span> <span class="op">|</span> Model):</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState, tools: <span class="bu">list</span>[Tool]):</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># resolve model</span></span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>        discriminator <span class="op">=</span> get_model(discriminator)</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># sample from the model `n` times then use the</span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># `discriminator` to pick the best response and return it</span></span>
-<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that when you pass an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> as the <code>model</code> it must include a <code>tools</code> parameter so that the ReAct agent can forward its tools.</p>
-</section>
-</section>
 <section id="learning-more" class="level2">
 <h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
 <p>See these additional articles to learn more about creating agent evaluations with Inspect:</p>
 <ul>
+<li><p><a href="./react-agent.html">ReAct Agent</a> provides details on using and customizing the built-in ReAct agent.</p></li>
 <li><p><a href="./multi-agent.html">Multi Agent</a> covers various ways to compose agents together in multi-agent architectures.</p></li>
 <li><p><a href="./agent-custom.html">Custom Agents</a> describes Inspect APIs available for creating custom agents.</p></li>
 <li><p><a href="./agent-bridge.html">Agent Bridge</a> enables the use of agents from 3rd party frameworks like AutoGen or LangChain with Inspect.</p></li>
 <li><p><a href="./human-agent.html">Human Agent</a> is a solver that enables human baselining on computing tasks.</p></li>
-<li><p><a href="./sandboxing.html">Sandboxing</a> enables you to isolate code generated by models as well as set up more complex computing environments for tasks.</p></li>
+<li><p><a href="./agent-custom.html#agent-limits">Agent Limits</a> details how to set token, message, and time limits for agent execution.</p></li>
 </ul>
 
 
@@ -1241,8 +1110,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./multi-agent.html" class="pagination-link" aria-label="Multi Agent">
-        <span class="nav-page-text">Multi Agent</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./react-agent.html" class="pagination-link" aria-label="ReAct Agent">
+        <span class="nav-page-text">ReAct Agent</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

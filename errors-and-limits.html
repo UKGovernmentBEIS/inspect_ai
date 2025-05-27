@@ -367,6 +367,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./react-agent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ReAct Agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multi-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multi Agent</span></a>
   </div>
@@ -496,7 +502,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#message-limit-1" id="toc-message-limit-1" class="nav-link" data-scroll-target="#message-limit-1">Message Limit</a></li>
   <li><a href="#token-limit-1" id="toc-token-limit-1" class="nav-link" data-scroll-target="#token-limit-1">Token Limit</a></li>
   </ul></li>
-  <li><a href="#agent-limits" id="toc-agent-limits" class="nav-link" data-scroll-target="#agent-limits">Agent Limits</a></li>
+  <li><a href="#agent-limits" id="toc-agent-limits" class="nav-link" data-scroll-target="#agent-limits">Agent Limits</a>
+  <ul class="collapse">
+  <li><a href="#limit-exceeded" id="toc-limit-exceeded" class="nav-link" data-scroll-target="#limit-exceeded">Limit Exceeded</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -904,11 +913,12 @@ Important
 <span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>        generate()</span>
 <span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    ]</span>
 <span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="limit-exceeded" class="level3">
+<h3 class="anchored" data-anchor-id="limit-exceeded">Limit Exceeded</h3>
 <p>Note that when limits are exceeded during an agent’s execution, the way this is handled differs depending on how the agent was executed:</p>
 <ul>
-<li><p>For tool based agents (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>), if a limit is exceeded then a message to that effect is returned to the model but the <em>sample continues running</em>.</p></li>
 <li><p>For agents used via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span>, if a limit is exceeded then the sample will terminate (this is exactly how sample-level limits work).</p></li>
-<li><p>For agents that are <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> directly with limits, their limit exceptions will be caught and returned in the tuple. Limits other than the ones passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> will propagate up the stack.</p>
+<li><p>For agents that are <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> directly with limits, their limit exceptions will be caught and returned in a tuple. Limits other than the ones passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> will propagate up the stack.</p>
 <div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> run</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>state, limit_error <span class="op">=</span> <span class="cf">await</span> run(</span>
@@ -918,9 +928,11 @@ Important
 <span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> limit_error:</span>
 <span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<li><p>For tool based agents (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>), if a limit is exceeded then a message to that effect is returned to the model but the <em>sample continues running</em>.</p></li>
 </ul>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

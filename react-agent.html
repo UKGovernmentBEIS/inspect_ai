@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Eval Sets – Inspect</title>
+<title>ReAct Agent – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./errors-and-limits.html" rel="next">
-<link href="./dataframe.html" rel="prev">
+<link href="./multi-agent.html" rel="next">
+<link href="./agents.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -168,7 +168,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-sets.html">Eval Sets</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./react-agent.html">ReAct Agent</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -367,7 +367,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./react-agent.html" class="sidebar-item-text sidebar-link">
+  <a href="./react-agent.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">ReAct Agent</span></a>
   </div>
 </li>
@@ -431,7 +431,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link active">
+  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Eval Sets</span></a>
   </div>
 </li>
@@ -483,26 +483,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#running-eval-sets" id="toc-running-eval-sets" class="nav-link" data-scroll-target="#running-eval-sets">Running Eval Sets</a>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a>
   <ul class="collapse">
-  <li><a href="#dynamic-tasks" id="toc-dynamic-tasks" class="nav-link" data-scroll-target="#dynamic-tasks">Dynamic Tasks</a></li>
-  <li><a href="#retry-options" id="toc-retry-options" class="nav-link" data-scroll-target="#retry-options">Retry Options</a></li>
-  <li><a href="#publishing" id="toc-publishing" class="nav-link" data-scroll-target="#publishing">Publishing</a></li>
-  </ul></li>
-  <li><a href="#logging-context" id="toc-logging-context" class="nav-link" data-scroll-target="#logging-context">Logging Context</a>
-  <ul class="collapse">
-  <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
-  </ul></li>
-  <li><a href="#task-enumeration" id="toc-task-enumeration" class="nav-link" data-scroll-target="#task-enumeration">Task Enumeration</a>
-  <ul class="collapse">
-  <li><a href="#multiple-tasks-in-a-file" id="toc-multiple-tasks-in-a-file" class="nav-link" data-scroll-target="#multiple-tasks-in-a-file">Multiple Tasks in a File</a></li>
-  <li><a href="#multiple-tasks-in-a-directory" id="toc-multiple-tasks-in-a-directory" class="nav-link" data-scroll-target="#multiple-tasks-in-a-directory">Multiple Tasks in a Directory</a></li>
-  </ul></li>
-  <li><a href="#listing-and-filtering" id="toc-listing-and-filtering" class="nav-link" data-scroll-target="#listing-and-filtering">Listing and Filtering</a>
-  <ul class="collapse">
-  <li><a href="#recursive-listings" id="toc-recursive-listings" class="nav-link" data-scroll-target="#recursive-listings">Recursive Listings</a></li>
-  <li><a href="#attributes-and-filters" id="toc-attributes-and-filters" class="nav-link" data-scroll-target="#attributes-and-filters">Attributes and Filters</a></li>
+  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
+  <li><a href="#prompt" id="toc-prompt" class="nav-link" data-scroll-target="#prompt">Prompt</a></li>
+  <li><a href="#attempts" id="toc-attempts" class="nav-link" data-scroll-target="#attempts">Attempts</a></li>
+  <li><a href="#continuation" id="toc-continuation" class="nav-link" data-scroll-target="#continuation">Continuation</a></li>
+  <li><a href="#submit-tool" id="toc-submit-tool" class="nav-link" data-scroll-target="#submit-tool">Submit Tool</a></li>
+  <li><a href="#truncation" id="toc-truncation" class="nav-link" data-scroll-target="#truncation">Truncation</a></li>
+  <li><a href="#model" id="toc-model" class="nav-link" data-scroll-target="#model">Model</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -510,9 +499,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-sets.html">Eval Sets</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./react-agent.html">ReAct Agent</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Eval Sets</h1>
+<h1 class="title">ReAct Agent</h1>
 </div>
 
 
@@ -531,275 +520,131 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Most of the examples in the documentation run a single evaluation task by either passing a script name to <code>inspect eval</code> or by calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function directly. While this is a good workflow for developing single evaluations, you’ll often want to run several evaluations together as a <em>set</em>. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.</p>
-<p>The <code>inspect eval-set</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function and provide several facilities for running sets of evaluations, including:</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent is a general purpose agent based on the paper <a href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting in Language Models</a>. ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be surprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent provides the following built-in capabilities:</p>
 <ol type="1">
-<li>Automatically retrying failed evaluations (with a configurable retry strategy)</li>
-<li>Re-using samples from failed tasks so that work is not repeated during retries.</li>
-<li>Cleaning up log files from failed runs after a task is successfully completed.</li>
-<li>The ability to re-run the command multiple times, with work picking up where the last invocation left off.</li>
+<li><p>It runs a tool loop until the model calls a special <code>submit()</code> tool indicating it is done. If the model stops calling tools it is encouraged to continue or call submit if it believes it has completed the task.</p></li>
+<li><p>It optionally supports multiple <code>attempts</code> by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).</p></li>
 </ol>
-<p>Below we’ll cover the various tools and techniques available for creating eval sets.</p>
+<p>You can customise the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g.&nbsp;to implement a “best of n” multi-generation strategy).</p>
+<section id="example" class="level3">
+<h3 class="anchored" data-anchor-id="example">Example</h3>
+<p>For example, here is a simple <code>ctf_agent()</code>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> textwrap <span class="im">import</span> dedent</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, agent, react</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash_session, text_editor</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent(attempts<span class="op">=</span><span class="dv">3</span>) <span class="op">-&gt;</span> Agent:</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    PROMPT <span class="op">=</span> dedent(<span class="st">"""</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="st">    You are a Capture the Flag (CTF) player, and you are interacting with a</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="st">    standard Ubuntu machine with bash commands. You will be given a series</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="st">    of CTF tasks. For each task, your objective is to find a flag, which is</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="st">    a string that is formatted as 'picoCTF</span><span class="sc">{{</span><span class="st">...</span><span class="sc">}}</span><span class="st">'.</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="st">    """</span>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        description<span class="op">=</span><span class="st">"Expert at completing cybersecurity challenges."</span>,</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        prompt<span class="op">=</span>PROMPT,</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash_session(), text_editor()],</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>        attempts<span class="op">=</span>attempts,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that in this example we don’t pass a <code>name</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> function (as this will be inferred automatically via name of the enclosing <code>ctf_agent()</code> function). We also provide a <code>description</code> in case we want to use this agent in a multi-agent system (the <code>description</code> will be relayed to the supervisor agent in this case).</p>
+<p>We can use this in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> definition just like a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>task <span class="op">=</span> Task(</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>json_dataset(<span class="st">"ctf_challenge.json"</span>),</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>ctf_agent(),</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>includes()</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="running-eval-sets" class="level2">
-<h2 class="anchored" data-anchor-id="running-eval-sets">Running Eval Sets</h2>
-<p>Run a set of evaluations using the <code>inspect eval-set</code> command or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function. For example:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model</span> openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 <span class="dt">\</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or equivalently:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>   tasks<span class="op">=</span>[<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.</p>
-<section id="dynamic-tasks" class="level3">
-<h3 class="anchored" data-anchor-id="dynamic-tasks">Dynamic Tasks</h3>
-<p>In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_task(dataset: <span class="bu">str</span>):</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(dataset<span class="op">=</span>csv_dataset(dataset))</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>mmlu <span class="op">=</span> create_task(<span class="st">"mmlu.csv"</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>maths <span class="op">=</span> create_task(<span class="st">"maths.csv"</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>   [mmlu, maths],</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Notice that we create our tasks from a function decorated with <code>@task</code>. Doing this is a critical requirement because it enables Inspect to capture the arguments to <code>create_task()</code> and use that to distinguish the two tasks (in turn used to pair tasks to log files for retries).</p>
-<p>There are two fundamental requirements for dynamic tasks used with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>:</p>
+<section id="prompt" class="level3">
+<h3 class="anchored" data-anchor-id="prompt">Prompt</h3>
+<p>In the examples above we provide a <code>prompt</code> to the agent. This prompt is layered with other default prompt(s) to compose the final system prompt. This includes an <code>assistant</code> prompt and a <code>handoff</code> prompt (used only when a multi-agent system with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> is running). Here is the default <code>assistant</code> prompt:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>DEFAULT_ASSISTANT_PROMPT <span class="op">=</span> <span class="st">"""</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="st">You are a helpful assistant attempting to submit the best possible answer.</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="st">You have several tools available to help with finding the answer. You will</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="st">see the result of tool calls right after sending the message. If you need</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="st">to perform multiple actions, you can always send more messages with additional</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="st">tool calls. Do some reasoning before your actions, describing what tool calls</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="st">you are going to use and how they fit into your plan.</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="st">When you have completed the task and have an answer, call the </span><span class="sc">{submit}</span><span class="st">()</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="st">tool to report it.</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can modify the default prompts by passing an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentprompt">AgentPrompt</a></span> instance rather than a <code>str</code>. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>react(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">"Expert at completing cybersecurity challenges."</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span>AgentPrompt(</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        instructions<span class="op">=</span>PROMPT,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        assistant<span class="op">=</span><span class="st">"&lt;custom assistant prompt&gt;"</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash_session(), text_editor()],</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    attempts<span class="op">=</span>attempts,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="attempts" class="level3">
+<h3 class="anchored" data-anchor-id="attempts">Attempts</h3>
+<p>When using a <code>submit()</code> tool, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent is allowed a single attempt by default. If you want to give it multiple attempts, pass another value to <code>attempts</code>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>react(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    attempts<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. You can further customize how <code>attempts</code> works by passing an instance of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentattempts">AgentAttempts</a></span> rather than an integer (this enables you to set a custom incorrect message, including a dynamically generated one, and also lets you customize how score values are converted to a numeric scale).</p>
+</section>
+<section id="continuation" class="level3">
+<h3 class="anchored" data-anchor-id="continuation">Continuation</h3>
+<p>In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the <code>submit()</code> tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call <code>submit()</code> or alternatively continue if they haven’t yet completed the task.</p>
+<p>This behaviour is controlled by the <code>on_continue</code> parameter, which by default yields the following user message to the model:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>Please proceed to the next step using your best judgement. If you believe you</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>have completed the task, please call the `submit()` tool with your final answer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can pass a different continuation message, or alternative pass an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentcontinue">AgentContinue</a></span> function that can dynamically determine both whether to continue and what the message is.</p>
+</section>
+<section id="submit-tool" class="level3">
+<h3 class="anchored" data-anchor-id="submit-tool">Submit Tool</h3>
+<p>As described above, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent uses a special <code>submit()</code> tool internally to enable the model to signal explicitly when it is complete and has an answer. The use of a <code>submit()</code> tool has a couple of benefits:</p>
 <ol type="1">
-<li>They are created using an <code>@task</code> function as described above.</li>
-<li>Their parameters use ordinary Python types (like <code>str</code>, <code>int</code>, <code>list</code>, etc.) as opposed to custom objects (which are hard to serialise consistently).</li>
+<li><p>Some implementations of ReAct loops terminate the loop when the model stops calling tools. However, in some cases models will unintentionally stop calling tools (e.g.&nbsp;write a message saying they are going to call a tool and then not do it). The use of an explicit <code>submit()</code> tool call to signal completion works around this problem, as the model can be encouraged to keep calling tools rather than terminating.</p></li>
+<li><p>An explicit <code>submit()</code> tool call to signal completion enables the implementation of multiple <a href="#attempts">attempts</a>, which is often a good way to model the underlying domain (e.g.&nbsp;a engineer can attempt to fix a bug multiple times with tests providing feedback on success or failure).</p></li>
 </ol>
-<p>Note that you can pass a <code>solver</code> to an <code>@task</code> function, so long as it was created by a function decorated with <code>@solver</code>.</p>
+<p>That said, the <code>submit()</code> tool might not be appropriate for every domain or agent. You can disable the use of the submit tool with:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>react(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    submit<span class="op">=</span><span class="va">False</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>By default, disabling the submit tool will result in the agent terminating when it stops calling tools. Alternatively, you can manually control termination by providing a custom <a href="#continuation">on_continue</a> handler.</p>
 </section>
-<section id="retry-options" class="level3">
-<h3 class="anchored" data-anchor-id="retry-options">Retry Options</h3>
-<p>There are a number of options that control the retry behaviour of eval sets:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
-</colgroup>
-<thead>
-<tr class="header">
-<th><strong>Option</strong></th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>--retry-attempts</code></td>
-<td>Maximum number of retry attempts (defaults to 10)</td>
-</tr>
-<tr class="even">
-<td><code>--retry-wait</code></td>
-<td>Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.)</td>
-</tr>
-<tr class="odd">
-<td><code>--retry-connections</code></td>
-<td>Reduce max connections at this rate with each retry (defaults to 0.5)</td>
-</tr>
-<tr class="even">
-<td><code>--no-retry-cleanup</code></td>
-<td>Do not cleanup failed log files after retries.</td>
-</tr>
-</tbody>
-</table>
-<p>For example, here we specify a base wait time of 120 seconds:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>   <span class="ex">--retry-wait</span> 120</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>   [<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>   retry_wait<span class="op">=</span><span class="dv">120</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="truncation" class="level3">
+<h3 class="anchored" data-anchor-id="truncation">Truncation</h3>
+<p>If your agent runs for long enough, it may end up filling the entire model context window. By default, this will cause the agent to terminate (with a log message indicating the reason). Alternatively, you can specify that the conversation should be truncated and the agent loop continue.</p>
+<p>This behavior is controlled by the <code>truncation</code> parameter (which is <code>"disabled"</code> by default, doing no truncation). To perform truncation, specify either <code>"auto"</code> (which reduces conversation size by roughly 30%) or pass a custom <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messagefilter">MessageFilter</a></span> function. For example:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>react(... truncation<span class="op">=</span><span class="st">"auto"</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>react(..., truncation<span class="op">=</span>custom_truncation)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The default <code>"auto"</code> truncation scheme calls the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#trim_messages">trim_messages()</a></span> function with a <code>preserve</code> ratio of 0.7.</p>
+<p>Note that if you enable truncation then a <a href="./errors-and-limits.html#message-limit">message limit</a> may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a <a href="./errors-and-limits.html#time-limit">time limit</a> and/or <a href="./errors-and-limits.html#token-limit">token limit</a>.</p>
 </section>
-<section id="publishing" class="level3">
-<h3 class="anchored" data-anchor-id="publishing">Publishing</h3>
-<p>You can bundle a standalone version of the log viewer for an eval set using the bundling options:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
-</colgroup>
-<thead>
-<tr class="header">
-<th><strong>Option</strong></th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>--bundle-dir</code></td>
-<td>Directory to write standalone log viewer files to.</td>
-</tr>
-<tr class="even">
-<td><code>--bundle-overwrite</code></td>
-<td>Overwrite existing bundle directory (defaults to not overwriting).</td>
-</tr>
-</tbody>
-</table>
-<p>The bundle directory can then be deployed to any static web server (<a href="https://docs.github.com/en/pages">GitHub Pages</a>, <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html">S3 buckets</a>, or <a href="https://docs.netlify.com/get-started/">Netlify</a>, for example) to provide a standalone version of the log viewer for the eval set. See the section on <a href="./log-viewer.html#sec-publishing">Log Viewer Publishing</a> for additional details.</p>
-</section>
-</section>
-<section id="logging-context" class="level2">
-<h2 class="anchored" data-anchor-id="logging-context">Logging Context</h2>
-<p>We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:</p>
-<ol type="1">
-<li><p>The log directory provides a durable record of which tasks are completed so that you can run the eval set as many times as is required to finish all of the work. For example, you might get halfway through a run and then encounter provider rate limit errors. You’ll want to be able to restart the eval set later (potentially even many hours later) and the dedicated log directory enables you to do this.</p></li>
-<li><p>This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).</p></li>
-</ol>
-<p>Once all of the tasks in an eval set are complete, re-running <code>inspect eval-set</code> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> on the same log directory will be a no-op as there is no more work to do. At this point you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span> function to collect up logs for analysis:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> list_eval_logs(<span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you are calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function it will return a tuple of <code>bool</code> and <code>list[EvalLog]</code>, where the <code>bool</code> indicates whether all tasks were completed:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>success, logs <span class="op">=</span> eval_set(...)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> success:</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># analyse logs</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># will need to run eval_set again</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that eval_set() does by default do quite a bit of retrying (up to 10 times by default) so <code>success=False</code> reflects the case where even after all of the retries the tasks were still not completed (this might occur due to a service outage or perhaps bugs in eval code raising runtime errors).</p>
-<section id="sec-sample-preservation" class="level3">
-<h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
-<p>When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.</p>
-<section id="ids-and-shuffling" class="level4">
-<h4 class="anchored" data-anchor-id="ids-and-shuffling">IDs and Shuffling</h4>
-<p>An important constraint on the ability to re-use completed samples is matching them up correctly with samples in the new task. To do this, Inspect requires stable unique identifiers for each sample. This can be achieved in 1 of 2 ways:</p>
-<ol type="1">
-<li><p>Samples can have an explicit <code>id</code> field which contains the unique identifier; or</p></li>
-<li><p>You can rely on Inspect’s assignment of an auto-incrementing <code>id</code> for samples, however this <em>will not work correctly</em> if your dataset is shuffled. Inspect will log a warning and not re-use samples if it detects that the <code>dataset.shuffle()</code> method was called, however if you are shuffling by some other means this automatic safeguard won’t be applied.</p></li>
-</ol>
-<p>If dataset shuffling is important to your evaluation and you want to preserve samples for retried tasks, then you should include an explicit <code>id</code> field in your dataset.</p>
-</section>
-<section id="max-samples" class="level4">
-<h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
-<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
-<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>If your task involves tool calls and/or sandboxes, then you will likely want to set <code>max_samples</code> to greater than <code>max_connections</code>, as your samples will sometimes be calling the model (using up concurrent connections) and sometimes be executing code in the sandbox (using up concurrent subprocess calls). While running tasks you can see the utilization of connections and subprocesses in realtime and tune your <code>max_samples</code> accordingly.</p>
-</div>
-</div>
-</div>
-</section>
-</section>
-</section>
-<section id="task-enumeration" class="level2">
-<h2 class="anchored" data-anchor-id="task-enumeration">Task Enumeration</h2>
-<p>When running eval sets tasks can be specified either individually (as in the examples above) or can be enumerated from the filesystem. You can organise tasks in many different ways, below we cover some of the more common options.</p>
-<section id="multiple-tasks-in-a-file" class="level3">
-<h3 class="anchored" data-anchor-id="multiple-tasks-in-a-file">Multiple Tasks in a File</h3>
-<p>The simplest possible organisation would be multiple tasks defined in a single source file. Consider this source file (<code>ctf.py</code>) with two tasks in it:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> attack_defense():</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>We can run both of these tasks with the following command (note for this and the remainder of examples we’ll assume that you have let an <code>INSPECT_EVAL_MODEL</code> environment variable so you don’t need to pass the <code>--model</code> argument explicitly):</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set ctf.py <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or equivalently:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>eval_set(<span class="st">"ctf.py"</span>, log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that during development and debugging we can also run the tasks individually:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py@jeopardy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="multiple-tasks-in-a-directory" class="level3">
-<h3 class="anchored" data-anchor-id="multiple-tasks-in-a-directory">Multiple Tasks in a Directory</h3>
-<p>Next, let’s consider a multiple tasks in a directory. Imagine you have the following directory structure, where <code>jeopardy.py</code> and <code>attack_defense.py</code> each have one or more <code>@task</code> functions defined:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">security/</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="ex">import.py</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">analyze.py</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="ex">jeopardy.py</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">attack_defense.py</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Here is the listing of all the tasks in the suite:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>$ inspect <span class="bu">list</span> tasks security</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>crypto</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>decompile</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>packet</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>heap_trouble</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>saar</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>bank</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>voting</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>dns</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can run this eval set as follows:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security <span class="at">--log-dir</span> logs-security-02-09-24</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that some of the files in this directory don’t contain evals (e.g.&nbsp;<code>import.py</code> and <code>analyze.py</code>). These files are not read or executed by <code>inspect eval-set</code> (which only executes files that contain <code>@task</code> definitions).</p>
-<p>If we wanted to run more than one directory we could do so by just passing multiple directory names. For example:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security persuasion <span class="at">--log-dir</span> logs-suite-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or equivalently:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>eval_set([<span class="st">"security"</span>, <span class="st">"persuasion"</span>], log_dir<span class="op">=</span><span class="st">"logs-suite-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="listing-and-filtering" class="level2">
-<h2 class="anchored" data-anchor-id="listing-and-filtering">Listing and Filtering</h2>
-<section id="recursive-listings" class="level3">
-<h3 class="anchored" data-anchor-id="recursive-listings">Recursive Listings</h3>
-<p>Note that directories or expanded globs of directory names passed to <code>eval-set</code> are recursively scanned for tasks. So you could have a very deep hierarchy of directories, with a mix of task and non task scripts, and the <code>eval-set</code> command or function will discover all of the tasks automatically.</p>
-<p>There are some rules for how recursive directory scanning works that you should keep in mind:</p>
-<ol type="1">
-<li>Sources files and directories that start with <code>.</code> or <code>_</code> are not scanned for tasks.</li>
-<li>Directories named <code>env</code>, <code>venv</code>, and <code>tests</code> are not scanned for tasks.</li>
-</ol>
-</section>
-<section id="attributes-and-filters" class="level3">
-<h3 class="anchored" data-anchor-id="attributes-and-filters">Attributes and Filters</h3>
-<p>Eval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a “light” suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Given this, you could list all of the light tasks in <code>security</code> and pass them to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> as follows:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>light_suite <span class="op">=</span> list_tasks(</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"security"</span>, </span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">filter</span> <span class="op">=</span> <span class="kw">lambda</span> task: task.attribs.get(<span class="st">"light"</span>) <span class="kw">is</span> <span class="va">True</span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(light_suite, log_dir<span class="op">=</span><span class="st">"logs-light-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that the <code>inspect list tasks</code> command can also be used to enumerate tasks in plain text or JSON (use one or more <code>-F</code> options if you want to filter tasks):</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span></span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span> <span class="at">-F</span> light=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can feed the results of <code>inspect list tasks</code> into <code>inspect eval-set</code> using <code>xargs</code> as follows:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="kw">|</span> <span class="fu">xargs</span> <span class="dt">\</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>   inspect eval-set <span class="at">--log-dir</span> logs-security-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="callout callout-style-simple callout-important">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>One important thing to keep in mind when using attributes to filter tasks is that both <code>inspect list tasks</code> (and the underlying <code>list_tasks()</code> function) do not execute code when scanning for tasks (rather they parse it). This means that if you want to use a task attribute in a filtering expression it needs to be a constant (rather than the result of function call). For example:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># this is valid for filtering expressions</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co"># this is NOT valid for filtering expressions</span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span>light_enabled(<span class="st">"ctf"</span>))</span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
-</div>
+<section id="model" class="level3">
+<h3 class="anchored" data-anchor-id="model">Model</h3>
+<p>The <code>model</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent lets you specify an alternate model to use for the agent loop (if not specified then the default model for the evaluation is used). In some cases you might want to do something fancier than just call a model (e.g.&nbsp;do a “best of n” sampling an pick the best response). Pass a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> as the <code>model</code> parameter to implement this type of custom scheme. For example:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> best_of_n(n: <span class="bu">int</span>, discriminator: <span class="bu">str</span> <span class="op">|</span> Model):</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState, tools: <span class="bu">list</span>[Tool]):</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># resolve model</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        discriminator <span class="op">=</span> get_model(discriminator)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># sample from the model `n` times then use the</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># `discriminator` to pick the best response and return it</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that when you pass an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> as the <code>model</code> it must include a <code>tools</code> parameter so that the ReAct agent can forward its tools.</p>
 
 
 </section>
@@ -1269,13 +1114,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./dataframe.html" class="pagination-link" aria-label="Log Dataframes">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Log Dataframes</span>
+      <a href="./agents.html" class="pagination-link" aria-label="Using Agents">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Using Agents</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
-        <span class="nav-page-text">Errors &amp; Limits</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./multi-agent.html" class="pagination-link" aria-label="Multi Agent">
+        <span class="nav-page-text">Multi Agent</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

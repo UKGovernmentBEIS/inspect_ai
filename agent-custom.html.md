@@ -245,6 +245,75 @@ red_team_activity = store_as(Activity, instance="red_team")
 blue_team_activity = store_as(Activity, instance="blue_team")
 ```
 
+## Agent Limits
+
+The Inspect [limits system](errors-and-limits.qmd#scoped-limits) enables
+you to set a variety of limits on execution including tokens consumed,
+messages used in converations, clock time, and working time (clock time
+minus time taken retrying in response to rate limits or waiting on other
+shared resources).
+
+Limits are often applied at the sample level or using a context manager.
+It is also possible to specify limits when executing an agent using any
+of the techniques described above.
+
+To run an agent with one or more limits, pass the limit object in the
+`limits` argument to a function like `handoff()`, `as_tool()`,
+`as_solver()` or `run()` (see [Using Agents](agents.qmd#using-agents)
+for details on the various ways to run agents).
+
+Here we limit an agent we are including as a solver to 500K tokens:
+
+``` python
+eval(
+    task="research_bench", 
+    solver=as_solver(web_surfer(), limits=[token_limit(1024*500)])
+)
+```
+
+Here we limit an agent `handoff()` to 500K tokens:
+
+``` python
+eval(
+    task="research_bench", 
+    solver=[
+        use_tools(
+            addition(),
+            handoff(web_surfer(), limits=[token_limit(1024*500)]),
+        ),
+        generate()
+    ]
+)
+```
+
+### Limit Exceeded
+
+Note that when limits are exceeded during an agent’s execution, the way
+this is handled differs depending on how the agent was executed:
+
+- For agents used via `as_solver()`, if a limit is exceeded then the
+  sample will terminate (this is exactly how sample-level limits work).
+
+- For agents that are `run()` directly with limits, their limit
+  exceptions will be caught and returned in a tuple. Limits other than
+  the ones passed to `run()` will propagate up the stack.
+
+  ``` python
+  from inspect_ai.agent import run
+
+  state, limit_error = await run(
+      agent=web_surfer(), 
+      input="What were the 3 most popular movies of 2020?",
+      limits=[token_limit(1024*500)])
+  )
+  if limit_error:
+      ...
+  ```
+
+- For tool based agents (`handoff()` and `as_tool()`), if a limit is
+  exceeded then a message to that effect is returned to the model but
+  the *sample continues running*.
+
 ## Parameters
 
 The `web_surfer` agent used an example above doesn’t take any
@@ -415,55 +484,3 @@ transcript.
 Using `collect()` in preference to `asyncio.gather()` is highly
 recommended for both Trio compatibility and more legible transcript
 output.
-
-## Subtasks
-
-Subtasks provide a mechanism for creating isolated, re-usable units of
-execution. You might implement a complex tool using a subtask or might
-use them in a multi-agent evaluation. The main characteristics of
-sub-tasks are:
-
-1.  They run in their own async coroutine.
-2.  They have their own isolated `Store` (no access to the sample
-    `Store`).
-
-To create a subtask, declare an async function with the `@subtask`
-decorator. The function can take any arguments and return a value of any
-type. For example:
-
-``` python
-from inspect_ai.util import Store, subtask
-
-@subtask
-async def web_search(keywords: str) -> str:
-    # get links for these keywords
-    links = await search_links(keywords)
-
-    # add links to the store so they end up in the transcript
-    store().set("links", links)
-
-    # summarise the links
-    return await fetch_and_summarise(links)
-```
-
-Note that we add `links` to the `store` not because we strictly need to
-for our implementation, but because we want the links to be recorded as
-part of the transcript.
-
-Call the subtask as you would any async function:
-
-``` python
-summary = await web_search(keywords="solar power")
-```
-
-A few things will occur automatically when you run a subtask:
-
-- A new isolated `Store` object will be created for the subtask
-  (accessible via the `store()` function). Changes to the `Store` that
-  occur during execution will be recorded in a `StoreEvent`.
-
-- A `SubtaskEvent` will be added to the current transcript. The event
-  will include the name of the subtask, its input and results, and a
-  transcript of all events that occur within the subtask.
-
-You can also include one or more spans within a subtask.
