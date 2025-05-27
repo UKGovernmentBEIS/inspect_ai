@@ -187,9 +187,10 @@ export const createLogSlice = (
           state.logsActions.updateLogHeaders(header);
           set((state) => {
             state.log.loadedLog = logFileName;
-          }),
-            // Start polling for pending samples
-            logPolling.startPolling(logFileName);
+          });
+
+          // Start polling for pending samples
+          logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);
           throw error;
