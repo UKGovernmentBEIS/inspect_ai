@@ -21,6 +21,7 @@ export const LogViewContainer: FC = () => {
     epoch?: string;
     sampleTabId?: string;
   }>();
+
   const initialState = useStore((state) => state.app.initialState);
   const clearInitialState = useStore(
     (state) => state.appActions.clearInitialState,
@@ -80,7 +81,7 @@ export const LogViewContainer: FC = () => {
         }
 
         // Reset the sample
-        if (logPath !== prevLogPath) {
+        if (prevLogPath && logPath !== prevLogPath) {
           clearSelectedSample();
 
           clearSelectedLogSummary();

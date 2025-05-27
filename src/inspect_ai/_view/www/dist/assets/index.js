@@ -23508,7 +23508,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.logsActions.updateLogHeaders(header2);
               set2((state2) => {
                 state2.log.loadedLog = logFileName;
-              }), // Start polling for pending samples
+              });
               logPolling.startPolling(logFileName);
             } catch (error2) {
               log$7.error("Error loading log:", error2);
@@ -87079,7 +87079,7 @@ Supported expressions:
             } else {
               setWorkspaceTab(kLogViewSamplesTabId);
             }
-            if (logPath !== prevLogPath) {
+            if (prevLogPath && logPath !== prevLogPath) {
               clearSelectedSample();
               clearSelectedLogSummary();
             }

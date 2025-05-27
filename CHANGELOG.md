@@ -6,6 +6,7 @@
 - Task display: Simplify task display for `plain` mode (no outline, don't expand tables to console width).
 - Task display: Truncate task config to prevent overflow (collapse dicts, limit individual values to 50 chars, limit overall output to 500 chars).
 - Inspect View: Outline view for transcript which enables high level navigation to solvers, agents, scorers, etc.
+- Inspect View: Fix an issue that prevented the display of the viewer in VSCode when the viewer tab was moved to the background.
 
 ## v0.3.99 (22 May 2025)
 
