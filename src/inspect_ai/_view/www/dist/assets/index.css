@@ -16032,19 +16032,28 @@ a._citationLink_t2k1z_9:hover {
   margin-left: 0.1em;
   margin-top: -3px;
 }
-._panel_cg8hm_1 {
+._panel_efqt9_1 {
   height: 100vh;
   width: 100vw;
   display: grid;
   grid-template-rows: max-content max-content 1fr max-content;
 }
 
-._list_cg8hm_8 {
+._list_efqt9_8 {
   overflow-y: auto;
   display: grid;
   grid-template-columns: max-content 1fr;
   column-gap: 0.5em;
   height: fit-content;
+  padding: 0.5em;
+}
+._logLink_1mpgk_1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+._logLink_1mpgk_1 a:hover {
+  text-decoration: underline;
 }
 .findBand {
   position: absolute;

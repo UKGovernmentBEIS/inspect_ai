@@ -1,17 +1,17 @@
 import clsx from "clsx";
 import { FC, useEffect, useMemo } from "react";
 
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl, join } from "../../utils/uri";
-import { ApplicationIcons } from "../appearance/icons";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl } from "../routing/url";
 import { LogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import styles from "./LogListView.module.css";
+import { LogRow } from "./LogRow";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -76,33 +76,12 @@ export const LogListView: FC<LogListViewProps> = () => {
     <div className={clsx(styles.panel)}>
       <Navbar />
       <ProgressBar animating={loading} />
-      <div className={clsx(styles.list)}>
+      <div className={clsx(styles.list, "text-size-smaller")}>
         {logItems.map((logItem) => (
-          <LogsRow item={logItem} />
+          <LogRow item={logItem} />
         ))}
       </div>
       <LogListFooter itemCount={logItems.length} running={loading} />
     </div>
-  );
-};
-
-interface LogsRowProps {
-  item: LogItem;
-}
-
-export const LogsRow: FC<LogsRowProps> = ({ item }) => {
-  return (
-    <>
-      <div>
-        <i
-          className={clsx(
-            item.type === "file"
-              ? ApplicationIcons.file
-              : ApplicationIcons.folder,
-          )}
-        />
-      </div>
-      <div>{item.url ? <Link to={item.url}>{item.name}</Link> : item.name}</div>
-    </>
   );
 };
