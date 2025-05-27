@@ -67,7 +67,9 @@ class FileRecorder(Recorder):
     async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
         # establish the log to read from (might be cached)
         eval_log = await cls._log_file_maybe_cached(location)
-        return [sample.summary() for sample in eval_log.samples] if eval_log.samples else []
+        if not eval_log.samples:
+            return []
+        return [sample.summary() for sample in eval_log.samples]
 
     @classmethod
     async def _log_file_maybe_cached(cls, location: str) -> EvalLog:
