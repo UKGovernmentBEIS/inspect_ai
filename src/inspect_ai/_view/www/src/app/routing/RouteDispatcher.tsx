@@ -1,6 +1,6 @@
 import { FC } from "react";
 import { useParams } from "react-router-dom";
-import { LogListView } from "../log-list/LogListview";
+import { LogListView } from "../log-list/LogListView";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 
 /**

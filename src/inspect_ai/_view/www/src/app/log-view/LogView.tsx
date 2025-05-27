@@ -9,10 +9,10 @@ import {
 } from "react";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { TabPanel, TabSet } from "../../components/TabSet";
-import { Navbar } from "./navbar/Navbar";
 
 import { useEvalSpec, useRefreshLog } from "../../state/hooks";
 import { useStore } from "../../state/store";
+import { Navbar } from "../navbar/Navbar";
 import { useLogNavigation } from "../routing/logNavigation";
 import styles from "./LogView.module.css";
 import { useInfoTabConfig } from "./tabs/InfoTab";
@@ -20,6 +20,7 @@ import { useJsonTabConfig } from "./tabs/JsonTab";
 import { useModelsTab } from "./tabs/ModelsTab";
 import { useSamplesTabConfig } from "./tabs/SamplesTab";
 import { useTaskTabConfig } from "./tabs/TaskTab";
+import { TitleView } from "./title-view/TitleView";
 import { TabDescriptor } from "./types";
 
 export const LogView: FC = () => {
@@ -111,7 +112,8 @@ export const LogView: FC = () => {
 
     return (
       <Fragment>
-        <Navbar
+        <Navbar />
+        <TitleView
           evalSpec={evalSpec}
           evalPlan={selectedLogSummary?.plan}
           evalResults={selectedLogSummary?.results}

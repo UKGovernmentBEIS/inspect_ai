@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 import { storeImplementation } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
-import { LogListView } from "../log-list/LogListview";
+import { LogListView } from "../log-list/LogListView";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
 import {

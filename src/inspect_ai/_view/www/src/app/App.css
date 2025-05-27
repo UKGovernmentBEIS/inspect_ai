@@ -53,7 +53,7 @@ body:not([class^="vscode-"]) button {
   display: grid;
   height: 100vh;
   overflow-y: hidden;
-  grid-template-rows: max-content max-content 1fr;
+  grid-template-rows: max-content max-content max-content 1fr;
 }
 
 .modal {
