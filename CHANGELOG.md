@@ -3,6 +3,7 @@
 - Anthropic: Support for binding to internal `web search()` tool.
 - Content: Added `ContentData` for model specific content blocks.
 - Citations: Added `Citation` suite of types and included citations in `ContentText` (supported for OpenAI and Anthropic models).
+- Price limits: Prevent a sample from exceeding a specified USD-based budget.
 
 ## v0.3.103 (06 June 2025)
 
