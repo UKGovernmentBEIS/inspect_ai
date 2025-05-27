@@ -341,8 +341,6 @@ def tasks_live_status(
 
     # get config
     config = task_config(tasks[0].profile, generate_config=False, style=theme.light)
-    if config:
-        config += "\n"
 
     # build footer table
     footer_table = Table.grid(expand=True)
@@ -356,6 +354,8 @@ def tasks_live_status(
     layout_table = Table.grid(expand=True)
     layout_table.add_column()
     layout_table.add_row(config)
+    if config:
+        layout_table.add_row("")
     layout_table.add_row(progress)
     layout_table.add_row(footer_table)
 
