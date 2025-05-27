@@ -23,6 +23,7 @@ interface LogListGridProps {
 const columnHelper = createColumnHelper<LogItem>();
 
 export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
+  // TODO: Convert to store state
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filtering, setFiltering] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");

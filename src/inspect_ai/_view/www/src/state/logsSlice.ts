@@ -23,6 +23,8 @@ export interface LogsSlice {
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
     updateLogHeaders: (headers: Record<string, EvalLogHeader>) => void;
+    setPage(page: number): void;
+    clearPage: () => void;
 
     // Fetch or update logs
     refreshLogs: () => Promise<void>;
@@ -37,6 +39,8 @@ const initialState: LogsState = {
   headersLoading: false,
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
+  page: undefined,
+  itemsPerPage: 20,
 };
 
 export const createLogsSlice = (
@@ -177,6 +181,16 @@ export const createLogsSlice = (
             idx !== undefined && idx > -1 ? idx : 0,
           );
         }
+      },
+      setPage: (page: number) => {
+        set((state) => {
+          state.logs.page = page;
+        });
+      },
+      clearPage: () => {
+        set((state) => {
+          state.logs.page = undefined;
+        });
       },
     },
   } as const;

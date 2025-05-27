@@ -65,6 +65,15 @@ export const LogListView: FC<LogListViewProps> = () => {
     return result;
   }, [logPath, logs.files]);
 
+  const page = useStore((state) => state.logs.page);
+  const itemsPerPage = useStore((state) => state.logs.itemsPerPage);
+
+  const pageItems = useMemo(() => {
+    const start = (page || 0) * itemsPerPage;
+    const end = start + itemsPerPage;
+    return logItems.slice(start, end);
+  }, [logItems, page, itemsPerPage]);
+
   useEffect(() => {
     const exec = async () => {
       await loadLogs();
@@ -77,7 +86,7 @@ export const LogListView: FC<LogListViewProps> = () => {
       <Navbar />
       <ProgressBar animating={loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        <LogListGrid items={logItems} />
+        <LogListGrid items={pageItems} />
       </div>
       <LogListFooter itemCount={logItems.length} running={loading} />
     </div>

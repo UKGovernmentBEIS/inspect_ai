@@ -59,6 +59,8 @@ export interface LogsState {
   headersLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
+  page?: number;
+  itemsPerPage: number;
 }
 
 export interface LogState {

@@ -26,3 +26,20 @@
   margin-left: 0.1em;
   margin-top: -3px;
 }
+
+
+.right {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, max-content);
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+.left {
+  display: grid;
+  justify-content: start;
+  align-items: center;
+  grid-template-columns: repeat(auto-fit, max-content);
+  column-gap: 0.5em;
+}
