@@ -197,6 +197,15 @@ red_team_activity = store_as(Activity, instance="red_team")
 blue_team_activity = store_as(Activity, instance="blue_team")
 ```
 
+## Agent Limits
+
+The Inspect [limits system](errors-and-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
+
+Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.
+
+{{< include _agent_limits.md >}}
+
+
 ## Parameters
 
 The `web_surfer` agent used an example above doesn't take any parameters, however, like tools, agents can accept arbitrary parameters.
@@ -299,7 +308,7 @@ Strings passed to `info()` will be rendered as markdown. In addition to strings 
 
 ### Grouping with Spans
 
-You can create arbitrary groupings of transcript activity using the  `span()` context manager. For example:
+You can create arbitrary groupings of transcript activity using the `span()` context manager. For example:
 
 ``` python
 from inspect_ai.util import span
@@ -315,7 +324,6 @@ There are two reasons that you might want to create spans:
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
 
-
 ## Parallel Execution
 
 You can execute subtasks in parallel using the `collect()` function. For example, to run 3 `web_search()` coroutines in parallel:
@@ -330,49 +338,8 @@ results = collect(
 )
 ```
 
-Note that `collect()` is similar to [`asyncio.gather()`](https://docs.python.org/3/library/asyncio-task.html#asyncio.gather),
-but also works when [Trio](https://trio.readthedocs.io/en/stable/) is the Inspect async backend.
+Note that `collect()` is similar to [`asyncio.gather()`](https://docs.python.org/3/library/asyncio-task.html#asyncio.gather), but also works when [Trio](https://trio.readthedocs.io/en/stable/) is the Inspect async backend.
 
 The Inspect `collect()` function also automatically includes each task in a `span()`, which ensures that its events are grouped together in the transcript.
 
 Using `collect()` in preference to `asyncio.gather()` is highly recommended for both Trio compatibility and more legible transcript output.
-
-## Subtasks {#sec-subtasks}
-
-Subtasks provide a mechanism for creating isolated, re-usable units of execution. You might implement a complex tool using a subtask or might use them in a multi-agent evaluation. The main characteristics of sub-tasks are:
-
-1.  They run in their own async coroutine.
-2.  They have their own isolated `Store` (no access to the sample `Store`).
-
-To create a subtask, declare an async function with the `@subtask` decorator. The function can take any arguments and return a value of any type. For example:
-
-``` python
-from inspect_ai.util import Store, subtask
-
-@subtask
-async def web_search(keywords: str) -> str:
-    # get links for these keywords
-    links = await search_links(keywords)
-
-    # add links to the store so they end up in the transcript
-    store().set("links", links)
-
-    # summarise the links
-    return await fetch_and_summarise(links)
-```
-
-Note that we add `links` to the `store` not because we strictly need to for our implementation, but because we want the links to be recorded as part of the transcript.
-
-Call the subtask as you would any async function:
-
-``` python
-summary = await web_search(keywords="solar power")
-```
-
-A few things will occur automatically when you run a subtask:
-
--   A new isolated `Store` object will be created for the subtask (accessible via the `store()` function). Changes to the `Store` that occur during execution will be recorded in a `StoreEvent`.
-
--   A `SubtaskEvent` will be added to the current transcript. The event will include the name of the subtask, its input and results, and a transcript of all events that occur within the subtask.
-
-You can also include one or more spans within a subtask.
