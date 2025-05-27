@@ -265,7 +265,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           )}
         </TabPanel>
         {sample?.error ||
-        (sample?.error_retries && sample?.error_retries.length > 0) ? (
+          (sample?.error_retries && sample?.error_retries.length > 0) ? (
           <TabPanel
             id={kSampleErrorTabId}
             className="sample-tab"

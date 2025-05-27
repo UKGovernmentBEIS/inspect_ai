@@ -97,6 +97,7 @@ export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
 export type WorkingLimit = number | null;
+export type PriceLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -121,14 +122,14 @@ export type Options = {
 } | null;
 export type Metrics =
   | (
-      | EvalMetricDefinition
-      | {
-          [k: string]: EvalMetricDefinition[];
-        }
-    )[]
-  | {
+    | EvalMetricDefinition
+    | {
       [k: string]: EvalMetricDefinition[];
     }
+  )[]
+  | {
+    [k: string]: EvalMetricDefinition[];
+  }
   | null;
 export type Name4 = string;
 export type Options1 = {
@@ -140,8 +141,8 @@ export type Metadata1 = {
 export type Metrics1 =
   | EvalMetricDefinition[]
   | {
-      [k: string]: EvalMetricDefinition[];
-    }
+    [k: string]: EvalMetricDefinition[];
+  }
   | null;
 export type Name5 = string;
 export type Solver1 = string;
@@ -180,21 +181,21 @@ export type Epoch = number;
 export type Input =
   | string
   | (
-      | ChatMessageSystem
-      | ChatMessageUser
-      | ChatMessageAssistant
-      | ChatMessageTool
-    )[];
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageAssistant
+    | ChatMessageTool
+  )[];
 export type Id1 = string | null;
 export type Content =
   | string
   | (
-      | ContentText
-      | ContentReasoning
-      | ContentImage
-      | ContentAudio
-      | ContentVideo
-    )[];
+    | ContentText
+    | ContentReasoning
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+  )[];
 export type Type3 = "text";
 export type Text = string;
 export type Refusal = boolean | null;
@@ -217,12 +218,12 @@ export type Id2 = string | null;
 export type Content1 =
   | string
   | (
-      | ContentText
-      | ContentReasoning
-      | ContentImage
-      | ContentAudio
-      | ContentVideo
-    )[];
+    | ContentText
+    | ContentReasoning
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+  )[];
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
 export type ToolCallId = string[] | null;
@@ -230,12 +231,12 @@ export type Id3 = string | null;
 export type Content2 =
   | string
   | (
-      | ContentText
-      | ContentReasoning
-      | ContentImage
-      | ContentAudio
-      | ContentVideo
-    )[];
+    | ContentText
+    | ContentReasoning
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+  )[];
 export type Source2 = ("input" | "generate") | null;
 export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
@@ -251,12 +252,12 @@ export type Id5 = string | null;
 export type Content4 =
   | string
   | (
-      | ContentText
-      | ContentReasoning
-      | ContentImage
-      | ContentAudio
-      | ContentVideo
-    )[];
+    | ContentText
+    | ContentReasoning
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+  )[];
 export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
@@ -314,8 +315,8 @@ export type Value1 =
   | boolean
   | (string | number | boolean)[]
   | {
-      [k: string]: string | number | boolean | null;
-    };
+    [k: string]: string | number | boolean | null;
+  };
 export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata6 = {
@@ -329,11 +330,11 @@ export type Event = "sample_init";
 export type Input1 =
   | string
   | (
-      | ChatMessageSystem
-      | ChatMessageUser
-      | ChatMessageAssistant
-      | ChatMessageTool
-    )[];
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageAssistant
+    | ChatMessageTool
+  )[];
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id6 = number | string | null;
@@ -355,6 +356,7 @@ export type Type10 =
   | "time"
   | "working"
   | "token"
+  | "price"
   | "operator"
   | "custom";
 export type Message2 = string;
@@ -437,12 +439,12 @@ export type Result1 =
   | ContentAudio
   | ContentVideo
   | (
-      | ContentText
-      | ContentReasoning
-      | ContentImage
-      | ContentAudio
-      | ContentVideo
-    )[];
+    | ContentText
+    | ContentReasoning
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+  )[];
 export type Truncated = [unknown, unknown] | null;
 export type SpanId7 = string | null;
 export type Timestamp7 = string;
@@ -606,6 +608,7 @@ export type Type16 =
   | "working"
   | "message"
   | "token"
+  | "price"
   | "operator"
   | "custom";
 export type Limit2 = number;
@@ -618,8 +621,8 @@ export type Value2 =
   | boolean
   | (string | number | boolean)[]
   | {
-      [k: string]: string | number | boolean | null;
-    };
+    [k: string]: string | number | boolean | null;
+  };
 export type Answer1 = string | null;
 export type Explanation2 = string | null;
 export type Metadata9 = {
@@ -790,6 +793,7 @@ export interface EvalConfig {
   token_limit: TokenLimit;
   time_limit: TimeLimit;
   working_limit: WorkingLimit;
+  price_limit: PriceLimit;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
