@@ -5,8 +5,9 @@ import time
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from logging import getLogger
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Callable, Literal
 
 import anyio
@@ -86,6 +87,7 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import cost_limit as create_cost_limit
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -334,6 +336,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             error_retries=[],
                             time_limit=config.time_limit,
                             working_limit=config.working_limit,
+                            cost_limit=config.cost_limit,
+                            cost_file=config.cost_file,
                             semaphore=sample_semaphore,
                         )
                         for (sample, state) in zip(samples, states)
@@ -513,6 +517,8 @@ async def task_run_sample(
     error_retries: list[EvalError],
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: Decimal | None,
+    cost_file: Path | None,
     semaphore: anyio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -609,6 +615,8 @@ async def task_run_sample(
             token_limit=state.token_limit,
             time_limit=time_limit,
             working_limit=working_limit,
+            cost_limit=cost_limit,
+            cost_file=cost_file,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
         ) as active,
@@ -651,6 +659,7 @@ async def task_run_sample(
                         state._message_limit,
                         create_time_limit(time_limit),
                         create_working_limit(working_limit),
+                        create_cost_limit(cost_limit, cost_file),
                     ):
                         # mark started
                         active.started = datetime.now().timestamp()
@@ -853,6 +862,8 @@ async def task_run_sample(
             error_retries=copy(error_retries) + [error],
             time_limit=time_limit,
             working_limit=working_limit,
+            cost_limit=cost_limit,
+            cost_file=cost_file,
             semaphore=semaphore,
         )
 

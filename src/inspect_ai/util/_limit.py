@@ -4,6 +4,8 @@ import abc
 import logging
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
+from decimal import Decimal, getcontext
+from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
 
@@ -11,13 +13,14 @@ import anyio
 from typing_extensions import Self
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai.util._cost import _CostCalculator
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
     from inspect_ai.model._model_output import ModelUsage
     from inspect_ai.solver._task_state import TaskState
 
-
+getcontext().prec = 12
 logger = logging.getLogger(__name__)
 TNode = TypeVar("TNode", bound="_Node")
 
@@ -39,7 +42,9 @@ class LimitExceededError(Exception):
 
     def __init__(
         self,
-        type: Literal["message", "time", "working", "token", "operator", "custom"],
+        type: Literal[
+            "message", "time", "working", "token", "cost", "operator", "custom"
+        ],
         *,
         value: float,
         limit: float,
@@ -289,6 +294,67 @@ def check_working_limit() -> None:
     node.check()
 
 
+def cost_limit(limit: Decimal | None, cost_file: Path | None) -> _CostLimit:
+    """Limits the inference cost for a sample.
+
+    ::: callout-note
+    The `cost_limit()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
+    Cost is calculated based on the number of input and output tokens sent to a
+    model using the pricing details specified in the cost_file.
+
+    Costs are calculated from when the context manager is opened and stops when it is closed.
+
+    These limits can be stacked.
+
+    When a limit is exceeded, a `LimitExceededError` is raised.
+
+    Args:
+      limit: The maximum number of USD that can be used while the context
+        manager is open. A value of None means unlimited cost.
+      cost_file: The path to a JSON file mapping from model names to
+        pricing details.
+    """
+    return _CostLimit(limit, cost_file)
+
+
+def calculate_model_usage_cost(usage: dict[str, ModelUsage]) -> Decimal:
+    """Calculate the cost given the current usage for all models"""
+    node = cost_limit_tree.get()
+    if node is None:
+        return Decimal(0)
+    return node.calculate_cost(usage)
+
+
+def record_model_usage_cost(cost: Decimal) -> None:
+    """Record model usage against any active cost limits.
+
+    Does not check if the limit has been exceeded.
+    """
+    node = cost_limit_tree.get()
+    if node is None:
+        return
+    node.record(cost)
+
+
+def check_cost_limit() -> None:
+    """Check if the current cost usage exceeds _any_ of the cost limits.
+
+    Within the current execution context (e.g. async task) and its parent contexts only.
+
+    Note that all active cost limits are checked, not just the most recent one.
+    """
+    node = cost_limit_tree.get()
+    if node is None:
+        return
+    node.check()
+
+
 class _Tree(Generic[TNode]):
     """A tree data structure of limit nodes.
 
@@ -323,6 +389,7 @@ token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
 # check_message_limit().
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
 working_limit_tree: _Tree[_WorkingLimit] = _Tree("working_limit_tree")
+cost_limit_tree: _Tree[_CostLimit] = _Tree("cost_limit_tree")
 
 
 class _Node:
@@ -495,6 +562,107 @@ class _MessageLimit(Limit, _Node):
             raise ValueError(
                 f"Message limit value must be a non-negative integer or None: {value}"
             )
+
+
+class _CostLimit(Limit, _Node):
+    def __init__(self, limit: Decimal | None, cost_file: Path | None) -> None:
+        super().__init__()
+        if cost_file:
+            self._cost_calculator = _CostCalculator(cost_file)
+        elif limit is not None:
+            # If we have a limit, we *must* have a cost_file
+            raise ValueError(
+                "Cost limit requires setting a cost file, but no file was specified"
+            )
+        self._cost = Decimal(0)
+        self._limit = limit
+
+    def __enter__(self) -> Limit:
+        super()._check_reuse()
+        cost_limit_tree.push(self)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._pop_and_check_identity(cost_limit_tree)
+
+    @property
+    def usage(self) -> float:
+        return float(self._cost)
+
+    @property
+    def limit(self) -> Decimal | None:
+        """Get the configured cost limit value."""
+        return self._limit
+
+    @limit.setter
+    def limit(self, cost_limit: Decimal | None) -> None:
+        """Update the cost limit value.
+
+        This does not trigger a check of the cost limit (which could now have been
+        exceeded).
+        """
+        if not self._limit:
+            raise ValueError(
+                "Cost limit must be initialized with cost_file prior to being be updated"
+            )
+
+        if cost_limit and (cost_limit <= 0 or not isinstance(cost_limit, Decimal)):
+            raise ValueError(
+                f"Cost limit value must be a non-negative Decimal value, got: {cost_limit}"
+            )
+        self._limit = cost_limit
+
+    def calculate_cost(self, current_usage: dict[str, ModelUsage]) -> Decimal:
+        """Calculate cost of usage for this node."""
+        cost = Decimal(0)
+        if not self._limit:
+            # We weren't configured with a cost file, we can't do this calculation
+            return cost
+        for m_name, m_usage in current_usage.items():
+            cost += self._cost_calculator.get_cost(m_name, m_usage)
+        return cost
+
+    def record(self, cost: Decimal) -> None:
+        """Record model cost for this node and its ancestor nodes."""
+        if self.parent is not None:
+            self.parent.record(cost)
+        self._cost = cost
+
+    def _check_self(self) -> None:
+        if self._limit is None:
+            return
+        # help mypy see that this isn't None
+        limit: Decimal = self._limit
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+        if self._cost > self._limit:
+            message = f"Cost limit exceeded. value: {self._cost:.02f}; limit: {self._limit:.02f}"
+            transcript()._event(
+                SampleLimitEvent(type="cost", limit=float(limit), message=message)
+            )
+            raise LimitExceededError(
+                "cost",
+                value=float(self._cost),
+                limit=float(limit),
+                message=message,
+                source=self,
+            )
+
+    def check(self) -> None:
+        """Check if this cost limit or any ancestor limits have been exceeded.
+
+        The checks occur from root to leaf. This is so that if multiple limits are
+        simultaneously exceeded, the outermost (closest to root) one raises the error,
+        preventing certain sub-agent architectures from ending up in an infinite loop.
+        """
+        if self.parent is not None:
+            self.parent.check()
+        self._check_self()
 
 
 class _TimeLimit(Limit):

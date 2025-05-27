@@ -1,5 +1,7 @@
 import hashlib
 import logging
+from decimal import Decimal
+from pathlib import Path
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
@@ -88,6 +90,8 @@ def eval_set(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: Decimal | None = None,
+    cost_file: Path | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -165,6 +169,10 @@ def eval_set(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on cost (in USD) for sample. Tokens read from Inspect's
+            cache are treated as non-free for this calculation to ensure fair
+            comparisons when cost limits are used.
+        cost_file: JSON file mapping model name to pricing details.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
@@ -226,6 +234,8 @@ def eval_set(
             token_limit=token_limit,
             time_limit=time_limit,
             working_limit=working_limit,
+            cost_limit=cost_limit,
+            cost_file=cost_file,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,

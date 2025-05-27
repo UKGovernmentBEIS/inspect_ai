@@ -59,9 +59,11 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
+    check_cost_limit,
     check_message_limit,
     check_token_limit,
     record_model_usage,
+    record_model_usage_cost,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
@@ -614,6 +616,7 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # TODO: Update cost info based on the cache hit
                     return existing, event
             else:
                 cache_entry = None
@@ -1464,6 +1467,11 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     set_model_usage(model, usage, model_usage_context_var.get(None))
     record_model_usage(usage)
 
+    # Using the total usage info for this sample (potentially spanning multiple
+    # models), calculate the cost for the sample
+    total_cost = calculate_model_usage_cost(sample_model_usage_context_var.get())
+    record_model_usage_cost(total_cost)
+
     # compute total tokens
     total_tokens = sample_total_tokens()
 
@@ -1471,6 +1479,7 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     set_active_sample_total_tokens(total_tokens)
 
     check_token_limit()
+    check_cost_limit()
 
 
 def set_model_usage(
