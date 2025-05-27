@@ -561,10 +561,6 @@ website:
           href: reference/inspect_ai.util.qmd#displaytype
         - text: input_screen
           href: reference/inspect_ai.util.qmd#input_screen
-        - text: subtask
-          href: reference/inspect_ai.util.qmd#subtask
-        - text: Subtask
-          href: reference/inspect_ai.util.qmd#subtask
         - text: span
           href: reference/inspect_ai.util.qmd#span
         - text: collect
