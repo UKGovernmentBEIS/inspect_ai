@@ -54,6 +54,7 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
             type: "text",
             text: content,
             refusal: null,
+            internal: null,
           },
           index === contents.length - 1,
         );
@@ -78,6 +79,7 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
       type: "text",
       text: contents,
       refusal: null,
+      internal: null,
     };
     return messageRenderers["text"].render(
       "text-message-content",

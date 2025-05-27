@@ -129,6 +129,7 @@ const normalizeContent = (
       type: "text",
       text: content,
       refusal: null,
+      internal: null,
     };
   } else {
     return content;

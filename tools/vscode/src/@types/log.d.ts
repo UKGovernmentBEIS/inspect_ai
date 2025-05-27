@@ -1010,6 +1010,7 @@ export interface ChatMessageSystem {
  * Text content.
  */
 export interface ContentText {
+  internal: unknown;
   type: Type3;
   text: Text;
   refusal: Refusal;
@@ -1020,6 +1021,7 @@ export interface ContentText {
  * See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
  */
 export interface ContentReasoning {
+  internal: unknown;
   type: Type4;
   reasoning: Reasoning;
   signature: Signature;
@@ -1029,6 +1031,7 @@ export interface ContentReasoning {
  * Image content.
  */
 export interface ContentImage {
+  internal: unknown;
   type: Type5;
   image: Image;
   detail: Detail;
@@ -1037,6 +1040,7 @@ export interface ContentImage {
  * Audio content.
  */
 export interface ContentAudio {
+  internal: unknown;
   type: Type6;
   audio: Audio;
   format: Format1;
@@ -1045,6 +1049,7 @@ export interface ContentAudio {
  * Video content.
  */
 export interface ContentVideo {
+  internal: unknown;
   type: Type7;
   video: Video;
   format: Format2;
