@@ -6,14 +6,26 @@ interface LogListFooterProps {
 import clsx from "clsx";
 import { FC } from "react";
 import styles from "./LogListFooter.module.css";
+import { LogPager } from "./LogPager";
+import { useStore } from "../../state/store";
 
 export const LogListFooter: FC<LogListFooterProps> = ({
   itemCount,
   running,
 }) => {
+
+  const page = useStore((state) => state.logs.page);
+  const itemsPerPage = useStore((state) => state.logs.itemsPerPage);
+  const pageItemCount = Math.min(
+    itemsPerPage,
+    itemCount - (page || 0) * itemsPerPage,
+  );
+
+
+  
   return (
     <div className={clsx("text-size-smaller", styles.footer)}>
-      <div>
+      <div className={clsx(styles.left)}>
         {running ? (
           <div className={clsx(styles.spinnerContainer)}>
             <div
@@ -27,8 +39,10 @@ export const LogListFooter: FC<LogListFooterProps> = ({
             </div>
           </div>
         ) : undefined}
+        <div>{`${pageItemCount} / ${itemCount} items`}</div>
       </div>
-      <div>{`${itemCount} items`}</div>
+      <div className={clsx(styles.right)}>
+        <LogPager itemCount={itemCount} /></div>
     </div>
   );
 };
