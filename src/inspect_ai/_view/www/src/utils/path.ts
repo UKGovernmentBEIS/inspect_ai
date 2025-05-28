@@ -50,3 +50,12 @@ export const dirname = (path: string): string => {
   // If no slashes, return empty string (no directory)
   return "";
 };
+
+/**
+ * Tests whether the given path is in the specified directory.
+ */
+export const isInDirectory = (path: string, directory: string): boolean => {
+  directory = directory.endsWith("/") ? directory.slice(0, -1) : directory;
+
+  return dirname(path) === directory;
+};

@@ -14,7 +14,7 @@
 /* Header Styles */
 .headerRow {
   display: grid;
-  grid-template-columns: 40px 1fr 80px;
+  grid-template-columns: 40px 0.5fr 1fr 40px;
   column-gap: 0.5em;
   background: var(--bs-gray-100);
   border-bottom: 1px solid var(--bs-border-color);
@@ -61,7 +61,7 @@
 
 .bodyRow {
   display: grid;
-  grid-template-columns: 40px 1fr 80px;
+  grid-template-columns: 40px 0.5fr 1fr 40px;
   column-gap: 0.5em;
   border-bottom: 1px solid var(--bs-border-color-translucent);
   transition: background-color 0.15s ease-in-out;
@@ -122,7 +122,6 @@
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
-  text-transform: capitalize;
 }
 
 /* Responsive adjustments */

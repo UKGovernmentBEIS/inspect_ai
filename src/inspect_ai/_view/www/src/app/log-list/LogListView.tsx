@@ -2,9 +2,11 @@ import clsx from "clsx";
 import { FC, useEffect, useMemo } from "react";
 
 import { useParams } from "react-router-dom";
+import { EvalLogHeader } from "../../client/api/types";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs, usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
+import { isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl } from "../routing/url";
@@ -30,6 +32,12 @@ export const LogListView: FC<LogListViewProps> = () => {
   const { loadLogs } = useLogs();
   const logs = useStore((state) => state.logs.logs);
 
+  const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
+  const logHeaders = useStore((state) => state.logs.logHeaders);
+  const updateLogHeaders = useStore(
+    (state) => state.logsActions.updateLogHeaders,
+  );
+
   const { logPath } = useParams<{
     logPath?: string;
     tabId?: string;
@@ -38,48 +46,91 @@ export const LogListView: FC<LogListViewProps> = () => {
   }>();
 
   const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
-  const fileOrFolderNames: LogItem[] = useMemo(() => {
-    const itemNames: string[] = [];
-    for (const logFile of logs.files) {
-      const name = logFile.name;
-
-      if (name.startsWith(currentDir)) {
-        const relativePath = directoryRelativeUrl(name, currentDir);
-
-        const root = rootName(relativePath);
-        itemNames.push(decodeURIComponent(root));
-      }
-    }
-
-    const fileOrFolderNameSet = new Set(itemNames);
-
-    const result: LogItem[] = [];
-    for (const fileOrFolderName of fileOrFolderNameSet) {
-      // Form the URL
-      const relativeDir = directoryRelativeUrl(currentDir, logs.log_dir);
-      const relativePath = join(fileOrFolderName, relativeDir);
-
-      result.push({
-        id: fileOrFolderName,
-        name: fileOrFolderName,
-        type:
-          fileOrFolderName.endsWith(".json") ||
-          fileOrFolderName.endsWith(".eval")
-            ? "file"
-            : "folder",
-        url: logUrl(relativePath, logs.log_dir),
-      });
-    }
-    return result;
-  }, [logPath, logs.files]);
 
   const { page, itemsPerPage } = usePagination(currentDir);
 
+  // All the items visible in the current directory (might span
+  // multiple pages)
+  const logItems: LogItem[] = useMemo(() => {
+    // Build the list of files / folders that for the current directory
+    const logItems: LogItem[] = [];
+
+    // Track process folders to avoid duplicates
+    const processedFolders = new Set<string>();
+
+    for (const logFile of logs.files) {
+      // The file name
+      const name = logFile.name;
+
+      // Process paths in the current directory
+      const cleanDir = currentDir.endsWith("/")
+        ? currentDir.slice(0, -1)
+        : currentDir;
+
+      if (isInDirectory(logFile.name, cleanDir)) {
+        // This is a file within the current directory
+        const relativePath = directoryRelativeUrl(name, currentDir);
+        const fileOrFolderName = rootName(relativePath);
+
+        logItems.push({
+          id: fileOrFolderName,
+          name: fileOrFolderName,
+          type: "file",
+          url: logUrl(relativePath, logs.log_dir),
+          logFile: logFile,
+        });
+      } else if (name.startsWith(currentDir)) {
+        // This is file that is next level (or deeper) child
+        // of the current directory, extract the top level folder name
+        const relativePath = directoryRelativeUrl(name, currentDir);
+        const dirName = decodeURIComponent(rootName(relativePath));
+        if (!processedFolders.has(dirName)) {
+          logItems.push({
+            id: dirName,
+            name: dirName,
+            type: "folder",
+            url: logUrl(dirName, logs.log_dir),
+          });
+          processedFolders.add(dirName);
+        }
+      }
+    }
+
+    return logItems;
+  }, [logPath, logs.files]);
+
+  // Items that are in the current page
   const pageItems = useMemo(() => {
     const start = (page || 0) * itemsPerPage;
     const end = start + itemsPerPage;
-    return fileOrFolderNames.slice(start, end);
-  }, [fileOrFolderNames, page, itemsPerPage]);
+    return logItems.slice(start, end);
+  }, [logItems, page, itemsPerPage]);
+
+  // Load headers for any files that are not yet loaded
+  useEffect(() => {
+    const fileItems = pageItems.filter((item) => item.type === "file");
+    const logFiles = fileItems
+      .map((item) => item.logFile)
+      .filter((file) => file !== undefined)
+      .filter((logFile) => {
+        // Filter out files that are already loaded
+        return logHeaders[logFile.name] === undefined;
+      });
+
+    const exec = async () => {
+      const headers = await loadHeaders(logFiles);
+      if (headers) {
+        const updatedHeaders: Record<string, EvalLogHeader> = {};
+
+        headers.forEach((header, index) => {
+          const logFile = logFiles[index];
+          updatedHeaders[logFile.name] = header as EvalLogHeader;
+        });
+        updateLogHeaders(updatedHeaders);
+      }
+    };
+    exec();
+  }, [pageItems]);
 
   useEffect(() => {
     const exec = async () => {
@@ -97,7 +148,7 @@ export const LogListView: FC<LogListViewProps> = () => {
       </div>
       <LogListFooter
         logDir={currentDir}
-        itemCount={fileOrFolderNames.length}
+        itemCount={logItems.length}
         running={loading}
       />
     </div>
