@@ -4,6 +4,7 @@
 - Added native OpenAI web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
 - Limit `docker compose` concurrency to 2 * os.cpu_count() by default (override with `INSPECT_DOCKER_CLI_CONCURRENCY`).
 - ReAct agent: Only send custom `on_continue` message to the model if the model made no tool calls.
+- Tool calling: Support for `Enum` types in tool arguments.
 - AzureAI: Automatically fold user and tool messages for Mistral models.
 - Task display: Simplify task display for `plain` mode (no outline, don't expand tables to console width).
 - Task display: Truncate task config to prevent overflow (collapse dicts, limit individual values to 50 chars, limit overall output to 500 chars).

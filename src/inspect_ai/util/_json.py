@@ -3,6 +3,7 @@ import typing
 from copy import deepcopy
 from dataclasses import is_dataclass
 from datetime import date, datetime, time
+from enum import EnumMeta
 from typing import (
     Any,
     Dict,
@@ -101,6 +102,8 @@ def json_schema(t: Type[Any]) -> JSONSchema:
             or (isinstance(t, type) and issubclass(t, BaseModel))
         ):
             return cls_json_schema(t)
+        elif isinstance(t, EnumMeta):
+            return JSONSchema(enum=[item.value for item in t])
         elif t is type(None):
             return JSONSchema(type="null")
         else:
