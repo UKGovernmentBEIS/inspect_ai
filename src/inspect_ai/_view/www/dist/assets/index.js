@@ -47803,6 +47803,8 @@ categories: ${categories.join(" ")}`;
         itemsPerPage,
         itemCount - (page || 0) * itemsPerPage
       );
+      const startItem = (page || 0) * itemsPerPage + 1;
+      const endItem = startItem + pageItemCount - 1;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$1b.footer), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1b.left), children: [
           running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1b.spinnerContainer), children: [
@@ -47816,7 +47818,7 @@ categories: ${categories.join(" ")}`;
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$1b.label), children: "running..." })
           ] }) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${pageItemCount} / ${itemCount} items` })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1b.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { logDir, itemCount }) })
       ] });
