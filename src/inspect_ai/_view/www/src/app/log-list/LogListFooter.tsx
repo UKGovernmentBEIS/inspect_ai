@@ -9,13 +9,14 @@ import { FC } from "react";
 import { usePagination } from "../../state/hooks";
 import styles from "./LogListFooter.module.css";
 import { LogPager } from "./LogPager";
+import { kLogsPaginationId } from "./LogsPanel";
 
 export const LogListFooter: FC<LogListFooterProps> = ({
   itemCount,
   running,
   logDir,
 }) => {
-  const { page, itemsPerPage } = usePagination(logDir);
+  const { page, itemsPerPage } = usePagination(kLogsPaginationId);
 
   const pageItemCount = Math.min(
     itemsPerPage,
@@ -43,7 +44,7 @@ export const LogListFooter: FC<LogListFooterProps> = ({
         <div>{`${startItem} - ${endItem} / ${itemCount}`}</div>
       </div>
       <div className={clsx(styles.right)}>
-        <LogPager logDir={logDir} itemCount={itemCount} />
+        <LogPager itemCount={itemCount} />
       </div>
     </div>
   );

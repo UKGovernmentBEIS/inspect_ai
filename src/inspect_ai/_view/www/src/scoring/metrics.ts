@@ -1,4 +1,4 @@
-import { Scores } from "../@types/log";
+import { EvalResults, Scores } from "../@types/log";
 import { MetricSummary, ScoreSummary } from "./types";
 
 export const metricDisplayName = (metric: MetricSummary): string => {
@@ -12,6 +12,25 @@ export const metricDisplayName = (metric: MetricSummary): string => {
   const metricName = !modifier ? metric.name : `${metric.name}[${modifier}]`;
 
   return metricName;
+};
+
+export const firstMetric = (results: EvalResults) => {
+  const scores = results.scores || [];
+  const firstScore = scores.length > 0 ? results.scores?.[0] : undefined;
+  if (firstScore === undefined || firstScore.metrics === undefined) {
+    return undefined;
+  }
+
+  const metrics = firstScore.metrics;
+  if (Object.keys(metrics).length === 0) {
+    return undefined;
+  }
+
+  const metric = metrics[Object.keys(metrics)[0]];
+  if (metric === undefined) {
+    return undefined;
+  }
+  return metric;
 };
 
 type MetricModifier = (metric: MetricSummary) => string | undefined;

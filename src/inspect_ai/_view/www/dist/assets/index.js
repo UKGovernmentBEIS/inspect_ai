@@ -544,9 +544,9 @@ var require_assets = __commonJS({
     }
     function mapChildren(children2, func, context) {
       if (null == children2) return children2;
-      var result2 = [], count = 0;
+      var result2 = [], count2 = 0;
       mapIntoArray(children2, result2, "", "", function(child) {
-        return func.call(context, child, count++);
+        return func.call(context, child, count2++);
       });
       return result2;
     }
@@ -12707,8 +12707,8 @@ var require_assets = __commonJS({
     }
     function unicodeEscape() {
       let buffer2 = "";
-      let count = 4;
-      while (count-- > 0) {
+      let count2 = 4;
+      while (count2-- > 0) {
         const c2 = peek$1();
         if (!util.isHexDigit(c2)) {
           throw invalidChar(read$1());
@@ -13949,9 +13949,9 @@ var require_assets = __commonJS({
           list2.length++;
           return newNode;
         }
-        function removeRange(list2, node2, count) {
+        function removeRange(list2, node2, count2) {
           var next = node2.next;
-          for (var i2 = 0; i2 < count && next !== list2.tail; i2++) {
+          for (var i2 = 0; i2 < count2 && next !== list2.tail; i2++) {
             next = next.next;
           }
           node2.next = next;
@@ -18053,12 +18053,12 @@ var require_assets = __commonJS({
         state.fetchers.delete(key2);
       }
       function queueFetcherForDeletion(key2) {
-        let count = (activeFetchers.get(key2) || 0) - 1;
-        if (count <= 0) {
+        let count2 = (activeFetchers.get(key2) || 0) - 1;
+        if (count2 <= 0) {
           activeFetchers.delete(key2);
           fetchersQueuedForDeletion.add(key2);
         } else {
-          activeFetchers.set(key2, count);
+          activeFetchers.set(key2, count2);
         }
         updateState({ fetchers: new Map(state.fetchers) });
       }
@@ -24133,22 +24133,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return 0;
       }
       if (Array.isArray(obj)) {
-        let count2 = 0;
+        let count22 = 0;
         if (options2.countArrayIndices) {
-          count2 += obj.length;
+          count22 += obj.length;
         }
         for (const item2 of obj) {
-          count2 += countKeys(item2, options2);
+          count22 += countKeys(item2, options2);
         }
-        return count2;
+        return count22;
       }
-      let count = Object.keys(obj).length;
+      let count2 = Object.keys(obj).length;
       for (const key2 in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key2)) {
-          count += countKeys(obj[key2], options2);
+          count2 += countKeys(obj[key2], options2);
         }
       }
-      return count;
+      return count2;
     }
     function filterLargeLogSummary(state) {
       if (!state || !state.log || !state.log.selectedLogSummary) {
@@ -29631,7 +29631,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
         pos2++;
       }
-      const count = pos2 - start2;
+      const count2 = pos2 - start2;
       const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
       const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
       const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
@@ -29641,7 +29641,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
       const can_open = left_flanking && (canSplitWord || !right_flanking || isLastPunctChar);
       const can_close = right_flanking && (canSplitWord || !left_flanking || isNextPunctChar);
-      return { can_open, can_close, length: count };
+      return { can_open, can_close, length: count2 };
     };
     StateInline.prototype.Token = Token$1;
     function isTerminatorChar(ch3) {
@@ -29674,7 +29674,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return false;
       }
     }
-    function text$1(state, silent) {
+    function text$2(state, silent) {
       let pos2 = state.pos;
       while (pos2 < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos2))) {
         pos2++;
@@ -30456,7 +30456,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     }
     const _rules = [
-      ["text", text$1],
+      ["text", text$2],
       ["linkify", linkify],
       ["newline", newline],
       ["escape", escape$1],
@@ -30623,7 +30623,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function isRegExp(obj) {
       return _class(obj) === "[object RegExp]";
     }
-    function isFunction(obj) {
+    function isFunction$1(obj) {
       return _class(obj) === "[object Function]";
     }
     function escapeRE(str2) {
@@ -30747,12 +30747,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (isObject(val)) {
           if (isRegExp(val.validate)) {
             compiled.validate = createValidator(val.validate);
-          } else if (isFunction(val.validate)) {
+          } else if (isFunction$1(val.validate)) {
             compiled.validate = val.validate;
           } else {
             schemaError(name2, val);
           }
-          if (isFunction(val.normalize)) {
+          if (isFunction$1(val.normalize)) {
             compiled.normalize = val.normalize;
           } else if (!val.normalize) {
             compiled.normalize = createNormalizer();
@@ -31043,17 +31043,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let i2 = 0;
       let n = initialN;
       let bias = initialBias;
-      let basic = input2.lastIndexOf(delimiter$2);
-      if (basic < 0) {
-        basic = 0;
+      let basic2 = input2.lastIndexOf(delimiter$2);
+      if (basic2 < 0) {
+        basic2 = 0;
       }
-      for (let j2 = 0; j2 < basic; ++j2) {
+      for (let j2 = 0; j2 < basic2; ++j2) {
         if (input2.charCodeAt(j2) >= 128) {
           error$2("not-basic");
         }
         output2.push(input2.charCodeAt(j2));
       }
-      for (let index2 = basic > 0 ? basic + 1 : 0; index2 < inputLength; ) {
+      for (let index2 = basic2 > 0 ? basic2 + 1 : 0; index2 < inputLength; ) {
         const oldi = i2;
         for (let w = 1, k = base$1; ; k += base$1) {
           if (index2 >= inputLength) {
@@ -43331,12 +43331,12 @@ ${citation.url}`,
         }
       );
     };
-    const grid$7 = "_grid_rmdrx_1";
+    const grid$8 = "_grid_rmdrx_1";
     const number$1 = "_number_rmdrx_7";
     const user = "_user_rmdrx_11";
     const container$j = "_container_rmdrx_16";
     const styles$1h = {
-      grid: grid$7,
+      grid: grid$8,
       number: number$1,
       user,
       container: container$j
@@ -47591,7 +47591,7 @@ categories: ${categories.join(" ")}`;
       return { loadLogs, loadHeaders };
     };
     const usePagination = (name2) => {
-      const defaultPageSize = 20;
+      const defaultPageSize2 = 20;
       const page = useStore((state) => {
         var _a2;
         return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.page) || 0;
@@ -47599,7 +47599,7 @@ categories: ${categories.join(" ")}`;
       const itemsPerPage = useStore(
         (state) => {
           var _a2;
-          return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.pageSize) || defaultPageSize;
+          return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.pageSize) || defaultPageSize2;
         }
       );
       const setPagination = useStore((state) => state.appActions.setPagination);
@@ -47709,15 +47709,15 @@ categories: ${categories.join(" ")}`;
     const spinnerContainer$1 = "_spinnerContainer_r5aa3_11";
     const spinner$2 = "_spinner_r5aa3_11";
     const label$8 = "_label_r5aa3_25";
-    const right$2 = "_right_r5aa3_30";
-    const left$2 = "_left_r5aa3_38";
+    const right$1 = "_right_r5aa3_30";
+    const left$1 = "_left_r5aa3_38";
     const styles$1b = {
       footer: footer$1,
       spinnerContainer: spinnerContainer$1,
       spinner: spinner$2,
       label: label$8,
-      right: right$2,
-      left: left$2
+      right: right$1,
+      left: left$1
     };
     const pager = "_pager_as2da_1";
     const item$3 = "_item_as2da_8";
@@ -47725,8 +47725,8 @@ categories: ${categories.join(" ")}`;
       pager,
       item: item$3
     };
-    const LogPager = ({ itemCount, logDir }) => {
-      const { page, itemsPerPage, setPage } = usePagination(logDir);
+    const LogPager = ({ itemCount }) => {
+      const { page, itemsPerPage, setPage } = usePagination(kLogsPaginationId);
       const pageCount = Math.ceil(itemCount / itemsPerPage);
       const currentPage = page || 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { "aria-label": "Log Pagination", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: clsx("pagination", styles$1a.pager), children: [
@@ -47802,7 +47802,7 @@ categories: ${categories.join(" ")}`;
       running: running2,
       logDir
     }) => {
-      const { page, itemsPerPage } = usePagination(logDir);
+      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
       const pageItemCount = Math.min(
         itemsPerPage,
         itemCount - (page || 0) * itemsPerPage
@@ -47824,9 +47824,2994 @@ categories: ${categories.join(" ")}`;
           ] }) : void 0,
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1b.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { logDir, itemCount }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1b.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) })
       ] });
     };
+    /**
+       * table-core
+       *
+       * Copyright (c) TanStack
+       *
+       * This source code is licensed under the MIT license found in the
+       * LICENSE.md file in the root directory of this source tree.
+       *
+       * @license MIT
+       */
+    function createColumnHelper() {
+      return {
+        accessor: (accessor, column2) => {
+          return typeof accessor === "function" ? {
+            ...column2,
+            accessorFn: accessor
+          } : {
+            ...column2,
+            accessorKey: accessor
+          };
+        },
+        display: (column2) => column2,
+        group: (column2) => column2
+      };
+    }
+    function functionalUpdate(updater, input2) {
+      return typeof updater === "function" ? updater(input2) : updater;
+    }
+    function makeStateUpdater(key2, instance) {
+      return (updater) => {
+        instance.setState((old) => {
+          return {
+            ...old,
+            [key2]: functionalUpdate(updater, old[key2])
+          };
+        });
+      };
+    }
+    function isFunction(d) {
+      return d instanceof Function;
+    }
+    function isNumberArray(d) {
+      return Array.isArray(d) && d.every((val) => typeof val === "number");
+    }
+    function flattenBy(arr2, getChildren2) {
+      const flat = [];
+      const recurse = (subArr) => {
+        subArr.forEach((item2) => {
+          flat.push(item2);
+          const children2 = getChildren2(item2);
+          if (children2 != null && children2.length) {
+            recurse(children2);
+          }
+        });
+      };
+      recurse(arr2);
+      return flat;
+    }
+    function memo$1(getDeps, fn2, opts) {
+      let deps = [];
+      let result2;
+      return (depArgs) => {
+        let depTime;
+        if (opts.key && opts.debug) depTime = Date.now();
+        const newDeps = getDeps(depArgs);
+        const depsChanged = newDeps.length !== deps.length || newDeps.some((dep, index2) => deps[index2] !== dep);
+        if (!depsChanged) {
+          return result2;
+        }
+        deps = newDeps;
+        let resultTime;
+        if (opts.key && opts.debug) resultTime = Date.now();
+        result2 = fn2(...newDeps);
+        opts == null || opts.onChange == null || opts.onChange(result2);
+        if (opts.key && opts.debug) {
+          if (opts != null && opts.debug()) {
+            const depEndTime = Math.round((Date.now() - depTime) * 100) / 100;
+            const resultEndTime = Math.round((Date.now() - resultTime) * 100) / 100;
+            const resultFpsPercentage = resultEndTime / 16;
+            const pad = (str2, num2) => {
+              str2 = String(str2);
+              while (str2.length < num2) {
+                str2 = " " + str2;
+              }
+              return str2;
+            };
+            console.info(`%c⏱ ${pad(resultEndTime, 5)} /${pad(depEndTime, 5)} ms`, `
+            font-size: .6rem;
+            font-weight: bold;
+            color: hsl(${Math.max(0, Math.min(120 - 120 * resultFpsPercentage, 120))}deg 100% 31%);`, opts == null ? void 0 : opts.key);
+          }
+        }
+        return result2;
+      };
+    }
+    function getMemoOptions(tableOptions, debugLevel, key2, onChange) {
+      return {
+        debug: () => {
+          var _tableOptions$debugAl;
+          return (_tableOptions$debugAl = tableOptions == null ? void 0 : tableOptions.debugAll) != null ? _tableOptions$debugAl : tableOptions[debugLevel];
+        },
+        key: false,
+        onChange
+      };
+    }
+    function createCell(table2, row2, column2, columnId) {
+      const getRenderValue = () => {
+        var _cell$getValue;
+        return (_cell$getValue = cell2.getValue()) != null ? _cell$getValue : table2.options.renderFallbackValue;
+      };
+      const cell2 = {
+        id: `${row2.id}_${column2.id}`,
+        row: row2,
+        column: column2,
+        getValue: () => row2.getValue(columnId),
+        renderValue: getRenderValue,
+        getContext: memo$1(() => [table2, column2, row2, cell2], (table22, column22, row22, cell22) => ({
+          table: table22,
+          column: column22,
+          row: row22,
+          cell: cell22,
+          getValue: cell22.getValue,
+          renderValue: cell22.renderValue
+        }), getMemoOptions(table2.options, "debugCells"))
+      };
+      table2._features.forEach((feature) => {
+        feature.createCell == null || feature.createCell(cell2, column2, row2, table2);
+      }, {});
+      return cell2;
+    }
+    function createColumn(table2, columnDef, depth, parent) {
+      var _ref, _resolvedColumnDef$id;
+      const defaultColumn = table2._getDefaultColumnDef();
+      const resolvedColumnDef = {
+        ...defaultColumn,
+        ...columnDef
+      };
+      const accessorKey = resolvedColumnDef.accessorKey;
+      let id = (_ref = (_resolvedColumnDef$id = resolvedColumnDef.id) != null ? _resolvedColumnDef$id : accessorKey ? typeof String.prototype.replaceAll === "function" ? accessorKey.replaceAll(".", "_") : accessorKey.replace(/\./g, "_") : void 0) != null ? _ref : typeof resolvedColumnDef.header === "string" ? resolvedColumnDef.header : void 0;
+      let accessorFn;
+      if (resolvedColumnDef.accessorFn) {
+        accessorFn = resolvedColumnDef.accessorFn;
+      } else if (accessorKey) {
+        if (accessorKey.includes(".")) {
+          accessorFn = (originalRow) => {
+            let result2 = originalRow;
+            for (const key2 of accessorKey.split(".")) {
+              var _result;
+              result2 = (_result = result2) == null ? void 0 : _result[key2];
+            }
+            return result2;
+          };
+        } else {
+          accessorFn = (originalRow) => originalRow[resolvedColumnDef.accessorKey];
+        }
+      }
+      if (!id) {
+        throw new Error();
+      }
+      let column2 = {
+        id: `${String(id)}`,
+        accessorFn,
+        parent,
+        depth,
+        columnDef: resolvedColumnDef,
+        columns: [],
+        getFlatColumns: memo$1(() => [true], () => {
+          var _column$columns;
+          return [column2, ...(_column$columns = column2.columns) == null ? void 0 : _column$columns.flatMap((d) => d.getFlatColumns())];
+        }, getMemoOptions(table2.options, "debugColumns")),
+        getLeafColumns: memo$1(() => [table2._getOrderColumnsFn()], (orderColumns2) => {
+          var _column$columns2;
+          if ((_column$columns2 = column2.columns) != null && _column$columns2.length) {
+            let leafColumns = column2.columns.flatMap((column22) => column22.getLeafColumns());
+            return orderColumns2(leafColumns);
+          }
+          return [column2];
+        }, getMemoOptions(table2.options, "debugColumns"))
+      };
+      for (const feature of table2._features) {
+        feature.createColumn == null || feature.createColumn(column2, table2);
+      }
+      return column2;
+    }
+    const debug = "debugHeaders";
+    function createHeader(table2, column2, options2) {
+      var _options$id;
+      const id = (_options$id = options2.id) != null ? _options$id : column2.id;
+      let header2 = {
+        id,
+        column: column2,
+        index: options2.index,
+        isPlaceholder: !!options2.isPlaceholder,
+        placeholderId: options2.placeholderId,
+        depth: options2.depth,
+        subHeaders: [],
+        colSpan: 0,
+        rowSpan: 0,
+        headerGroup: null,
+        getLeafHeaders: () => {
+          const leafHeaders = [];
+          const recurseHeader = (h) => {
+            if (h.subHeaders && h.subHeaders.length) {
+              h.subHeaders.map(recurseHeader);
+            }
+            leafHeaders.push(h);
+          };
+          recurseHeader(header2);
+          return leafHeaders;
+        },
+        getContext: () => ({
+          table: table2,
+          header: header2,
+          column: column2
+        })
+      };
+      table2._features.forEach((feature) => {
+        feature.createHeader == null || feature.createHeader(header2, table2);
+      });
+      return header2;
+    }
+    const Headers$1 = {
+      createTable: (table2) => {
+        table2.getHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allColumns, leafColumns, left2, right2) => {
+          var _left$map$filter, _right$map$filter;
+          const leftColumns = (_left$map$filter = left2 == null ? void 0 : left2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _left$map$filter : [];
+          const rightColumns = (_right$map$filter = right2 == null ? void 0 : right2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _right$map$filter : [];
+          const centerColumns = leafColumns.filter((column2) => !(left2 != null && left2.includes(column2.id)) && !(right2 != null && right2.includes(column2.id)));
+          const headerGroups = buildHeaderGroups(allColumns, [...leftColumns, ...centerColumns, ...rightColumns], table2);
+          return headerGroups;
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allColumns, leafColumns, left2, right2) => {
+          leafColumns = leafColumns.filter((column2) => !(left2 != null && left2.includes(column2.id)) && !(right2 != null && right2.includes(column2.id)));
+          return buildHeaderGroups(allColumns, leafColumns, table2, "center");
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.left], (allColumns, leafColumns, left2) => {
+          var _left$map$filter2;
+          const orderedLeafColumns = (_left$map$filter2 = left2 == null ? void 0 : left2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _left$map$filter2 : [];
+          return buildHeaderGroups(allColumns, orderedLeafColumns, table2, "left");
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.right], (allColumns, leafColumns, right2) => {
+          var _right$map$filter2;
+          const orderedLeafColumns = (_right$map$filter2 = right2 == null ? void 0 : right2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _right$map$filter2 : [];
+          return buildHeaderGroups(allColumns, orderedLeafColumns, table2, "right");
+        }, getMemoOptions(table2.options, debug));
+        table2.getFooterGroups = memo$1(() => [table2.getHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftFooterGroups = memo$1(() => [table2.getLeftHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterFooterGroups = memo$1(() => [table2.getCenterHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightFooterGroups = memo$1(() => [table2.getRightHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getFlatHeaders = memo$1(() => [table2.getHeaderGroups()], (headerGroups) => {
+          return headerGroups.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftFlatHeaders = memo$1(() => [table2.getLeftHeaderGroups()], (left2) => {
+          return left2.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterFlatHeaders = memo$1(() => [table2.getCenterHeaderGroups()], (left2) => {
+          return left2.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightFlatHeaders = memo$1(() => [table2.getRightHeaderGroups()], (left2) => {
+          return left2.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterLeafHeaders = memo$1(() => [table2.getCenterFlatHeaders()], (flatHeaders) => {
+          return flatHeaders.filter((header2) => {
+            var _header$subHeaders;
+            return !((_header$subHeaders = header2.subHeaders) != null && _header$subHeaders.length);
+          });
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftLeafHeaders = memo$1(() => [table2.getLeftFlatHeaders()], (flatHeaders) => {
+          return flatHeaders.filter((header2) => {
+            var _header$subHeaders2;
+            return !((_header$subHeaders2 = header2.subHeaders) != null && _header$subHeaders2.length);
+          });
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightLeafHeaders = memo$1(() => [table2.getRightFlatHeaders()], (flatHeaders) => {
+          return flatHeaders.filter((header2) => {
+            var _header$subHeaders3;
+            return !((_header$subHeaders3 = header2.subHeaders) != null && _header$subHeaders3.length);
+          });
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeafHeaders = memo$1(() => [table2.getLeftHeaderGroups(), table2.getCenterHeaderGroups(), table2.getRightHeaderGroups()], (left2, center2, right2) => {
+          var _left$0$headers, _left$, _center$0$headers, _center$, _right$0$headers, _right$;
+          return [...(_left$0$headers = (_left$ = left2[0]) == null ? void 0 : _left$.headers) != null ? _left$0$headers : [], ...(_center$0$headers = (_center$ = center2[0]) == null ? void 0 : _center$.headers) != null ? _center$0$headers : [], ...(_right$0$headers = (_right$ = right2[0]) == null ? void 0 : _right$.headers) != null ? _right$0$headers : []].map((header2) => {
+            return header2.getLeafHeaders();
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+      }
+    };
+    function buildHeaderGroups(allColumns, columnsToGroup, table2, headerFamily) {
+      var _headerGroups$0$heade, _headerGroups$;
+      let maxDepth = 0;
+      const findMaxDepth = function(columns, depth) {
+        if (depth === void 0) {
+          depth = 1;
+        }
+        maxDepth = Math.max(maxDepth, depth);
+        columns.filter((column2) => column2.getIsVisible()).forEach((column2) => {
+          var _column$columns;
+          if ((_column$columns = column2.columns) != null && _column$columns.length) {
+            findMaxDepth(column2.columns, depth + 1);
+          }
+        }, 0);
+      };
+      findMaxDepth(allColumns);
+      let headerGroups = [];
+      const createHeaderGroup = (headersToGroup, depth) => {
+        const headerGroup = {
+          depth,
+          id: [headerFamily, `${depth}`].filter(Boolean).join("_"),
+          headers: []
+        };
+        const pendingParentHeaders = [];
+        headersToGroup.forEach((headerToGroup) => {
+          const latestPendingParentHeader = [...pendingParentHeaders].reverse()[0];
+          const isLeafHeader = headerToGroup.column.depth === headerGroup.depth;
+          let column2;
+          let isPlaceholder = false;
+          if (isLeafHeader && headerToGroup.column.parent) {
+            column2 = headerToGroup.column.parent;
+          } else {
+            column2 = headerToGroup.column;
+            isPlaceholder = true;
+          }
+          if (latestPendingParentHeader && (latestPendingParentHeader == null ? void 0 : latestPendingParentHeader.column) === column2) {
+            latestPendingParentHeader.subHeaders.push(headerToGroup);
+          } else {
+            const header2 = createHeader(table2, column2, {
+              id: [headerFamily, depth, column2.id, headerToGroup == null ? void 0 : headerToGroup.id].filter(Boolean).join("_"),
+              isPlaceholder,
+              placeholderId: isPlaceholder ? `${pendingParentHeaders.filter((d) => d.column === column2).length}` : void 0,
+              depth,
+              index: pendingParentHeaders.length
+            });
+            header2.subHeaders.push(headerToGroup);
+            pendingParentHeaders.push(header2);
+          }
+          headerGroup.headers.push(headerToGroup);
+          headerToGroup.headerGroup = headerGroup;
+        });
+        headerGroups.push(headerGroup);
+        if (depth > 0) {
+          createHeaderGroup(pendingParentHeaders, depth - 1);
+        }
+      };
+      const bottomHeaders = columnsToGroup.map((column2, index2) => createHeader(table2, column2, {
+        depth: maxDepth,
+        index: index2
+      }));
+      createHeaderGroup(bottomHeaders, maxDepth - 1);
+      headerGroups.reverse();
+      const recurseHeadersForSpans = (headers) => {
+        const filteredHeaders = headers.filter((header2) => header2.column.getIsVisible());
+        return filteredHeaders.map((header2) => {
+          let colSpan = 0;
+          let rowSpan = 0;
+          let childRowSpans = [0];
+          if (header2.subHeaders && header2.subHeaders.length) {
+            childRowSpans = [];
+            recurseHeadersForSpans(header2.subHeaders).forEach((_ref) => {
+              let {
+                colSpan: childColSpan,
+                rowSpan: childRowSpan
+              } = _ref;
+              colSpan += childColSpan;
+              childRowSpans.push(childRowSpan);
+            });
+          } else {
+            colSpan = 1;
+          }
+          const minChildRowSpan = Math.min(...childRowSpans);
+          rowSpan = rowSpan + minChildRowSpan;
+          header2.colSpan = colSpan;
+          header2.rowSpan = rowSpan;
+          return {
+            colSpan,
+            rowSpan
+          };
+        });
+      };
+      recurseHeadersForSpans((_headerGroups$0$heade = (_headerGroups$ = headerGroups[0]) == null ? void 0 : _headerGroups$.headers) != null ? _headerGroups$0$heade : []);
+      return headerGroups;
+    }
+    const createRow = (table2, id, original, rowIndex, depth, subRows, parentId) => {
+      let row2 = {
+        id,
+        index: rowIndex,
+        original,
+        depth,
+        parentId,
+        _valuesCache: {},
+        _uniqueValuesCache: {},
+        getValue: (columnId) => {
+          if (row2._valuesCache.hasOwnProperty(columnId)) {
+            return row2._valuesCache[columnId];
+          }
+          const column2 = table2.getColumn(columnId);
+          if (!(column2 != null && column2.accessorFn)) {
+            return void 0;
+          }
+          row2._valuesCache[columnId] = column2.accessorFn(row2.original, rowIndex);
+          return row2._valuesCache[columnId];
+        },
+        getUniqueValues: (columnId) => {
+          if (row2._uniqueValuesCache.hasOwnProperty(columnId)) {
+            return row2._uniqueValuesCache[columnId];
+          }
+          const column2 = table2.getColumn(columnId);
+          if (!(column2 != null && column2.accessorFn)) {
+            return void 0;
+          }
+          if (!column2.columnDef.getUniqueValues) {
+            row2._uniqueValuesCache[columnId] = [row2.getValue(columnId)];
+            return row2._uniqueValuesCache[columnId];
+          }
+          row2._uniqueValuesCache[columnId] = column2.columnDef.getUniqueValues(row2.original, rowIndex);
+          return row2._uniqueValuesCache[columnId];
+        },
+        renderValue: (columnId) => {
+          var _row$getValue;
+          return (_row$getValue = row2.getValue(columnId)) != null ? _row$getValue : table2.options.renderFallbackValue;
+        },
+        subRows: [],
+        getLeafRows: () => flattenBy(row2.subRows, (d) => d.subRows),
+        getParentRow: () => row2.parentId ? table2.getRow(row2.parentId, true) : void 0,
+        getParentRows: () => {
+          let parentRows = [];
+          let currentRow = row2;
+          while (true) {
+            const parentRow = currentRow.getParentRow();
+            if (!parentRow) break;
+            parentRows.push(parentRow);
+            currentRow = parentRow;
+          }
+          return parentRows.reverse();
+        },
+        getAllCells: memo$1(() => [table2.getAllLeafColumns()], (leafColumns) => {
+          return leafColumns.map((column2) => {
+            return createCell(table2, row2, column2, column2.id);
+          });
+        }, getMemoOptions(table2.options, "debugRows")),
+        _getAllCellsByColumnId: memo$1(() => [row2.getAllCells()], (allCells) => {
+          return allCells.reduce((acc, cell2) => {
+            acc[cell2.column.id] = cell2;
+            return acc;
+          }, {});
+        }, getMemoOptions(table2.options, "debugRows"))
+      };
+      for (let i2 = 0; i2 < table2._features.length; i2++) {
+        const feature = table2._features[i2];
+        feature == null || feature.createRow == null || feature.createRow(row2, table2);
+      }
+      return row2;
+    };
+    const ColumnFaceting = {
+      createColumn: (column2, table2) => {
+        column2._getFacetedRowModel = table2.options.getFacetedRowModel && table2.options.getFacetedRowModel(table2, column2.id);
+        column2.getFacetedRowModel = () => {
+          if (!column2._getFacetedRowModel) {
+            return table2.getPreFilteredRowModel();
+          }
+          return column2._getFacetedRowModel();
+        };
+        column2._getFacetedUniqueValues = table2.options.getFacetedUniqueValues && table2.options.getFacetedUniqueValues(table2, column2.id);
+        column2.getFacetedUniqueValues = () => {
+          if (!column2._getFacetedUniqueValues) {
+            return /* @__PURE__ */ new Map();
+          }
+          return column2._getFacetedUniqueValues();
+        };
+        column2._getFacetedMinMaxValues = table2.options.getFacetedMinMaxValues && table2.options.getFacetedMinMaxValues(table2, column2.id);
+        column2.getFacetedMinMaxValues = () => {
+          if (!column2._getFacetedMinMaxValues) {
+            return void 0;
+          }
+          return column2._getFacetedMinMaxValues();
+        };
+      }
+    };
+    const includesString = (row2, columnId, filterValue) => {
+      var _filterValue$toString, _row$getValue;
+      const search = filterValue == null || (_filterValue$toString = filterValue.toString()) == null ? void 0 : _filterValue$toString.toLowerCase();
+      return Boolean((_row$getValue = row2.getValue(columnId)) == null || (_row$getValue = _row$getValue.toString()) == null || (_row$getValue = _row$getValue.toLowerCase()) == null ? void 0 : _row$getValue.includes(search));
+    };
+    includesString.autoRemove = (val) => testFalsey(val);
+    const includesStringSensitive = (row2, columnId, filterValue) => {
+      var _row$getValue2;
+      return Boolean((_row$getValue2 = row2.getValue(columnId)) == null || (_row$getValue2 = _row$getValue2.toString()) == null ? void 0 : _row$getValue2.includes(filterValue));
+    };
+    includesStringSensitive.autoRemove = (val) => testFalsey(val);
+    const equalsString = (row2, columnId, filterValue) => {
+      var _row$getValue3;
+      return ((_row$getValue3 = row2.getValue(columnId)) == null || (_row$getValue3 = _row$getValue3.toString()) == null ? void 0 : _row$getValue3.toLowerCase()) === (filterValue == null ? void 0 : filterValue.toLowerCase());
+    };
+    equalsString.autoRemove = (val) => testFalsey(val);
+    const arrIncludes = (row2, columnId, filterValue) => {
+      var _row$getValue4;
+      return (_row$getValue4 = row2.getValue(columnId)) == null ? void 0 : _row$getValue4.includes(filterValue);
+    };
+    arrIncludes.autoRemove = (val) => testFalsey(val);
+    const arrIncludesAll = (row2, columnId, filterValue) => {
+      return !filterValue.some((val) => {
+        var _row$getValue5;
+        return !((_row$getValue5 = row2.getValue(columnId)) != null && _row$getValue5.includes(val));
+      });
+    };
+    arrIncludesAll.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
+    const arrIncludesSome = (row2, columnId, filterValue) => {
+      return filterValue.some((val) => {
+        var _row$getValue6;
+        return (_row$getValue6 = row2.getValue(columnId)) == null ? void 0 : _row$getValue6.includes(val);
+      });
+    };
+    arrIncludesSome.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
+    const equals = (row2, columnId, filterValue) => {
+      return row2.getValue(columnId) === filterValue;
+    };
+    equals.autoRemove = (val) => testFalsey(val);
+    const weakEquals = (row2, columnId, filterValue) => {
+      return row2.getValue(columnId) == filterValue;
+    };
+    weakEquals.autoRemove = (val) => testFalsey(val);
+    const inNumberRange = (row2, columnId, filterValue) => {
+      let [min2, max2] = filterValue;
+      const rowValue = row2.getValue(columnId);
+      return rowValue >= min2 && rowValue <= max2;
+    };
+    inNumberRange.resolveFilterValue = (val) => {
+      let [unsafeMin, unsafeMax] = val;
+      let parsedMin = typeof unsafeMin !== "number" ? parseFloat(unsafeMin) : unsafeMin;
+      let parsedMax = typeof unsafeMax !== "number" ? parseFloat(unsafeMax) : unsafeMax;
+      let min2 = unsafeMin === null || Number.isNaN(parsedMin) ? -Infinity : parsedMin;
+      let max2 = unsafeMax === null || Number.isNaN(parsedMax) ? Infinity : parsedMax;
+      if (min2 > max2) {
+        const temp = min2;
+        min2 = max2;
+        max2 = temp;
+      }
+      return [min2, max2];
+    };
+    inNumberRange.autoRemove = (val) => testFalsey(val) || testFalsey(val[0]) && testFalsey(val[1]);
+    const filterFns = {
+      includesString,
+      includesStringSensitive,
+      equalsString,
+      arrIncludes,
+      arrIncludesAll,
+      arrIncludesSome,
+      equals,
+      weakEquals,
+      inNumberRange
+    };
+    function testFalsey(val) {
+      return val === void 0 || val === null || val === "";
+    }
+    const ColumnFiltering = {
+      getDefaultColumnDef: () => {
+        return {
+          filterFn: "auto"
+        };
+      },
+      getInitialState: (state) => {
+        return {
+          columnFilters: [],
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnFiltersChange: makeStateUpdater("columnFilters", table2),
+          filterFromLeafRows: false,
+          maxLeafRowFilterDepth: 100
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getAutoFilterFn = () => {
+          const firstRow = table2.getCoreRowModel().flatRows[0];
+          const value2 = firstRow == null ? void 0 : firstRow.getValue(column2.id);
+          if (typeof value2 === "string") {
+            return filterFns.includesString;
+          }
+          if (typeof value2 === "number") {
+            return filterFns.inNumberRange;
+          }
+          if (typeof value2 === "boolean") {
+            return filterFns.equals;
+          }
+          if (value2 !== null && typeof value2 === "object") {
+            return filterFns.equals;
+          }
+          if (Array.isArray(value2)) {
+            return filterFns.arrIncludes;
+          }
+          return filterFns.weakEquals;
+        };
+        column2.getFilterFn = () => {
+          var _table$options$filter, _table$options$filter2;
+          return isFunction(column2.columnDef.filterFn) ? column2.columnDef.filterFn : column2.columnDef.filterFn === "auto" ? column2.getAutoFilterFn() : (
+            // @ts-ignore
+            (_table$options$filter = (_table$options$filter2 = table2.options.filterFns) == null ? void 0 : _table$options$filter2[column2.columnDef.filterFn]) != null ? _table$options$filter : filterFns[column2.columnDef.filterFn]
+          );
+        };
+        column2.getCanFilter = () => {
+          var _column$columnDef$ena, _table$options$enable, _table$options$enable2;
+          return ((_column$columnDef$ena = column2.columnDef.enableColumnFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableColumnFilters) != null ? _table$options$enable : true) && ((_table$options$enable2 = table2.options.enableFilters) != null ? _table$options$enable2 : true) && !!column2.accessorFn;
+        };
+        column2.getIsFiltered = () => column2.getFilterIndex() > -1;
+        column2.getFilterValue = () => {
+          var _table$getState$colum;
+          return (_table$getState$colum = table2.getState().columnFilters) == null || (_table$getState$colum = _table$getState$colum.find((d) => d.id === column2.id)) == null ? void 0 : _table$getState$colum.value;
+        };
+        column2.getFilterIndex = () => {
+          var _table$getState$colum2, _table$getState$colum3;
+          return (_table$getState$colum2 = (_table$getState$colum3 = table2.getState().columnFilters) == null ? void 0 : _table$getState$colum3.findIndex((d) => d.id === column2.id)) != null ? _table$getState$colum2 : -1;
+        };
+        column2.setFilterValue = (value2) => {
+          table2.setColumnFilters((old) => {
+            const filterFn = column2.getFilterFn();
+            const previousFilter = old == null ? void 0 : old.find((d) => d.id === column2.id);
+            const newFilter = functionalUpdate(value2, previousFilter ? previousFilter.value : void 0);
+            if (shouldAutoRemoveFilter(filterFn, newFilter, column2)) {
+              var _old$filter;
+              return (_old$filter = old == null ? void 0 : old.filter((d) => d.id !== column2.id)) != null ? _old$filter : [];
+            }
+            const newFilterObj = {
+              id: column2.id,
+              value: newFilter
+            };
+            if (previousFilter) {
+              var _old$map;
+              return (_old$map = old == null ? void 0 : old.map((d) => {
+                if (d.id === column2.id) {
+                  return newFilterObj;
+                }
+                return d;
+              })) != null ? _old$map : [];
+            }
+            if (old != null && old.length) {
+              return [...old, newFilterObj];
+            }
+            return [newFilterObj];
+          });
+        };
+      },
+      createRow: (row2, _table) => {
+        row2.columnFilters = {};
+        row2.columnFiltersMeta = {};
+      },
+      createTable: (table2) => {
+        table2.setColumnFilters = (updater) => {
+          const leafColumns = table2.getAllLeafColumns();
+          const updateFn = (old) => {
+            var _functionalUpdate;
+            return (_functionalUpdate = functionalUpdate(updater, old)) == null ? void 0 : _functionalUpdate.filter((filter) => {
+              const column2 = leafColumns.find((d) => d.id === filter.id);
+              if (column2) {
+                const filterFn = column2.getFilterFn();
+                if (shouldAutoRemoveFilter(filterFn, filter.value, column2)) {
+                  return false;
+                }
+              }
+              return true;
+            });
+          };
+          table2.options.onColumnFiltersChange == null || table2.options.onColumnFiltersChange(updateFn);
+        };
+        table2.resetColumnFilters = (defaultState) => {
+          var _table$initialState$c, _table$initialState;
+          table2.setColumnFilters(defaultState ? [] : (_table$initialState$c = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.columnFilters) != null ? _table$initialState$c : []);
+        };
+        table2.getPreFilteredRowModel = () => table2.getCoreRowModel();
+        table2.getFilteredRowModel = () => {
+          if (!table2._getFilteredRowModel && table2.options.getFilteredRowModel) {
+            table2._getFilteredRowModel = table2.options.getFilteredRowModel(table2);
+          }
+          if (table2.options.manualFiltering || !table2._getFilteredRowModel) {
+            return table2.getPreFilteredRowModel();
+          }
+          return table2._getFilteredRowModel();
+        };
+      }
+    };
+    function shouldAutoRemoveFilter(filterFn, value2, column2) {
+      return (filterFn && filterFn.autoRemove ? filterFn.autoRemove(value2, column2) : false) || typeof value2 === "undefined" || typeof value2 === "string" && !value2;
+    }
+    const sum = (columnId, _leafRows, childRows) => {
+      return childRows.reduce((sum2, next) => {
+        const nextValue = next.getValue(columnId);
+        return sum2 + (typeof nextValue === "number" ? nextValue : 0);
+      }, 0);
+    };
+    const min$2 = (columnId, _leafRows, childRows) => {
+      let min2;
+      childRows.forEach((row2) => {
+        const value2 = row2.getValue(columnId);
+        if (value2 != null && (min2 > value2 || min2 === void 0 && value2 >= value2)) {
+          min2 = value2;
+        }
+      });
+      return min2;
+    };
+    const max$3 = (columnId, _leafRows, childRows) => {
+      let max2;
+      childRows.forEach((row2) => {
+        const value2 = row2.getValue(columnId);
+        if (value2 != null && (max2 < value2 || max2 === void 0 && value2 >= value2)) {
+          max2 = value2;
+        }
+      });
+      return max2;
+    };
+    const extent = (columnId, _leafRows, childRows) => {
+      let min2;
+      let max2;
+      childRows.forEach((row2) => {
+        const value2 = row2.getValue(columnId);
+        if (value2 != null) {
+          if (min2 === void 0) {
+            if (value2 >= value2) min2 = max2 = value2;
+          } else {
+            if (min2 > value2) min2 = value2;
+            if (max2 < value2) max2 = value2;
+          }
+        }
+      });
+      return [min2, max2];
+    };
+    const mean = (columnId, leafRows) => {
+      let count2 = 0;
+      let sum2 = 0;
+      leafRows.forEach((row2) => {
+        let value2 = row2.getValue(columnId);
+        if (value2 != null && (value2 = +value2) >= value2) {
+          ++count2, sum2 += value2;
+        }
+      });
+      if (count2) return sum2 / count2;
+      return;
+    };
+    const median = (columnId, leafRows) => {
+      if (!leafRows.length) {
+        return;
+      }
+      const values = leafRows.map((row2) => row2.getValue(columnId));
+      if (!isNumberArray(values)) {
+        return;
+      }
+      if (values.length === 1) {
+        return values[0];
+      }
+      const mid = Math.floor(values.length / 2);
+      const nums = values.sort((a, b) => a - b);
+      return values.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+    };
+    const unique = (columnId, leafRows) => {
+      return Array.from(new Set(leafRows.map((d) => d.getValue(columnId))).values());
+    };
+    const uniqueCount = (columnId, leafRows) => {
+      return new Set(leafRows.map((d) => d.getValue(columnId))).size;
+    };
+    const count = (_columnId, leafRows) => {
+      return leafRows.length;
+    };
+    const aggregationFns = {
+      sum,
+      min: min$2,
+      max: max$3,
+      extent,
+      mean,
+      median,
+      unique,
+      uniqueCount,
+      count
+    };
+    const ColumnGrouping = {
+      getDefaultColumnDef: () => {
+        return {
+          aggregatedCell: (props) => {
+            var _toString, _props$getValue;
+            return (_toString = (_props$getValue = props.getValue()) == null || _props$getValue.toString == null ? void 0 : _props$getValue.toString()) != null ? _toString : null;
+          },
+          aggregationFn: "auto"
+        };
+      },
+      getInitialState: (state) => {
+        return {
+          grouping: [],
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onGroupingChange: makeStateUpdater("grouping", table2),
+          groupedColumnMode: "reorder"
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.toggleGrouping = () => {
+          table2.setGrouping((old) => {
+            if (old != null && old.includes(column2.id)) {
+              return old.filter((d) => d !== column2.id);
+            }
+            return [...old != null ? old : [], column2.id];
+          });
+        };
+        column2.getCanGroup = () => {
+          var _column$columnDef$ena, _table$options$enable;
+          return ((_column$columnDef$ena = column2.columnDef.enableGrouping) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableGrouping) != null ? _table$options$enable : true) && (!!column2.accessorFn || !!column2.columnDef.getGroupingValue);
+        };
+        column2.getIsGrouped = () => {
+          var _table$getState$group;
+          return (_table$getState$group = table2.getState().grouping) == null ? void 0 : _table$getState$group.includes(column2.id);
+        };
+        column2.getGroupedIndex = () => {
+          var _table$getState$group2;
+          return (_table$getState$group2 = table2.getState().grouping) == null ? void 0 : _table$getState$group2.indexOf(column2.id);
+        };
+        column2.getToggleGroupingHandler = () => {
+          const canGroup = column2.getCanGroup();
+          return () => {
+            if (!canGroup) return;
+            column2.toggleGrouping();
+          };
+        };
+        column2.getAutoAggregationFn = () => {
+          const firstRow = table2.getCoreRowModel().flatRows[0];
+          const value2 = firstRow == null ? void 0 : firstRow.getValue(column2.id);
+          if (typeof value2 === "number") {
+            return aggregationFns.sum;
+          }
+          if (Object.prototype.toString.call(value2) === "[object Date]") {
+            return aggregationFns.extent;
+          }
+        };
+        column2.getAggregationFn = () => {
+          var _table$options$aggreg, _table$options$aggreg2;
+          if (!column2) {
+            throw new Error();
+          }
+          return isFunction(column2.columnDef.aggregationFn) ? column2.columnDef.aggregationFn : column2.columnDef.aggregationFn === "auto" ? column2.getAutoAggregationFn() : (_table$options$aggreg = (_table$options$aggreg2 = table2.options.aggregationFns) == null ? void 0 : _table$options$aggreg2[column2.columnDef.aggregationFn]) != null ? _table$options$aggreg : aggregationFns[column2.columnDef.aggregationFn];
+        };
+      },
+      createTable: (table2) => {
+        table2.setGrouping = (updater) => table2.options.onGroupingChange == null ? void 0 : table2.options.onGroupingChange(updater);
+        table2.resetGrouping = (defaultState) => {
+          var _table$initialState$g, _table$initialState;
+          table2.setGrouping(defaultState ? [] : (_table$initialState$g = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.grouping) != null ? _table$initialState$g : []);
+        };
+        table2.getPreGroupedRowModel = () => table2.getFilteredRowModel();
+        table2.getGroupedRowModel = () => {
+          if (!table2._getGroupedRowModel && table2.options.getGroupedRowModel) {
+            table2._getGroupedRowModel = table2.options.getGroupedRowModel(table2);
+          }
+          if (table2.options.manualGrouping || !table2._getGroupedRowModel) {
+            return table2.getPreGroupedRowModel();
+          }
+          return table2._getGroupedRowModel();
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.getIsGrouped = () => !!row2.groupingColumnId;
+        row2.getGroupingValue = (columnId) => {
+          if (row2._groupingValuesCache.hasOwnProperty(columnId)) {
+            return row2._groupingValuesCache[columnId];
+          }
+          const column2 = table2.getColumn(columnId);
+          if (!(column2 != null && column2.columnDef.getGroupingValue)) {
+            return row2.getValue(columnId);
+          }
+          row2._groupingValuesCache[columnId] = column2.columnDef.getGroupingValue(row2.original);
+          return row2._groupingValuesCache[columnId];
+        };
+        row2._groupingValuesCache = {};
+      },
+      createCell: (cell2, column2, row2, table2) => {
+        cell2.getIsGrouped = () => column2.getIsGrouped() && column2.id === row2.groupingColumnId;
+        cell2.getIsPlaceholder = () => !cell2.getIsGrouped() && column2.getIsGrouped();
+        cell2.getIsAggregated = () => {
+          var _row$subRows;
+          return !cell2.getIsGrouped() && !cell2.getIsPlaceholder() && !!((_row$subRows = row2.subRows) != null && _row$subRows.length);
+        };
+      }
+    };
+    function orderColumns(leafColumns, grouping, groupedColumnMode) {
+      if (!(grouping != null && grouping.length) || !groupedColumnMode) {
+        return leafColumns;
+      }
+      const nonGroupingColumns = leafColumns.filter((col) => !grouping.includes(col.id));
+      if (groupedColumnMode === "remove") {
+        return nonGroupingColumns;
+      }
+      const groupingColumns = grouping.map((g) => leafColumns.find((col) => col.id === g)).filter(Boolean);
+      return [...groupingColumns, ...nonGroupingColumns];
+    }
+    const ColumnOrdering = {
+      getInitialState: (state) => {
+        return {
+          columnOrder: [],
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnOrderChange: makeStateUpdater("columnOrder", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getIndex = memo$1((position) => [_getVisibleLeafColumns(table2, position)], (columns) => columns.findIndex((d) => d.id === column2.id), getMemoOptions(table2.options, "debugColumns"));
+        column2.getIsFirstColumn = (position) => {
+          var _columns$;
+          const columns = _getVisibleLeafColumns(table2, position);
+          return ((_columns$ = columns[0]) == null ? void 0 : _columns$.id) === column2.id;
+        };
+        column2.getIsLastColumn = (position) => {
+          var _columns;
+          const columns = _getVisibleLeafColumns(table2, position);
+          return ((_columns = columns[columns.length - 1]) == null ? void 0 : _columns.id) === column2.id;
+        };
+      },
+      createTable: (table2) => {
+        table2.setColumnOrder = (updater) => table2.options.onColumnOrderChange == null ? void 0 : table2.options.onColumnOrderChange(updater);
+        table2.resetColumnOrder = (defaultState) => {
+          var _table$initialState$c;
+          table2.setColumnOrder(defaultState ? [] : (_table$initialState$c = table2.initialState.columnOrder) != null ? _table$initialState$c : []);
+        };
+        table2._getOrderColumnsFn = memo$1(() => [table2.getState().columnOrder, table2.getState().grouping, table2.options.groupedColumnMode], (columnOrder, grouping, groupedColumnMode) => (columns) => {
+          let orderedColumns = [];
+          if (!(columnOrder != null && columnOrder.length)) {
+            orderedColumns = columns;
+          } else {
+            const columnOrderCopy = [...columnOrder];
+            const columnsCopy = [...columns];
+            while (columnsCopy.length && columnOrderCopy.length) {
+              const targetColumnId = columnOrderCopy.shift();
+              const foundIndex = columnsCopy.findIndex((d) => d.id === targetColumnId);
+              if (foundIndex > -1) {
+                orderedColumns.push(columnsCopy.splice(foundIndex, 1)[0]);
+              }
+            }
+            orderedColumns = [...orderedColumns, ...columnsCopy];
+          }
+          return orderColumns(orderedColumns, grouping, groupedColumnMode);
+        }, getMemoOptions(table2.options, "debugTable"));
+      }
+    };
+    const getDefaultColumnPinningState = () => ({
+      left: [],
+      right: []
+    });
+    const ColumnPinning = {
+      getInitialState: (state) => {
+        return {
+          columnPinning: getDefaultColumnPinningState(),
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnPinningChange: makeStateUpdater("columnPinning", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.pin = (position) => {
+          const columnIds = column2.getLeafColumns().map((d) => d.id).filter(Boolean);
+          table2.setColumnPinning((old) => {
+            var _old$left3, _old$right3;
+            if (position === "right") {
+              var _old$left, _old$right;
+              return {
+                left: ((_old$left = old == null ? void 0 : old.left) != null ? _old$left : []).filter((d) => !(columnIds != null && columnIds.includes(d))),
+                right: [...((_old$right = old == null ? void 0 : old.right) != null ? _old$right : []).filter((d) => !(columnIds != null && columnIds.includes(d))), ...columnIds]
+              };
+            }
+            if (position === "left") {
+              var _old$left2, _old$right2;
+              return {
+                left: [...((_old$left2 = old == null ? void 0 : old.left) != null ? _old$left2 : []).filter((d) => !(columnIds != null && columnIds.includes(d))), ...columnIds],
+                right: ((_old$right2 = old == null ? void 0 : old.right) != null ? _old$right2 : []).filter((d) => !(columnIds != null && columnIds.includes(d)))
+              };
+            }
+            return {
+              left: ((_old$left3 = old == null ? void 0 : old.left) != null ? _old$left3 : []).filter((d) => !(columnIds != null && columnIds.includes(d))),
+              right: ((_old$right3 = old == null ? void 0 : old.right) != null ? _old$right3 : []).filter((d) => !(columnIds != null && columnIds.includes(d)))
+            };
+          });
+        };
+        column2.getCanPin = () => {
+          const leafColumns = column2.getLeafColumns();
+          return leafColumns.some((d) => {
+            var _d$columnDef$enablePi, _ref, _table$options$enable;
+            return ((_d$columnDef$enablePi = d.columnDef.enablePinning) != null ? _d$columnDef$enablePi : true) && ((_ref = (_table$options$enable = table2.options.enableColumnPinning) != null ? _table$options$enable : table2.options.enablePinning) != null ? _ref : true);
+          });
+        };
+        column2.getIsPinned = () => {
+          const leafColumnIds = column2.getLeafColumns().map((d) => d.id);
+          const {
+            left: left2,
+            right: right2
+          } = table2.getState().columnPinning;
+          const isLeft = leafColumnIds.some((d) => left2 == null ? void 0 : left2.includes(d));
+          const isRight = leafColumnIds.some((d) => right2 == null ? void 0 : right2.includes(d));
+          return isLeft ? "left" : isRight ? "right" : false;
+        };
+        column2.getPinnedIndex = () => {
+          var _table$getState$colum, _table$getState$colum2;
+          const position = column2.getIsPinned();
+          return position ? (_table$getState$colum = (_table$getState$colum2 = table2.getState().columnPinning) == null || (_table$getState$colum2 = _table$getState$colum2[position]) == null ? void 0 : _table$getState$colum2.indexOf(column2.id)) != null ? _table$getState$colum : -1 : 0;
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.getCenterVisibleCells = memo$1(() => [row2._getAllVisibleCells(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allCells, left2, right2) => {
+          const leftAndRight = [...left2 != null ? left2 : [], ...right2 != null ? right2 : []];
+          return allCells.filter((d) => !leftAndRight.includes(d.column.id));
+        }, getMemoOptions(table2.options, "debugRows"));
+        row2.getLeftVisibleCells = memo$1(() => [row2._getAllVisibleCells(), table2.getState().columnPinning.left], (allCells, left2) => {
+          const cells = (left2 != null ? left2 : []).map((columnId) => allCells.find((cell2) => cell2.column.id === columnId)).filter(Boolean).map((d) => ({
+            ...d,
+            position: "left"
+          }));
+          return cells;
+        }, getMemoOptions(table2.options, "debugRows"));
+        row2.getRightVisibleCells = memo$1(() => [row2._getAllVisibleCells(), table2.getState().columnPinning.right], (allCells, right2) => {
+          const cells = (right2 != null ? right2 : []).map((columnId) => allCells.find((cell2) => cell2.column.id === columnId)).filter(Boolean).map((d) => ({
+            ...d,
+            position: "right"
+          }));
+          return cells;
+        }, getMemoOptions(table2.options, "debugRows"));
+      },
+      createTable: (table2) => {
+        table2.setColumnPinning = (updater) => table2.options.onColumnPinningChange == null ? void 0 : table2.options.onColumnPinningChange(updater);
+        table2.resetColumnPinning = (defaultState) => {
+          var _table$initialState$c, _table$initialState;
+          return table2.setColumnPinning(defaultState ? getDefaultColumnPinningState() : (_table$initialState$c = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.columnPinning) != null ? _table$initialState$c : getDefaultColumnPinningState());
+        };
+        table2.getIsSomeColumnsPinned = (position) => {
+          var _pinningState$positio;
+          const pinningState = table2.getState().columnPinning;
+          if (!position) {
+            var _pinningState$left, _pinningState$right;
+            return Boolean(((_pinningState$left = pinningState.left) == null ? void 0 : _pinningState$left.length) || ((_pinningState$right = pinningState.right) == null ? void 0 : _pinningState$right.length));
+          }
+          return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
+        };
+        table2.getLeftLeafColumns = memo$1(() => [table2.getAllLeafColumns(), table2.getState().columnPinning.left], (allColumns, left2) => {
+          return (left2 != null ? left2 : []).map((columnId) => allColumns.find((column2) => column2.id === columnId)).filter(Boolean);
+        }, getMemoOptions(table2.options, "debugColumns"));
+        table2.getRightLeafColumns = memo$1(() => [table2.getAllLeafColumns(), table2.getState().columnPinning.right], (allColumns, right2) => {
+          return (right2 != null ? right2 : []).map((columnId) => allColumns.find((column2) => column2.id === columnId)).filter(Boolean);
+        }, getMemoOptions(table2.options, "debugColumns"));
+        table2.getCenterLeafColumns = memo$1(() => [table2.getAllLeafColumns(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allColumns, left2, right2) => {
+          const leftAndRight = [...left2 != null ? left2 : [], ...right2 != null ? right2 : []];
+          return allColumns.filter((d) => !leftAndRight.includes(d.id));
+        }, getMemoOptions(table2.options, "debugColumns"));
+      }
+    };
+    function safelyAccessDocument(_document) {
+      return _document || (typeof document !== "undefined" ? document : null);
+    }
+    const defaultColumnSizing = {
+      size: 150,
+      minSize: 20,
+      maxSize: Number.MAX_SAFE_INTEGER
+    };
+    const getDefaultColumnSizingInfoState = () => ({
+      startOffset: null,
+      startSize: null,
+      deltaOffset: null,
+      deltaPercentage: null,
+      isResizingColumn: false,
+      columnSizingStart: []
+    });
+    const ColumnSizing = {
+      getDefaultColumnDef: () => {
+        return defaultColumnSizing;
+      },
+      getInitialState: (state) => {
+        return {
+          columnSizing: {},
+          columnSizingInfo: getDefaultColumnSizingInfoState(),
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          columnResizeMode: "onEnd",
+          columnResizeDirection: "ltr",
+          onColumnSizingChange: makeStateUpdater("columnSizing", table2),
+          onColumnSizingInfoChange: makeStateUpdater("columnSizingInfo", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getSize = () => {
+          var _column$columnDef$min, _ref, _column$columnDef$max;
+          const columnSize = table2.getState().columnSizing[column2.id];
+          return Math.min(Math.max((_column$columnDef$min = column2.columnDef.minSize) != null ? _column$columnDef$min : defaultColumnSizing.minSize, (_ref = columnSize != null ? columnSize : column2.columnDef.size) != null ? _ref : defaultColumnSizing.size), (_column$columnDef$max = column2.columnDef.maxSize) != null ? _column$columnDef$max : defaultColumnSizing.maxSize);
+        };
+        column2.getStart = memo$1((position) => [position, _getVisibleLeafColumns(table2, position), table2.getState().columnSizing], (position, columns) => columns.slice(0, column2.getIndex(position)).reduce((sum2, column22) => sum2 + column22.getSize(), 0), getMemoOptions(table2.options, "debugColumns"));
+        column2.getAfter = memo$1((position) => [position, _getVisibleLeafColumns(table2, position), table2.getState().columnSizing], (position, columns) => columns.slice(column2.getIndex(position) + 1).reduce((sum2, column22) => sum2 + column22.getSize(), 0), getMemoOptions(table2.options, "debugColumns"));
+        column2.resetSize = () => {
+          table2.setColumnSizing((_ref2) => {
+            let {
+              [column2.id]: _2,
+              ...rest
+            } = _ref2;
+            return rest;
+          });
+        };
+        column2.getCanResize = () => {
+          var _column$columnDef$ena, _table$options$enable;
+          return ((_column$columnDef$ena = column2.columnDef.enableResizing) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableColumnResizing) != null ? _table$options$enable : true);
+        };
+        column2.getIsResizing = () => {
+          return table2.getState().columnSizingInfo.isResizingColumn === column2.id;
+        };
+      },
+      createHeader: (header2, table2) => {
+        header2.getSize = () => {
+          let sum2 = 0;
+          const recurse = (header22) => {
+            if (header22.subHeaders.length) {
+              header22.subHeaders.forEach(recurse);
+            } else {
+              var _header$column$getSiz;
+              sum2 += (_header$column$getSiz = header22.column.getSize()) != null ? _header$column$getSiz : 0;
+            }
+          };
+          recurse(header2);
+          return sum2;
+        };
+        header2.getStart = () => {
+          if (header2.index > 0) {
+            const prevSiblingHeader = header2.headerGroup.headers[header2.index - 1];
+            return prevSiblingHeader.getStart() + prevSiblingHeader.getSize();
+          }
+          return 0;
+        };
+        header2.getResizeHandler = (_contextDocument) => {
+          const column2 = table2.getColumn(header2.column.id);
+          const canResize = column2 == null ? void 0 : column2.getCanResize();
+          return (e) => {
+            if (!column2 || !canResize) {
+              return;
+            }
+            e.persist == null || e.persist();
+            if (isTouchStartEvent(e)) {
+              if (e.touches && e.touches.length > 1) {
+                return;
+              }
+            }
+            const startSize = header2.getSize();
+            const columnSizingStart = header2 ? header2.getLeafHeaders().map((d) => [d.column.id, d.column.getSize()]) : [[column2.id, column2.getSize()]];
+            const clientX = isTouchStartEvent(e) ? Math.round(e.touches[0].clientX) : e.clientX;
+            const newColumnSizing = {};
+            const updateOffset = (eventType, clientXPos) => {
+              if (typeof clientXPos !== "number") {
+                return;
+              }
+              table2.setColumnSizingInfo((old) => {
+                var _old$startOffset, _old$startSize;
+                const deltaDirection = table2.options.columnResizeDirection === "rtl" ? -1 : 1;
+                const deltaOffset = (clientXPos - ((_old$startOffset = old == null ? void 0 : old.startOffset) != null ? _old$startOffset : 0)) * deltaDirection;
+                const deltaPercentage = Math.max(deltaOffset / ((_old$startSize = old == null ? void 0 : old.startSize) != null ? _old$startSize : 0), -0.999999);
+                old.columnSizingStart.forEach((_ref3) => {
+                  let [columnId, headerSize] = _ref3;
+                  newColumnSizing[columnId] = Math.round(Math.max(headerSize + headerSize * deltaPercentage, 0) * 100) / 100;
+                });
+                return {
+                  ...old,
+                  deltaOffset,
+                  deltaPercentage
+                };
+              });
+              if (table2.options.columnResizeMode === "onChange" || eventType === "end") {
+                table2.setColumnSizing((old) => ({
+                  ...old,
+                  ...newColumnSizing
+                }));
+              }
+            };
+            const onMove = (clientXPos) => updateOffset("move", clientXPos);
+            const onEnd = (clientXPos) => {
+              updateOffset("end", clientXPos);
+              table2.setColumnSizingInfo((old) => ({
+                ...old,
+                isResizingColumn: false,
+                startOffset: null,
+                startSize: null,
+                deltaOffset: null,
+                deltaPercentage: null,
+                columnSizingStart: []
+              }));
+            };
+            const contextDocument = safelyAccessDocument(_contextDocument);
+            const mouseEvents = {
+              moveHandler: (e2) => onMove(e2.clientX),
+              upHandler: (e2) => {
+                contextDocument == null || contextDocument.removeEventListener("mousemove", mouseEvents.moveHandler);
+                contextDocument == null || contextDocument.removeEventListener("mouseup", mouseEvents.upHandler);
+                onEnd(e2.clientX);
+              }
+            };
+            const touchEvents = {
+              moveHandler: (e2) => {
+                if (e2.cancelable) {
+                  e2.preventDefault();
+                  e2.stopPropagation();
+                }
+                onMove(e2.touches[0].clientX);
+                return false;
+              },
+              upHandler: (e2) => {
+                var _e$touches$;
+                contextDocument == null || contextDocument.removeEventListener("touchmove", touchEvents.moveHandler);
+                contextDocument == null || contextDocument.removeEventListener("touchend", touchEvents.upHandler);
+                if (e2.cancelable) {
+                  e2.preventDefault();
+                  e2.stopPropagation();
+                }
+                onEnd((_e$touches$ = e2.touches[0]) == null ? void 0 : _e$touches$.clientX);
+              }
+            };
+            const passiveIfSupported = passiveEventSupported() ? {
+              passive: false
+            } : false;
+            if (isTouchStartEvent(e)) {
+              contextDocument == null || contextDocument.addEventListener("touchmove", touchEvents.moveHandler, passiveIfSupported);
+              contextDocument == null || contextDocument.addEventListener("touchend", touchEvents.upHandler, passiveIfSupported);
+            } else {
+              contextDocument == null || contextDocument.addEventListener("mousemove", mouseEvents.moveHandler, passiveIfSupported);
+              contextDocument == null || contextDocument.addEventListener("mouseup", mouseEvents.upHandler, passiveIfSupported);
+            }
+            table2.setColumnSizingInfo((old) => ({
+              ...old,
+              startOffset: clientX,
+              startSize,
+              deltaOffset: 0,
+              deltaPercentage: 0,
+              columnSizingStart,
+              isResizingColumn: column2.id
+            }));
+          };
+        };
+      },
+      createTable: (table2) => {
+        table2.setColumnSizing = (updater) => table2.options.onColumnSizingChange == null ? void 0 : table2.options.onColumnSizingChange(updater);
+        table2.setColumnSizingInfo = (updater) => table2.options.onColumnSizingInfoChange == null ? void 0 : table2.options.onColumnSizingInfoChange(updater);
+        table2.resetColumnSizing = (defaultState) => {
+          var _table$initialState$c;
+          table2.setColumnSizing(defaultState ? {} : (_table$initialState$c = table2.initialState.columnSizing) != null ? _table$initialState$c : {});
+        };
+        table2.resetHeaderSizeInfo = (defaultState) => {
+          var _table$initialState$c2;
+          table2.setColumnSizingInfo(defaultState ? getDefaultColumnSizingInfoState() : (_table$initialState$c2 = table2.initialState.columnSizingInfo) != null ? _table$initialState$c2 : getDefaultColumnSizingInfoState());
+        };
+        table2.getTotalSize = () => {
+          var _table$getHeaderGroup, _table$getHeaderGroup2;
+          return (_table$getHeaderGroup = (_table$getHeaderGroup2 = table2.getHeaderGroups()[0]) == null ? void 0 : _table$getHeaderGroup2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getHeaderGroup : 0;
+        };
+        table2.getLeftTotalSize = () => {
+          var _table$getLeftHeaderG, _table$getLeftHeaderG2;
+          return (_table$getLeftHeaderG = (_table$getLeftHeaderG2 = table2.getLeftHeaderGroups()[0]) == null ? void 0 : _table$getLeftHeaderG2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getLeftHeaderG : 0;
+        };
+        table2.getCenterTotalSize = () => {
+          var _table$getCenterHeade, _table$getCenterHeade2;
+          return (_table$getCenterHeade = (_table$getCenterHeade2 = table2.getCenterHeaderGroups()[0]) == null ? void 0 : _table$getCenterHeade2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getCenterHeade : 0;
+        };
+        table2.getRightTotalSize = () => {
+          var _table$getRightHeader, _table$getRightHeader2;
+          return (_table$getRightHeader = (_table$getRightHeader2 = table2.getRightHeaderGroups()[0]) == null ? void 0 : _table$getRightHeader2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getRightHeader : 0;
+        };
+      }
+    };
+    let passiveSupported = null;
+    function passiveEventSupported() {
+      if (typeof passiveSupported === "boolean") return passiveSupported;
+      let supported = false;
+      try {
+        const options2 = {
+          get passive() {
+            supported = true;
+            return false;
+          }
+        };
+        const noop2 = () => {
+        };
+        window.addEventListener("test", noop2, options2);
+        window.removeEventListener("test", noop2);
+      } catch (err2) {
+        supported = false;
+      }
+      passiveSupported = supported;
+      return passiveSupported;
+    }
+    function isTouchStartEvent(e) {
+      return e.type === "touchstart";
+    }
+    const ColumnVisibility = {
+      getInitialState: (state) => {
+        return {
+          columnVisibility: {},
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnVisibilityChange: makeStateUpdater("columnVisibility", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.toggleVisibility = (value2) => {
+          if (column2.getCanHide()) {
+            table2.setColumnVisibility((old) => ({
+              ...old,
+              [column2.id]: value2 != null ? value2 : !column2.getIsVisible()
+            }));
+          }
+        };
+        column2.getIsVisible = () => {
+          var _ref, _table$getState$colum;
+          const childColumns = column2.columns;
+          return (_ref = childColumns.length ? childColumns.some((c2) => c2.getIsVisible()) : (_table$getState$colum = table2.getState().columnVisibility) == null ? void 0 : _table$getState$colum[column2.id]) != null ? _ref : true;
+        };
+        column2.getCanHide = () => {
+          var _column$columnDef$ena, _table$options$enable;
+          return ((_column$columnDef$ena = column2.columnDef.enableHiding) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableHiding) != null ? _table$options$enable : true);
+        };
+        column2.getToggleVisibilityHandler = () => {
+          return (e) => {
+            column2.toggleVisibility == null || column2.toggleVisibility(e.target.checked);
+          };
+        };
+      },
+      createRow: (row2, table2) => {
+        row2._getAllVisibleCells = memo$1(() => [row2.getAllCells(), table2.getState().columnVisibility], (cells) => {
+          return cells.filter((cell2) => cell2.column.getIsVisible());
+        }, getMemoOptions(table2.options, "debugRows"));
+        row2.getVisibleCells = memo$1(() => [row2.getLeftVisibleCells(), row2.getCenterVisibleCells(), row2.getRightVisibleCells()], (left2, center2, right2) => [...left2, ...center2, ...right2], getMemoOptions(table2.options, "debugRows"));
+      },
+      createTable: (table2) => {
+        const makeVisibleColumnsMethod = (key2, getColumns) => {
+          return memo$1(() => [getColumns(), getColumns().filter((d) => d.getIsVisible()).map((d) => d.id).join("_")], (columns) => {
+            return columns.filter((d) => d.getIsVisible == null ? void 0 : d.getIsVisible());
+          }, getMemoOptions(table2.options, "debugColumns"));
+        };
+        table2.getVisibleFlatColumns = makeVisibleColumnsMethod("getVisibleFlatColumns", () => table2.getAllFlatColumns());
+        table2.getVisibleLeafColumns = makeVisibleColumnsMethod("getVisibleLeafColumns", () => table2.getAllLeafColumns());
+        table2.getLeftVisibleLeafColumns = makeVisibleColumnsMethod("getLeftVisibleLeafColumns", () => table2.getLeftLeafColumns());
+        table2.getRightVisibleLeafColumns = makeVisibleColumnsMethod("getRightVisibleLeafColumns", () => table2.getRightLeafColumns());
+        table2.getCenterVisibleLeafColumns = makeVisibleColumnsMethod("getCenterVisibleLeafColumns", () => table2.getCenterLeafColumns());
+        table2.setColumnVisibility = (updater) => table2.options.onColumnVisibilityChange == null ? void 0 : table2.options.onColumnVisibilityChange(updater);
+        table2.resetColumnVisibility = (defaultState) => {
+          var _table$initialState$c;
+          table2.setColumnVisibility(defaultState ? {} : (_table$initialState$c = table2.initialState.columnVisibility) != null ? _table$initialState$c : {});
+        };
+        table2.toggleAllColumnsVisible = (value2) => {
+          var _value;
+          value2 = (_value = value2) != null ? _value : !table2.getIsAllColumnsVisible();
+          table2.setColumnVisibility(table2.getAllLeafColumns().reduce((obj, column2) => ({
+            ...obj,
+            [column2.id]: !value2 ? !(column2.getCanHide != null && column2.getCanHide()) : value2
+          }), {}));
+        };
+        table2.getIsAllColumnsVisible = () => !table2.getAllLeafColumns().some((column2) => !(column2.getIsVisible != null && column2.getIsVisible()));
+        table2.getIsSomeColumnsVisible = () => table2.getAllLeafColumns().some((column2) => column2.getIsVisible == null ? void 0 : column2.getIsVisible());
+        table2.getToggleAllColumnsVisibilityHandler = () => {
+          return (e) => {
+            var _target;
+            table2.toggleAllColumnsVisible((_target = e.target) == null ? void 0 : _target.checked);
+          };
+        };
+      }
+    };
+    function _getVisibleLeafColumns(table2, position) {
+      return !position ? table2.getVisibleLeafColumns() : position === "center" ? table2.getCenterVisibleLeafColumns() : position === "left" ? table2.getLeftVisibleLeafColumns() : table2.getRightVisibleLeafColumns();
+    }
+    const GlobalFaceting = {
+      createTable: (table2) => {
+        table2._getGlobalFacetedRowModel = table2.options.getFacetedRowModel && table2.options.getFacetedRowModel(table2, "__global__");
+        table2.getGlobalFacetedRowModel = () => {
+          if (table2.options.manualFiltering || !table2._getGlobalFacetedRowModel) {
+            return table2.getPreFilteredRowModel();
+          }
+          return table2._getGlobalFacetedRowModel();
+        };
+        table2._getGlobalFacetedUniqueValues = table2.options.getFacetedUniqueValues && table2.options.getFacetedUniqueValues(table2, "__global__");
+        table2.getGlobalFacetedUniqueValues = () => {
+          if (!table2._getGlobalFacetedUniqueValues) {
+            return /* @__PURE__ */ new Map();
+          }
+          return table2._getGlobalFacetedUniqueValues();
+        };
+        table2._getGlobalFacetedMinMaxValues = table2.options.getFacetedMinMaxValues && table2.options.getFacetedMinMaxValues(table2, "__global__");
+        table2.getGlobalFacetedMinMaxValues = () => {
+          if (!table2._getGlobalFacetedMinMaxValues) {
+            return;
+          }
+          return table2._getGlobalFacetedMinMaxValues();
+        };
+      }
+    };
+    const GlobalFiltering = {
+      getInitialState: (state) => {
+        return {
+          globalFilter: void 0,
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onGlobalFilterChange: makeStateUpdater("globalFilter", table2),
+          globalFilterFn: "auto",
+          getColumnCanGlobalFilter: (column2) => {
+            var _table$getCoreRowMode;
+            const value2 = (_table$getCoreRowMode = table2.getCoreRowModel().flatRows[0]) == null || (_table$getCoreRowMode = _table$getCoreRowMode._getAllCellsByColumnId()[column2.id]) == null ? void 0 : _table$getCoreRowMode.getValue();
+            return typeof value2 === "string" || typeof value2 === "number";
+          }
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getCanGlobalFilter = () => {
+          var _column$columnDef$ena, _table$options$enable, _table$options$enable2, _table$options$getCol;
+          return ((_column$columnDef$ena = column2.columnDef.enableGlobalFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableGlobalFilter) != null ? _table$options$enable : true) && ((_table$options$enable2 = table2.options.enableFilters) != null ? _table$options$enable2 : true) && ((_table$options$getCol = table2.options.getColumnCanGlobalFilter == null ? void 0 : table2.options.getColumnCanGlobalFilter(column2)) != null ? _table$options$getCol : true) && !!column2.accessorFn;
+        };
+      },
+      createTable: (table2) => {
+        table2.getGlobalAutoFilterFn = () => {
+          return filterFns.includesString;
+        };
+        table2.getGlobalFilterFn = () => {
+          var _table$options$filter, _table$options$filter2;
+          const {
+            globalFilterFn
+          } = table2.options;
+          return isFunction(globalFilterFn) ? globalFilterFn : globalFilterFn === "auto" ? table2.getGlobalAutoFilterFn() : (_table$options$filter = (_table$options$filter2 = table2.options.filterFns) == null ? void 0 : _table$options$filter2[globalFilterFn]) != null ? _table$options$filter : filterFns[globalFilterFn];
+        };
+        table2.setGlobalFilter = (updater) => {
+          table2.options.onGlobalFilterChange == null || table2.options.onGlobalFilterChange(updater);
+        };
+        table2.resetGlobalFilter = (defaultState) => {
+          table2.setGlobalFilter(defaultState ? void 0 : table2.initialState.globalFilter);
+        };
+      }
+    };
+    const RowExpanding = {
+      getInitialState: (state) => {
+        return {
+          expanded: {},
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onExpandedChange: makeStateUpdater("expanded", table2),
+          paginateExpandedRows: true
+        };
+      },
+      createTable: (table2) => {
+        let registered = false;
+        let queued = false;
+        table2._autoResetExpanded = () => {
+          var _ref, _table$options$autoRe;
+          if (!registered) {
+            table2._queue(() => {
+              registered = true;
+            });
+            return;
+          }
+          if ((_ref = (_table$options$autoRe = table2.options.autoResetAll) != null ? _table$options$autoRe : table2.options.autoResetExpanded) != null ? _ref : !table2.options.manualExpanding) {
+            if (queued) return;
+            queued = true;
+            table2._queue(() => {
+              table2.resetExpanded();
+              queued = false;
+            });
+          }
+        };
+        table2.setExpanded = (updater) => table2.options.onExpandedChange == null ? void 0 : table2.options.onExpandedChange(updater);
+        table2.toggleAllRowsExpanded = (expanded) => {
+          if (expanded != null ? expanded : !table2.getIsAllRowsExpanded()) {
+            table2.setExpanded(true);
+          } else {
+            table2.setExpanded({});
+          }
+        };
+        table2.resetExpanded = (defaultState) => {
+          var _table$initialState$e, _table$initialState;
+          table2.setExpanded(defaultState ? {} : (_table$initialState$e = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.expanded) != null ? _table$initialState$e : {});
+        };
+        table2.getCanSomeRowsExpand = () => {
+          return table2.getPrePaginationRowModel().flatRows.some((row2) => row2.getCanExpand());
+        };
+        table2.getToggleAllRowsExpandedHandler = () => {
+          return (e) => {
+            e.persist == null || e.persist();
+            table2.toggleAllRowsExpanded();
+          };
+        };
+        table2.getIsSomeRowsExpanded = () => {
+          const expanded = table2.getState().expanded;
+          return expanded === true || Object.values(expanded).some(Boolean);
+        };
+        table2.getIsAllRowsExpanded = () => {
+          const expanded = table2.getState().expanded;
+          if (typeof expanded === "boolean") {
+            return expanded === true;
+          }
+          if (!Object.keys(expanded).length) {
+            return false;
+          }
+          if (table2.getRowModel().flatRows.some((row2) => !row2.getIsExpanded())) {
+            return false;
+          }
+          return true;
+        };
+        table2.getExpandedDepth = () => {
+          let maxDepth = 0;
+          const rowIds = table2.getState().expanded === true ? Object.keys(table2.getRowModel().rowsById) : Object.keys(table2.getState().expanded);
+          rowIds.forEach((id) => {
+            const splitId = id.split(".");
+            maxDepth = Math.max(maxDepth, splitId.length);
+          });
+          return maxDepth;
+        };
+        table2.getPreExpandedRowModel = () => table2.getSortedRowModel();
+        table2.getExpandedRowModel = () => {
+          if (!table2._getExpandedRowModel && table2.options.getExpandedRowModel) {
+            table2._getExpandedRowModel = table2.options.getExpandedRowModel(table2);
+          }
+          if (table2.options.manualExpanding || !table2._getExpandedRowModel) {
+            return table2.getPreExpandedRowModel();
+          }
+          return table2._getExpandedRowModel();
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.toggleExpanded = (expanded) => {
+          table2.setExpanded((old) => {
+            var _expanded;
+            const exists = old === true ? true : !!(old != null && old[row2.id]);
+            let oldExpanded = {};
+            if (old === true) {
+              Object.keys(table2.getRowModel().rowsById).forEach((rowId) => {
+                oldExpanded[rowId] = true;
+              });
+            } else {
+              oldExpanded = old;
+            }
+            expanded = (_expanded = expanded) != null ? _expanded : !exists;
+            if (!exists && expanded) {
+              return {
+                ...oldExpanded,
+                [row2.id]: true
+              };
+            }
+            if (exists && !expanded) {
+              const {
+                [row2.id]: _2,
+                ...rest
+              } = oldExpanded;
+              return rest;
+            }
+            return old;
+          });
+        };
+        row2.getIsExpanded = () => {
+          var _table$options$getIsR;
+          const expanded = table2.getState().expanded;
+          return !!((_table$options$getIsR = table2.options.getIsRowExpanded == null ? void 0 : table2.options.getIsRowExpanded(row2)) != null ? _table$options$getIsR : expanded === true || (expanded == null ? void 0 : expanded[row2.id]));
+        };
+        row2.getCanExpand = () => {
+          var _table$options$getRow, _table$options$enable, _row$subRows;
+          return (_table$options$getRow = table2.options.getRowCanExpand == null ? void 0 : table2.options.getRowCanExpand(row2)) != null ? _table$options$getRow : ((_table$options$enable = table2.options.enableExpanding) != null ? _table$options$enable : true) && !!((_row$subRows = row2.subRows) != null && _row$subRows.length);
+        };
+        row2.getIsAllParentsExpanded = () => {
+          let isFullyExpanded = true;
+          let currentRow = row2;
+          while (isFullyExpanded && currentRow.parentId) {
+            currentRow = table2.getRow(currentRow.parentId, true);
+            isFullyExpanded = currentRow.getIsExpanded();
+          }
+          return isFullyExpanded;
+        };
+        row2.getToggleExpandedHandler = () => {
+          const canExpand = row2.getCanExpand();
+          return () => {
+            if (!canExpand) return;
+            row2.toggleExpanded();
+          };
+        };
+      }
+    };
+    const defaultPageIndex = 0;
+    const defaultPageSize = 10;
+    const getDefaultPaginationState = () => ({
+      pageIndex: defaultPageIndex,
+      pageSize: defaultPageSize
+    });
+    const RowPagination = {
+      getInitialState: (state) => {
+        return {
+          ...state,
+          pagination: {
+            ...getDefaultPaginationState(),
+            ...state == null ? void 0 : state.pagination
+          }
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onPaginationChange: makeStateUpdater("pagination", table2)
+        };
+      },
+      createTable: (table2) => {
+        let registered = false;
+        let queued = false;
+        table2._autoResetPageIndex = () => {
+          var _ref, _table$options$autoRe;
+          if (!registered) {
+            table2._queue(() => {
+              registered = true;
+            });
+            return;
+          }
+          if ((_ref = (_table$options$autoRe = table2.options.autoResetAll) != null ? _table$options$autoRe : table2.options.autoResetPageIndex) != null ? _ref : !table2.options.manualPagination) {
+            if (queued) return;
+            queued = true;
+            table2._queue(() => {
+              table2.resetPageIndex();
+              queued = false;
+            });
+          }
+        };
+        table2.setPagination = (updater) => {
+          const safeUpdater = (old) => {
+            let newState = functionalUpdate(updater, old);
+            return newState;
+          };
+          return table2.options.onPaginationChange == null ? void 0 : table2.options.onPaginationChange(safeUpdater);
+        };
+        table2.resetPagination = (defaultState) => {
+          var _table$initialState$p;
+          table2.setPagination(defaultState ? getDefaultPaginationState() : (_table$initialState$p = table2.initialState.pagination) != null ? _table$initialState$p : getDefaultPaginationState());
+        };
+        table2.setPageIndex = (updater) => {
+          table2.setPagination((old) => {
+            let pageIndex = functionalUpdate(updater, old.pageIndex);
+            const maxPageIndex = typeof table2.options.pageCount === "undefined" || table2.options.pageCount === -1 ? Number.MAX_SAFE_INTEGER : table2.options.pageCount - 1;
+            pageIndex = Math.max(0, Math.min(pageIndex, maxPageIndex));
+            return {
+              ...old,
+              pageIndex
+            };
+          });
+        };
+        table2.resetPageIndex = (defaultState) => {
+          var _table$initialState$p2, _table$initialState;
+          table2.setPageIndex(defaultState ? defaultPageIndex : (_table$initialState$p2 = (_table$initialState = table2.initialState) == null || (_table$initialState = _table$initialState.pagination) == null ? void 0 : _table$initialState.pageIndex) != null ? _table$initialState$p2 : defaultPageIndex);
+        };
+        table2.resetPageSize = (defaultState) => {
+          var _table$initialState$p3, _table$initialState2;
+          table2.setPageSize(defaultState ? defaultPageSize : (_table$initialState$p3 = (_table$initialState2 = table2.initialState) == null || (_table$initialState2 = _table$initialState2.pagination) == null ? void 0 : _table$initialState2.pageSize) != null ? _table$initialState$p3 : defaultPageSize);
+        };
+        table2.setPageSize = (updater) => {
+          table2.setPagination((old) => {
+            const pageSize = Math.max(1, functionalUpdate(updater, old.pageSize));
+            const topRowIndex = old.pageSize * old.pageIndex;
+            const pageIndex = Math.floor(topRowIndex / pageSize);
+            return {
+              ...old,
+              pageIndex,
+              pageSize
+            };
+          });
+        };
+        table2.setPageCount = (updater) => table2.setPagination((old) => {
+          var _table$options$pageCo;
+          let newPageCount = functionalUpdate(updater, (_table$options$pageCo = table2.options.pageCount) != null ? _table$options$pageCo : -1);
+          if (typeof newPageCount === "number") {
+            newPageCount = Math.max(-1, newPageCount);
+          }
+          return {
+            ...old,
+            pageCount: newPageCount
+          };
+        });
+        table2.getPageOptions = memo$1(() => [table2.getPageCount()], (pageCount) => {
+          let pageOptions = [];
+          if (pageCount && pageCount > 0) {
+            pageOptions = [...new Array(pageCount)].fill(null).map((_2, i2) => i2);
+          }
+          return pageOptions;
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getCanPreviousPage = () => table2.getState().pagination.pageIndex > 0;
+        table2.getCanNextPage = () => {
+          const {
+            pageIndex
+          } = table2.getState().pagination;
+          const pageCount = table2.getPageCount();
+          if (pageCount === -1) {
+            return true;
+          }
+          if (pageCount === 0) {
+            return false;
+          }
+          return pageIndex < pageCount - 1;
+        };
+        table2.previousPage = () => {
+          return table2.setPageIndex((old) => old - 1);
+        };
+        table2.nextPage = () => {
+          return table2.setPageIndex((old) => {
+            return old + 1;
+          });
+        };
+        table2.firstPage = () => {
+          return table2.setPageIndex(0);
+        };
+        table2.lastPage = () => {
+          return table2.setPageIndex(table2.getPageCount() - 1);
+        };
+        table2.getPrePaginationRowModel = () => table2.getExpandedRowModel();
+        table2.getPaginationRowModel = () => {
+          if (!table2._getPaginationRowModel && table2.options.getPaginationRowModel) {
+            table2._getPaginationRowModel = table2.options.getPaginationRowModel(table2);
+          }
+          if (table2.options.manualPagination || !table2._getPaginationRowModel) {
+            return table2.getPrePaginationRowModel();
+          }
+          return table2._getPaginationRowModel();
+        };
+        table2.getPageCount = () => {
+          var _table$options$pageCo2;
+          return (_table$options$pageCo2 = table2.options.pageCount) != null ? _table$options$pageCo2 : Math.ceil(table2.getRowCount() / table2.getState().pagination.pageSize);
+        };
+        table2.getRowCount = () => {
+          var _table$options$rowCou;
+          return (_table$options$rowCou = table2.options.rowCount) != null ? _table$options$rowCou : table2.getPrePaginationRowModel().rows.length;
+        };
+      }
+    };
+    const getDefaultRowPinningState = () => ({
+      top: [],
+      bottom: []
+    });
+    const RowPinning = {
+      getInitialState: (state) => {
+        return {
+          rowPinning: getDefaultRowPinningState(),
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onRowPinningChange: makeStateUpdater("rowPinning", table2)
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.pin = (position, includeLeafRows, includeParentRows) => {
+          const leafRowIds = includeLeafRows ? row2.getLeafRows().map((_ref) => {
+            let {
+              id
+            } = _ref;
+            return id;
+          }) : [];
+          const parentRowIds = includeParentRows ? row2.getParentRows().map((_ref2) => {
+            let {
+              id
+            } = _ref2;
+            return id;
+          }) : [];
+          const rowIds = /* @__PURE__ */ new Set([...parentRowIds, row2.id, ...leafRowIds]);
+          table2.setRowPinning((old) => {
+            var _old$top3, _old$bottom3;
+            if (position === "bottom") {
+              var _old$top, _old$bottom;
+              return {
+                top: ((_old$top = old == null ? void 0 : old.top) != null ? _old$top : []).filter((d) => !(rowIds != null && rowIds.has(d))),
+                bottom: [...((_old$bottom = old == null ? void 0 : old.bottom) != null ? _old$bottom : []).filter((d) => !(rowIds != null && rowIds.has(d))), ...Array.from(rowIds)]
+              };
+            }
+            if (position === "top") {
+              var _old$top2, _old$bottom2;
+              return {
+                top: [...((_old$top2 = old == null ? void 0 : old.top) != null ? _old$top2 : []).filter((d) => !(rowIds != null && rowIds.has(d))), ...Array.from(rowIds)],
+                bottom: ((_old$bottom2 = old == null ? void 0 : old.bottom) != null ? _old$bottom2 : []).filter((d) => !(rowIds != null && rowIds.has(d)))
+              };
+            }
+            return {
+              top: ((_old$top3 = old == null ? void 0 : old.top) != null ? _old$top3 : []).filter((d) => !(rowIds != null && rowIds.has(d))),
+              bottom: ((_old$bottom3 = old == null ? void 0 : old.bottom) != null ? _old$bottom3 : []).filter((d) => !(rowIds != null && rowIds.has(d)))
+            };
+          });
+        };
+        row2.getCanPin = () => {
+          var _ref3;
+          const {
+            enableRowPinning,
+            enablePinning
+          } = table2.options;
+          if (typeof enableRowPinning === "function") {
+            return enableRowPinning(row2);
+          }
+          return (_ref3 = enableRowPinning != null ? enableRowPinning : enablePinning) != null ? _ref3 : true;
+        };
+        row2.getIsPinned = () => {
+          const rowIds = [row2.id];
+          const {
+            top: top2,
+            bottom: bottom2
+          } = table2.getState().rowPinning;
+          const isTop = rowIds.some((d) => top2 == null ? void 0 : top2.includes(d));
+          const isBottom = rowIds.some((d) => bottom2 == null ? void 0 : bottom2.includes(d));
+          return isTop ? "top" : isBottom ? "bottom" : false;
+        };
+        row2.getPinnedIndex = () => {
+          var _ref4, _visiblePinnedRowIds$;
+          const position = row2.getIsPinned();
+          if (!position) return -1;
+          const visiblePinnedRowIds = (_ref4 = position === "top" ? table2.getTopRows() : table2.getBottomRows()) == null ? void 0 : _ref4.map((_ref5) => {
+            let {
+              id
+            } = _ref5;
+            return id;
+          });
+          return (_visiblePinnedRowIds$ = visiblePinnedRowIds == null ? void 0 : visiblePinnedRowIds.indexOf(row2.id)) != null ? _visiblePinnedRowIds$ : -1;
+        };
+      },
+      createTable: (table2) => {
+        table2.setRowPinning = (updater) => table2.options.onRowPinningChange == null ? void 0 : table2.options.onRowPinningChange(updater);
+        table2.resetRowPinning = (defaultState) => {
+          var _table$initialState$r, _table$initialState;
+          return table2.setRowPinning(defaultState ? getDefaultRowPinningState() : (_table$initialState$r = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.rowPinning) != null ? _table$initialState$r : getDefaultRowPinningState());
+        };
+        table2.getIsSomeRowsPinned = (position) => {
+          var _pinningState$positio;
+          const pinningState = table2.getState().rowPinning;
+          if (!position) {
+            var _pinningState$top, _pinningState$bottom;
+            return Boolean(((_pinningState$top = pinningState.top) == null ? void 0 : _pinningState$top.length) || ((_pinningState$bottom = pinningState.bottom) == null ? void 0 : _pinningState$bottom.length));
+          }
+          return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
+        };
+        table2._getPinnedRows = (visibleRows, pinnedRowIds, position) => {
+          var _table$options$keepPi;
+          const rows = ((_table$options$keepPi = table2.options.keepPinnedRows) != null ? _table$options$keepPi : true) ? (
+            //get all rows that are pinned even if they would not be otherwise visible
+            //account for expanded parent rows, but not pagination or filtering
+            (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => {
+              const row2 = table2.getRow(rowId, true);
+              return row2.getIsAllParentsExpanded() ? row2 : null;
+            })
+          ) : (
+            //else get only visible rows that are pinned
+            (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => visibleRows.find((row2) => row2.id === rowId))
+          );
+          return rows.filter(Boolean).map((d) => ({
+            ...d,
+            position
+          }));
+        };
+        table2.getTopRows = memo$1(() => [table2.getRowModel().rows, table2.getState().rowPinning.top], (allRows, topPinnedRowIds) => table2._getPinnedRows(allRows, topPinnedRowIds, "top"), getMemoOptions(table2.options, "debugRows"));
+        table2.getBottomRows = memo$1(() => [table2.getRowModel().rows, table2.getState().rowPinning.bottom], (allRows, bottomPinnedRowIds) => table2._getPinnedRows(allRows, bottomPinnedRowIds, "bottom"), getMemoOptions(table2.options, "debugRows"));
+        table2.getCenterRows = memo$1(() => [table2.getRowModel().rows, table2.getState().rowPinning.top, table2.getState().rowPinning.bottom], (allRows, top2, bottom2) => {
+          const topAndBottom = /* @__PURE__ */ new Set([...top2 != null ? top2 : [], ...bottom2 != null ? bottom2 : []]);
+          return allRows.filter((d) => !topAndBottom.has(d.id));
+        }, getMemoOptions(table2.options, "debugRows"));
+      }
+    };
+    const RowSelection = {
+      getInitialState: (state) => {
+        return {
+          rowSelection: {},
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onRowSelectionChange: makeStateUpdater("rowSelection", table2),
+          enableRowSelection: true,
+          enableMultiRowSelection: true,
+          enableSubRowSelection: true
+          // enableGroupingRowSelection: false,
+          // isAdditiveSelectEvent: (e: unknown) => !!e.metaKey,
+          // isInclusiveSelectEvent: (e: unknown) => !!e.shiftKey,
+        };
+      },
+      createTable: (table2) => {
+        table2.setRowSelection = (updater) => table2.options.onRowSelectionChange == null ? void 0 : table2.options.onRowSelectionChange(updater);
+        table2.resetRowSelection = (defaultState) => {
+          var _table$initialState$r;
+          return table2.setRowSelection(defaultState ? {} : (_table$initialState$r = table2.initialState.rowSelection) != null ? _table$initialState$r : {});
+        };
+        table2.toggleAllRowsSelected = (value2) => {
+          table2.setRowSelection((old) => {
+            value2 = typeof value2 !== "undefined" ? value2 : !table2.getIsAllRowsSelected();
+            const rowSelection = {
+              ...old
+            };
+            const preGroupedFlatRows = table2.getPreGroupedRowModel().flatRows;
+            if (value2) {
+              preGroupedFlatRows.forEach((row2) => {
+                if (!row2.getCanSelect()) {
+                  return;
+                }
+                rowSelection[row2.id] = true;
+              });
+            } else {
+              preGroupedFlatRows.forEach((row2) => {
+                delete rowSelection[row2.id];
+              });
+            }
+            return rowSelection;
+          });
+        };
+        table2.toggleAllPageRowsSelected = (value2) => table2.setRowSelection((old) => {
+          const resolvedValue = typeof value2 !== "undefined" ? value2 : !table2.getIsAllPageRowsSelected();
+          const rowSelection = {
+            ...old
+          };
+          table2.getRowModel().rows.forEach((row2) => {
+            mutateRowIsSelected(rowSelection, row2.id, resolvedValue, true, table2);
+          });
+          return rowSelection;
+        });
+        table2.getPreSelectedRowModel = () => table2.getCoreRowModel();
+        table2.getSelectedRowModel = memo$1(() => [table2.getState().rowSelection, table2.getCoreRowModel()], (rowSelection, rowModel) => {
+          if (!Object.keys(rowSelection).length) {
+            return {
+              rows: [],
+              flatRows: [],
+              rowsById: {}
+            };
+          }
+          return selectRowsFn(table2, rowModel);
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getFilteredSelectedRowModel = memo$1(() => [table2.getState().rowSelection, table2.getFilteredRowModel()], (rowSelection, rowModel) => {
+          if (!Object.keys(rowSelection).length) {
+            return {
+              rows: [],
+              flatRows: [],
+              rowsById: {}
+            };
+          }
+          return selectRowsFn(table2, rowModel);
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getGroupedSelectedRowModel = memo$1(() => [table2.getState().rowSelection, table2.getSortedRowModel()], (rowSelection, rowModel) => {
+          if (!Object.keys(rowSelection).length) {
+            return {
+              rows: [],
+              flatRows: [],
+              rowsById: {}
+            };
+          }
+          return selectRowsFn(table2, rowModel);
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getIsAllRowsSelected = () => {
+          const preGroupedFlatRows = table2.getFilteredRowModel().flatRows;
+          const {
+            rowSelection
+          } = table2.getState();
+          let isAllRowsSelected = Boolean(preGroupedFlatRows.length && Object.keys(rowSelection).length);
+          if (isAllRowsSelected) {
+            if (preGroupedFlatRows.some((row2) => row2.getCanSelect() && !rowSelection[row2.id])) {
+              isAllRowsSelected = false;
+            }
+          }
+          return isAllRowsSelected;
+        };
+        table2.getIsAllPageRowsSelected = () => {
+          const paginationFlatRows = table2.getPaginationRowModel().flatRows.filter((row2) => row2.getCanSelect());
+          const {
+            rowSelection
+          } = table2.getState();
+          let isAllPageRowsSelected = !!paginationFlatRows.length;
+          if (isAllPageRowsSelected && paginationFlatRows.some((row2) => !rowSelection[row2.id])) {
+            isAllPageRowsSelected = false;
+          }
+          return isAllPageRowsSelected;
+        };
+        table2.getIsSomeRowsSelected = () => {
+          var _table$getState$rowSe;
+          const totalSelected = Object.keys((_table$getState$rowSe = table2.getState().rowSelection) != null ? _table$getState$rowSe : {}).length;
+          return totalSelected > 0 && totalSelected < table2.getFilteredRowModel().flatRows.length;
+        };
+        table2.getIsSomePageRowsSelected = () => {
+          const paginationFlatRows = table2.getPaginationRowModel().flatRows;
+          return table2.getIsAllPageRowsSelected() ? false : paginationFlatRows.filter((row2) => row2.getCanSelect()).some((d) => d.getIsSelected() || d.getIsSomeSelected());
+        };
+        table2.getToggleAllRowsSelectedHandler = () => {
+          return (e) => {
+            table2.toggleAllRowsSelected(e.target.checked);
+          };
+        };
+        table2.getToggleAllPageRowsSelectedHandler = () => {
+          return (e) => {
+            table2.toggleAllPageRowsSelected(e.target.checked);
+          };
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.toggleSelected = (value2, opts) => {
+          const isSelected = row2.getIsSelected();
+          table2.setRowSelection((old) => {
+            var _opts$selectChildren;
+            value2 = typeof value2 !== "undefined" ? value2 : !isSelected;
+            if (row2.getCanSelect() && isSelected === value2) {
+              return old;
+            }
+            const selectedRowIds = {
+              ...old
+            };
+            mutateRowIsSelected(selectedRowIds, row2.id, value2, (_opts$selectChildren = opts == null ? void 0 : opts.selectChildren) != null ? _opts$selectChildren : true, table2);
+            return selectedRowIds;
+          });
+        };
+        row2.getIsSelected = () => {
+          const {
+            rowSelection
+          } = table2.getState();
+          return isRowSelected(row2, rowSelection);
+        };
+        row2.getIsSomeSelected = () => {
+          const {
+            rowSelection
+          } = table2.getState();
+          return isSubRowSelected(row2, rowSelection) === "some";
+        };
+        row2.getIsAllSubRowsSelected = () => {
+          const {
+            rowSelection
+          } = table2.getState();
+          return isSubRowSelected(row2, rowSelection) === "all";
+        };
+        row2.getCanSelect = () => {
+          var _table$options$enable;
+          if (typeof table2.options.enableRowSelection === "function") {
+            return table2.options.enableRowSelection(row2);
+          }
+          return (_table$options$enable = table2.options.enableRowSelection) != null ? _table$options$enable : true;
+        };
+        row2.getCanSelectSubRows = () => {
+          var _table$options$enable2;
+          if (typeof table2.options.enableSubRowSelection === "function") {
+            return table2.options.enableSubRowSelection(row2);
+          }
+          return (_table$options$enable2 = table2.options.enableSubRowSelection) != null ? _table$options$enable2 : true;
+        };
+        row2.getCanMultiSelect = () => {
+          var _table$options$enable3;
+          if (typeof table2.options.enableMultiRowSelection === "function") {
+            return table2.options.enableMultiRowSelection(row2);
+          }
+          return (_table$options$enable3 = table2.options.enableMultiRowSelection) != null ? _table$options$enable3 : true;
+        };
+        row2.getToggleSelectedHandler = () => {
+          const canSelect = row2.getCanSelect();
+          return (e) => {
+            var _target;
+            if (!canSelect) return;
+            row2.toggleSelected((_target = e.target) == null ? void 0 : _target.checked);
+          };
+        };
+      }
+    };
+    const mutateRowIsSelected = (selectedRowIds, id, value2, includeChildren, table2) => {
+      var _row$subRows;
+      const row2 = table2.getRow(id, true);
+      if (value2) {
+        if (!row2.getCanMultiSelect()) {
+          Object.keys(selectedRowIds).forEach((key2) => delete selectedRowIds[key2]);
+        }
+        if (row2.getCanSelect()) {
+          selectedRowIds[id] = true;
+        }
+      } else {
+        delete selectedRowIds[id];
+      }
+      if (includeChildren && (_row$subRows = row2.subRows) != null && _row$subRows.length && row2.getCanSelectSubRows()) {
+        row2.subRows.forEach((row22) => mutateRowIsSelected(selectedRowIds, row22.id, value2, includeChildren, table2));
+      }
+    };
+    function selectRowsFn(table2, rowModel) {
+      const rowSelection = table2.getState().rowSelection;
+      const newSelectedFlatRows = [];
+      const newSelectedRowsById = {};
+      const recurseRows = function(rows, depth) {
+        return rows.map((row2) => {
+          var _row$subRows2;
+          const isSelected = isRowSelected(row2, rowSelection);
+          if (isSelected) {
+            newSelectedFlatRows.push(row2);
+            newSelectedRowsById[row2.id] = row2;
+          }
+          if ((_row$subRows2 = row2.subRows) != null && _row$subRows2.length) {
+            row2 = {
+              ...row2,
+              subRows: recurseRows(row2.subRows)
+            };
+          }
+          if (isSelected) {
+            return row2;
+          }
+        }).filter(Boolean);
+      };
+      return {
+        rows: recurseRows(rowModel.rows),
+        flatRows: newSelectedFlatRows,
+        rowsById: newSelectedRowsById
+      };
+    }
+    function isRowSelected(row2, selection) {
+      var _selection$row$id;
+      return (_selection$row$id = selection[row2.id]) != null ? _selection$row$id : false;
+    }
+    function isSubRowSelected(row2, selection, table2) {
+      var _row$subRows3;
+      if (!((_row$subRows3 = row2.subRows) != null && _row$subRows3.length)) return false;
+      let allChildrenSelected = true;
+      let someSelected = false;
+      row2.subRows.forEach((subRow) => {
+        if (someSelected && !allChildrenSelected) {
+          return;
+        }
+        if (subRow.getCanSelect()) {
+          if (isRowSelected(subRow, selection)) {
+            someSelected = true;
+          } else {
+            allChildrenSelected = false;
+          }
+        }
+        if (subRow.subRows && subRow.subRows.length) {
+          const subRowChildrenSelected = isSubRowSelected(subRow, selection);
+          if (subRowChildrenSelected === "all") {
+            someSelected = true;
+          } else if (subRowChildrenSelected === "some") {
+            someSelected = true;
+            allChildrenSelected = false;
+          } else {
+            allChildrenSelected = false;
+          }
+        }
+      });
+      return allChildrenSelected ? "all" : someSelected ? "some" : false;
+    }
+    const reSplitAlphaNumeric = /([0-9]+)/gm;
+    const alphanumeric = (rowA, rowB, columnId) => {
+      return compareAlphanumeric(toString$1(rowA.getValue(columnId)).toLowerCase(), toString$1(rowB.getValue(columnId)).toLowerCase());
+    };
+    const alphanumericCaseSensitive = (rowA, rowB, columnId) => {
+      return compareAlphanumeric(toString$1(rowA.getValue(columnId)), toString$1(rowB.getValue(columnId)));
+    };
+    const text$1 = (rowA, rowB, columnId) => {
+      return compareBasic(toString$1(rowA.getValue(columnId)).toLowerCase(), toString$1(rowB.getValue(columnId)).toLowerCase());
+    };
+    const textCaseSensitive = (rowA, rowB, columnId) => {
+      return compareBasic(toString$1(rowA.getValue(columnId)), toString$1(rowB.getValue(columnId)));
+    };
+    const datetime = (rowA, rowB, columnId) => {
+      const a = rowA.getValue(columnId);
+      const b = rowB.getValue(columnId);
+      return a > b ? 1 : a < b ? -1 : 0;
+    };
+    const basic = (rowA, rowB, columnId) => {
+      return compareBasic(rowA.getValue(columnId), rowB.getValue(columnId));
+    };
+    function compareBasic(a, b) {
+      return a === b ? 0 : a > b ? 1 : -1;
+    }
+    function toString$1(a) {
+      if (typeof a === "number") {
+        if (isNaN(a) || a === Infinity || a === -Infinity) {
+          return "";
+        }
+        return String(a);
+      }
+      if (typeof a === "string") {
+        return a;
+      }
+      return "";
+    }
+    function compareAlphanumeric(aStr, bStr) {
+      const a = aStr.split(reSplitAlphaNumeric).filter(Boolean);
+      const b = bStr.split(reSplitAlphaNumeric).filter(Boolean);
+      while (a.length && b.length) {
+        const aa = a.shift();
+        const bb = b.shift();
+        const an2 = parseInt(aa, 10);
+        const bn2 = parseInt(bb, 10);
+        const combo = [an2, bn2].sort();
+        if (isNaN(combo[0])) {
+          if (aa > bb) {
+            return 1;
+          }
+          if (bb > aa) {
+            return -1;
+          }
+          continue;
+        }
+        if (isNaN(combo[1])) {
+          return isNaN(an2) ? -1 : 1;
+        }
+        if (an2 > bn2) {
+          return 1;
+        }
+        if (bn2 > an2) {
+          return -1;
+        }
+      }
+      return a.length - b.length;
+    }
+    const sortingFns = {
+      alphanumeric,
+      alphanumericCaseSensitive,
+      text: text$1,
+      textCaseSensitive,
+      datetime,
+      basic
+    };
+    const RowSorting = {
+      getInitialState: (state) => {
+        return {
+          sorting: [],
+          ...state
+        };
+      },
+      getDefaultColumnDef: () => {
+        return {
+          sortingFn: "auto",
+          sortUndefined: 1
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onSortingChange: makeStateUpdater("sorting", table2),
+          isMultiSortEvent: (e) => {
+            return e.shiftKey;
+          }
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getAutoSortingFn = () => {
+          const firstRows = table2.getFilteredRowModel().flatRows.slice(10);
+          let isString2 = false;
+          for (const row2 of firstRows) {
+            const value2 = row2 == null ? void 0 : row2.getValue(column2.id);
+            if (Object.prototype.toString.call(value2) === "[object Date]") {
+              return sortingFns.datetime;
+            }
+            if (typeof value2 === "string") {
+              isString2 = true;
+              if (value2.split(reSplitAlphaNumeric).length > 1) {
+                return sortingFns.alphanumeric;
+              }
+            }
+          }
+          if (isString2) {
+            return sortingFns.text;
+          }
+          return sortingFns.basic;
+        };
+        column2.getAutoSortDir = () => {
+          const firstRow = table2.getFilteredRowModel().flatRows[0];
+          const value2 = firstRow == null ? void 0 : firstRow.getValue(column2.id);
+          if (typeof value2 === "string") {
+            return "asc";
+          }
+          return "desc";
+        };
+        column2.getSortingFn = () => {
+          var _table$options$sortin, _table$options$sortin2;
+          if (!column2) {
+            throw new Error();
+          }
+          return isFunction(column2.columnDef.sortingFn) ? column2.columnDef.sortingFn : column2.columnDef.sortingFn === "auto" ? column2.getAutoSortingFn() : (_table$options$sortin = (_table$options$sortin2 = table2.options.sortingFns) == null ? void 0 : _table$options$sortin2[column2.columnDef.sortingFn]) != null ? _table$options$sortin : sortingFns[column2.columnDef.sortingFn];
+        };
+        column2.toggleSorting = (desc, multi) => {
+          const nextSortingOrder = column2.getNextSortingOrder();
+          const hasManualValue = typeof desc !== "undefined" && desc !== null;
+          table2.setSorting((old) => {
+            const existingSorting = old == null ? void 0 : old.find((d) => d.id === column2.id);
+            const existingIndex = old == null ? void 0 : old.findIndex((d) => d.id === column2.id);
+            let newSorting = [];
+            let sortAction;
+            let nextDesc = hasManualValue ? desc : nextSortingOrder === "desc";
+            if (old != null && old.length && column2.getCanMultiSort() && multi) {
+              if (existingSorting) {
+                sortAction = "toggle";
+              } else {
+                sortAction = "add";
+              }
+            } else {
+              if (old != null && old.length && existingIndex !== old.length - 1) {
+                sortAction = "replace";
+              } else if (existingSorting) {
+                sortAction = "toggle";
+              } else {
+                sortAction = "replace";
+              }
+            }
+            if (sortAction === "toggle") {
+              if (!hasManualValue) {
+                if (!nextSortingOrder) {
+                  sortAction = "remove";
+                }
+              }
+            }
+            if (sortAction === "add") {
+              var _table$options$maxMul;
+              newSorting = [...old, {
+                id: column2.id,
+                desc: nextDesc
+              }];
+              newSorting.splice(0, newSorting.length - ((_table$options$maxMul = table2.options.maxMultiSortColCount) != null ? _table$options$maxMul : Number.MAX_SAFE_INTEGER));
+            } else if (sortAction === "toggle") {
+              newSorting = old.map((d) => {
+                if (d.id === column2.id) {
+                  return {
+                    ...d,
+                    desc: nextDesc
+                  };
+                }
+                return d;
+              });
+            } else if (sortAction === "remove") {
+              newSorting = old.filter((d) => d.id !== column2.id);
+            } else {
+              newSorting = [{
+                id: column2.id,
+                desc: nextDesc
+              }];
+            }
+            return newSorting;
+          });
+        };
+        column2.getFirstSortDir = () => {
+          var _ref, _column$columnDef$sor;
+          const sortDescFirst = (_ref = (_column$columnDef$sor = column2.columnDef.sortDescFirst) != null ? _column$columnDef$sor : table2.options.sortDescFirst) != null ? _ref : column2.getAutoSortDir() === "desc";
+          return sortDescFirst ? "desc" : "asc";
+        };
+        column2.getNextSortingOrder = (multi) => {
+          var _table$options$enable, _table$options$enable2;
+          const firstSortDirection = column2.getFirstSortDir();
+          const isSorted = column2.getIsSorted();
+          if (!isSorted) {
+            return firstSortDirection;
+          }
+          if (isSorted !== firstSortDirection && ((_table$options$enable = table2.options.enableSortingRemoval) != null ? _table$options$enable : true) && // If enableSortRemove, enable in general
+          (multi ? (_table$options$enable2 = table2.options.enableMultiRemove) != null ? _table$options$enable2 : true : true)) {
+            return false;
+          }
+          return isSorted === "desc" ? "asc" : "desc";
+        };
+        column2.getCanSort = () => {
+          var _column$columnDef$ena, _table$options$enable3;
+          return ((_column$columnDef$ena = column2.columnDef.enableSorting) != null ? _column$columnDef$ena : true) && ((_table$options$enable3 = table2.options.enableSorting) != null ? _table$options$enable3 : true) && !!column2.accessorFn;
+        };
+        column2.getCanMultiSort = () => {
+          var _ref2, _column$columnDef$ena2;
+          return (_ref2 = (_column$columnDef$ena2 = column2.columnDef.enableMultiSort) != null ? _column$columnDef$ena2 : table2.options.enableMultiSort) != null ? _ref2 : !!column2.accessorFn;
+        };
+        column2.getIsSorted = () => {
+          var _table$getState$sorti;
+          const columnSort = (_table$getState$sorti = table2.getState().sorting) == null ? void 0 : _table$getState$sorti.find((d) => d.id === column2.id);
+          return !columnSort ? false : columnSort.desc ? "desc" : "asc";
+        };
+        column2.getSortIndex = () => {
+          var _table$getState$sorti2, _table$getState$sorti3;
+          return (_table$getState$sorti2 = (_table$getState$sorti3 = table2.getState().sorting) == null ? void 0 : _table$getState$sorti3.findIndex((d) => d.id === column2.id)) != null ? _table$getState$sorti2 : -1;
+        };
+        column2.clearSorting = () => {
+          table2.setSorting((old) => old != null && old.length ? old.filter((d) => d.id !== column2.id) : []);
+        };
+        column2.getToggleSortingHandler = () => {
+          const canSort = column2.getCanSort();
+          return (e) => {
+            if (!canSort) return;
+            e.persist == null || e.persist();
+            column2.toggleSorting == null || column2.toggleSorting(void 0, column2.getCanMultiSort() ? table2.options.isMultiSortEvent == null ? void 0 : table2.options.isMultiSortEvent(e) : false);
+          };
+        };
+      },
+      createTable: (table2) => {
+        table2.setSorting = (updater) => table2.options.onSortingChange == null ? void 0 : table2.options.onSortingChange(updater);
+        table2.resetSorting = (defaultState) => {
+          var _table$initialState$s, _table$initialState;
+          table2.setSorting(defaultState ? [] : (_table$initialState$s = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.sorting) != null ? _table$initialState$s : []);
+        };
+        table2.getPreSortedRowModel = () => table2.getGroupedRowModel();
+        table2.getSortedRowModel = () => {
+          if (!table2._getSortedRowModel && table2.options.getSortedRowModel) {
+            table2._getSortedRowModel = table2.options.getSortedRowModel(table2);
+          }
+          if (table2.options.manualSorting || !table2._getSortedRowModel) {
+            return table2.getPreSortedRowModel();
+          }
+          return table2._getSortedRowModel();
+        };
+      }
+    };
+    const builtInFeatures = [
+      Headers$1,
+      ColumnVisibility,
+      ColumnOrdering,
+      ColumnPinning,
+      ColumnFaceting,
+      ColumnFiltering,
+      GlobalFaceting,
+      //depends on ColumnFaceting
+      GlobalFiltering,
+      //depends on ColumnFiltering
+      RowSorting,
+      ColumnGrouping,
+      //depends on RowSorting
+      RowExpanding,
+      RowPagination,
+      RowPinning,
+      RowSelection,
+      ColumnSizing
+    ];
+    function createTable(options2) {
+      var _options$_features, _options$initialState;
+      const _features = [...builtInFeatures, ...(_options$_features = options2._features) != null ? _options$_features : []];
+      let table2 = {
+        _features
+      };
+      const defaultOptions2 = table2._features.reduce((obj, feature) => {
+        return Object.assign(obj, feature.getDefaultOptions == null ? void 0 : feature.getDefaultOptions(table2));
+      }, {});
+      const mergeOptions = (options22) => {
+        if (table2.options.mergeOptions) {
+          return table2.options.mergeOptions(defaultOptions2, options22);
+        }
+        return {
+          ...defaultOptions2,
+          ...options22
+        };
+      };
+      const coreInitialState = {};
+      let initialState2 = {
+        ...coreInitialState,
+        ...(_options$initialState = options2.initialState) != null ? _options$initialState : {}
+      };
+      table2._features.forEach((feature) => {
+        var _feature$getInitialSt;
+        initialState2 = (_feature$getInitialSt = feature.getInitialState == null ? void 0 : feature.getInitialState(initialState2)) != null ? _feature$getInitialSt : initialState2;
+      });
+      const queued = [];
+      let queuedTimeout = false;
+      const coreInstance = {
+        _features,
+        options: {
+          ...defaultOptions2,
+          ...options2
+        },
+        initialState: initialState2,
+        _queue: (cb) => {
+          queued.push(cb);
+          if (!queuedTimeout) {
+            queuedTimeout = true;
+            Promise.resolve().then(() => {
+              while (queued.length) {
+                queued.shift()();
+              }
+              queuedTimeout = false;
+            }).catch((error2) => setTimeout(() => {
+              throw error2;
+            }));
+          }
+        },
+        reset: () => {
+          table2.setState(table2.initialState);
+        },
+        setOptions: (updater) => {
+          const newOptions = functionalUpdate(updater, table2.options);
+          table2.options = mergeOptions(newOptions);
+        },
+        getState: () => {
+          return table2.options.state;
+        },
+        setState: (updater) => {
+          table2.options.onStateChange == null || table2.options.onStateChange(updater);
+        },
+        _getRowId: (row2, index2, parent) => {
+          var _table$options$getRow;
+          return (_table$options$getRow = table2.options.getRowId == null ? void 0 : table2.options.getRowId(row2, index2, parent)) != null ? _table$options$getRow : `${parent ? [parent.id, index2].join(".") : index2}`;
+        },
+        getCoreRowModel: () => {
+          if (!table2._getCoreRowModel) {
+            table2._getCoreRowModel = table2.options.getCoreRowModel(table2);
+          }
+          return table2._getCoreRowModel();
+        },
+        // The final calls start at the bottom of the model,
+        // expanded rows, which then work their way up
+        getRowModel: () => {
+          return table2.getPaginationRowModel();
+        },
+        //in next version, we should just pass in the row model as the optional 2nd arg
+        getRow: (id, searchAll) => {
+          let row2 = (searchAll ? table2.getPrePaginationRowModel() : table2.getRowModel()).rowsById[id];
+          if (!row2) {
+            row2 = table2.getCoreRowModel().rowsById[id];
+            if (!row2) {
+              throw new Error();
+            }
+          }
+          return row2;
+        },
+        _getDefaultColumnDef: memo$1(() => [table2.options.defaultColumn], (defaultColumn) => {
+          var _defaultColumn;
+          defaultColumn = (_defaultColumn = defaultColumn) != null ? _defaultColumn : {};
+          return {
+            header: (props) => {
+              const resolvedColumnDef = props.header.column.columnDef;
+              if (resolvedColumnDef.accessorKey) {
+                return resolvedColumnDef.accessorKey;
+              }
+              if (resolvedColumnDef.accessorFn) {
+                return resolvedColumnDef.id;
+              }
+              return null;
+            },
+            // footer: props => props.header.column.id,
+            cell: (props) => {
+              var _props$renderValue$to, _props$renderValue;
+              return (_props$renderValue$to = (_props$renderValue = props.renderValue()) == null || _props$renderValue.toString == null ? void 0 : _props$renderValue.toString()) != null ? _props$renderValue$to : null;
+            },
+            ...table2._features.reduce((obj, feature) => {
+              return Object.assign(obj, feature.getDefaultColumnDef == null ? void 0 : feature.getDefaultColumnDef());
+            }, {}),
+            ...defaultColumn
+          };
+        }, getMemoOptions(options2, "debugColumns")),
+        _getColumnDefs: () => table2.options.columns,
+        getAllColumns: memo$1(() => [table2._getColumnDefs()], (columnDefs) => {
+          const recurseColumns = function(columnDefs2, parent, depth) {
+            if (depth === void 0) {
+              depth = 0;
+            }
+            return columnDefs2.map((columnDef) => {
+              const column2 = createColumn(table2, columnDef, depth, parent);
+              const groupingColumnDef = columnDef;
+              column2.columns = groupingColumnDef.columns ? recurseColumns(groupingColumnDef.columns, column2, depth + 1) : [];
+              return column2;
+            });
+          };
+          return recurseColumns(columnDefs);
+        }, getMemoOptions(options2, "debugColumns")),
+        getAllFlatColumns: memo$1(() => [table2.getAllColumns()], (allColumns) => {
+          return allColumns.flatMap((column2) => {
+            return column2.getFlatColumns();
+          });
+        }, getMemoOptions(options2, "debugColumns")),
+        _getAllFlatColumnsById: memo$1(() => [table2.getAllFlatColumns()], (flatColumns) => {
+          return flatColumns.reduce((acc, column2) => {
+            acc[column2.id] = column2;
+            return acc;
+          }, {});
+        }, getMemoOptions(options2, "debugColumns")),
+        getAllLeafColumns: memo$1(() => [table2.getAllColumns(), table2._getOrderColumnsFn()], (allColumns, orderColumns2) => {
+          let leafColumns = allColumns.flatMap((column2) => column2.getLeafColumns());
+          return orderColumns2(leafColumns);
+        }, getMemoOptions(options2, "debugColumns")),
+        getColumn: (columnId) => {
+          const column2 = table2._getAllFlatColumnsById()[columnId];
+          return column2;
+        }
+      };
+      Object.assign(table2, coreInstance);
+      for (let index2 = 0; index2 < table2._features.length; index2++) {
+        const feature = table2._features[index2];
+        feature == null || feature.createTable == null || feature.createTable(table2);
+      }
+      return table2;
+    }
+    function getCoreRowModel() {
+      return (table2) => memo$1(() => [table2.options.data], (data) => {
+        const rowModel = {
+          rows: [],
+          flatRows: [],
+          rowsById: {}
+        };
+        const accessRows = function(originalRows, depth, parentRow) {
+          if (depth === void 0) {
+            depth = 0;
+          }
+          const rows = [];
+          for (let i2 = 0; i2 < originalRows.length; i2++) {
+            const row2 = createRow(table2, table2._getRowId(originalRows[i2], i2, parentRow), originalRows[i2], i2, depth, void 0, parentRow == null ? void 0 : parentRow.id);
+            rowModel.flatRows.push(row2);
+            rowModel.rowsById[row2.id] = row2;
+            rows.push(row2);
+            if (table2.options.getSubRows) {
+              var _row$originalSubRows;
+              row2.originalSubRows = table2.options.getSubRows(originalRows[i2], i2);
+              if ((_row$originalSubRows = row2.originalSubRows) != null && _row$originalSubRows.length) {
+                row2.subRows = accessRows(row2.originalSubRows, depth + 1, row2);
+              }
+            }
+          }
+          return rows;
+        };
+        rowModel.rows = accessRows(data);
+        return rowModel;
+      }, getMemoOptions(table2.options, "debugTable", "getRowModel", () => table2._autoResetPageIndex()));
+    }
+    function expandRows(rowModel) {
+      const expandedRows = [];
+      const handleRow = (row2) => {
+        var _row$subRows;
+        expandedRows.push(row2);
+        if ((_row$subRows = row2.subRows) != null && _row$subRows.length && row2.getIsExpanded()) {
+          row2.subRows.forEach(handleRow);
+        }
+      };
+      rowModel.rows.forEach(handleRow);
+      return {
+        rows: expandedRows,
+        flatRows: rowModel.flatRows,
+        rowsById: rowModel.rowsById
+      };
+    }
+    function filterRows(rows, filterRowImpl, table2) {
+      if (table2.options.filterFromLeafRows) {
+        return filterRowModelFromLeafs(rows, filterRowImpl, table2);
+      }
+      return filterRowModelFromRoot(rows, filterRowImpl, table2);
+    }
+    function filterRowModelFromLeafs(rowsToFilter, filterRow, table2) {
+      var _table$options$maxLea;
+      const newFilteredFlatRows = [];
+      const newFilteredRowsById = {};
+      const maxDepth = (_table$options$maxLea = table2.options.maxLeafRowFilterDepth) != null ? _table$options$maxLea : 100;
+      const recurseFilterRows = function(rowsToFilter2, depth) {
+        if (depth === void 0) {
+          depth = 0;
+        }
+        const rows = [];
+        for (let i2 = 0; i2 < rowsToFilter2.length; i2++) {
+          var _row$subRows;
+          let row2 = rowsToFilter2[i2];
+          const newRow = createRow(table2, row2.id, row2.original, row2.index, row2.depth, void 0, row2.parentId);
+          newRow.columnFilters = row2.columnFilters;
+          if ((_row$subRows = row2.subRows) != null && _row$subRows.length && depth < maxDepth) {
+            newRow.subRows = recurseFilterRows(row2.subRows, depth + 1);
+            row2 = newRow;
+            if (filterRow(row2) && !newRow.subRows.length) {
+              rows.push(row2);
+              newFilteredRowsById[row2.id] = row2;
+              newFilteredFlatRows.push(row2);
+              continue;
+            }
+            if (filterRow(row2) || newRow.subRows.length) {
+              rows.push(row2);
+              newFilteredRowsById[row2.id] = row2;
+              newFilteredFlatRows.push(row2);
+              continue;
+            }
+          } else {
+            row2 = newRow;
+            if (filterRow(row2)) {
+              rows.push(row2);
+              newFilteredRowsById[row2.id] = row2;
+              newFilteredFlatRows.push(row2);
+            }
+          }
+        }
+        return rows;
+      };
+      return {
+        rows: recurseFilterRows(rowsToFilter),
+        flatRows: newFilteredFlatRows,
+        rowsById: newFilteredRowsById
+      };
+    }
+    function filterRowModelFromRoot(rowsToFilter, filterRow, table2) {
+      var _table$options$maxLea2;
+      const newFilteredFlatRows = [];
+      const newFilteredRowsById = {};
+      const maxDepth = (_table$options$maxLea2 = table2.options.maxLeafRowFilterDepth) != null ? _table$options$maxLea2 : 100;
+      const recurseFilterRows = function(rowsToFilter2, depth) {
+        if (depth === void 0) {
+          depth = 0;
+        }
+        const rows = [];
+        for (let i2 = 0; i2 < rowsToFilter2.length; i2++) {
+          let row2 = rowsToFilter2[i2];
+          const pass = filterRow(row2);
+          if (pass) {
+            var _row$subRows2;
+            if ((_row$subRows2 = row2.subRows) != null && _row$subRows2.length && depth < maxDepth) {
+              const newRow = createRow(table2, row2.id, row2.original, row2.index, row2.depth, void 0, row2.parentId);
+              newRow.subRows = recurseFilterRows(row2.subRows, depth + 1);
+              row2 = newRow;
+            }
+            rows.push(row2);
+            newFilteredFlatRows.push(row2);
+            newFilteredRowsById[row2.id] = row2;
+          }
+        }
+        return rows;
+      };
+      return {
+        rows: recurseFilterRows(rowsToFilter),
+        flatRows: newFilteredFlatRows,
+        rowsById: newFilteredRowsById
+      };
+    }
+    function getFilteredRowModel() {
+      return (table2) => memo$1(() => [table2.getPreFilteredRowModel(), table2.getState().columnFilters, table2.getState().globalFilter], (rowModel, columnFilters, globalFilter) => {
+        if (!rowModel.rows.length || !(columnFilters != null && columnFilters.length) && !globalFilter) {
+          for (let i2 = 0; i2 < rowModel.flatRows.length; i2++) {
+            rowModel.flatRows[i2].columnFilters = {};
+            rowModel.flatRows[i2].columnFiltersMeta = {};
+          }
+          return rowModel;
+        }
+        const resolvedColumnFilters = [];
+        const resolvedGlobalFilters = [];
+        (columnFilters != null ? columnFilters : []).forEach((d) => {
+          var _filterFn$resolveFilt;
+          const column2 = table2.getColumn(d.id);
+          if (!column2) {
+            return;
+          }
+          const filterFn = column2.getFilterFn();
+          if (!filterFn) {
+            return;
+          }
+          resolvedColumnFilters.push({
+            id: d.id,
+            filterFn,
+            resolvedValue: (_filterFn$resolveFilt = filterFn.resolveFilterValue == null ? void 0 : filterFn.resolveFilterValue(d.value)) != null ? _filterFn$resolveFilt : d.value
+          });
+        });
+        const filterableIds = (columnFilters != null ? columnFilters : []).map((d) => d.id);
+        const globalFilterFn = table2.getGlobalFilterFn();
+        const globallyFilterableColumns = table2.getAllLeafColumns().filter((column2) => column2.getCanGlobalFilter());
+        if (globalFilter && globalFilterFn && globallyFilterableColumns.length) {
+          filterableIds.push("__global__");
+          globallyFilterableColumns.forEach((column2) => {
+            var _globalFilterFn$resol;
+            resolvedGlobalFilters.push({
+              id: column2.id,
+              filterFn: globalFilterFn,
+              resolvedValue: (_globalFilterFn$resol = globalFilterFn.resolveFilterValue == null ? void 0 : globalFilterFn.resolveFilterValue(globalFilter)) != null ? _globalFilterFn$resol : globalFilter
+            });
+          });
+        }
+        let currentColumnFilter;
+        let currentGlobalFilter;
+        for (let j2 = 0; j2 < rowModel.flatRows.length; j2++) {
+          const row2 = rowModel.flatRows[j2];
+          row2.columnFilters = {};
+          if (resolvedColumnFilters.length) {
+            for (let i2 = 0; i2 < resolvedColumnFilters.length; i2++) {
+              currentColumnFilter = resolvedColumnFilters[i2];
+              const id = currentColumnFilter.id;
+              row2.columnFilters[id] = currentColumnFilter.filterFn(row2, id, currentColumnFilter.resolvedValue, (filterMeta) => {
+                row2.columnFiltersMeta[id] = filterMeta;
+              });
+            }
+          }
+          if (resolvedGlobalFilters.length) {
+            for (let i2 = 0; i2 < resolvedGlobalFilters.length; i2++) {
+              currentGlobalFilter = resolvedGlobalFilters[i2];
+              const id = currentGlobalFilter.id;
+              if (currentGlobalFilter.filterFn(row2, id, currentGlobalFilter.resolvedValue, (filterMeta) => {
+                row2.columnFiltersMeta[id] = filterMeta;
+              })) {
+                row2.columnFilters.__global__ = true;
+                break;
+              }
+            }
+            if (row2.columnFilters.__global__ !== true) {
+              row2.columnFilters.__global__ = false;
+            }
+          }
+        }
+        const filterRowsImpl = (row2) => {
+          for (let i2 = 0; i2 < filterableIds.length; i2++) {
+            if (row2.columnFilters[filterableIds[i2]] === false) {
+              return false;
+            }
+          }
+          return true;
+        };
+        return filterRows(rowModel.rows, filterRowsImpl, table2);
+      }, getMemoOptions(table2.options, "debugTable", "getFilteredRowModel", () => table2._autoResetPageIndex()));
+    }
+    function getPaginationRowModel(opts) {
+      return (table2) => memo$1(() => [table2.getState().pagination, table2.getPrePaginationRowModel(), table2.options.paginateExpandedRows ? void 0 : table2.getState().expanded], (pagination, rowModel) => {
+        if (!rowModel.rows.length) {
+          return rowModel;
+        }
+        const {
+          pageSize,
+          pageIndex
+        } = pagination;
+        let {
+          rows,
+          flatRows,
+          rowsById
+        } = rowModel;
+        const pageStart = pageSize * pageIndex;
+        const pageEnd = pageStart + pageSize;
+        rows = rows.slice(pageStart, pageEnd);
+        let paginatedRowModel;
+        if (!table2.options.paginateExpandedRows) {
+          paginatedRowModel = expandRows({
+            rows,
+            flatRows,
+            rowsById
+          });
+        } else {
+          paginatedRowModel = {
+            rows,
+            flatRows,
+            rowsById
+          };
+        }
+        paginatedRowModel.flatRows = [];
+        const handleRow = (row2) => {
+          paginatedRowModel.flatRows.push(row2);
+          if (row2.subRows.length) {
+            row2.subRows.forEach(handleRow);
+          }
+        };
+        paginatedRowModel.rows.forEach(handleRow);
+        return paginatedRowModel;
+      }, getMemoOptions(table2.options, "debugTable"));
+    }
+    function getSortedRowModel() {
+      return (table2) => memo$1(() => [table2.getState().sorting, table2.getPreSortedRowModel()], (sorting, rowModel) => {
+        if (!rowModel.rows.length || !(sorting != null && sorting.length)) {
+          return rowModel;
+        }
+        const sortingState = table2.getState().sorting;
+        const sortedFlatRows = [];
+        const availableSorting = sortingState.filter((sort) => {
+          var _table$getColumn;
+          return (_table$getColumn = table2.getColumn(sort.id)) == null ? void 0 : _table$getColumn.getCanSort();
+        });
+        const columnInfoById = {};
+        availableSorting.forEach((sortEntry) => {
+          const column2 = table2.getColumn(sortEntry.id);
+          if (!column2) return;
+          columnInfoById[sortEntry.id] = {
+            sortUndefined: column2.columnDef.sortUndefined,
+            invertSorting: column2.columnDef.invertSorting,
+            sortingFn: column2.getSortingFn()
+          };
+        });
+        const sortData = (rows) => {
+          const sortedData = rows.map((row2) => ({
+            ...row2
+          }));
+          sortedData.sort((rowA, rowB) => {
+            for (let i2 = 0; i2 < availableSorting.length; i2 += 1) {
+              var _sortEntry$desc;
+              const sortEntry = availableSorting[i2];
+              const columnInfo = columnInfoById[sortEntry.id];
+              const sortUndefined = columnInfo.sortUndefined;
+              const isDesc = (_sortEntry$desc = sortEntry == null ? void 0 : sortEntry.desc) != null ? _sortEntry$desc : false;
+              let sortInt = 0;
+              if (sortUndefined) {
+                const aValue = rowA.getValue(sortEntry.id);
+                const bValue = rowB.getValue(sortEntry.id);
+                const aUndefined = aValue === void 0;
+                const bUndefined = bValue === void 0;
+                if (aUndefined || bUndefined) {
+                  if (sortUndefined === "first") return aUndefined ? -1 : 1;
+                  if (sortUndefined === "last") return aUndefined ? 1 : -1;
+                  sortInt = aUndefined && bUndefined ? 0 : aUndefined ? sortUndefined : -sortUndefined;
+                }
+              }
+              if (sortInt === 0) {
+                sortInt = columnInfo.sortingFn(rowA, rowB, sortEntry.id);
+              }
+              if (sortInt !== 0) {
+                if (isDesc) {
+                  sortInt *= -1;
+                }
+                if (columnInfo.invertSorting) {
+                  sortInt *= -1;
+                }
+                return sortInt;
+              }
+            }
+            return rowA.index - rowB.index;
+          });
+          sortedData.forEach((row2) => {
+            var _row$subRows;
+            sortedFlatRows.push(row2);
+            if ((_row$subRows = row2.subRows) != null && _row$subRows.length) {
+              row2.subRows = sortData(row2.subRows);
+            }
+          });
+          return sortedData;
+        };
+        return {
+          rows: sortData(rowModel.rows),
+          flatRows: sortedFlatRows,
+          rowsById: rowModel.rowsById
+        };
+      }, getMemoOptions(table2.options, "debugTable", "getSortedRowModel", () => table2._autoResetPageIndex()));
+    }
+    /**
+       * react-table
+       *
+       * Copyright (c) TanStack
+       *
+       * This source code is licensed under the MIT license found in the
+       * LICENSE.md file in the root directory of this source tree.
+       *
+       * @license MIT
+       */
+    function flexRender(Comp, props) {
+      return !Comp ? null : isReactComponent(Comp) ? /* @__PURE__ */ reactExports.createElement(Comp, props) : Comp;
+    }
+    function isReactComponent(component) {
+      return isClassComponent(component) || typeof component === "function" || isExoticComponent(component);
+    }
+    function isClassComponent(component) {
+      return typeof component === "function" && (() => {
+        const proto = Object.getPrototypeOf(component);
+        return proto.prototype && proto.prototype.isReactComponent;
+      })();
+    }
+    function isExoticComponent(component) {
+      return typeof component === "object" && typeof component.$$typeof === "symbol" && ["react.memo", "react.forward_ref"].includes(component.$$typeof.description);
+    }
+    function useReactTable(options2) {
+      const resolvedOptions = {
+        state: {},
+        // Dummy state
+        onStateChange: () => {
+        },
+        // noop
+        renderFallbackValue: null,
+        ...options2
+      };
+      const [tableRef] = reactExports.useState(() => ({
+        current: createTable(resolvedOptions)
+      }));
+      const [state, setState] = reactExports.useState(() => tableRef.current.initialState);
+      tableRef.current.setOptions((prev) => ({
+        ...prev,
+        ...options2,
+        state: {
+          ...state,
+          ...options2.state
+        },
+        // Similarly, we'll maintain both our internal state and any user-provided
+        // state.
+        onStateChange: (updater) => {
+          setState(updater);
+          options2.onStateChange == null || options2.onStateChange(updater);
+        }
+      }));
+      return tableRef.current;
+    }
     const metricDisplayName = (metric2) => {
       let modifier = void 0;
       for (const metricModifier of metricModifiers) {
@@ -47837,6 +50822,23 @@ categories: ${categories.join(" ")}`;
       }
       const metricName2 = !modifier ? metric2.name : `${metric2.name}[${modifier}]`;
       return metricName2;
+    };
+    const firstMetric = (results) => {
+      var _a2;
+      const scores2 = results.scores || [];
+      const firstScore = scores2.length > 0 ? (_a2 = results.scores) == null ? void 0 : _a2[0] : void 0;
+      if (firstScore === void 0 || firstScore.metrics === void 0) {
+        return void 0;
+      }
+      const metrics2 = firstScore.metrics;
+      if (Object.keys(metrics2).length === 0) {
+        return void 0;
+      }
+      const metric2 = metrics2[Object.keys(metrics2)[0]];
+      if (metric2 === void 0) {
+        return void 0;
+      }
+      return metric2;
     };
     const clusterMetricModifier = (metric2) => {
       if (metric2.name !== "stderr") {
@@ -47868,219 +50870,229 @@ categories: ${categories.join(" ")}`;
         };
       });
     };
-    const groupScorers = (scorers) => {
-      const results = {};
-      scorers.forEach((scorer2) => {
-        if (scorer2.metrics.length > 0) {
-          const key2 = metricsKey(scorer2.metrics);
-          results[key2] = results[key2] || [];
-          results[key2].push(scorer2);
-        }
-      });
-      return Object.values(results);
-    };
-    const metricsKey = (metrics2) => {
-      const metricKey = metrics2.map((m) => m.name).join("");
-      return metricKey;
-    };
-    const table$1 = "_table_12koy_1";
-    const scorer = "_scorer_12koy_5";
-    const value$1 = "_value_12koy_6";
-    const label$7 = "_label_12koy_11";
-    const groupSeparator = "_groupSeparator_12koy_28";
-    const tableBody = "_tableBody_12koy_33";
-    const tableSeparator = "_tableSeparator_12koy_45";
+    const gridContainer = "_gridContainer_1w2lc_1";
+    const grid$7 = "_grid_1w2lc_1";
+    const headerRow = "_headerRow_1w2lc_15";
+    const headerCell = "_headerCell_1w2lc_26";
+    const sortable = "_sortable_1w2lc_41";
+    const sortIndicator = "_sortIndicator_1w2lc_50";
+    const bodyContainer$1 = "_bodyContainer_1w2lc_57";
+    const bodyRow = "_bodyRow_1w2lc_62";
+    const bodyCell = "_bodyCell_1w2lc_79";
+    const iconCell = "_iconCell_1w2lc_91";
+    const nameCell = "_nameCell_1w2lc_99";
+    const logLink$1 = "_logLink_1w2lc_106";
+    const typeCell = "_typeCell_1w2lc_120";
     const styles$19 = {
-      table: table$1,
-      scorer,
-      value: value$1,
-      label: label$7,
-      groupSeparator,
-      tableBody,
-      tableSeparator
+      gridContainer,
+      grid: grid$7,
+      headerRow,
+      headerCell,
+      sortable,
+      sortIndicator,
+      bodyContainer: bodyContainer$1,
+      bodyRow,
+      bodyCell,
+      iconCell,
+      nameCell,
+      logLink: logLink$1,
+      typeCell
     };
-    const ScoreGrid = ({
-      scoreGroups,
-      showReducer,
-      className: className2,
-      striped
-    }) => {
-      const columnCount = scoreGroups.reduce((prev, group) => {
-        return Math.max(prev, group[0].metrics.length);
-      }, 0);
-      const subTables = [];
-      let index2 = 0;
-      for (const scoreGroup of scoreGroups) {
-        const metrics2 = scoreGroup[0].metrics;
-        const cells = [];
-        for (let i2 = 0; i2 < columnCount; i2++) {
-          if (metrics2.length > i2) {
-            cells.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "th",
-                {
-                  className: clsx(
-                    "text-style-label",
-                    "text-style-secondary",
-                    "text-size-small",
-                    styles$19.label
-                  ),
-                  children: metrics2[i2].name
-                }
-              )
-            );
-          } else {
-            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
-          }
-        }
-        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$19.headerRow), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
-          cells
-        ] }) });
-        const rows = [];
-        scoreGroup.forEach((g) => {
-          const cells2 = [];
-          for (let i2 = 0; i2 < columnCount; i2++) {
-            if (metrics2.length > i2) {
-              cells2.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$19.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
-              );
-            } else {
-              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$19.value) }));
-            }
-          }
-          rows.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$19.scorer, "text-size-small"), children: [
-                g.scorer,
-                " ",
-                showReducer && g.reducer ? `(${g.reducer})` : void 0
-              ] }),
-              cells2
-            ] })
-          );
-        });
-        subTables.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$19.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "td",
+    const columnHelper = createColumnHelper();
+    const LogListGrid = ({ items }) => {
+      const [sorting, setSorting] = reactExports.useState([
+        { id: "icon", desc: true },
+        { id: "task", desc: false }
+      ]);
+      const [filtering, setFiltering] = reactExports.useState([]);
+      const [globalFilter, setGlobalFilter] = reactExports.useState("");
+      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const columns = reactExports.useMemo(
+        () => [
+          columnHelper.accessor("type", {
+            id: "icon",
+            header: "",
+            cell: (info) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.iconCell, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "i",
               {
-                colSpan: columnCount + 1,
-                className: clsx(styles$19.groupSeparator)
+                className: clsx(
+                  info.getValue() === "file" ? ApplicationIcons.file : ApplicationIcons.folder
+                )
               }
-            ) }) }) : void 0,
-            headerRow,
-            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$19.tableBody), children: rows })
-          ] })
-        );
-        index2++;
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "table",
-        {
-          className: clsx(
-            className2,
-            "table",
-            striped ? "table-striped" : void 0,
-            styles$19.table,
-            "table-bordered"
-          ),
-          children: subTables
-        }
-      );
-    };
-    const row$1 = "_row_1qnp8_1";
-    const left$1 = "_left_1qnp8_9";
-    const right$1 = "_right_1qnp8_16";
-    const task$1 = "_task_1qnp8_23";
-    const taskDetail = "_taskDetail_1qnp8_36";
-    const folderItems = "_folderItems_1qnp8_40";
-    const styles$18 = {
-      row: row$1,
-      left: left$1,
-      right: right$1,
-      task: task$1,
-      taskDetail,
-      folderItems
-    };
-    const LogListView = ({ items, className: className2 }) => {
-      const renderRow = reactExports.useCallback(
-        (_index, item2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(LogListRow, { item: item2 });
-        },
-        []
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        Kr,
-        {
-          style: { height: "100%" },
-          data: items,
-          defaultItemHeight: 50,
-          itemContent: renderRow,
-          atBottomThreshold: 30,
-          increaseViewportBy: { top: 300, bottom: 300 },
-          overscan: {
-            main: 10,
-            reverse: 10
-          },
-          className: clsx(className2, "samples-list"),
-          skipAnimationFrameInResizeObserver: true,
-          tabIndex: 0
-        }
-      );
-    };
-    const LogListRow = ({ item: item2 }) => {
-      var _a2, _b2;
-      const fileItem = item2.type === "file" ? item2 : void 0;
-      const headerInfo = useStore(
-        (state) => state.logs.logHeaders[(fileItem == null ? void 0 : fileItem.logFile.name) || ""]
-      );
-      const completed = (_a2 = headerInfo == null ? void 0 : headerInfo.stats) == null ? void 0 : _a2.completed_at;
-      const time = completed ? new Date(completed) : void 0;
-      const timeStr = time ? `${time.toDateString()}
-    ${time.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit"
-      })}` : "";
-      const scorers = ((_b2 = headerInfo == null ? void 0 : headerInfo.results) == null ? void 0 : _b2.scores) || [];
-      const grouped = groupScorers(toDisplayScorers(scorers));
-      let primaryResults = grouped.length > 0 ? grouped[0] : [];
-      if (primaryResults.length > 3) {
-        const shorterResults = grouped.find((g) => {
-          return g.length <= 3;
-        });
-        if (shorterResults) {
-          primaryResults = shorterResults;
-        }
-        if (primaryResults.length > 3) {
-          primaryResults = primaryResults.slice(0, 3);
-        }
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$18.row), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$18.left), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.icon), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "i",
-            {
-              className: clsx(
-                item2.type === "file" ? ApplicationIcons.file : ApplicationIcons.folder
-              )
+            ) }),
+            enableSorting: true,
+            enableGlobalFilter: false,
+            size: 40,
+            sortingFn: (rowA, rowB) => {
+              const typeA = rowA.original.type;
+              const typeB = rowB.original.type;
+              return typeA.localeCompare(typeB);
             }
-          ) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.task, "text-size-base"), children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, children: (fileItem == null ? void 0 : fileItem.logFile) ? headerInfo == null ? void 0 : headerInfo.eval.task : item2.name }) : (fileItem == null ? void 0 : fileItem.logFile) ? headerInfo == null ? void 0 : headerInfo.eval.task : item2.name }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$18.taskDetail), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smallest"), children: timeStr }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smallest"), children: (fileItem == null ? void 0 : fileItem.logFile) ? headerInfo == null ? void 0 : headerInfo.eval.model : void 0 })
-          ] })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.right), children: item2.type === "file" ? primaryResults.length && /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$18.folderItems), children: [
-          item2.itemCount,
-          " logs"
-        ] }) })
-      ] });
+          }),
+          columnHelper.accessor("name", {
+            id: "task",
+            header: "Task",
+            cell: (info) => {
+              var _a2, _b2;
+              const item2 = info.row.original;
+              const value2 = item2.type === "file" ? ((_b2 = logHeaders[((_a2 = item2.logFile) == null ? void 0 : _a2.name) || ""]) == null ? void 0 : _b2.eval.task) || item2.name : item2.name;
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$19.logLink, children: value2 }) : value2 });
+            },
+            enableSorting: true,
+            enableGlobalFilter: true,
+            sortingFn: (rowA, rowB) => {
+              var _a2, _b2, _c, _d;
+              const itemA = rowA.original;
+              const itemB = rowB.original;
+              const valueA = itemA.type === "file" ? ((_b2 = logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""]) == null ? void 0 : _b2.eval.task) || itemA.name : itemA.name;
+              const valueB = itemB.type === "file" ? ((_d = logHeaders[((_c = itemB.logFile) == null ? void 0 : _c.name) || ""]) == null ? void 0 : _d.eval.task) || itemB.name : itemB.name;
+              return valueA.localeCompare(valueB);
+            }
+          }),
+          columnHelper.accessor("name", {
+            id: "completed",
+            header: "Completed",
+            cell: (info) => {
+              var _a2, _b2;
+              const item2 = info.row.original;
+              const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const completed = (_b2 = header2 == null ? void 0 : header2.stats) == null ? void 0 : _b2.completed_at;
+              const time = completed ? new Date(completed) : void 0;
+              const timeStr = time ? `${time.toDateString()}
+    ${time.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+              })}` : "";
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: timeStr });
+            },
+            enableSorting: true,
+            enableGlobalFilter: true
+          }),
+          columnHelper.accessor("name", {
+            id: "model",
+            header: "Model",
+            cell: (info) => {
+              var _a2;
+              const item2 = info.row.original;
+              const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: (header2 == null ? void 0 : header2.eval.model) || "" });
+            },
+            sortingFn: (rowA, rowB) => {
+              var _a2, _b2;
+              const itemA = rowA.original;
+              const itemB = rowB.original;
+              const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
+              const modelA = (headerA == null ? void 0 : headerA.eval.model) || "";
+              const modelB = (headerB == null ? void 0 : headerB.eval.model) || "";
+              return modelA.localeCompare(modelB);
+            },
+            enableSorting: true,
+            enableGlobalFilter: true
+          }),
+          columnHelper.accessor("name", {
+            id: "score",
+            header: "Score",
+            cell: (info) => {
+              var _a2;
+              const item2 = info.row.original;
+              const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const metric2 = header2 && header2.results ? firstMetric(header2.results) : void 0;
+              if (!metric2) {
+                return emptyCell();
+              }
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.typeCell, children: metric2 ? formatPrettyDecimal(metric2.value) : "" });
+            },
+            sortingFn: (rowA, rowB) => {
+              var _a2, _b2;
+              const itemA = rowA.original;
+              const itemB = rowB.original;
+              const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
+              const metricA = headerA && headerA.results ? firstMetric(headerA.results) : void 0;
+              const metricB = headerB && headerB.results ? firstMetric(headerB.results) : void 0;
+              return ((metricA == null ? void 0 : metricA.value) || 0) - ((metricB == null ? void 0 : metricB.value) || 0);
+            },
+            enableSorting: true,
+            enableGlobalFilter: true,
+            size: 40
+          })
+        ],
+        [logHeaders]
+      );
+      const table2 = useReactTable({
+        data: items,
+        columns,
+        state: {
+          sorting,
+          columnFilters: filtering,
+          globalFilter,
+          pagination: {
+            pageIndex: page,
+            pageSize: itemsPerPage
+          }
+        },
+        rowCount: items.length,
+        onSortingChange: setSorting,
+        onColumnFiltersChange: setFiltering,
+        onGlobalFilterChange: setGlobalFilter,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+        getPaginationRowModel: getPaginationRowModel()
+      });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.grid, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.headerRow, children: table2.getHeaderGroups().map(
+          (headerGroup) => headerGroup.headers.map((header2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              className: clsx(styles$19.headerCell, {
+                [styles$19.sortable]: header2.column.getCanSort()
+              }),
+              onClick: (event) => {
+                var _a2;
+                console.log(
+                  `Column ${header2.id} canSort: ${header2.column.getCanSort()}`
+                );
+                (_a2 = header2.column.getToggleSortingHandler()) == null ? void 0 : _a2(event);
+              },
+              style: {
+                gridColumn: `span ${header2.column.id === "name" ? 1 : header2.column.id === "icon" ? 1 : 1}`
+              },
+              children: [
+                header2.isPlaceholder ? null : flexRender(
+                  header2.column.columnDef.header,
+                  header2.getContext()
+                ),
+                header2.column.getCanSort() && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$19.sortIndicator, children: {
+                  asc: " ↑",
+                  desc: " ↓"
+                }[header2.column.getIsSorted()] ?? "" })
+              ]
+            },
+            header2.id
+          ))
+        ) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.bodyContainer, children: table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.bodyRow, children: row2.getVisibleCells().map((cell2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              styles$19.bodyCell,
+              styles$19[`${cell2.column.id}Cell`]
+            ),
+            children: flexRender(cell2.column.columnDef.cell, cell2.getContext())
+          },
+          cell2.id
+        )) }, row2.id)) })
+      ] }) });
+    };
+    const emptyCell = () => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.emptyCell, children: "-" });
     };
     const panel$3 = "_panel_18nhs_1";
     const list$1 = "_list_18nhs_8";
-    const styles$17 = {
+    const styles$18 = {
       panel: panel$3,
       list: list$1
     };
@@ -48091,18 +51103,18 @@ categories: ${categories.join(" ")}`;
       }
       return parts[0];
     };
+    const kLogsPaginationId = "logs-list-pagination";
     const LogsPanel = () => {
       const loading = useStore((state) => state.app.status.loading);
       const { loadLogs } = useLogs();
       const logs = useStore((state) => state.logs.logs);
-      const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
-      const logHeaders = useStore((state) => state.logs.logHeaders);
-      const updateLogHeaders = useStore(
+      useStore((state) => state.logsActions.loadHeaders);
+      useStore((state) => state.logs.logHeaders);
+      useStore(
         (state) => state.logsActions.updateLogHeaders
       );
       const { logPath } = useParams();
       const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
-      const { page, itemsPerPage } = usePagination(currentDir);
       const logItems = reactExports.useMemo(() => {
         const logItems2 = [];
         const processedFolders = /* @__PURE__ */ new Set();
@@ -48138,39 +51150,16 @@ categories: ${categories.join(" ")}`;
         }
         return logItems2;
       }, [logPath, logs.files]);
-      const pageItems = reactExports.useMemo(() => {
-        const start2 = (page || 0) * itemsPerPage;
-        const end2 = start2 + itemsPerPage;
-        return logItems.slice(start2, end2);
-      }, [logItems, page, itemsPerPage]);
-      reactExports.useEffect(() => {
-        const fileItems = pageItems.filter((item2) => item2.type === "file");
-        const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
-          return logHeaders[logFile.name] === void 0;
-        });
-        const exec2 = async () => {
-          const headers = await loadHeaders(logFiles);
-          if (headers) {
-            const updatedHeaders = {};
-            headers.forEach((header2, index2) => {
-              const logFile = logFiles[index2];
-              updatedHeaders[logFile.name] = header2;
-            });
-            updateLogHeaders(updatedHeaders);
-          }
-        };
-        exec2();
-      }, [pageItems]);
       reactExports.useEffect(() => {
         const exec2 = async () => {
           await loadLogs();
         };
         exec2();
       }, [loadLogs]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$17.panel), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$18.panel), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$17.list, "text-size-smaller"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListView, { items: pageItems }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.list, "text-size-smaller"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListGrid, { items: logItems }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           LogListFooter,
           {
@@ -48306,7 +51295,7 @@ categories: ${categories.join(" ")}`;
     };
     const dirname = "_dirname_1qban_1";
     const directoryLink = "_directoryLink_1qban_7";
-    const styles$16 = {
+    const styles$17 = {
       dirname,
       directoryLink
     };
@@ -48322,7 +51311,7 @@ categories: ${categories.join(" ")}`;
       }, [offCanvas, setOffCanvas]);
       if (log_dir) {
         const displayDir = prettyDir(log_dir);
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$16.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$17.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -48338,13 +51327,13 @@ categories: ${categories.join(" ")}`;
             "span",
             {
               title: displayDir,
-              className: clsx("text-size-base", styles$16.dirname),
+              className: clsx("text-size-base", styles$17.dirname),
               children: offCanvas ? displayDir : ""
             }
           )
         ] }) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$16.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$17.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
       }
     };
     const prettyDir = (path) => {
@@ -48370,7 +51359,7 @@ categories: ${categories.join(" ")}`;
     const active = "_active_1essr_63";
     const item$2 = "_item_1essr_67";
     const logLink = "_logLink_1essr_72";
-    const styles$15 = {
+    const styles$16 = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
@@ -48386,7 +51375,7 @@ categories: ${categories.join(" ")}`;
     const error$1 = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$14 = {
+    const styles$15 = {
       error: error$1,
       running,
       cancelled
@@ -48395,7 +51384,7 @@ categories: ${categories.join(" ")}`;
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$13 = {
+    const styles$14 = {
       container: container$i,
       metric,
       metricName: metricName$1,
@@ -48403,8 +51392,8 @@ categories: ${categories.join(" ")}`;
     };
     const SidebarScoreView = ({ scorer: scorer2 }) => {
       const showReducer = !!scorer2.reducer;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.container, children: Object.keys(scorer2.metrics).map((metric2) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.metric, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.container, children: Object.keys(scorer2.metrics).map((metric2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$14.metric, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -48412,12 +51401,12 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$13.metricName
+                styles$14.metricName
               ),
               children: metricDisplayName(scorer2.metrics[metric2])
             }
           ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$13.metricReducer), children: scorer2.reducer || "default" }) : "",
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$14.metricReducer), children: scorer2.reducer || "default" }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer2.metrics[metric2].value) })
         ] }, metric2);
       }) });
@@ -48428,7 +51417,7 @@ categories: ${categories.join(" ")}`;
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$12 = {
+    const styles$13 = {
       container: container$h,
       scoreWrapper,
       metricName,
@@ -48438,10 +51427,10 @@ categories: ${categories.join(" ")}`;
     };
     const SidebarScoresView = ({ scores: scores2 }) => {
       const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$12.container, children: scores2.map((score2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.container, children: scores2.map((score2, idx) => {
         const name2 = score2.name;
         const reducer = score2.reducer;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.scoreWrapper, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.scoreWrapper, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -48449,7 +51438,7 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$12.metricName
+                styles$13.metricName
               ),
               children: name2
             }
@@ -48461,16 +51450,16 @@ categories: ${categories.join(" ")}`;
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary",
-                styles$12.metricReducer
+                styles$13.metricReducer
               ),
               children: reducer || "default"
             }
           ) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$12.metricValues), children: Object.keys(score2.metrics).map((key2) => {
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$13.metricValues), children: Object.keys(score2.metrics).map((key2) => {
             const metric2 = score2.metrics[key2];
             return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$12.metricValue, children: formatPrettyDecimal(metric2.value) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.metricValue, children: formatPrettyDecimal(metric2.value) })
             ] }, key2);
           }) })
         ] }, `scorer-${name2}-${idx}`);
@@ -48505,7 +51494,7 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$14.cancelled
+            styles$15.cancelled
           ),
           children: message2
         }
@@ -48519,21 +51508,21 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$14.running
+            styles$15.running
           ),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: message2 })
         }
       );
     };
     const StatusError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.error, "text-size-small"), children: message2 });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.error, "text-size-small"), children: message2 });
     };
     const entry = "_entry_12m5n_1";
     const title$3 = "_title_12m5n_7";
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores$1 = "_scores_12m5n_22";
-    const styles$11 = {
+    const styles$12 = {
       entry,
       title: title$3,
       task,
@@ -48565,15 +51554,15 @@ categories: ${categories.join(" ")}`;
         minute: "2-digit"
       })}` : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$11.entry, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$11.title, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$11.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.entry, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.title, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
             model2 && model2 !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$11.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
           const val = hyperparameters[key2];
           if (Array.isArray(val) || typeof val === "object") {
             return `${key2}: ${JSON.stringify(val)}`;
@@ -48584,13 +51573,13 @@ categories: ${categories.join(" ")}`;
         (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx("text-truncate", "text-size-small", styles$11.scores),
+            className: clsx("text-truncate", "text-size-small", styles$12.scores),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 "dataset: ",
                 datasetName || "(samples)"
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$11.scoreInfo), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$12.scoreInfo), children: [
                 scorerLabel,
                 ": ",
                 scorerNames || "(none)"
@@ -48625,34 +51614,34 @@ categories: ${categories.join(" ")}`;
         }
       }, [selectedIndex]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.backdrop, onClick: handleToggle }),
+        offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: clsx(
-              styles$15.sidebar,
-              offCanvas ? styles$15.sidebarOpen : styles$15.sidebarClosed
+              styles$16.sidebar,
+              offCanvas ? styles$16.sidebarOpen : styles$16.sidebarClosed
             ),
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$15.header, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$16.header, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
                     onClick: handleToggle,
-                    className: clsx("btn", styles$15.toggle),
+                    className: clsx("btn", styles$16.toggle),
                     type: "button",
                     "aria-label": "Close sidebar",
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
                   }
                 )
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "ul",
                 {
                   ref: sidebarContentsRef,
-                  className: clsx("list-group", styles$15.list),
+                  className: clsx("list-group", styles$16.list),
                   children: logs.files.map((file, index2) => {
                     const logHeader = logHeaders[file.name];
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -48664,15 +51653,15 @@ categories: ${categories.join(" ")}`;
                         className: clsx(
                           "list-group-item",
                           "list-group-item-action",
-                          styles$15.item,
-                          selectedIndex === index2 ? styles$15.active : void 0
+                          styles$16.item,
+                          selectedIndex === index2 ? styles$16.active : void 0
                         ),
                         "data-index": index2,
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                           Link,
                           {
                             to: logUrl(file.name, logs.log_dir),
-                            className: styles$15.logLink,
+                            className: styles$16.logLink,
                             onClick: () => {
                               onSelectedIndexChanged(index2);
                             },
@@ -48862,7 +51851,7 @@ categories: ${categories.join(" ")}`;
     const tabSet = "_tabSet_1r3mu_14";
     const tabs = "_tabs_1r3mu_21";
     const tabPanels = "_tabPanels_1r3mu_29";
-    const styles$10 = {
+    const styles$11 = {
       workspace,
       tabContainer,
       tabSet,
@@ -48941,7 +51930,7 @@ categories: ${categories.join(" ")}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
     const item$1 = "_item_1uzhd_1";
-    const styles$$ = {
+    const styles$10 = {
       item: item$1
     };
     const DatasetDetailView = ({
@@ -48952,12 +51941,12 @@ categories: ${categories.join(" ")}`;
         Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
       );
       if (!dataset || Object.keys(filtered).length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$$.item), style: style2, children: "No dataset information available" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$10.item), style: style2, children: "No dataset information available" });
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         MetaDataView,
         {
-          className: clsx("text-size-base", styles$$.item),
+          className: clsx("text-size-base", styles$10.item),
           entries: filtered,
           tableOptions: "borderless,sm",
           style: style2
@@ -48966,7 +51955,7 @@ categories: ${categories.join(" ")}`;
     };
     const grid$6 = "_grid_14885_1";
     const cell$2 = "_cell_14885_8";
-    const styles$_ = {
+    const styles$$ = {
       grid: grid$6,
       cell: cell$2
     };
@@ -48997,7 +51986,7 @@ categories: ${categories.join(" ")}`;
             {
               className: clsx(
                 `${baseId}-key`,
-                styles$_.cell,
+                styles$$.cell,
                 "text-style-label",
                 "text-style-secondary",
                 fontStyle
@@ -49005,7 +51994,7 @@ categories: ${categories.join(" ")}`;
               children: entry2 == null ? void 0 : entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$_.value, `${baseId}-value`, fontStyle), children: entry2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$$.value, `${baseId}-value`, fontStyle), children: entry2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
             RenderedContent,
             {
               id: id2,
@@ -49015,7 +52004,7 @@ categories: ${categories.join(" ")}`;
                   MetaDataGrid,
                   {
                     id: id2,
-                    className: clsx(styles$_.nested),
+                    className: clsx(styles$$.nested),
                     entries: obj,
                     size,
                     plain
@@ -49026,7 +52015,7 @@ categories: ${categories.join(" ")}`;
           ) })
         ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$_.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$$.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -49043,7 +52032,7 @@ categories: ${categories.join(" ")}`;
     const icon$2 = "_icon_59zaz_1";
     const container$g = "_container_59zaz_5";
     const metadata$2 = "_metadata_59zaz_11";
-    const styles$Z = {
+    const styles$_ = {
       icon: icon$2,
       container: container$g,
       metadata: metadata$2
@@ -49054,16 +52043,16 @@ categories: ${categories.join(" ")}`;
       params: params2,
       className: className2
     }) => {
-      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$Z.icon) }) : "";
+      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$_.icon) }) : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         iconHtml,
         " ",
         name2,
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.container, children: params2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$_.container, children: params2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MetaDataGrid,
           {
             entries: params2,
-            className: clsx("text-size-small", styles$Z.metadata)
+            className: clsx("text-size-small", styles$_.metadata)
           }
         ) : "" })
       ] });
@@ -49082,38 +52071,38 @@ categories: ${categories.join(" ")}`;
           icon: ApplicationIcons.scorer,
           name: name2,
           params: params2,
-          className: clsx(styles$$.item, "text-size-base")
+          className: clsx(styles$10.item, "text-size-base")
         }
       );
     };
     const container$f = "_container_12j2k_1";
     const separator$4 = "_separator_12j2k_11";
-    const styles$Y = {
+    const styles$Z = {
       container: container$f,
       separator: separator$4
     };
     const SolversDetailView = ({ steps }) => {
-      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Y.items, "text-size-small", styles$Y.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
+      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Z.items, "text-size-small", styles$Z.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
       const details = steps == null ? void 0 : steps.map((step, index2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             DetailStep,
             {
               name: step.solver,
-              className: clsx(styles$Y.items, "text-size-small")
+              className: clsx(styles$Z.items, "text-size-small")
             }
           ),
           index2 < steps.length - 1 ? separator2 : ""
         ] }, `solver-step-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Y.container, children: details });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.container, children: details });
     };
     const floatingCol = "_floatingCol_1y1hk_1";
     const wideCol = "_wideCol_1y1hk_9";
     const planCol = "_planCol_1y1hk_24";
     const container$e = "_container_1y1hk_28";
     const grid$5 = "_grid_1y1hk_34";
-    const styles$X = {
+    const styles$Y = {
       floatingCol,
       wideCol,
       planCol,
@@ -49132,13 +52121,13 @@ categories: ${categories.join(" ")}`;
       const taskColumns = [];
       taskColumns.push({
         title: "Dataset",
-        className: styles$X.floatingCol,
+        className: styles$Y.floatingCol,
         contents: /* @__PURE__ */ jsxRuntimeExports.jsx(DatasetDetailView, { dataset: evaluation.dataset })
       });
       if (steps) {
         taskColumns.push({
           title: "Solvers",
-          className: styles$X.wideCol,
+          className: styles$Y.wideCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(SolversDetailView, { steps })
         });
       }
@@ -49172,15 +52161,15 @@ categories: ${categories.join(" ")}`;
           });
           taskColumns.push({
             title: label2,
-            className: styles$X.floatingCol,
+            className: styles$Y.floatingCol,
             contents: scorerPanels
           });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$X.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Y.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: styles$X.grid,
+          className: styles$Y.grid,
           style: {
             gridTemplateColumns: `repeat(${taskColumns.length}, fit-content(50%))`
           },
@@ -49208,7 +52197,7 @@ categories: ${categories.join(" ")}`;
               "text-size-small",
               "text-style-label",
               "text-style-secondary",
-              styles$X.planCol
+              styles$Y.planCol
             ),
             children: title2
           }
@@ -49248,7 +52237,7 @@ categories: ${categories.join(" ")}`;
         ] })
       ] });
     };
-    const styles$W = {
+    const styles$X = {
       "task-error-display": "_task-error-display_1624b_1"
     };
     const TaskErrorCard = ({ error: error2 }) => {
@@ -49264,7 +52253,7 @@ categories: ${categories.join(" ")}`;
           ANSIDisplay,
           {
             output: error2.traceback_ansi,
-            className: styles$W["task-error-display"]
+            className: styles$X["task-error-display"]
           }
         ) })
       ] });
@@ -51329,7 +54318,7 @@ self.onmessage = function (e) {
     );
     ToolButton.displayName = "ToolButton";
     const jsonTab = "_jsonTab_6pq03_1";
-    const styles$V = {
+    const styles$W = {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
@@ -51406,7 +54395,7 @@ self.onmessage = function (e) {
       const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
       if (logFile && json.length > kJsonMaxSize && downloadFiles) {
         const file = `${filename(logFile)}.json`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$V.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$W.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
           {
             message: "The JSON for this log file is too large to render.",
@@ -51416,14 +54405,14 @@ self.onmessage = function (e) {
           }
         ) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$V.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$W.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
     const container$d = "_container_4wzpj_1";
     const modelInfo = "_modelInfo_4wzpj_8";
     const role = "_role_4wzpj_15";
     const sep = "_sep_4wzpj_19";
-    const styles$U = {
+    const styles$V = {
       container: container$d,
       modelInfo,
       role,
@@ -51445,31 +54434,31 @@ self.onmessage = function (e) {
       const noneEl = /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-style-secondary", children: "None" });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Models" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$U.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$V.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
           const modelInfo2 = modelsInfo[modelKey];
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
-              className: clsx(styles$U.modelInfo, "text-size-small"),
+              className: clsx(styles$V.modelInfo, "text-size-small"),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     className: clsx(
-                      styles$U.role,
+                      styles$V.role,
                       "text-style-label",
                       "text-style-secondary"
                     ),
                     children: modelKey
                   }
                 ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$U.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Model" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: modelInfo2.model }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$U.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Base Url" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.base_url || noneEl }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$U.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Configuration" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.config && Object.keys(modelInfo2.config).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
@@ -51477,7 +54466,7 @@ self.onmessage = function (e) {
                     entries: modelInfo2.config
                   }
                 ) : noneEl }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$U.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Args" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: Object.keys(modelInfo2.args).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
@@ -51485,7 +54474,7 @@ self.onmessage = function (e) {
                     entries: modelInfo2.args
                   }
                 ) : noneEl }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$U.sep) })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) })
               ]
             },
             modelKey
@@ -51499,7 +54488,7 @@ self.onmessage = function (e) {
     const col3$1 = "_col3_sq96g_16";
     const separator$3 = "_separator_sq96g_20";
     const padded$1 = "_padded_sq96g_26";
-    const styles$T = {
+    const styles$U = {
       wrapper: wrapper$3,
       col2: col2$2,
       col1_3: col1_3$1,
@@ -51561,14 +54550,14 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$T.wrapper, className2), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$U.wrapper, className2), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: clsx(
-                styles$T.separator,
-                row2.padded ? styles$T.padded : void 0
+                styles$U.separator,
+                row2.padded ? styles$U.padded : void 0
               )
             },
             `$usage-sep-${idx}`
@@ -51581,23 +54570,23 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$T.col2 : styles$T.col1_3
+                  row2.secondary ? styles$U.col2 : styles$U.col1_3
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$T.col3, children: row2.value ? formatNumber(row2.value) : "" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$U.col3, children: row2.value ? formatNumber(row2.value) : "" })
           ] }, `$usage-row-${idx}`);
         }
       }) });
     };
-    const table = "_table_z217i_1";
+    const table$1 = "_table_z217i_1";
     const tableTokens = "_tableTokens_z217i_5";
     const tableH = "_tableH_z217i_9";
     const model = "_model_z217i_14";
     const cellContents = "_cellContents_z217i_18";
-    const styles$S = {
-      table,
+    const styles$T = {
+      table: table$1,
       tableTokens,
       tableH,
       model,
@@ -51611,7 +54600,7 @@ self.onmessage = function (e) {
             "table",
             "table-sm",
             "text-size-smaller",
-            styles$S.table,
+            styles$T.table,
             className2
           ),
           children: children2
@@ -51628,7 +54617,7 @@ self.onmessage = function (e) {
               colSpan: 3,
               className: clsx(
                 "card-subheading",
-                styles$S.tableTokens,
+                styles$T.tableTokens,
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -51643,7 +54632,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$S.tableH,
+                styles$T.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -51655,7 +54644,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$S.tableH,
+                styles$T.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -51668,8 +54657,8 @@ self.onmessage = function (e) {
     };
     const TokenRow = ({ model: model2, usage }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$S.model, styles$S.cellContents), children: model2 }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage, className: clsx(styles$S.cellContents) }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$T.model, styles$T.cellContents), children: model2 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage, className: clsx(styles$T.cellContents) }) })
       ] });
     };
     const ModelTokenTable = ({
@@ -51685,7 +54674,7 @@ self.onmessage = function (e) {
     };
     const wrapper$2 = "_wrapper_14r3b_1";
     const col2$1 = "_col2_14r3b_16";
-    const styles$R = {
+    const styles$S = {
       wrapper: wrapper$2,
       col2: col2$1
     };
@@ -51696,7 +54685,7 @@ self.onmessage = function (e) {
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Usage" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$R.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$R.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) }) }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$S.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$S.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) }) }) })
       ] });
     };
     const useModelsTab = (evalSpec, evalStats, evalStatus) => {
@@ -51726,12 +54715,12 @@ self.onmessage = function (e) {
     };
     const panel$2 = "_panel_twp3v_1";
     const container$c = "_container_twp3v_7";
-    const styles$Q = {
+    const styles$R = {
       panel: panel$2,
       container: container$c
     };
     const NoContentsPanel = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Q.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Q.container, "text-size-smaller"), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$R.container, "text-size-smaller"), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.noSamples }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: text2 })
       ] }) });
@@ -51916,7 +54905,7 @@ self.onmessage = function (e) {
     const subtle = "_subtle_4p85e_36";
     const primary = "_primary_4p85e_40";
     const visuallyHidden = "_visuallyHidden_4p85e_59";
-    const styles$P = {
+    const styles$Q = {
       container: container$b,
       dotsContainer,
       small,
@@ -51938,30 +54927,30 @@ self.onmessage = function (e) {
         "div",
         {
           className: clsx(
-            styles$P.container,
-            size === "small" ? styles$P.small : size === "medium" ? styles$P.medium : styles$P.large,
+            styles$Q.container,
+            size === "small" ? styles$Q.small : size === "medium" ? styles$Q.medium : styles$Q.large,
             className2
           ),
           role: "status",
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$P.dotsContainer, children: [...Array(dotsCount)].map((_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Q.dotsContainer, children: [...Array(dotsCount)].map((_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx(
-                  styles$P.dot,
-                  subtle2 ? styles$P.subtle : styles$P.primary
+                  styles$Q.dot,
+                  subtle2 ? styles$Q.subtle : styles$Q.primary
                 ),
                 style: { animationDelay: `${index2 * 0.2}s` }
               },
               index2
             )) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$P.visuallyHidden, children: text2 })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$Q.visuallyHidden, children: text2 })
           ]
         }
       );
     };
     const progressContainer = "_progressContainer_1cjjr_1";
-    const styles$O = {
+    const styles$P = {
       progressContainer
     };
     const LiveVirtualList = ({
@@ -52042,7 +55031,7 @@ self.onmessage = function (e) {
       const [, forceRender] = reactExports.useState({});
       const forceUpdate = reactExports.useCallback(() => forceRender({}), []);
       const Footer = () => {
-        return showProgress ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$O.progressContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0;
+        return showProgress ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$P.progressContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0;
       };
       reactExports.useEffect(() => {
         const parent = scrollRef == null ? void 0 : scrollRef.current;
@@ -52088,7 +55077,7 @@ self.onmessage = function (e) {
       );
     };
     const item = "_item_5fj0m_6";
-    const styles$N = {
+    const styles$O = {
       item
     };
     const ChatViewVirtualList = reactExports.memo(
@@ -52137,7 +55126,7 @@ self.onmessage = function (e) {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx(styles$N.item),
+              className: clsx(styles$O.item),
               "data-index": props["data-index"],
               "data-item-group-index": props["data-item-group-index"],
               "data-item-index": props["data-item-index"],
@@ -52173,7 +55162,7 @@ self.onmessage = function (e) {
     const noTop = "_noTop_6o9gh_38";
     const chat = "_chat_6o9gh_50";
     const transcriptContainer = "_transcriptContainer_6o9gh_58";
-    const styles$M = {
+    const styles$N = {
       tabPanel,
       tabControls,
       fullWidth: fullWidth$1,
@@ -52187,7 +55176,7 @@ self.onmessage = function (e) {
     const flatBody = "_flatBody_1uw6w_1";
     const iconSmall$1 = "_iconSmall_1uw6w_9";
     const lineBase = "_lineBase_1uw6w_15";
-    const styles$L = {
+    const styles$M = {
       flatBody,
       iconSmall: iconSmall$1,
       lineBase
@@ -52202,9 +55191,9 @@ self.onmessage = function (e) {
       return "Error";
     };
     const FlatSampleError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$L.flatBody), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$L.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.lineBase, "text-truncate"), children: errorType(message2) })
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$M.flatBody), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$M.iconSmall) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$M.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
     const target = "_target_tv989_1";
@@ -52214,8 +55203,8 @@ self.onmessage = function (e) {
     const centerValue = "_centerValue_tv989_21";
     const wrap = "_wrap_tv989_26";
     const titled = "_titled_tv989_30";
-    const value = "_value_tv989_34";
-    const styles$K = {
+    const value$1 = "_value_tv989_34";
+    const styles$L = {
       target,
       answer,
       grid: grid$4,
@@ -52223,7 +55212,7 @@ self.onmessage = function (e) {
       centerValue,
       wrap,
       titled,
-      value
+      value: value$1
     };
     function isEvalSample(sample2) {
       return "store" in sample2;
@@ -52294,7 +55283,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: arrayToString((fields == null ? void 0 : fields.target) || "none"),
-              className: clsx("no-last-para-padding", styles$K.target)
+              className: clsx("no-last-para-padding", styles$L.target)
             }
           ),
           size: `minmax(auto, 3fr)`,
@@ -52308,7 +55297,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: fields.answer || "",
-              className: clsx("no-last-para-padding", styles$K.answer)
+              className: clsx("no-last-para-padding", styles$L.answer)
             }
           ) : "",
           size: `minmax(auto, 5fr)`,
@@ -52356,7 +55345,7 @@ self.onmessage = function (e) {
         "div",
         {
           id: `sample-heading-${parent_id}`,
-          className: clsx(styles$K.grid, "text-size-base"),
+          className: clsx(styles$L.grid, "text-size-base"),
           style: {
             gridTemplateColumns: `${columns.map((col) => {
               return col.size;
@@ -52371,8 +55360,8 @@ self.onmessage = function (e) {
                     "text-style-label",
                     "text-style-secondary",
                     "text-size-base",
-                    col.title ? styles$K.titled : void 0,
-                    col.center ? styles$K.centerLabel : void 0
+                    col.title ? styles$L.titled : void 0,
+                    col.center ? styles$L.centerLabel : void 0
                   ),
                   title: col.title,
                   children: col.label
@@ -52385,10 +55374,10 @@ self.onmessage = function (e) {
                 "div",
                 {
                   className: clsx(
-                    styles$K.value,
-                    styles$K.wrap,
+                    styles$L.value,
+                    styles$L.wrap,
                     col.clamp ? "three-line-clamp" : void 0,
-                    col.center ? styles$K.centerValue : void 0
+                    col.center ? styles$L.centerValue : void 0
                   ),
                   children: col.value
                 },
@@ -52417,7 +55406,7 @@ self.onmessage = function (e) {
     const separator$2 = "_separator_181fj_25";
     const separatorPadded = "_separatorPadded_181fj_30";
     const headerSep = "_headerSep_181fj_35";
-    const styles$J = {
+    const styles$K = {
       container: container$a,
       cell: cell$1,
       fullWidth,
@@ -52434,7 +55423,7 @@ self.onmessage = function (e) {
       if (!evalDescriptor) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Sample Selected" });
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2, styles$J.container), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2, styles$K.container), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -52482,7 +55471,7 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx(styles$J.separator, styles$J.fullWidth, styles$J.headerSep)
+            className: clsx(styles$K.separator, styles$K.fullWidth, styles$K.headerSep)
           }
         ),
         Object.keys(evalSample.scores || {}).map((scorer2) => {
@@ -52494,16 +55483,16 @@ self.onmessage = function (e) {
           const answer2 = scoreData.answer;
           let metadata2 = scoreData.metadata || {};
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$J.cell), children: scorer2 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.cell, "text-size-base"), children: answer2 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.cell, "text-size-base"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$K.cell), children: scorer2 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$K.cell, "text-size-base"), children: answer2 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$K.cell, "text-size-base"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleScores,
               {
                 sample: evalSample,
                 scorer: scorer2
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$J.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$K.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               RenderedContent,
               {
                 id: `${scorer2}-explanation`,
@@ -52521,12 +55510,12 @@ self.onmessage = function (e) {
                     "text-size-smaller",
                     "text-style-label",
                     "text-style-secondary",
-                    styles$J.fullWidth
+                    styles$K.fullWidth
                   ),
                   children: "Metadata"
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$K.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 RecordTree,
                 {
                   id: `${scorer2}-metadataa`,
@@ -52539,9 +55528,9 @@ self.onmessage = function (e) {
                 "div",
                 {
                   className: clsx(
-                    styles$J.separator,
-                    styles$J.separatorPadded,
-                    styles$J.fullWidth
+                    styles$K.separator,
+                    styles$K.separatorPadded,
+                    styles$K.fullWidth
                   )
                 }
               )
@@ -52553,7 +55542,7 @@ self.onmessage = function (e) {
     const wordBreak = "_wordBreak_las07_9";
     const scoreCard = "_scoreCard_las07_50";
     const scores = "_scores_las07_54";
-    const styles$I = {
+    const styles$J = {
       wordBreak,
       scoreCard,
       scores
@@ -52586,9 +55575,9 @@ self.onmessage = function (e) {
             "container-fluid",
             className2,
             "font-size-base",
-            styles$I.container
+            styles$J.container
           ),
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Card, { className: clsx(styles$I.scoreCard), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(CardBody, { children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Card, { className: clsx(styles$J.scoreCard), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(CardBody, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -52610,7 +55599,7 @@ self.onmessage = function (e) {
                   MarkdownDiv,
                   {
                     markdown: scoreInput.join("\n"),
-                    className: clsx(styles$I.wordBreak, "text-size-base")
+                    className: clsx(styles$J.wordBreak, "text-size-base")
                   }
                 )
               }
@@ -52619,7 +55608,7 @@ self.onmessage = function (e) {
               SampleScoresGrid,
               {
                 evalSample: sample2,
-                className: clsx(styles$I.scores),
+                className: clsx(styles$J.scores),
                 scrollRef
               }
             )
@@ -55091,16 +58080,16 @@ self.onmessage = function (e) {
     const selected$1 = "_selected_1dssq_8";
     const toggle$1 = "_toggle_1dssq_12";
     const eventLink = "_eventLink_1dssq_17";
-    const label$6 = "_label_1dssq_28";
+    const label$7 = "_label_1dssq_28";
     const icon$1 = "_icon_1dssq_34";
     const progress$2 = "_progress_1dssq_38";
     const popover = "_popover_1dssq_42";
-    const styles$H = {
+    const styles$I = {
       eventRow,
       selected: selected$1,
       toggle: toggle$1,
       eventLink,
-      label: label$6,
+      label: label$7,
       icon: icon$1,
       progress: progress$2,
       popover
@@ -55126,29 +58115,29 @@ self.onmessage = function (e) {
           "div",
           {
             className: clsx(
-              styles$H.eventRow,
+              styles$I.eventRow,
               "text-size-smaller",
-              selected2 ? styles$H.selected : ""
+              selected2 ? styles$I.selected : ""
             ),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
-                  className: clsx(styles$H.toggle),
+                  className: clsx(styles$I.toggle),
                   onClick: () => {
                     setCollapsed(!collapsed2);
                   },
                   children: toggle2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(toggle2) }) : void 0
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$H.label), "data-depth": node2.depth, children: [
-                icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$H.icon) }) : void 0,
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$I.label), "data-depth": node2.depth, children: [
+                icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$I.icon) }) : void 0,
                 sampleEventUrl2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   Link,
                   {
                     to: sampleEventUrl2,
-                    className: clsx(styles$H.eventLink),
+                    className: clsx(styles$I.eventLink),
                     ref,
                     children: parsePackageName(labelForNode(node2)).module
                   }
@@ -55157,7 +58146,7 @@ self.onmessage = function (e) {
                   PulsingDots,
                   {
                     size: "small",
-                    className: clsx(styles$H.progress),
+                    className: clsx(styles$I.progress),
                     subtle: false
                   }
                 ) : void 0
@@ -55171,7 +58160,7 @@ self.onmessage = function (e) {
             id: `${node2.id}-popover`,
             positionEl: ref.current,
             isOpen: isShowing,
-            className: clsx(styles$H.popper),
+            className: clsx(styles$I.popper),
             placement: "auto-end",
             children: summarizeNode(node2)
           }
@@ -55287,11 +58276,11 @@ self.onmessage = function (e) {
         {
           entries,
           size: "mini",
-          className: clsx(styles$H.popover, "text-size-smallest")
+          className: clsx(styles$I.popover, "text-size-smallest")
         }
       );
     };
-    const styles$G = {};
+    const styles$H = {};
     const kTurnType = "turn";
     const kTurnsType = "turns";
     const kCollapsedScoring = "scorings";
@@ -55572,7 +58561,7 @@ self.onmessage = function (e) {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
-                className: styles$G.eventPadding,
+                className: styles$H.eventPadding,
                 style: { height: "2em" }
               },
               node2.id
@@ -55621,7 +58610,7 @@ self.onmessage = function (e) {
     const listContainer = "_listContainer_1zq6s_24";
     const outline = "_outline_1zq6s_28";
     const outlineToggle = "_outlineToggle_1zq6s_32";
-    const styles$F = {
+    const styles$G = {
       container: container$9,
       collapsed,
       treeContainer,
@@ -55631,7 +58620,7 @@ self.onmessage = function (e) {
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
-    const styles$E = {
+    const styles$F = {
       title: title$2,
       contents
     };
@@ -55641,12 +58630,12 @@ self.onmessage = function (e) {
       className: className2,
       children: children2
     }) => {
-      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$E.title, className2), children: [
+      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$F.title, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon2 || ApplicationIcons.metadata }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: title2 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 })
       ] }) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$E.contents), children: contentEl });
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$F.contents), children: contentEl });
       return card2;
     };
     const ApprovalEventView = ({
@@ -55697,7 +58686,7 @@ self.onmessage = function (e) {
       }
     };
     const tab = "_tab_1je38_1";
-    const styles$D = {
+    const styles$E = {
       tab
     };
     const EventNav = ({
@@ -55722,7 +58711,7 @@ self.onmessage = function (e) {
             active2 ? "active " : "",
             "text-style-label",
             "text-size-small",
-            styles$D.tab
+            styles$E.tab
           ),
           onClick: handleClick,
           children: title2
@@ -55730,7 +58719,7 @@ self.onmessage = function (e) {
       ) });
     };
     const navs$1 = "_navs_1vm6p_1";
-    const styles$C = {
+    const styles$D = {
       navs: navs$1
     };
     const EventNavs = ({
@@ -55741,7 +58730,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "ul",
         {
-          className: clsx("nav", "nav-pills", styles$C.navs),
+          className: clsx("nav", "nav-pills", styles$D.navs),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navs2.map((nav2) => {
@@ -55759,7 +58748,7 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$5 = "_label_1i908_1";
+    const label$6 = "_label_1i908_1";
     const navs = "_navs_1i908_6";
     const card = "_card_1i908_12";
     const cardContent = "_cardContent_1i908_20";
@@ -55769,8 +58758,8 @@ self.onmessage = function (e) {
     const root$1 = "_root_1i908_45";
     const bottomDongle = "_bottomDongle_1i908_50";
     const dongleIcon = "_dongleIcon_1i908_67";
-    const styles$B = {
-      label: label$5,
+    const styles$C = {
+      label: label$6,
       navs,
       card,
       cardContent,
@@ -55839,7 +58828,7 @@ self.onmessage = function (e) {
         "div",
         {
           title: subTitle,
-          className: clsx("text-size-small", mouseOver ? styles$B.hover : ""),
+          className: clsx("text-size-small", mouseOver ? styles$C.hover : ""),
           style: {
             display: "grid",
             gridTemplateColumns: gridColumns2.join(" "),
@@ -55879,19 +58868,19 @@ self.onmessage = function (e) {
               {
                 value: url,
                 icon: ApplicationIcons.link,
-                className: clsx(styles$B.copyLink)
+                className: clsx(styles$C.copyLink)
               }
             ) : "",
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: toggleCollapse }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
-                className: clsx("text-style-secondary", styles$B.label),
+                className: clsx("text-style-secondary", styles$C.label),
                 onClick: toggleCollapse,
                 children: collapsed2 ? text2 : ""
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$B.navs, children: isCollapsible && collapsibleContent && collapsed2 ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$C.navs, children: isCollapsible && collapsibleContent && collapsed2 ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index2) => {
@@ -55916,8 +58905,8 @@ self.onmessage = function (e) {
           id: `event-panel-${eventNodeId}`,
           className: clsx(
             className2,
-            styles$B.card,
-            depth === 0 ? styles$B.root : void 0
+            styles$C.card,
+            depth === 0 ? styles$C.root : void 0
           ),
           children: [
             titleEl,
@@ -55926,8 +58915,8 @@ self.onmessage = function (e) {
               {
                 className: clsx(
                   "tab-content",
-                  styles$B.cardContent,
-                  isCollapsible && collapsed2 && collapsibleContent ? styles$B.hidden : void 0
+                  styles$C.cardContent,
+                  isCollapsible && collapsed2 && collapsibleContent ? styles$C.hidden : void 0
                 ),
                 children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
                   const id = pillId(index2);
@@ -55947,7 +58936,7 @@ self.onmessage = function (e) {
             isCollapsible && useBottomDongle ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
-                className: clsx(styles$B.bottomDongle, "text-size-smallest"),
+                className: clsx(styles$C.bottomDongle, "text-size-smallest"),
                 onClick: toggleCollapse,
                 children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -55955,7 +58944,7 @@ self.onmessage = function (e) {
                     {
                       className: clsx(
                         collapsed2 ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down,
-                        styles$B.dongleIcon
+                        styles$C.dongleIcon
                       )
                     }
                   ),
@@ -56003,7 +58992,7 @@ self.onmessage = function (e) {
       );
     };
     const panel$1 = "_panel_vz394_1";
-    const styles$A = {
+    const styles$B = {
       panel: panel$1
     };
     const InfoEventView = ({
@@ -56018,12 +59007,12 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: event.data,
-              className: clsx(styles$A.panel, "text-size-base")
+              className: clsx(styles$B.panel, "text-size-base")
             }
           )
         );
       } else {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$A.panel }));
+        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$B.panel }));
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
@@ -56063,7 +59052,7 @@ self.onmessage = function (e) {
       );
     };
     const grid$3 = "_grid_1eq5o_1";
-    const styles$z = {
+    const styles$A = {
       grid: grid$3
     };
     const LoggerEventView = ({
@@ -56078,7 +59067,7 @@ self.onmessage = function (e) {
           className: className2,
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$z.grid), children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$A.grid), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: obj !== void 0 && obj !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: obj }) : event.message.message }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", "text-style-secondary"), children: [
               event.message.filename,
@@ -56091,7 +59080,7 @@ self.onmessage = function (e) {
     };
     const container$8 = "_container_1brs9_1";
     const title$1 = "_title_1brs9_5";
-    const styles$y = {
+    const styles$z = {
       container: container$8,
       title: title$1
     };
@@ -56100,11 +59089,11 @@ self.onmessage = function (e) {
       children: children2,
       className: className2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$y.container, className2), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$z.container, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx("text-size-small", "text-style-label", styles$y.title),
+            className: clsx("text-size-small", "text-style-label", styles$z.title),
             children: title2
           }
         ),
@@ -56119,7 +59108,7 @@ self.onmessage = function (e) {
     const progress$1 = "_progress_e0l2n_34";
     const toolConfig = "_toolConfig_e0l2n_38";
     const toolChoice = "_toolChoice_e0l2n_46";
-    const styles$x = {
+    const styles$y = {
       container: container$7,
       all,
       tableSelection,
@@ -56135,7 +59124,7 @@ self.onmessage = function (e) {
     const col3 = "_col3_45f60_16";
     const separator$1 = "_separator_45f60_20";
     const topMargin = "_topMargin_45f60_26";
-    const styles$w = {
+    const styles$x = {
       wrapper: wrapper$1,
       col2,
       col1_3,
@@ -56203,9 +59192,9 @@ self.onmessage = function (e) {
           });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$w.wrapper), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$x.wrapper), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$w.separator }, `$usage-sep-${idx}`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$x.separator }, `$usage-sep-${idx}`);
         } else {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -56214,13 +59203,13 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$w.col2 : styles$w.col1_3,
-                  row2.topMargin ? styles$w.topMargin : void 0
+                  row2.secondary ? styles$x.col2 : styles$x.col1_3,
+                  row2.topMargin ? styles$x.topMargin : void 0
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$w.col3, children: row2.value ? row2.value : "" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$x.col3, children: row2.value ? row2.value : "" })
           ] }, `$usage-row-${idx}`);
         }
       }) });
@@ -56276,7 +59265,7 @@ self.onmessage = function (e) {
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.model,
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$x.container, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$y.container, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
@@ -56286,20 +59275,20 @@ self.onmessage = function (e) {
                   toolCallStyle: "omit"
                 }
               ),
-              event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$x.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
+              event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$y.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$x.container, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$x.all, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$y.container, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$y.all, children: [
                 Object.keys(entries).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventSection,
                   {
                     title: "Configuration",
-                    className: styles$x.tableSelection,
+                    className: styles$y.tableSelection,
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true })
                   }
                 ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$x.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Timing", className: styles$x.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$y.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Timing", className: styles$y.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventTimingPanel,
                   {
                     timestamp: event.timestamp,
@@ -56317,13 +59306,13 @@ self.onmessage = function (e) {
                 }
               ) })
             ] }),
-            event.tools.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Tools", className: styles$x.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools, toolChoice: event.tool_choice }) }),
+            event.tools.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Tools", className: styles$y.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools, toolChoice: event.tool_choice }) }),
             event.call ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               APIView,
               {
                 "data-name": "API",
                 call: event.call,
-                className: styles$x.container
+                className: styles$y.container
               }
             ) : ""
           ]
@@ -56347,11 +59336,11 @@ self.onmessage = function (e) {
       if (!contents2) {
         return null;
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$x.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$y.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
           id,
-          className: clsx("language-json", styles$x.code, "text-size-small"),
+          className: clsx("language-json", styles$y.code, "text-size-small"),
           children: sourceCode
         }
       ) }) });
@@ -56364,8 +59353,8 @@ self.onmessage = function (e) {
         ] }, `${tool2.name}-${idx}`);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$x.toolConfig, "text-size-small"), children: toolEls }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$x.toolChoice, "text-size-small"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$y.toolConfig, "text-size-small"), children: toolEls }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$y.toolChoice, "text-size-small"), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
         ] })
@@ -56387,7 +59376,7 @@ self.onmessage = function (e) {
     const sample = "_sample_1a3fk_10";
     const section = "_section_1a3fk_14";
     const metadata$1 = "_metadata_1a3fk_21";
-    const styles$v = {
+    const styles$w = {
       noMargin,
       code: code$1,
       sample,
@@ -56404,13 +59393,13 @@ self.onmessage = function (e) {
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$v.noMargin, children: file }, `sample-init-file-${file}`);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$w.noMargin, children: file }, `sample-init-file-${file}`);
           }) }, `event-${eventNode.id}`)
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$v.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `${eventNode.id}-section-setup`)
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$w.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `${eventNode.id}-section-setup`)
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -56423,7 +59412,7 @@ self.onmessage = function (e) {
           icon: ApplicationIcons.sample,
           subTitle: formatDateTime(new Date(event.timestamp)),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$v.sample, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$w.sample, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { messages: stateObj["messages"] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 event.sample.choices ? event.sample.choices.map((choice, index2) => {
@@ -56433,7 +59422,7 @@ self.onmessage = function (e) {
                     choice
                   ] }, `$choice-{choice}`);
                 }) : "",
-                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$v.section, children: sections }) : "",
+                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$w.section, children: sections }) : "",
                 event.sample.target ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base"), children: target2 }, target2);
                 }) }) : void 0
@@ -56443,7 +59432,7 @@ self.onmessage = function (e) {
               MetaDataGrid,
               {
                 "data-name": "Metadata",
-                className: styles$v.metadata,
+                className: styles$w.metadata,
                 entries: event.sample.metadata
               }
             ) : ""
@@ -56506,7 +59495,7 @@ self.onmessage = function (e) {
     const result = "_result_1irga_19";
     const fileLabel = "_fileLabel_1irga_23";
     const wrapPre = "_wrapPre_1irga_28";
-    const styles$u = {
+    const styles$v = {
       twoColumn,
       exec,
       result,
@@ -56540,10 +59529,10 @@ self.onmessage = function (e) {
       const input2 = event.input;
       const result2 = event.result;
       const output2 = event.output ? event.output.trim() : void 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$u.exec), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$u.twoColumn), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$u.wrapPre), children: cmd2 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$u.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }),
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$v.exec), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$v.twoColumn), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$v.wrapPre), children: cmd2 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$v.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }),
           options2 !== null && Object.keys(options2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataGrid,
             {
@@ -56560,7 +59549,7 @@ self.onmessage = function (e) {
               entry: { name: "sandbox_output", value: output2 }
             }
           ) }) : void 0,
-          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$u.result, "text-size-base"), children: [
+          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$v.result, "text-size-base"), children: [
             "(exited with code ",
             result2,
             ")"
@@ -56586,14 +59575,14 @@ self.onmessage = function (e) {
     };
     const FileView = ({ id, file, contents: contents2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "File", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$u.fileLabel), children: file }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "File", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$v.fileLabel), children: file }) }),
         contents2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-file`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: contents2 }) }) }) : void 0
       ] });
     };
     const explanation = "_explanation_1ww42_1";
     const separator = "_separator_1ww42_8";
     const metadata = "_metadata_1ww42_13";
-    const styles$t = {
+    const styles$u = {
       explanation,
       separator,
       metadata
@@ -56615,28 +59604,28 @@ self.onmessage = function (e) {
           icon: ApplicationIcons.scorer,
           collapsibleContent: true,
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$t.explanation), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$u.explanation), children: [
               event.target ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.separator) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Target" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: resolvedTarget || "" }) })
               ] }) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Answer" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.answer || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Explanation" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.explanation || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Score" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: renderScore(event.score.value) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.separator) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) })
             ] }),
             event.score.metadata ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Metadata", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataGrid,
               {
                 entries: event.score.metadata,
-                className: styles$t.metadata
+                className: styles$u.metadata
               }
             ) }) : void 0
           ]
@@ -56781,14 +59770,14 @@ self.onmessage = function (e) {
         if (!this.processor) {
           throw new Error("add this pipe to a processor before using it");
         }
-        const debug = this.debug;
+        const debug2 = this.debug;
         const length = this.filters.length;
         const context = input2;
         for (let index2 = 0; index2 < length; index2++) {
           const filter = this.filters[index2];
           if (!filter)
             continue;
-          if (debug) {
+          if (debug2) {
             this.log(`filter: ${filter.filterName}`);
           }
           filter(context);
@@ -58296,7 +61285,7 @@ self.onmessage = function (e) {
       if (typeof time === "number") {
         return time;
       } else if (typeof time === "string") {
-        return time.split(":").reverse().map(parseFloat).reduce((sum, n, i2) => sum + n * Math.pow(60, i2));
+        return time.split(":").reverse().map(parseFloat).reduce((sum2, n, i2) => sum2 + n * Math.pow(60, i2));
       } else {
         return void 0;
       }
@@ -58443,15 +61432,15 @@ self.onmessage = function (e) {
       }
       if (Array.isArray(val)) {
         const length = val.length;
-        let debug = "[";
+        let debug2 = "[";
         if (length > 0) {
-          debug += debugString(val[0]);
+          debug2 += debugString(val[0]);
         }
         for (let i2 = 1; i2 < length; i2++) {
-          debug += ", " + debugString(val[i2]);
+          debug2 += ", " + debugString(val[i2]);
         }
-        debug += "]";
-        return debug;
+        debug2 += "]";
+        return debug2;
       }
       const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
       let className2;
@@ -60478,17 +63467,17 @@ ${events}
       for (const entry2 of timing) {
         time += parseFloat(entry2[1]);
         if (entry2[0] === "O") {
-          const count = parseInt(entry2[2], 10);
-          const bytes = stdout.array.subarray(stdout.cursor, stdout.cursor + count);
+          const count2 = parseInt(entry2[2], 10);
+          const bytes = stdout.array.subarray(stdout.cursor, stdout.cursor + count2);
           const text2 = textDecoder.decode(bytes);
           events.push([time, "o", text2]);
-          stdout.cursor += count;
+          stdout.cursor += count2;
         } else if (entry2[0] === "I") {
-          const count = parseInt(entry2[2], 10);
-          const bytes = stdin.array.subarray(stdin.cursor, stdin.cursor + count);
+          const count2 = parseInt(entry2[2], 10);
+          const bytes = stdin.array.subarray(stdin.cursor, stdin.cursor + count2);
           const text2 = textDecoder.decode(bytes);
           events.push([time, "i", text2]);
-          stdin.cursor += count;
+          stdin.cursor += count2;
         } else if (entry2[0] === "S" && entry2[2] === "SIGWINCH") {
           const cols2 = parseInt(entry2[4].slice(5), 10);
           const rows2 = parseInt(entry2[3].slice(5), 10);
@@ -63587,7 +66576,7 @@ ${events}
     const lightboxButtonCloseWrapper = "_lightboxButtonCloseWrapper_1mvg8_45";
     const lightboxButtonClose = "_lightboxButtonClose_1mvg8_45";
     const lightboxPreviewButton = "_lightboxPreviewButton_1mvg8_63";
-    const styles$s = {
+    const styles$t = {
       carouselThumbs,
       carouselThumb,
       carouselPlayIcon,
@@ -63656,12 +66645,12 @@ ${events}
         [openLightbox]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("lightbox-carousel-container"), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$s.carouselThumbs), children: slides.map((slide, index2) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.carouselThumbs), children: slides.map((slide, index2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
               "data-index": index2,
-              className: clsx(styles$s.carouselThumb),
+              className: clsx(styles$t.carouselThumb),
               onClick: handleThumbClick,
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: slide.label }),
@@ -63670,7 +66659,7 @@ ${events}
                   {
                     className: clsx(
                       ApplicationIcons.play,
-                      styles$s.carouselPlayIcon
+                      styles$t.carouselPlayIcon
                     )
                   }
                 ) })
@@ -63682,12 +66671,12 @@ ${events}
         showOverlay && /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$s.lightboxOverlay, isOpen ? "open" : "closed"),
+            className: clsx(styles$t.lightboxOverlay, isOpen ? "open" : "closed"),
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$s.lightboxButtonCloseWrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.lightboxButtonCloseWrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
-                  className: styles$s.lightboxButtonClose,
+                  className: styles$t.lightboxButtonClose,
                   onClick: closeLightbox,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
                 }
@@ -63695,7 +66684,7 @@ ${events}
               slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
-                  className: clsx(styles$s.lightboxPreviewButton, "prev"),
+                  className: clsx(styles$t.lightboxPreviewButton, "prev"),
                   onClick: showPrev,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.previous })
                 }
@@ -63703,7 +66692,7 @@ ${events}
               slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
-                  className: clsx(styles$s.lightboxPreviewButton, "next"),
+                  className: clsx(styles$t.lightboxPreviewButton, "next"),
                   onClick: showNext,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.next })
                 }
@@ -63711,7 +66700,7 @@ ${events}
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
-                  className: clsx(styles$s.lightboxContent, isOpen ? "open" : "closed"),
+                  className: clsx(styles$t.lightboxContent, isOpen ? "open" : "closed"),
                   children: slides[currentIndex].render()
                 },
                 `carousel-slide-${currentIndex}`
@@ -63742,11 +66731,11 @@ ${events}
           revokableUrls.forEach((url) => URL.revokeObjectURL(url));
         };
       }, []);
-      let count = 1;
+      let count2 = 1;
       for (const sessionLog of sessionLogs) {
         const rows = extractSize(sessionLog.output, "LINES", 24);
         const cols = extractSize(sessionLog.output, "COLUMNS", 80);
-        const currentCount = count;
+        const currentCount = count2;
         const title2 = sessionLogs.length === 1 ? "Terminal Session" : `Terminal Session ${currentCount}`;
         player_fns.push({
           label: title2,
@@ -63768,7 +66757,7 @@ ${events}
             }
           )
         });
-        count += 1;
+        count2 += 1;
       }
       const StatusMessage = ({
         completed: completed2,
@@ -63822,7 +66811,7 @@ ${events}
     const toolsGrid = "_toolsGrid_1qqm2_1";
     const tools = "_tools_1qqm2_1";
     const tool = "_tool_1qqm2_1";
-    const styles$r = {
+    const styles$s = {
       toolsGrid,
       tools,
       tool
@@ -63966,7 +66955,7 @@ ${events}
           toolsInfo["Tools"] = /* @__PURE__ */ jsxRuntimeExports.jsx(Tools, { toolDefinitions: filtered });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.tools), children: Object.keys(toolsInfo).map((key2) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$s.tools), children: Object.keys(toolsInfo).map((key2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
@@ -64019,7 +67008,7 @@ ${events}
       human_baseline_session
     ];
     const Tools = ({ toolDefinitions }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$r.toolsGrid, children: toolDefinitions.map((toolDefinition, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.toolsGrid, children: toolDefinitions.map((toolDefinition, idx) => {
         var _a2;
         const toolName = toolDefinition.name;
         const toolArgs = ((_a2 = toolDefinition.parameters) == null ? void 0 : _a2.properties) ? Object.keys(toolDefinition.parameters.properties) : [];
@@ -64035,11 +67024,11 @@ ${events}
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-smallest", styles$r.tool), children: functionCall });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-smallest", styles$s.tool), children: functionCall });
     };
     const diff = "_diff_eobja_1";
     const summary$2 = "_summary_eobja_6";
-    const styles$q = {
+    const styles$r = {
       diff,
       summary: summary$2
     };
@@ -64084,14 +67073,14 @@ ${events}
           text: !changePreview ? summary2 : void 0,
           collapsibleContent: true,
           children: [
-            changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$q.summary), children: changePreview }) : void 0,
+            changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$r.summary), children: changePreview }) : void 0,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               StateDiffView,
               {
                 before,
                 after,
                 "data-name": "Diff",
-                className: clsx(styles$q.diff)
+                className: clsx(styles$r.diff)
               }
             )
           ]
@@ -64319,11 +67308,11 @@ ${events}
       if (children2.length === 0) {
         return "(no events)";
       }
-      const formatEvent = (event, count) => {
-        if (count === 1) {
-          return `${count} ${event} event`;
+      const formatEvent = (event, count2) => {
+        if (count2 === 1) {
+          return `${count2} ${event} event`;
         } else {
-          return `${count} ${event} events`;
+          return `${count2} ${event} events`;
         }
       };
       const typeCount = {};
@@ -64416,7 +67405,7 @@ ${events}
     const summaryRendered = "_summaryRendered_ac4z2_6";
     const subtaskSummary = "_subtaskSummary_ac4z2_10";
     const subtaskLabel = "_subtaskLabel_ac4z2_17";
-    const styles$p = {
+    const styles$q = {
       summary: summary$1,
       summaryRendered,
       subtaskSummary,
@@ -64431,9 +67420,9 @@ ${events}
       const body2 = [];
       if (event.type === "fork") {
         body2.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$p.summary), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$q.summary), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$p.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) })
           ] })
         );
       } else {
@@ -64469,12 +67458,12 @@ ${events}
     };
     const SubtaskSummary = ({ input: input2, result: result2 }) => {
       const output2 = typeof result2 === "object" ? result2 : { result: result2 };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$p.subtaskSummary), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$q.subtaskSummary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Input" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$p.subtaskLabel) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$q.subtaskLabel) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Output" }),
         input2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$p.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$q.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: output2 }) })
       ] });
     };
@@ -64499,7 +67488,7 @@ ${events}
     const summary = "_summary_1qsnv_1";
     const approval = "_approval_1qsnv_6";
     const progress = "_progress_1qsnv_12";
-    const styles$o = {
+    const styles$p = {
       summary,
       approval,
       progress
@@ -64539,7 +67528,7 @@ ${events}
           icon: ApplicationIcons.solvers.use_tools,
           childIds: children2.map((child) => child.id),
           collapseControl: "bottom",
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$o.summary, children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$p.summary, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolCallView,
               {
@@ -64565,10 +67554,10 @@ ${events}
               ApprovalEventView,
               {
                 eventNode: approvalNode,
-                className: styles$o.approval
+                className: styles$p.approval
               }
             ) : "",
-            event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
+            event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$p.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
           ] })
         }
       );
@@ -64600,11 +67589,11 @@ ${events}
       if (children2.length === 0) {
         return "(no events)";
       }
-      const formatEvent = (event, count) => {
-        if (count === 1) {
-          return `${count} ${event} event`;
+      const formatEvent = (event, count2) => {
+        if (count2 === 1) {
+          return `${count2} ${event} event`;
         } else {
-          return `${count} ${event} events`;
+          return `${count2} ${event} events`;
         }
       };
       const typeCount = {};
@@ -64697,7 +67686,7 @@ ${events}
     const attached = "_attached_1r858_5";
     const attachedParent = "_attachedParent_1r858_9";
     const attachedChild = "_attachedChild_1r858_16";
-    const styles$n = {
+    const styles$o = {
       node,
       attached,
       attachedParent,
@@ -64723,21 +67712,21 @@ ${events}
       }, [initialEventId, eventNodes]);
       const renderRow = reactExports.useCallback(
         (index2, item2) => {
-          const paddingClass = index2 === 0 ? styles$n.first : void 0;
+          const paddingClass = index2 === 0 ? styles$o.first : void 0;
           const previousIndex = index2 - 1;
           const nextIndex = index2 + 1;
           const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
           const next = nextIndex < eventNodes.length ? eventNodes[nextIndex] : void 0;
           const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
           const attachedParent2 = item2.event.event === "model" && (next == null ? void 0 : next.event.event) === "tool";
-          const attachedClass = attached2 ? styles$n.attached : void 0;
-          const attachedChildClass = attached2 ? styles$n.attachedChild : void 0;
-          const attachedParentClass = attachedParent2 ? styles$n.attachedParent : void 0;
+          const attachedClass = attached2 ? styles$o.attached : void 0;
+          const attachedChildClass = attached2 ? styles$o.attachedChild : void 0;
+          const attachedParentClass = attachedParent2 ? styles$o.attachedParent : void 0;
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               id: item2.id,
-              className: clsx(styles$n.node, paddingClass, attachedClass),
+              className: clsx(styles$o.node, paddingClass, attachedClass),
               style: {
                 paddingLeft: `${item2.depth <= 1 ? item2.depth * 0.7 : (0.7 + item2.depth - 1) * 1}em`,
                 paddingRight: `${item2.depth === 0 ? void 0 : ".7em"} `
@@ -64998,21 +67987,21 @@ ${events}
         "div",
         {
           className: clsx(
-            styles$F.container,
-            collapsed2 ? styles$F.collapsed : void 0
+            styles$G.container,
+            collapsed2 ? styles$G.collapsed : void 0
           ),
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs(
               StickyScroll,
               {
                 scrollRef,
-                className: styles$F.treeContainer,
+                className: styles$G.treeContainer,
                 offsetTop: topOffset,
                 children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     TranscriptOutline,
                     {
-                      className: clsx(styles$F.outline),
+                      className: clsx(styles$G.outline),
                       eventNodes,
                       running: running2,
                       defaultCollapsedIds,
@@ -65022,7 +68011,7 @@ ${events}
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
-                      className: styles$F.outlineToggle,
+                      className: styles$G.outlineToggle,
                       onClick: () => setCollapsed(!collapsed2),
                       children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.sidebar })
                     }
@@ -65040,7 +68029,7 @@ ${events}
                 running: running2,
                 initialEventId: initialEventId === void 0 ? null : initialEventId,
                 offsetTop: topOffset,
-                className: styles$F.listContainer
+                className: styles$G.listContainer
               }
             )
           ]
@@ -65146,16 +68135,16 @@ ${events}
           {
             id: tabsetId,
             tabsRef,
-            className: clsx(styles$M.tabControls),
+            className: clsx(styles$N.tabControls),
             tabControlsClassName: clsx("text-size-base"),
-            tabPanelsClassName: clsx(styles$M.tabPanel),
+            tabPanelsClassName: clsx(styles$N.tabPanel),
             tools: tools2,
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleTranscriptTabId,
-                  className: clsx("sample-tab", styles$M.transcriptContainer),
+                  className: clsx("sample-tab", styles$N.transcriptContainer),
                   title: "Transcript",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleTranscriptTabId || effectiveSelectedTab === void 0,
@@ -65179,7 +68168,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMessagesTabId,
-                  className: clsx("sample-tab", styles$M.fullWidth, styles$M.chat),
+                  className: clsx("sample-tab", styles$N.fullWidth, styles$N.chat),
                   title: "Messages",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleMessagesTabId,
@@ -65213,7 +68202,7 @@ ${events}
                     SampleScoresView,
                     {
                       sample: sample2,
-                      className: styles$M.padded,
+                      className: styles$N.padded,
                       scrollRef
                     }
                   )
@@ -65228,7 +68217,7 @@ ${events}
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleMetdataTabId,
-                  children: !sample2 || sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$M.padded, styles$M.fullWidth), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
+                  children: !sample2 || sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$N.padded, styles$N.fullWidth), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
               (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) && (sample2 == null ? void 0 : sample2.error_retries.length) > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -65239,14 +68228,14 @@ ${events}
                   title: "Errors",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$M.error), children: [
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$N.error), children: [
                     (sample2 == null ? void 0 : sample2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
                       /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Sample Error` }),
                       /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                         ANSIDisplay,
                         {
                           output: sample2.error.traceback_ansi,
-                          className: clsx("text-size-small", styles$M.ansi),
+                          className: clsx("text-size-small", styles$N.ansi),
                           style: {
                             fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                             margin: "0.5em 0"
@@ -65261,7 +68250,7 @@ ${events}
                           ANSIDisplay,
                           {
                             output: retry.traceback_ansi,
-                            className: clsx("text-size-small", styles$M.ansi),
+                            className: clsx("text-size-small", styles$N.ansi),
                             style: {
                               fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                               margin: "0.5em 0"
@@ -65281,7 +68270,7 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleJsonTabId,
-                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : estimateSize(sample2.events) > 25e4 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large to display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$M.padded, styles$M.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : estimateSize(sample2.events) > 25e4 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large to display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$N.padded, styles$N.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     JSONPanel,
                     {
                       data: sample2,
@@ -65309,7 +68298,7 @@ ${events}
               ModelTokenTable,
               {
                 model_usage: sample2.model_usage,
-                className: clsx(styles$M.noTop)
+                className: clsx(styles$N.noTop)
               }
             ) })
           ] }, `sample-usage-${id}`)
@@ -65327,7 +68316,7 @@ ${events}
                   Working: formatTime$1(sample2.working_time),
                   Total: formatTime$1(sample2.total_time)
                 },
-                className: clsx("tab-pane", styles$M.noTop),
+                className: clsx("tab-pane", styles$N.noTop),
                 scrollRef
               }
             ) })
@@ -65343,7 +68332,7 @@ ${events}
               {
                 id: `task-sample-metadata-${id}`,
                 record: sample2 == null ? void 0 : sample2.metadata,
-                className: clsx("tab-pane", styles$M.noTop),
+                className: clsx("tab-pane", styles$N.noTop),
                 scrollRef
               }
             ) })
@@ -65359,7 +68348,7 @@ ${events}
               {
                 id: `task-sample-store-${id}`,
                 record: sample2 == null ? void 0 : sample2.store,
-                className: clsx("tab-pane", styles$M.noTop),
+                className: clsx("tab-pane", styles$N.noTop),
                 scrollRef,
                 processStore: true
               }
@@ -65437,7 +68426,7 @@ ${events}
     };
     const container$6 = "_container_ly812_1";
     const scroller = "_scroller_ly812_7";
-    const styles$m = {
+    const styles$n = {
       container: container$6,
       scroller
     };
@@ -65477,14 +68466,14 @@ ${events}
         sampleData.sampleNeedsReload
       ]);
       const scrollRef = reactExports.useRef(null);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$m.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           ProgressBar,
           {
             animating: sampleData.status === "loading" || sampleData.status === "streaming"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$m.scroller), ref: scrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$m.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.scroller), ref: scrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           ErrorPanel,
           {
             title: "Unable to load sample",
@@ -65503,7 +68492,7 @@ ${events}
     const content$1 = "_content_yj2nt_41";
     const header$2 = "_header_yj2nt_45";
     const titleTool = "_titleTool_yj2nt_50";
-    const styles$l = {
+    const styles$m = {
       title,
       detail,
       detailText,
@@ -65544,8 +68533,8 @@ ${events}
           id,
           className: clsx(
             "modal",
-            styles$l.modal,
-            !visible2 ? styles$l.hidden : void 0
+            styles$m.modal,
+            !visible2 ? styles$m.hidden : void 0
           ),
           role: "dialog",
           onKeyUp: onkeyup,
@@ -65557,23 +68546,23 @@ ${events}
               className: clsx(
                 "modal-dialog",
                 "modal-dialog-scrollable",
-                styles$l.modalBody
+                styles$m.modalBody
               ),
               role: "document",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$l.content), children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$l.header), children: [
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$m.content), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$m.header), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
-                      className: clsx("modal-title", "text-size-smaller", styles$l.title),
+                      className: clsx("modal-title", "text-size-smaller", styles$m.title),
                       children: title2 || ""
                     }
                   ),
-                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$l.detail, children: [
+                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$m.detail, children: [
                     (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-left-${idx}`);
                     }) : "",
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$l.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$m.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
                     (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-right-${idx}`);
                     }) : ""
@@ -65586,7 +68575,7 @@ ${events}
                         "btn",
                         "btn-close-large-dialog",
                         "text-size-larger",
-                        styles$l.close
+                        styles$m.close
                       ),
                       onClick: onHide,
                       "aria-label": "Close",
@@ -65613,7 +68602,7 @@ ${events}
             "btn",
             "btn-outline",
             "text-size-small",
-            styles$l.titleTool
+            styles$m.titleTool
           ),
           "aria-label": label2,
           onClick,
@@ -65623,7 +68612,7 @@ ${events}
       );
     };
     const modalBody = "_modalBody_ozq2k_1";
-    const styles$k = {
+    const styles$l = {
       modalBody
     };
     const SampleDialog = ({
@@ -65724,7 +68713,7 @@ ${events}
           visible: showingSampleDialog,
           onHide,
           classNames: {
-            body: styles$k.modalBody
+            body: styles$l.modalBody
           },
           showProgress: sampleData.status === "loading" || sampleData.status === "streaming",
           scrollRef,
@@ -65733,10 +68722,10 @@ ${events}
       );
     };
     const container$5 = "_container_15b4r_1";
-    const label$4 = "_label_15b4r_5";
-    const styles$j = {
+    const label$5 = "_label_15b4r_5";
+    const styles$k = {
       container: container$5,
-      label: label$4
+      label: label$5
     };
     const EpochFilter = ({
       epochs,
@@ -65751,7 +68740,7 @@ ${events}
         const sel = e.target;
         setEpoch(sel.value);
       };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$j.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$k.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -65760,7 +68749,7 @@ ${events}
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$j.label
+              styles$k.label
             ),
             children: "Epochs:"
           }
@@ -86136,11 +89125,11 @@ ${events}
       if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
       return noCompletions();
     }
-    const label$3 = "_label_jbrqc_1";
+    const label$4 = "_label_jbrqc_1";
     const input = "_input_jbrqc_7";
     const help = "_help_jbrqc_11";
-    const styles$i = {
-      label: label$3,
+    const styles$j = {
+      label: label$4,
       input,
       help
     };
@@ -86358,7 +89347,7 @@ Supported expressions:
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$i.label
+              styles$j.label
             ),
             children: "Filter:"
           }
@@ -86367,13 +89356,13 @@ Supported expressions:
           "div",
           {
             ref: editorRef,
-            className: clsx(filterError && "filter-pending", styles$i.input)
+            className: clsx(filterError && "filter-pending", styles$j.input)
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
-            className: clsx("bi", "bi-question-circle", styles$i.help),
+            className: clsx("bi", "bi-question-circle", styles$j.help),
             "data-tooltip": FILTER_TOOLTIP,
             "data-tooltip-position": "bottom-left"
           }
@@ -86381,12 +89370,12 @@ Supported expressions:
       ] });
     };
     const flex = "_flex_anstf_1";
-    const label$2 = "_label_anstf_5";
+    const label$3 = "_label_anstf_5";
     const secondSel = "_secondSel_anstf_9";
     const secondLabel = "_secondLabel_anstf_13";
-    const styles$h = {
+    const styles$i = {
       flex,
-      label: label$2,
+      label: label$3,
       secondSel,
       secondLabel
     };
@@ -86406,7 +89395,7 @@ Supported expressions:
         }, []);
       }, [scores2]);
       if (scorers.length === 1) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$h.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$i.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -86415,7 +89404,7 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$h.label
+                styles$i.label
               ),
               children: "Score:"
             }
@@ -86433,7 +89422,7 @@ Supported expressions:
         const scorerScores = scores2.filter((sc) => {
           return score2 && sc.scorer === score2.scorer;
         });
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$h.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$i.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -86442,8 +89431,8 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$h.label,
-                styles$h.secondLabel
+                styles$i.label,
+                styles$i.secondLabel
               ),
               children: "Scorer:"
             }
@@ -86459,7 +89448,7 @@ Supported expressions:
           scorerScores.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ScoreSelector,
             {
-              className: clsx(styles$h.secondSel),
+              className: clsx(styles$i.secondSel),
               scores: scorerScores,
               selectedScore: score2,
               setSelectedScore: setScore
@@ -86617,7 +89606,7 @@ Supported expressions:
     const body$1 = "_body_12gn4_1";
     const iconSmall = "_iconSmall_12gn4_9";
     const message = "_message_12gn4_15";
-    const styles$g = {
+    const styles$h = {
       body: body$1,
       iconSmall,
       message
@@ -86627,9 +89616,9 @@ Supported expressions:
       align
     }) => {
       align = align || "center";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$g.body, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$g.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$g.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$h.body, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$h.iconSmall) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$h.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
     const grid$2 = "_grid_185sx_1";
@@ -86640,7 +89629,7 @@ Supported expressions:
     const noLeft = "_noLeft_185sx_37";
     const score = "_score_185sx_41";
     const centered = "_centered_185sx_46";
-    const styles$f = {
+    const styles$g = {
       grid: grid$2,
       selected,
       disabled,
@@ -86674,10 +89663,10 @@ Supported expressions:
         {
           id: `sample-${id}`,
           className: clsx(
-            styles$f.grid,
+            styles$g.grid,
             "text-size-base",
-            selectedSampleIndex === index2 ? styles$f.selected : void 0,
-            !isViewable && !sampleUrl2 ? styles$f.disabled : void 0
+            selectedSampleIndex === index2 ? styles$g.selected : void 0,
+            !isViewable && !sampleUrl2 ? styles$g.disabled : void 0
           ),
           style: {
             height: `${height}px`,
@@ -86685,31 +89674,31 @@ Supported expressions:
             gridTemplateColumns: gridColumnsTemplate
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-id", "three-line-clamp", styles$f.cell), children: sample2.id }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-id", "three-line-clamp", styles$g.cell), children: sample2.id }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx(
                   "sample-input",
                   "three-line-clamp",
-                  styles$f.cell,
-                  styles$f.wrapAnywhere
+                  styles$g.cell,
+                  styles$g.wrapAnywhere
                 ),
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: inputString(sample2.input).join(" ") })
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$f.cell), children: (sample2 == null ? void 0 : sample2.target) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$g.cell), children: (sample2 == null ? void 0 : sample2.target) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
                 markdown: arrayToString(sample2.target),
-                className: clsx("no-last-para-padding", styles$f.noLeft)
+                className: clsx("no-last-para-padding", styles$g.noLeft)
               }
             ) : void 0 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$f.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$g.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
                 markdown: answer2 || "",
-                className: clsx("no-last-para-padding", styles$f.noLeft)
+                className: clsx("no-last-para-padding", styles$g.noLeft)
               }
             ) : "" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -86719,7 +89708,7 @@ Supported expressions:
                   "sample-limit",
                   "text-size-small",
                   "three-line-clamp",
-                  styles$f.cell
+                  styles$g.cell
                 ),
                 children: sample2.limit
               }
@@ -86731,20 +89720,20 @@ Supported expressions:
                   "sample-retries",
                   "text-size-small",
                   "three-line-clamp",
-                  styles$f.cell,
-                  styles$f.centered
+                  styles$g.cell,
+                  styles$g.centered
                 ),
                 children: sample2.retries && sample2.retries > 0 ? sample2.retries : void 0
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$f.cell, styles$f.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$g.cell, styles$g.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false }) })
           ]
         }
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: showSample, children: rowContent });
     };
     const row = "_row_utdq5_1";
-    const styles$e = {
+    const styles$f = {
       row
     };
     const SampleSeparator = ({
@@ -86756,7 +89745,7 @@ Supported expressions:
         "div",
         {
           id,
-          className: clsx("text-style-secondary", "text-size-smaller", styles$e.row),
+          className: clsx("text-style-secondary", "text-size-smaller", styles$f.row),
           style: { height: `${height}px` },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: title2 })
         }
@@ -86765,36 +89754,36 @@ Supported expressions:
     const footer = "_footer_vkofn_1";
     const spinnerContainer = "_spinnerContainer_vkofn_11";
     const spinner$1 = "_spinner_vkofn_11";
-    const label$1 = "_label_vkofn_25";
-    const styles$d = {
+    const label$2 = "_label_vkofn_25";
+    const styles$e = {
       footer,
       spinnerContainer,
       spinner: spinner$1,
-      label: label$1
+      label: label$2
     };
     const SampleFooter = ({
       sampleCount,
       totalSampleCount,
       running: running2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$d.footer), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$d.spinnerContainer), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$e.footer), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$e.spinnerContainer), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx("spinner-border", styles$d.spinner),
+              className: clsx("spinner-border", styles$e.spinner),
               role: "status",
               children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$d.label), children: "running..." })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$e.label), children: "running..." })
         ] }) : void 0 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: sampleCount < totalSampleCount ? `${sampleCount} / ${totalSampleCount} Samples` : `${sampleCount} Samples` })
       ] });
     };
     const header$1 = "_header_16ngy_1";
     const center = "_center_16ngy_11";
-    const styles$c = {
+    const styles$d = {
       header: header$1,
       center
     };
@@ -86810,7 +89799,7 @@ Supported expressions:
       "div",
       {
         className: clsx(
-          styles$c.header,
+          styles$d.header,
           "text-size-smaller",
           "text-style-label",
           "text-style-secondary"
@@ -86823,12 +89812,12 @@ Supported expressions:
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: answer2 ? "Answer" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: limit ? "Limit" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: retries ? "Retries" : "" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$c.center, children: score2 ? "Score" : "" })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$d.center, children: score2 ? "Score" : "" })
         ]
       }
     );
     const mainLayout = "_mainLayout_q79zq_7";
-    const styles$b = {
+    const styles$c = {
       mainLayout
     };
     const kSampleHeight = 88;
@@ -86983,7 +89972,7 @@ Supported expressions:
       const percentError = errorCount / sampleCount * 100;
       const percentLimit = limitCount / sampleCount * 100;
       const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$b.mainLayout, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$c.mainLayout, children: [
         warningMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MessageBand,
           {
@@ -87078,16 +90067,16 @@ Supported expressions:
     const container$4 = "_container_1yknn_7";
     const spinner = "_spinner_1yknn_14";
     const text = "_text_1yknn_20";
-    const styles$a = {
+    const styles$b = {
       panel,
       container: container$4,
       spinner,
       text
     };
     const RunningNoSamples = () => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$a.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$a.container, "text-size-smaller"), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$a.spinner, "spinner-border"), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "starting..." }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$a.text), children: "starting...." })
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$b.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$b.container, "text-size-smaller"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$b.spinner, "spinner-border"), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "starting..." }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$b.text), children: "starting...." })
       ] }) });
     };
     const getSampleProcessor = (samples, epochs, groupBy, groupByOrder, sampleDescriptor, score2) => {
@@ -87386,7 +90375,7 @@ Supported expressions:
       return `${baseUrl2}/commit/${commit}`;
     };
     const grid$1 = "_grid_er9fb_1";
-    const styles$9 = {
+    const styles$a = {
       grid: grid$1
     };
     const useTaskTabConfig = (evalSpec, evalStats) => {
@@ -87451,7 +90440,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: "100%" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { padding: "0.5em 1em 0 1em", width: "100%" }, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Task Info" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-card-config", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$9.grid), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-card-config", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$a.grid), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataView,
               {
@@ -87494,7 +90483,7 @@ Supported expressions:
     };
     const container$3 = "_container_q17yq_1";
     const grid = "_grid_q17yq_10";
-    const styles$8 = {
+    const styles$9 = {
       container: container$3,
       grid
     };
@@ -87509,7 +90498,7 @@ Supported expressions:
           "div",
           {
             className: clsx(
-              singleLine ? styles$8.grid : void 0,
+              singleLine ? styles$9.grid : void 0,
               "text-style-secondary",
               "text-size-smallest"
             ),
@@ -87524,7 +90513,7 @@ Supported expressions:
           key2
         );
       });
-      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$8.container, children: modelEls }) : void 0;
+      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$9.container, children: modelEls }) : void 0;
     };
     const container$2 = "_container_291sb_1";
     const wrapper = "_wrapper_291sb_8";
@@ -87535,7 +90524,7 @@ Supported expressions:
     const taskModel = "_taskModel_291sb_36";
     const taskStatus = "_taskStatus_291sb_40";
     const secondaryContainer = "_secondaryContainer_291sb_47";
-    const styles$7 = {
+    const styles$8 = {
       container: container$2,
       wrapper,
       toggle,
@@ -87547,10 +90536,10 @@ Supported expressions:
       secondaryContainer
     };
     const button = "_button_12472_1";
-    const label = "_label_12472_14";
-    const styles$6 = {
+    const label$1 = "_label_12472_14";
+    const styles$7 = {
       button,
-      label
+      label: label$1
     };
     const LinkButton = ({
       id,
@@ -87564,10 +90553,10 @@ Supported expressions:
         {
           id,
           onClick,
-          className: clsx(className2, styles$6.button, "text-size-smaller"),
+          className: clsx(className2, styles$7.button, "text-size-smaller"),
           children: [
             icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0,
-            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$6.label), children: text2 }) : void 0
+            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$7.label), children: text2 }) : void 0
           ]
         }
       );
@@ -87577,7 +90566,7 @@ Supported expressions:
     const modalTitle = "_modalTitle_1tvha_18";
     const btnClose = "_btnClose_1tvha_22";
     const backdrop = "_backdrop_1tvha_28";
-    const styles$5 = {
+    const styles$6 = {
       modal,
       header,
       modalTitle,
@@ -87593,7 +90582,7 @@ Supported expressions:
       className: className2
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$5.backdrop, onClick: () => setShowing(false) }),
+        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.backdrop, onClick: () => setShowing(false) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -87601,15 +90590,15 @@ Supported expressions:
             className: clsx("modal", "fade", showing ? "show" : "", className2),
             tabIndex: -1,
             style: { display: showing ? "block" : "none" },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$5.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$5.header), children: [
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$6.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$6.header), children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     className: clsx(
                       "modal-title",
                       "text-size-base",
-                      styles$5.modalTitle
+                      styles$6.modalTitle
                     ),
                     children: title2
                   }
@@ -87621,7 +90610,7 @@ Supported expressions:
                     className: clsx(
                       "btn-close",
                       "text-size-smaller",
-                      styles$5.btnClose
+                      styles$6.btnClose
                     ),
                     "data-bs-dismiss": "modal",
                     "aria-label": "Close",
@@ -87649,6 +90638,21 @@ Supported expressions:
         )
       ] });
     };
+    const groupScorers = (scorers) => {
+      const results = {};
+      scorers.forEach((scorer2) => {
+        if (scorer2.metrics.length > 0) {
+          const key2 = metricsKey(scorer2.metrics);
+          results[key2] = results[key2] || [];
+          results[key2].push(scorer2);
+        }
+      });
+      return Object.values(results);
+    };
+    const metricsKey = (metrics2) => {
+      const metricKey = metrics2.map((m) => m.name).join("");
+      return metricKey;
+    };
     const simpleMetricsRows = "_simpleMetricsRows_yha6g_1";
     const verticalMetricReducer = "_verticalMetricReducer_yha6g_26";
     const verticalMetricName = "_verticalMetricName_yha6g_33";
@@ -87656,7 +90660,7 @@ Supported expressions:
     const moreButton = "_moreButton_yha6g_91";
     const metricsSummary = "_metricsSummary_yha6g_97";
     const modalScores = "_modalScores_yha6g_103";
-    const styles$4 = {
+    const styles$5 = {
       simpleMetricsRows,
       verticalMetricReducer,
       verticalMetricName,
@@ -87664,6 +90668,112 @@ Supported expressions:
       moreButton,
       metricsSummary,
       modalScores
+    };
+    const table = "_table_12koy_1";
+    const scorer = "_scorer_12koy_5";
+    const value = "_value_12koy_6";
+    const label = "_label_12koy_11";
+    const groupSeparator = "_groupSeparator_12koy_28";
+    const tableBody = "_tableBody_12koy_33";
+    const tableSeparator = "_tableSeparator_12koy_45";
+    const styles$4 = {
+      table,
+      scorer,
+      value,
+      label,
+      groupSeparator,
+      tableBody,
+      tableSeparator
+    };
+    const ScoreGrid = ({
+      scoreGroups,
+      showReducer,
+      className: className2,
+      striped
+    }) => {
+      const columnCount = scoreGroups.reduce((prev, group) => {
+        return Math.max(prev, group[0].metrics.length);
+      }, 0);
+      const subTables = [];
+      let index2 = 0;
+      for (const scoreGroup of scoreGroups) {
+        const metrics2 = scoreGroup[0].metrics;
+        const cells = [];
+        for (let i2 = 0; i2 < columnCount; i2++) {
+          if (metrics2.length > i2) {
+            cells.push(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "th",
+                {
+                  className: clsx(
+                    "text-style-label",
+                    "text-style-secondary",
+                    "text-size-small",
+                    styles$4.label
+                  ),
+                  children: metrics2[i2].name
+                }
+              )
+            );
+          } else {
+            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
+          }
+        }
+        const headerRow2 = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$4.headerRow), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
+          cells
+        ] }) });
+        const rows = [];
+        scoreGroup.forEach((g) => {
+          const cells2 = [];
+          for (let i2 = 0; i2 < columnCount; i2++) {
+            if (metrics2.length > i2) {
+              cells2.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$4.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
+              );
+            } else {
+              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$4.value) }));
+            }
+          }
+          rows.push(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$4.scorer, "text-size-small"), children: [
+                g.scorer,
+                " ",
+                showReducer && g.reducer ? `(${g.reducer})` : void 0
+              ] }),
+              cells2
+            ] })
+          );
+        });
+        subTables.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$4.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "td",
+              {
+                colSpan: columnCount + 1,
+                className: clsx(styles$4.groupSeparator)
+              }
+            ) }) }) : void 0,
+            headerRow2,
+            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$4.tableBody), children: rows })
+          ] })
+        );
+        index2++;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "table",
+        {
+          className: clsx(
+            className2,
+            "table",
+            striped ? "table-striped" : void 0,
+            styles$4.table,
+            "table-bordered"
+          ),
+          children: subTables
+        }
+      );
     };
     const kMaxPrimaryScoreRows = 4;
     const displayScorersFromRunningMetrics = (metrics2) => {
@@ -87712,7 +90822,7 @@ Supported expressions:
       if (scorers.length === 1) {
         const showReducer = !!scorers[0].reducer;
         const metrics2 = scorers[0].metrics;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$4.simpleMetricsRows, children: metrics2.map((metric2, i2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$5.simpleMetricsRows, children: metrics2.map((metric2, i2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             VerticalMetric,
             {
@@ -87741,7 +90851,7 @@ Supported expressions:
             showMore = true;
           }
         }
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.metricsSummary), children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$5.metricsSummary), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults], showReducer }),
           showMore ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -87756,7 +90866,7 @@ Supported expressions:
                   {
                     scoreGroups: grouped,
                     showReducer,
-                    className: styles$4.modalScores,
+                    className: styles$5.modalScores,
                     striped: false
                   }
                 )
@@ -87765,7 +90875,7 @@ Supported expressions:
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               LinkButton,
               {
-                className: styles$4.moreButton,
+                className: styles$5.moreButton,
                 text: "All scoring...",
                 onClick: () => {
                   setShowing(true);
@@ -87790,7 +90900,7 @@ Supported expressions:
               "vertical-metric-label",
               "text-style-label",
               "text-style-secondary",
-              styles$4.verticalMetricName
+              styles$5.verticalMetricName
             ),
             children: metricDisplayName(metric2)
           }
@@ -87801,7 +90911,7 @@ Supported expressions:
             className: clsx(
               "text-style-label",
               "text-style-secondary",
-              styles$4.verticalMetricReducer
+              styles$5.verticalMetricReducer
             ),
             children: reducer || "default"
           }
@@ -87812,7 +90922,7 @@ Supported expressions:
             className: clsx(
               "vertical-metric-value",
               "text-size-largest",
-              styles$4.verticalMetricValue
+              styles$5.verticalMetricValue
             ),
             children: metric2.value !== void 0 && metric2.value !== null ? formatPrettyDecimal(metric2.value) : "n/a"
           }
@@ -87911,7 +91021,7 @@ Supported expressions:
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
       const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$7.wrapper), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
@@ -87919,7 +91029,7 @@ Supported expressions:
               "navbar-brand",
               "navbar-text",
               "mb-0",
-              styles$7.container
+              styles$8.container
             ),
             children: [
               showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -87930,19 +91040,19 @@ Supported expressions:
                   className: clsx(
                     "btn",
                     offCanvas ? "d-md-none" : void 0,
-                    styles$7.toggle
+                    styles$8.toggle
                   ),
                   type: "button",
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.menu })
                 }
               ) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$7.body, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$7.bodyContainer, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.body, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.bodyContainer, children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
                       id: "task-title",
-                      className: clsx("task-title", "text-truncate", styles$7.taskTitle),
+                      className: clsx("task-title", "text-truncate", styles$8.taskTitle),
                       title: evalSpec == null ? void 0 : evalSpec.task,
                       children: evalSpec == null ? void 0 : evalSpec.task
                     }
@@ -87954,7 +91064,7 @@ Supported expressions:
                       className: clsx(
                         "task-model",
                         "text-truncate",
-                        styles$7.taskModel,
+                        styles$8.taskModel,
                         "text-size-base"
                       ),
                       title: evalSpec == null ? void 0 : evalSpec.model,
@@ -87963,7 +91073,7 @@ Supported expressions:
                   ) : ""
                 ] }),
                 (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$7.secondaryContainer), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$8.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
                   selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
                 ] })
@@ -87971,7 +91081,7 @@ Supported expressions:
             ]
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$7.taskStatus, "navbar-text"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.taskStatus, "navbar-text"), children: [
           status2 === "success" || status2 === "started" && streamSamples && hasRunningMetrics ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ResultsPanel,
             {
@@ -88286,15 +91396,15 @@ Supported expressions:
               showToggle
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$10.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$10.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$11.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$11.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TabSet,
             {
               id: "log-details",
               tools: tabTools2,
               type: "pills",
-              className: clsx(styles$10.tabSet, "text-size-smaller"),
-              tabControlsClassName: clsx(styles$10.tabs, "text-size-smaller"),
-              tabPanelsClassName: clsx(styles$10.tabPanels),
+              className: clsx(styles$11.tabSet, "text-size-smaller"),
+              tabControlsClassName: clsx(styles$11.tabs, "text-size-smaller"),
+              tabPanelsClassName: clsx(styles$11.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
                 const tab2 = tabs2[key2];
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(

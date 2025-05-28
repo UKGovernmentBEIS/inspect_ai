@@ -2,9 +2,8 @@ import clsx from "clsx";
 import { FC, useEffect, useMemo } from "react";
 
 import { useParams } from "react-router-dom";
-import { EvalLogHeader } from "../../client/api/types";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useLogs, usePagination } from "../../state/hooks";
+import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -12,7 +11,7 @@ import { Navbar } from "../navbar/Navbar";
 import { logUrl } from "../routing/url";
 import { FileLogItem, FolderLogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
-import { LogListView } from "./LogListView";
+import { LogListGrid } from "./LogListGrid";
 import styles from "./LogsPanel.module.css";
 
 const rootName = (relativePath: string) => {
@@ -22,6 +21,8 @@ const rootName = (relativePath: string) => {
   }
   return parts[0];
 };
+
+export const kLogsPaginationId = "logs-list-pagination";
 
 interface LogsPanelProps {}
 
@@ -46,8 +47,6 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   }>();
 
   const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
-
-  const { page, itemsPerPage } = usePagination(currentDir);
 
   // All the items visible in the current directory (might span
   // multiple pages)
@@ -103,39 +102,6 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
     return logItems;
   }, [logPath, logs.files]);
 
-  // Items that are in the current page
-  const pageItems = useMemo(() => {
-    const start = (page || 0) * itemsPerPage;
-    const end = start + itemsPerPage;
-    return logItems.slice(start, end);
-  }, [logItems, page, itemsPerPage]);
-
-  // Load headers for any files that are not yet loaded
-  useEffect(() => {
-    const fileItems = pageItems.filter((item) => item.type === "file");
-    const logFiles = fileItems
-      .map((item) => item.logFile)
-      .filter((file) => file !== undefined)
-      .filter((logFile) => {
-        // Filter out files that are already loaded
-        return logHeaders[logFile.name] === undefined;
-      });
-
-    const exec = async () => {
-      const headers = await loadHeaders(logFiles);
-      if (headers) {
-        const updatedHeaders: Record<string, EvalLogHeader> = {};
-
-        headers.forEach((header, index) => {
-          const logFile = logFiles[index];
-          updatedHeaders[logFile.name] = header as EvalLogHeader;
-        });
-        updateLogHeaders(updatedHeaders);
-      }
-    };
-    exec();
-  }, [pageItems]);
-
   useEffect(() => {
     const exec = async () => {
       await loadLogs();
@@ -148,7 +114,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
       <Navbar />
       <ProgressBar animating={loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        <LogListView items={pageItems} />
+        <LogListGrid items={logItems} />
       </div>
       <LogListFooter
         logDir={currentDir}
