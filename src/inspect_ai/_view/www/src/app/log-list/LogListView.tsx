@@ -38,10 +38,11 @@ export const LogListView: FC<LogListViewProps> = () => {
   }>();
 
   const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
-  const logItems: LogItem[] = useMemo(() => {
+  const fileOrFolderNames: LogItem[] = useMemo(() => {
     const itemNames: string[] = [];
     for (const logFile of logs.files) {
       const name = logFile.name;
+
       if (name.startsWith(currentDir)) {
         const relativePath = directoryRelativeUrl(name, currentDir);
 
@@ -50,16 +51,23 @@ export const LogListView: FC<LogListViewProps> = () => {
       }
     }
 
-    const items = new Set(itemNames);
+    const fileOrFolderNameSet = new Set(itemNames);
 
     const result: LogItem[] = [];
-    for (const item of items) {
+    for (const fileOrFolderName of fileOrFolderNameSet) {
+      // Form the URL
+      const relativeDir = directoryRelativeUrl(currentDir, logs.log_dir);
+      const relativePath = join(fileOrFolderName, relativeDir);
+
       result.push({
-        id: item,
-        name: item,
+        id: fileOrFolderName,
+        name: fileOrFolderName,
         type:
-          item.endsWith(".json") || item.endsWith(".eval") ? "file" : "folder",
-        url: logUrl(item, currentDir),
+          fileOrFolderName.endsWith(".json") ||
+          fileOrFolderName.endsWith(".eval")
+            ? "file"
+            : "folder",
+        url: logUrl(relativePath, logs.log_dir),
       });
     }
     return result;
@@ -70,8 +78,8 @@ export const LogListView: FC<LogListViewProps> = () => {
   const pageItems = useMemo(() => {
     const start = (page || 0) * itemsPerPage;
     const end = start + itemsPerPage;
-    return logItems.slice(start, end);
-  }, [logItems, page, itemsPerPage]);
+    return fileOrFolderNames.slice(start, end);
+  }, [fileOrFolderNames, page, itemsPerPage]);
 
   useEffect(() => {
     const exec = async () => {
@@ -89,7 +97,7 @@ export const LogListView: FC<LogListViewProps> = () => {
       </div>
       <LogListFooter
         logDir={currentDir}
-        itemCount={logItems.length}
+        itemCount={fileOrFolderNames.length}
         running={loading}
       />
     </div>
