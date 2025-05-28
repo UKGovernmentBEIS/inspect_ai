@@ -59,7 +59,7 @@ def openai_api() -> type[ModelAPI]:
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.49.0"
+    MIN_VERSION = "0.52.0"
 
     # verify we have the package
     try:

@@ -17,7 +17,7 @@ from ..._tool import Tool, ToolResult, tool
 from ._google import GoogleOptions, google_search_provider
 from ._tavily import TavilyOptions, tavily_search_provider
 
-Provider: TypeAlias = Literal["openai", "tavily", "google"]  # , "gemini", "anthropic"
+Provider: TypeAlias = Literal["openai", "anthropic", "tavily", "google"]  # , "gemini"
 valid_providers = set(get_args(Provider))
 
 
@@ -33,6 +33,7 @@ class Providers(TypedDict, total=False):
     google: dict[str, Any] | None
     tavily: dict[str, Any] | None
     openai: dict[str, Any] | None
+    anthropic: dict[str, Any] | None
 
 
 class WebSearchDeprecatedArgs(TypedDict, total=False):
@@ -53,8 +54,8 @@ def web_search(
     Web searches are executed using a provider. Providers are split
     into two categories:
 
-    - Internal providers: "openai" - these use the model's built-in search
-      capability and do not require separate API keys. These work only for
+    - Internal providers: "openai", "anthropic" - these use the model's built-in
+      search capability and do not require separate API keys. These work only for
       their respective model provider (e.g. the "openai" search provider
       works only for `openai/*` models).
 
@@ -70,12 +71,12 @@ def web_search(
 
     Args:
       providers: Configuration for the search providers to use. Currently supported
-        providers are "openai","tavily", and "google", The `providers` parameter
-        supports several formats based on either a `str` specifying a provider or
-        a `dict` whose keys are the provider names and whose values are the
-        provider-specific options. A single value or a list of these can be passed.
-        This arg is optional just for backwards compatibility. New code should
-        always provide this argument.
+        providers are "openai", "anthropic", "tavily", and "google", The `providers`
+        parameter supports several formats based on either a `str` specifying a
+        provider or a `dict` whose keys are the provider names and whose values
+        are the provider-specific options. A single value or a list of these can
+        be passed. This arg is optional just for backwards compatibility. New code
+        should always provide this argument.
 
         Single provider:
         ```
@@ -103,6 +104,9 @@ def web_search(
         Provider-specific options:
         - openai: Supports OpenAI's web search parameters.
           See https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses
+
+        - anthropic: Supports Anthropic's web search parameters.
+          See https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#tool-definition
 
         - tavily: Supports options like `max_results`, `search_depth`, etc.
           See https://docs.tavily.com/documentation/api-reference/endpoint/search

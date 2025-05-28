@@ -22,8 +22,11 @@ from anthropic.types import (
     MessageParam,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
+    ServerToolUseBlock,
+    ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
+    TextCitationParam,
     ThinkingBlock,
     ThinkingBlockParam,
     ToolParam,
@@ -31,18 +34,22 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    WebSearchTool20250305Param,
+    WebSearchToolResultBlock,
+    WebSearchToolResultBlockParam,
     message_create_params,
 )
 from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
 )
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -444,6 +451,14 @@ class AnthropicAPI(ModelAPI):
         # extract system message
         system_messages, messages = split_system_messages(input, config)
 
+        # Anthropic will 400 a request that includes a `server_too_use` block
+        # without the corresponding `web_search_results`. Nevertheless, they will
+        # sometimes return a response with a stop reason of `pause_turn` that
+        # includes a trailing `server_tool_use` block with no corresponding
+        # `web_search_results` block. To work around this, we filter out trailing
+        # `server_tool_use` blocks.
+        messages = filter_trailing_server_tool_use(messages)
+
         # messages
         message_params = [(await message_param(message)) for message in messages]
 
@@ -521,7 +536,11 @@ class AnthropicAPI(ModelAPI):
         self, tool: ToolInfo, config: GenerateConfig
     ) -> Optional["ToolParamDef"]:
         return (
-            (self.computer_use_tool_param(tool) or self.text_editor_tool_param(tool))
+            (
+                self.computer_use_tool_param(tool)
+                or self.text_editor_tool_param(tool)
+                or self.web_search_tool_param(tool)
+            )
             if config.internal_tools is not False
             else None
         )
@@ -598,6 +617,29 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
+    def web_search_tool_param(
+        self, tool: ToolInfo
+    ) -> WebSearchTool20250305Param | None:
+        if tool.name == "web_search" and tool.options and "anthropic" in tool.options:
+            return _web_search_tool_param(tool.options["anthropic"])
+        else:
+            return None
+
+
+def _web_search_tool_param(
+    maybe_anthropic_options: object,
+) -> WebSearchTool20250305Param:
+    if maybe_anthropic_options is None:
+        maybe_anthropic_options = {}
+    elif not isinstance(maybe_anthropic_options, dict):
+        raise TypeError(
+            f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
+        )
+
+    return WebSearchTool20250305Param(
+        name="web_search", type="web_search_20250305", **(maybe_anthropic_options)
+    )
+
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
 ToolParamDef = (
@@ -605,6 +647,7 @@ ToolParamDef = (
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | WebSearchTool20250305Param
 )
 
 
@@ -614,6 +657,7 @@ def add_cache_control(
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | WebSearchTool20250305Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -800,7 +844,17 @@ async def model_output_from_message(
                 content_text = content_text.replace("<result>", "").replace(
                     "</result>", ""
                 )
-            content.append(ContentText(type="text", text=content_text))
+            content.append(
+                ContentText(
+                    type="text",
+                    text=content_text,
+                    citations=(
+                        [citation.model_dump() for citation in content_block.citations]
+                        if content_block.citations
+                        else None
+                    ),
+                )
+            )
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
             (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
@@ -812,6 +866,16 @@ async def model_output_from_message(
                     internal=internal_name,
                 )
             )
+        elif isinstance(content_block, ServerToolUseBlock):
+            # TODO
+            # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
+            v1 = ServerToolUseBlock.model_validate(content_block.model_dump())
+            content.append(ContentData(data=v1.model_dump()))
+        elif isinstance(content_block, WebSearchToolResultBlock):
+            # TODO
+            # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
+            v2 = WebSearchToolResultBlock.model_validate(content_block.model_dump())
+            content.append(ContentData(data=v2.model_dump()))
         elif isinstance(content_block, RedactedThinkingBlock):
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
@@ -918,9 +982,23 @@ def split_system_messages(
 
 async def message_param_content(
     content: Content,
-) -> TextBlockParam | ImageBlockParam | ThinkingBlockParam | RedactedThinkingBlockParam:
+) -> (
+    TextBlockParam
+    | ImageBlockParam
+    | ThinkingBlockParam
+    | RedactedThinkingBlockParam
+    | ServerToolUseBlockParam
+    | WebSearchToolResultBlockParam
+):
     if isinstance(content, ContentText):
-        return TextBlockParam(type="text", text=content.text or NO_CONTENT)
+        citations = (
+            TypeAdapter(list[TextCitationParam]).validate_python(content.citations)
+            if content.citations
+            else None
+        )
+        return TextBlockParam(
+            type="text", text=content.text or NO_CONTENT, citations=citations
+        )
     elif isinstance(content, ContentImage):
         # resolve to url
         image = await file_as_data_uri(content.image)
@@ -948,6 +1026,15 @@ async def message_param_content(
             return ThinkingBlockParam(
                 type="thinking", thinking=content.reasoning, signature=content.signature
             )
+    elif isinstance(content, ContentData):
+        match content.data.get("type", None):
+            case "server_tool_use":
+                v1 = ServerToolUseBlock.model_validate(content.data)
+                return cast(ServerToolUseBlockParam, v1.model_dump())
+            case "web_search_tool_result":
+                v2 = WebSearchToolResultBlock.model_validate(content.data)
+                return cast(WebSearchToolResultBlockParam, v2.model_dump())
+        raise NotImplementedError()
     else:
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."
@@ -990,3 +1077,21 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
+
+
+def filter_trailing_server_tool_use(messages: list[ChatMessage]) -> list[ChatMessage]:
+    # Filter out trailing ContentData with data.type == "server_tool_use" in ChatMessageAssistant
+    def _the_filter(acc: list[ChatMessage], msg: ChatMessage) -> list[ChatMessage]:
+        if (
+            isinstance(msg, ChatMessageAssistant)
+            and isinstance(msg.content, list)
+            and len(msg.content) > 0
+            and isinstance(msg.content[-1], ContentData)
+            and msg.content[-1].data.get("type") == "server_tool_use"
+        ):
+            msg = msg.model_copy()
+            msg.content = msg.content[:-1]
+        acc.append(msg)
+        return acc
+
+    return functools.reduce(_the_filter, messages, [])
