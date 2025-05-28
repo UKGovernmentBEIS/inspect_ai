@@ -36,6 +36,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -285,12 +286,11 @@ def _chat_message_assistant_from_openai_response(
                             tool_call_from_openai_computer_tool_call(output)
                         )
                     case ResponseFunctionWebSearch():
-                        # We don't currently capture this since the model did the
-                        # "tool call" internally. It's conceivable that could be
-                        # forced to include it in `.internal` in the future, but
-                        # for now we just ignore it.
-                        # {"id":"ws_682cdcec3fa88198bc10b38fafefbd5e077e89e31fd4a3d5","status":"completed","type":"web_search_call"}
-                        pass
+                        foo = ContentData(data=output.model_dump())
+                        blah = ContentData.model_validate(foo.model_dump())
+                        print(blah)
+
+                        message_content.append(ContentData(data=output.model_dump()))
                     case _:
                         raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -353,10 +353,14 @@ def _openai_input_items_from_chat_message_assistant(
     ] = {}
 
     for content in (
-        list[ContentText | ContentReasoning]([ContentText(text=message.content)])
+        list[ContentText | ContentReasoning | ContentData](
+            [ContentText(text=message.content)]
+        )
         if isinstance(message.content, str)
         else [
-            c for c in message.content if isinstance(c, ContentText | ContentReasoning)
+            c
+            for c in message.content
+            if isinstance(c, ContentText | ContentReasoning | ContentData)
         ]
     ):
         match content:
@@ -399,6 +403,14 @@ def _openai_input_items_from_chat_message_assistant(
                 if content_message_id not in messages_by_id:
                     messages_by_id[content_message_id] = []
                 messages_by_id[content_message_id].append(new_content)
+            case ContentData(internal=internal):
+                # if items are not stored on the server then there is no
+                # sense appending the internal item as it's just a pointer
+                if store:
+                    validated = ResponseFunctionWebSearch.model_validate(internal)
+                    items.append(
+                        cast(ResponseFunctionWebSearchParam, validated.model_dump())
+                    )
 
     # create ResponseOutputMessage for each unique ID
     for msg_id, content_list in messages_by_id.items():

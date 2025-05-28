@@ -1,3 +1,4 @@
+import json
 from logging import getLogger
 from typing import (
     Callable,
@@ -9,6 +10,7 @@ from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -344,3 +346,7 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
         return content.model_copy(update=dict(video=content_fn(content.video)))
     elif isinstance(content, ContentReasoning):
         return content.model_copy(update=dict(reasoning=content_fn(content.reasoning)))
+    elif isinstance(content, ContentData):
+        return content.model_copy(
+            update=dict(data=content_fn(json.dumps(content.data)))
+        )

@@ -82,5 +82,22 @@ class ContentVideo(ContentBase):
     """Format of video data ('mp4', 'mpeg', or 'mov')"""
 
 
-Content = Union[ContentText, ContentReasoning, ContentImage, ContentAudio, ContentVideo]
+class ContentData(ContentBase):
+    """Model internal."""
+
+    type: Literal["data"] = Field(default="data")
+    """Type."""
+
+    data: dict[str, JsonValue]
+    """Model provider specific payload - required for internal content."""
+
+
+Content = Union[
+    ContentText,
+    ContentReasoning,
+    ContentImage,
+    ContentAudio,
+    ContentVideo,
+    ContentData,
+]
 """Content sent to or received from a model."""

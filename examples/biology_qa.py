@@ -1,7 +1,7 @@
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, example_dataset
 from inspect_ai.scorer import model_graded_qa
-from inspect_ai.solver import generate, use_tools
+from inspect_ai.solver._basic_agent import basic_agent
 from inspect_ai.tool import web_search
 
 openai_options = {
@@ -23,13 +23,12 @@ def biology_qa() -> Task:
             name="biology_qa",
             sample_fields=FieldSpec(input="question", target="answer"),
         ),
-        solver=[
-            use_tools(
+        solver=basic_agent(
+            tools=[
                 web_search(
                     providers={"openai": openai_options, "tavily": tavily_options},
                 )
-            ),
-            generate(),
-        ],
+            ]
+        ),
         scorer=model_graded_qa(),
     )

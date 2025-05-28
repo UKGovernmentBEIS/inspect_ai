@@ -4,6 +4,7 @@ from typing import Any
 
 from inspect_ai._util.content import (
     ContentAudio,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -24,6 +25,7 @@ def text_input_only(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
                     | ContentImage
                     | ContentAudio
                     | ContentVideo
+                    | ContentData
                 ] = []
                 for content in message.content:
                     if content.type == "text":
