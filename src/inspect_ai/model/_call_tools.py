@@ -4,6 +4,7 @@ import types
 from copy import copy
 from dataclasses import is_dataclass
 from datetime import date, datetime, time
+from enum import EnumMeta
 from logging import getLogger
 from textwrap import dedent
 from types import UnionType
@@ -653,6 +654,8 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
             return type_hint(**input)
+        elif isinstance(type_hint, EnumMeta):
+            return type_hint(input)
         else:
             return input
     elif origin is list or origin is List:

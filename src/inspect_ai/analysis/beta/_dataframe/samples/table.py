@@ -356,26 +356,27 @@ def _read_samples_df_serial(
         details_table.drop_duplicates(
             f"{detail.name}_id", keep="first", inplace=True, ignore_index=True
         )
-        samples_table = details_table.merge(
-            samples_table,
-            on=SAMPLE_ID,
-            how="left",
-            suffixes=(f"_{detail.name}", SAMPLE_SUFFIX),
-        )
+        if len(details_table) > 0:
+            samples_table = details_table.merge(
+                samples_table,
+                on=SAMPLE_ID,
+                how="left",
+                suffixes=(f"_{detail.name}", SAMPLE_SUFFIX),
+            )
 
     # join eval_records
-    samples_table = samples_table.merge(
-        evals_table, on=EVAL_ID, how="left", suffixes=(SAMPLE_SUFFIX, EVAL_SUFFIX)
-    )
-
-    # re-order based on original specification
-    samples_table = reorder_samples_df_columns(
-        samples_table,
-        columns_eval,
-        columns_sample,
-        columns_detail,
-        detail.name if detail else "",
-    )
+    if len(samples_table) > 0:
+        samples_table = samples_table.merge(
+            evals_table, on=EVAL_ID, how="left", suffixes=(SAMPLE_SUFFIX, EVAL_SUFFIX)
+        )
+        # re-order based on original specification
+        samples_table = reorder_samples_df_columns(
+            samples_table,
+            columns_eval,
+            columns_sample,
+            columns_detail,
+            detail.name if detail else "",
+        )
 
     # return
     if strict:
