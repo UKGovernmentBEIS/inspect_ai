@@ -3,14 +3,14 @@ import { FC } from "react";
 
 import { usePagination } from "../../state/hooks";
 import styles from "./LogPager.module.css";
+import { kLogsPaginationId } from "./LogsPanel";
 
 interface LogPagerProps {
   itemCount: number;
-  logDir: string;
 }
 
-export const LogPager: FC<LogPagerProps> = ({ itemCount, logDir }) => {
-  const { page, itemsPerPage, setPage } = usePagination(logDir);
+export const LogPager: FC<LogPagerProps> = ({ itemCount }) => {
+  const { page, itemsPerPage, setPage } = usePagination(kLogsPaginationId);
   const pageCount = Math.ceil(itemCount / itemsPerPage);
 
   const currentPage = page || 0;
