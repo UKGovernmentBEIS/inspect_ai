@@ -20,7 +20,7 @@ LOGS_DIR = Path(__file__).parent / "test_logs"
 
 def test_evals_df():
     df = evals_df(LOGS_DIR)
-    assert len(df) == 3
+    assert len(df) == 4
 
 
 def test_evals_df_columns():
@@ -31,7 +31,7 @@ def test_evals_df_columns():
 
 def test_evals_df_strict():
     df, errors = evals_df(LOGS_DIR, strict=False)
-    assert len(df) == 3
+    assert len(df) == 4
     assert len(errors) == 0
 
 
