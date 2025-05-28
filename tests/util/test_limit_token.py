@@ -158,6 +158,44 @@ def test_outermost_limit_raises_error_when_multiple_limits_exceeded() -> None:
     assert exc_info.value.source is outer
 
 
+def test_can_get_usage_while_context_manager_open() -> None:
+    with token_limit(10) as limit:
+        _consume_tokens(5)
+
+        assert limit.get_usage() == 5
+
+
+def test_can_get_usage_before_context_manager_opened() -> None:
+    limit = token_limit(10)
+
+    assert limit.get_usage() == 0
+
+
+def test_can_get_usage_after_context_manager_closed() -> None:
+    with token_limit(10) as limit:
+        _consume_tokens(5)
+
+    assert limit.get_usage() == 5
+
+
+def test_can_get_usage_nested() -> None:
+    with token_limit(10) as limit_outer:
+        _consume_tokens(5)
+        with token_limit(10) as limit_inner:
+            _consume_tokens(5)
+
+    assert limit_outer.get_usage() == 10
+    assert limit_inner.get_usage() == 5
+
+
+def test_can_get_usage_after_limit_error() -> None:
+    with pytest.raises(LimitExceededError):
+        with token_limit(10) as limit:
+            _consume_tokens(15)
+
+    assert limit.get_usage() == 15
+
+
 def test_cannot_reuse_context_manager() -> None:
     limit = token_limit(10)
     with limit:

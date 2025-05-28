@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import logging
-import time
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from types import TracebackType
@@ -87,6 +86,10 @@ class Limit(abc.ABC):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def get_usage(self) -> float:
         pass
 
     def _check_reuse(self) -> None:
@@ -380,6 +383,9 @@ class _TokenLimit(Limit, _Node):
     ) -> None:
         self._pop_and_check_identity(token_limit_tree)
 
+    def get_usage(self) -> float:
+        return self._usage.total_tokens
+
     @property
     def limit(self) -> int | None:
         """Get the configured token limit value."""
@@ -453,6 +459,12 @@ class _MessageLimit(Limit, _Node):
     ) -> None:
         self._pop_and_check_identity(message_limit_tree)
 
+    def get_usage(self) -> float:
+        raise NotImplementedError(
+            "Retrieving the message count from a limit is not supported. Please query "
+            "the messages property on the task or agent state instead."
+        )
+
     @property
     def limit(self) -> int | None:
         """Get the configured message limit value."""
@@ -505,6 +517,8 @@ class _TimeLimit(Limit):
         super().__init__()
         _validate_time_limit("Time", limit)
         self._limit = limit
+        self._start_time: float | None = None
+        self._end_time: float | None = None
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
@@ -512,6 +526,7 @@ class _TimeLimit(Limit):
         # of the state.
         self._cancel_scope = anyio.move_on_after(self._limit)
         self._cancel_scope.__enter__()
+        self._start_time = anyio.current_time()
         return self
 
     def __exit__(
@@ -523,18 +538,30 @@ class _TimeLimit(Limit):
         from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
+        self._end_time = anyio.current_time()
         if self._cancel_scope.cancel_called and self._limit is not None:
             message = f"Time limit exceeded. limit: {self._limit} seconds"
+            assert self._start_time is not None
+            # Note we've measured the elapsed time independently of anyio's cancel scope
+            # so this is an approximation.
+            time_elapsed = self._end_time - self._start_time
             transcript()._event(
                 SampleLimitEvent(type="time", message=message, limit=self._limit)
             )
             raise LimitExceededError(
                 "time",
-                value=self._limit,
+                value=time_elapsed,
                 limit=self._limit,
                 message=message,
                 source=self,
             ) from exc_val
+
+    def get_usage(self) -> float:
+        if self._start_time is None:
+            return 0.0
+        if self._end_time is None:
+            return anyio.current_time() - self._start_time
+        return self._end_time - self._start_time
 
 
 class _WorkingLimit(Limit, _Node):
@@ -543,10 +570,12 @@ class _WorkingLimit(Limit, _Node):
         _validate_time_limit("Working time", limit)
         self._limit = limit
         self.parent: _WorkingLimit | None = None
+        self._start_time: float | None = None
+        self._end_time: float | None = None
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
-        self._start_time = time.monotonic()
+        self._start_time = anyio.current_time()
         self._waiting_time = 0.0
         working_limit_tree.push(self)
         return self
@@ -557,7 +586,15 @@ class _WorkingLimit(Limit, _Node):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        self._end_time = anyio.current_time()
         self._pop_and_check_identity(working_limit_tree)
+
+    def get_usage(self) -> float:
+        if self._start_time is None:
+            return 0.0
+        if self._end_time is None:
+            return anyio.current_time() - self._start_time - self._waiting_time
+        return self._end_time - self._start_time - self._waiting_time
 
     def record_waiting_time(self, waiting_time: float) -> None:
         """Record waiting time for this node and its ancestor nodes."""
@@ -581,7 +618,7 @@ class _WorkingLimit(Limit, _Node):
 
         if self._limit is None:
             return
-        working_time = time.monotonic() - self._start_time - self._waiting_time
+        working_time = self.get_usage()
         if working_time > self._limit:
             message = f"Working time limit exceeded. limit: {self._limit} seconds"
             transcript()._event(
