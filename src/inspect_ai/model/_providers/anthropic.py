@@ -1,4 +1,5 @@
 import functools
+import json
 import os
 import re
 from copy import copy
@@ -22,6 +23,7 @@ from anthropic.types import (
     MessageParam,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
+    ServerToolUseBlock,
     TextBlock,
     TextBlockParam,
     ThinkingBlock,
@@ -31,6 +33,8 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    WebSearchTool20250305Param,
+    WebSearchToolResultBlock,
     message_create_params,
 )
 from anthropic.types.beta import (
@@ -521,7 +525,11 @@ class AnthropicAPI(ModelAPI):
         self, tool: ToolInfo, config: GenerateConfig
     ) -> Optional["ToolParamDef"]:
         return (
-            (self.computer_use_tool_param(tool) or self.text_editor_tool_param(tool))
+            (
+                self.computer_use_tool_param(tool)
+                or self.text_editor_tool_param(tool)
+                or self.web_search_tool_param(tool)
+            )
             if config.internal_tools is not False
             else None
         )
@@ -598,6 +606,29 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
+    def web_search_tool_param(
+        self, tool: ToolInfo
+    ) -> WebSearchTool20250305Param | None:
+        if tool.name == "web_search" and tool.options and "anthropic" in tool.options:
+            return _web_search_tool_param(tool.options["anthropic"])
+        else:
+            return None
+
+
+def _web_search_tool_param(
+    maybe_anthropic_options: object,
+) -> WebSearchTool20250305Param:
+    if maybe_anthropic_options is None:
+        maybe_anthropic_options = {}
+    elif not isinstance(maybe_anthropic_options, dict):
+        raise TypeError(
+            f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
+        )
+
+    return WebSearchTool20250305Param(
+        name="web_search", type="web_search_20250305", **(maybe_anthropic_options)
+    )
+
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
 ToolParamDef = (
@@ -605,6 +636,7 @@ ToolParamDef = (
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | WebSearchTool20250305Param
 )
 
 
@@ -614,6 +646,7 @@ def add_cache_control(
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | WebSearchTool20250305Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -800,7 +833,19 @@ async def model_output_from_message(
                 content_text = content_text.replace("<result>", "").replace(
                     "</result>", ""
                 )
-            content.append(ContentText(type="text", text=content_text))
+            foo = content_block.model_dump()["citations"]
+            # foo = (
+            #     json.loads(json.dumps(content_block.citations))
+            #     if content_block.citations
+            #     else None
+            # )
+            content.append(
+                ContentText(
+                    type="text",
+                    text=content_text,
+                    citations=foo if content_block.citations else None,
+                )
+            )
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
             (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
@@ -810,6 +855,13 @@ async def model_output_from_message(
                     function=tool_name,
                     arguments=content_block.model_dump().get("input", {}),
                     internal=internal_name,
+                )
+            )
+        elif isinstance(content_block, ServerToolUseBlock | WebSearchToolResultBlock):
+            print(content_block)
+            content.append(
+                ContentText(
+                    type="text", format="json", text=content_block.model_dump_json()
                 )
             )
         elif isinstance(content_block, RedactedThinkingBlock):
