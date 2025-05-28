@@ -46,9 +46,8 @@ async def run(
     Args:
         agent: Agent to run.
         input: Agent input (string, list of messages, or an `AgentState`).
-        limits: List of limits to apply to the agent. Should a limit be
-            exceeded, a LimitExceededError is raised which the caller may
-            handle as appropriate.
+        limits: List of limits to apply to the agent. Should one of these limits be
+            exceeded, the `LimitExceededError` is caught and returned.
         name: Optional display name for the transcript entry. If not provided, the
             agent's name as defined in the registry will be used.
         **agent_kwargs: Additional arguments to pass to agent.
