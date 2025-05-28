@@ -154,8 +154,6 @@ def token_limit(limit: int | None) -> _TokenLimit:
     """Limits the total number of tokens which can be used.
 
     The counter starts when the context manager is opened and ends when it is closed.
-    The context manager can be opened multiple times, even in different execution
-    contexts.
 
     These limits can be stacked.
 
@@ -200,8 +198,7 @@ def message_limit(limit: int | None) -> _MessageLimit:
     """Limits the number of messages in a conversation.
 
     The total number of messages in the conversation are compared to the limit (not just
-    "new" messages). The context manager can be opened multiple times, even in different
-    execution contexts.
+    "new" messages).
 
     These limits can be stacked.
 
