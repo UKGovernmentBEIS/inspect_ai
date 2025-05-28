@@ -88,8 +88,9 @@ class Limit(abc.ABC):
     ) -> None:
         pass
 
+    @property
     @abc.abstractmethod
-    def get_usage(self) -> float:
+    def usage(self) -> float:
         pass
 
     def _check_reuse(self) -> None:
@@ -380,7 +381,8 @@ class _TokenLimit(Limit, _Node):
     ) -> None:
         self._pop_and_check_identity(token_limit_tree)
 
-    def get_usage(self) -> float:
+    @property
+    def usage(self) -> float:
         return self._usage.total_tokens
 
     @property
@@ -456,7 +458,8 @@ class _MessageLimit(Limit, _Node):
     ) -> None:
         self._pop_and_check_identity(message_limit_tree)
 
-    def get_usage(self) -> float:
+    @property
+    def usage(self) -> float:
         raise NotImplementedError(
             "Retrieving the message count from a limit is not supported. Please query "
             "the messages property on the task or agent state instead."
@@ -553,7 +556,8 @@ class _TimeLimit(Limit):
                 source=self,
             ) from exc_val
 
-    def get_usage(self) -> float:
+    @property
+    def usage(self) -> float:
         if self._start_time is None:
             return 0.0
         if self._end_time is None:
@@ -586,7 +590,8 @@ class _WorkingLimit(Limit, _Node):
         self._end_time = anyio.current_time()
         self._pop_and_check_identity(working_limit_tree)
 
-    def get_usage(self) -> float:
+    @property
+    def usage(self) -> float:
         if self._start_time is None:
             return 0.0
         if self._end_time is None:
@@ -615,15 +620,14 @@ class _WorkingLimit(Limit, _Node):
 
         if self._limit is None:
             return
-        working_time = self.get_usage()
-        if working_time > self._limit:
+        if self.usage > self._limit:
             message = f"Working time limit exceeded. limit: {self._limit} seconds"
             transcript()._event(
                 SampleLimitEvent(type="working", message=message, limit=self._limit)
             )
             raise LimitExceededError(
                 "working",
-                value=working_time,
+                value=self.usage,
                 limit=self._limit,
                 message=message,
                 source=self,

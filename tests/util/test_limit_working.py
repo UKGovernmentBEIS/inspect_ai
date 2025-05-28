@@ -169,7 +169,7 @@ async def test_can_get_usage_while_context_manager_open(mock_time: _MockTime) ->
         mock_time.advance(3)
         record_waiting_time(1)
 
-        assert limit.get_usage() == 2
+        assert limit.usage == 2
 
 
 async def test_can_get_usage_before_context_manager_opened(
@@ -179,7 +179,7 @@ async def test_can_get_usage_before_context_manager_opened(
     mock_time.advance(3)
     record_waiting_time(1)
 
-    assert limit.get_usage() == 0
+    assert limit.usage == 0
 
 
 async def test_can_get_usage_after_context_manager_closed(mock_time: _MockTime) -> None:
@@ -189,7 +189,7 @@ async def test_can_get_usage_after_context_manager_closed(mock_time: _MockTime) 
 
     mock_time.advance(10)
 
-    assert limit.get_usage() == 2
+    assert limit.usage == 2
 
 
 async def test_can_get_usage_nested(mock_time: _MockTime) -> None:
@@ -198,8 +198,8 @@ async def test_can_get_usage_nested(mock_time: _MockTime) -> None:
         with working_limit(10) as inner_limit:
             mock_time.advance(3)
 
-    assert outer_limit.get_usage() == 6
-    assert inner_limit.get_usage() == 3
+    assert outer_limit.usage == 6
+    assert inner_limit.usage == 3
 
 
 async def test_can_get_usage_after_limit_error(mock_time: _MockTime) -> None:
@@ -209,7 +209,7 @@ async def test_can_get_usage_after_limit_error(mock_time: _MockTime) -> None:
             record_waiting_time(1)
             check_working_limit()
 
-    assert limit.get_usage() == 9
+    assert limit.usage == 9
 
 
 async def test_cannot_reuse_context_manager() -> None:

@@ -73,13 +73,13 @@ async def test_can_get_usage_while_context_manager_open() -> None:
     with time_limit(10) as limit:
         await asyncio.sleep(0.1)
 
-        assert 0.05 < limit.get_usage() < 0.5  # approx. 0.1
+        assert 0.05 < limit.usage < 0.5  # approx. 0.1
 
 
 async def test_can_get_usage_before_context_manager_opened() -> None:
     limit = time_limit(10)
 
-    assert limit.get_usage() == 0
+    assert limit.usage == 0
 
 
 async def test_can_get_usage_after_context_manager_closed() -> None:
@@ -88,7 +88,7 @@ async def test_can_get_usage_after_context_manager_closed() -> None:
 
     await asyncio.sleep(1)
 
-    assert 0.05 < limit.get_usage() < 0.5  # approx. 0.1
+    assert 0.05 < limit.usage < 0.5  # approx. 0.1
 
 
 async def test_can_get_usage_nested() -> None:
@@ -97,9 +97,9 @@ async def test_can_get_usage_nested() -> None:
         with time_limit(10) as inner_limit:
             await asyncio.sleep(0.1)
 
-    assert 0.15 < outer_limit.get_usage() < 0.6  # approx. 0.2
-    assert 0.05 < inner_limit.get_usage() < 0.5  # approx. 0.1
-    assert outer_limit.get_usage() > inner_limit.get_usage()
+    assert 0.15 < outer_limit.usage < 0.6  # approx. 0.2
+    assert 0.05 < inner_limit.usage < 0.5  # approx. 0.1
+    assert outer_limit.usage > inner_limit.usage
 
 
 async def test_can_get_usage_after_limit_error() -> None:
@@ -107,7 +107,7 @@ async def test_can_get_usage_after_limit_error() -> None:
         with time_limit(0.1) as limit:
             await asyncio.sleep(0.5)
 
-    assert 0.05 < limit.get_usage() < 1.0  # approx. 0.1
+    assert 0.05 < limit.usage < 1.0  # approx. 0.1
 
 
 @pytest.mark.anyio

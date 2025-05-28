@@ -90,7 +90,7 @@ def test_ancestor_limits_are_restored() -> None:
 def test_get_usage_raises_error() -> None:
     with message_limit(10) as limit:
         with pytest.raises(NotImplementedError) as exc_info:
-            limit.get_usage()
+            _ = limit.usage
 
     assert "is not supported" in str(exc_info.value), str(exc_info.value)
 
