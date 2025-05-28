@@ -1,7 +1,8 @@
 import datetime
 from dataclasses import dataclass
 from datetime import date, time
-from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict, Union
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union
 
 import pytest
 from pydantic import BaseModel
@@ -63,6 +64,11 @@ class MyPydanticModel(BaseModel):
     id: int
 
 
+class MyEnum(str, Enum):
+    ALPHA = "alpha"
+    BRAVO = "bravo"
+
+
 @tool
 def complex_tool():
     async def complex_tool(
@@ -70,6 +76,8 @@ def complex_tool():
         count: int,
         ratio: float,
         active: bool,
+        enum: MyEnum,
+        literal: Literal["a", "b"],
         numbers: List[int],
         strings: Set[str],
         tags: Tuple[str, ...],
@@ -92,6 +100,8 @@ def complex_tool():
             count (int): An integer count.
             ratio (float): A floating-point ratio.
             active (bool): A boolean flag.
+            enum (MyEnum): An enum value.
+            literal (Literal['a', 'b']): A literal value.
             numbers (List[int]): A list of integers.
             strings (Set[str]): A set of strings.
             tags (Tuple[str, ...]): A tuple of strings.
@@ -114,6 +124,8 @@ def complex_tool():
             "count": count,
             "ratio": ratio,
             "active": active,
+            "enum": enum.value,
+            "literal": literal,
             "numbers": numbers,
             "strings": strings,
             "tags": tags,
@@ -157,6 +169,8 @@ async def test_complex_tool_all_params():
         "count": 10,
         "ratio": 0.75,
         "active": False,
+        "enum": "alpha",
+        "literal": "a",
         "numbers": [5, 10, 15],
         "strings": ["a", "b", "c"],
         "tags": ["x", "y", "z"],
@@ -187,6 +201,10 @@ async def test_complex_tool_all_params():
     assert result["count"] == 10
     assert abs(result["ratio"] - 0.75) < 1e-9
     assert result["active"] is False
+
+    # enum/literal
+    assert result["enum"] == "alpha"
+    assert result["literal"] == "a"
 
     # collections
     assert result["numbers"] == [5, 10, 15]
