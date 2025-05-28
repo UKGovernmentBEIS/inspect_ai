@@ -38755,7 +38755,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               {
                 type: "text",
                 text: content2,
-                refusal: null
+                refusal: null,
+                internal: null
               },
               index2 === contents2.length - 1
             );
@@ -38778,7 +38779,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const contentText = {
           type: "text",
           text: contents2,
-          refusal: null
+          refusal: null,
+          internal: null
         };
         return messageRenderers["text"].render(
           "text-message-content",
@@ -39062,7 +39064,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               {
                 type: "text",
                 text: String(output2),
-                refusal: null
+                refusal: null,
+                internal: null
               }
             ]
           }
@@ -39138,7 +39141,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               {
                 type: "text",
                 text: content2,
-                refusal: null
+                refusal: null,
+                internal: null
               }
             ]
           }
@@ -39152,7 +39156,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 {
                   type: "text",
                   text: con,
-                  refusal: null
+                  refusal: null,
+                  internal: null
                 }
               ]
             };
@@ -39363,7 +39368,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return {
           type: "text",
           text: content2,
-          refusal: null
+          refusal: null,
+          internal: null
         };
       } else {
         return content2;
@@ -48922,10 +48928,10 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 fontStyle
               ),
-              children: entry2.name
+              children: entry2 == null ? void 0 : entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.value, `${baseId}-value`, fontStyle), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.value, `${baseId}-value`, fontStyle), children: entry2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
             RenderedContent,
             {
               id: id2,

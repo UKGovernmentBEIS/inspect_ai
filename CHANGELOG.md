@@ -11,6 +11,7 @@
 - Task display: Always show the sample init event in the task transcript display.
 - Inspect View: Outline view for transcript which enables high level navigation to solvers, agents, scorers, etc.
 - Inspect View: Fix an issue that prevented the display of the viewer in VSCode when the viewer tab was moved to the background.
+- Inspect View: Don't error when metadata contains null values.
 
 ## v0.3.99 (22 May 2025)
 
