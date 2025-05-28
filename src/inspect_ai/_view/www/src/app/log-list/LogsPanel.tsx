@@ -2,8 +2,9 @@ import clsx from "clsx";
 import { FC, useEffect, useMemo } from "react";
 
 import { useParams } from "react-router-dom";
+import { EvalLogHeader } from "../../client/api/types";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useLogs } from "../../state/hooks";
+import { useLogs, usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -38,6 +39,9 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   const updateLogHeaders = useStore(
     (state) => state.logsActions.updateLogHeaders,
   );
+
+  // Items that are in the current page
+  const { page, itemsPerPage } = usePagination(kLogsPaginationId);
 
   const { logPath } = useParams<{
     logPath?: string;
@@ -108,6 +112,38 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
     };
     exec();
   }, [loadLogs]);
+
+  const pageItems = useMemo(() => {
+    const start = (page || 0) * itemsPerPage;
+    const end = start + itemsPerPage;
+    return logItems.slice(start, end);
+  }, [logItems, page, itemsPerPage]);
+
+  // Load headers for any files that are not yet loaded
+  useEffect(() => {
+    const fileItems = pageItems.filter((item) => item.type === "file");
+    const logFiles = fileItems
+      .map((item) => item.logFile)
+      .filter((file) => file !== undefined)
+      .filter((logFile) => {
+        // Filter out files that are already loaded
+        return logHeaders[logFile.name] === undefined;
+      });
+
+    const exec = async () => {
+      const headers = await loadHeaders(logFiles);
+      if (headers) {
+        const updatedHeaders: Record<string, EvalLogHeader> = {};
+
+        headers.forEach((header, index) => {
+          const logFile = logFiles[index];
+          updatedHeaders[logFile.name] = header as EvalLogHeader;
+        });
+        updateLogHeaders(updatedHeaders);
+      }
+    };
+    exec();
+  }, [pageItems]);
 
   return (
     <div className={clsx(styles.panel)}>

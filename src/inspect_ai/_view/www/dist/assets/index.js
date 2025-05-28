@@ -51108,11 +51108,12 @@ categories: ${categories.join(" ")}`;
       const loading = useStore((state) => state.app.status.loading);
       const { loadLogs } = useLogs();
       const logs = useStore((state) => state.logs.logs);
-      useStore((state) => state.logsActions.loadHeaders);
-      useStore((state) => state.logs.logHeaders);
-      useStore(
+      const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const updateLogHeaders = useStore(
         (state) => state.logsActions.updateLogHeaders
       );
+      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
       const { logPath } = useParams();
       const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
       const logItems = reactExports.useMemo(() => {
@@ -51156,6 +51157,29 @@ categories: ${categories.join(" ")}`;
         };
         exec2();
       }, [loadLogs]);
+      const pageItems = reactExports.useMemo(() => {
+        const start2 = (page || 0) * itemsPerPage;
+        const end2 = start2 + itemsPerPage;
+        return logItems.slice(start2, end2);
+      }, [logItems, page, itemsPerPage]);
+      reactExports.useEffect(() => {
+        const fileItems = pageItems.filter((item2) => item2.type === "file");
+        const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
+          return logHeaders[logFile.name] === void 0;
+        });
+        const exec2 = async () => {
+          const headers = await loadHeaders(logFiles);
+          if (headers) {
+            const updatedHeaders = {};
+            headers.forEach((header2, index2) => {
+              const logFile = logFiles[index2];
+              updatedHeaders[logFile.name] = header2;
+            });
+            updateLogHeaders(updatedHeaders);
+          }
+        };
+        exec2();
+      }, [pageItems]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$18.panel), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }),
