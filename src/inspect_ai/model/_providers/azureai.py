@@ -323,7 +323,9 @@ def fold_user_message_into_tool_message(
             isinstance(item, (TextContentItem, ImageContentItem))
             for item in list_content
         ):
-            raise TypeError("Expected all items to be TextContentItem or ImageContentItem")
+            raise TypeError(
+                "Expected all items to be TextContentItem or ImageContentItem"
+            )
 
         parts = []
         for item in list_content:
@@ -333,7 +335,7 @@ def fold_user_message_into_tool_message(
                 parts.append(f"[Image: {item.image_url.url}]")
             else:
                 raise ValueError("Unexpected content item type")
-        return ''.join(parts)
+        return "".join(parts)
 
     def normalise_content(
         content: str | list[ContentItem] | None,
