@@ -50892,7 +50892,7 @@ categories: ${categories.join(" ")}`;
       const logs = useStore((state) => state.logs.logs);
       const { logPath } = useParams();
       const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
-      const logItems = reactExports.useMemo(() => {
+      const fileOrFolderNames = reactExports.useMemo(() => {
         const itemNames = [];
         for (const logFile of logs.files) {
           const name2 = logFile.name;
@@ -50902,14 +50902,16 @@ categories: ${categories.join(" ")}`;
             itemNames.push(decodeURIComponent(root2));
           }
         }
-        const items = new Set(itemNames);
+        const fileOrFolderNameSet = new Set(itemNames);
         const result2 = [];
-        for (const item2 of items) {
+        for (const fileOrFolderName of fileOrFolderNameSet) {
+          const relativeDir = directoryRelativeUrl(currentDir, logs.log_dir);
+          const relativePath = join(fileOrFolderName, relativeDir);
           result2.push({
-            id: item2,
-            name: item2,
-            type: item2.endsWith(".json") || item2.endsWith(".eval") ? "file" : "folder",
-            url: logUrl(item2, currentDir)
+            id: fileOrFolderName,
+            name: fileOrFolderName,
+            type: fileOrFolderName.endsWith(".json") || fileOrFolderName.endsWith(".eval") ? "file" : "folder",
+            url: logUrl(relativePath, logs.log_dir)
           });
         }
         return result2;
@@ -50918,8 +50920,8 @@ categories: ${categories.join(" ")}`;
       const pageItems = reactExports.useMemo(() => {
         const start2 = (page || 0) * itemsPerPage;
         const end2 = start2 + itemsPerPage;
-        return logItems.slice(start2, end2);
-      }, [logItems, page, itemsPerPage]);
+        return fileOrFolderNames.slice(start2, end2);
+      }, [fileOrFolderNames, page, itemsPerPage]);
       reactExports.useEffect(() => {
         const exec2 = async () => {
           await loadLogs();
@@ -50934,7 +50936,7 @@ categories: ${categories.join(" ")}`;
           LogListFooter,
           {
             logDir: currentDir,
-            itemCount: logItems.length,
+            itemCount: fileOrFolderNames.length,
             running: loading
           }
         )
