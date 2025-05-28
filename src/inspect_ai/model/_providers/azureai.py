@@ -298,10 +298,7 @@ def mistral_message_reducer(
     messages: list[ChatRequestMessage],
     message: ChatRequestMessage,
 ) -> list[ChatRequestMessage]:
-    """
-    Fold any user messages found immediately after tool messages
-    into the last tool message.
-    """
+    """Fold any user messages found immediately after tool messages into the last tool message."""
     if (
         len(messages) > 0
         and isinstance(messages[-1], ToolMessage)
@@ -320,7 +317,7 @@ def fold_user_message_into_tool_message(
 ) -> ToolMessage:
     def convert_content_items_to_string(list_content: list[ContentItem]) -> str:
         if not all(
-            isinstance(item, (TextContentItem, ImageContentItem))
+            isinstance(item, (TextContentItem | ImageContentItem))
             for item in list_content
         ):
             raise TypeError(
