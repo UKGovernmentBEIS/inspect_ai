@@ -21,6 +21,8 @@ export const LogListFooter: FC<LogListFooterProps> = ({
     itemsPerPage,
     itemCount - (page || 0) * itemsPerPage,
   );
+  const startItem = (page || 0) * itemsPerPage + 1;
+  const endItem = startItem + pageItemCount - 1;
 
   return (
     <div className={clsx("text-size-smaller", styles.footer)}>
@@ -38,7 +40,7 @@ export const LogListFooter: FC<LogListFooterProps> = ({
             </div>
           </div>
         ) : undefined}
-        <div>{`${pageItemCount} / ${itemCount} items`}</div>
+        <div>{`${startItem} - ${endItem} / ${itemCount}`}</div>
       </div>
       <div className={clsx(styles.right)}>
         <LogPager logDir={logDir} itemCount={itemCount} />
