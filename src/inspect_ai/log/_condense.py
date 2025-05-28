@@ -347,6 +347,7 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
     elif isinstance(content, ContentReasoning):
         return content.model_copy(update=dict(reasoning=content_fn(content.reasoning)))
     elif isinstance(content, ContentData):
+        # TODO: ???
         return content.model_copy(
             update=dict(data=content_fn(json.dumps(content.data)))
         )

@@ -286,10 +286,6 @@ def _chat_message_assistant_from_openai_response(
                             tool_call_from_openai_computer_tool_call(output)
                         )
                     case ResponseFunctionWebSearch():
-                        foo = ContentData(data=output.model_dump())
-                        blah = ContentData.model_validate(foo.model_dump())
-                        print(blah)
-
                         message_content.append(ContentData(data=output.model_dump()))
                     case _:
                         raise ValueError(f"Unexpected output type: {output.__class__}")
