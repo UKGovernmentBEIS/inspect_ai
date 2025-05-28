@@ -105,9 +105,28 @@ class TranscriptView(ScrollableContainer):
         self, events: Sequence[Event], limit: int = 10
     ) -> list[Widget]:
         widgets: list[Widget] = []
-        widget_count = 0
-        # reverse the events so that the N most recents events are displayed
-        for event in events[::-1]:
+
+        # filter the events to the <limit> most recent
+        filtered_events = events
+        if len(events) > limit:
+            filtered_events = filtered_events[-limit:]
+
+        # find the sample init event
+        sample_init: SampleInitEvent | None = None
+        for event in events:
+            if isinstance(event, SampleInitEvent):
+                sample_init = event
+                break
+
+        # add the sample init event if it isn't already in the event list
+        if sample_init and sample_init not in filtered_events:
+            filtered_events = [sample_init] + list(filtered_events)
+
+        # compute how many events we filtered out
+        filtered_count = len(events) - len(filtered_events)
+        showed_filtered_count = False
+
+        for event in filtered_events:
             display = render_event(event)
             if display:
                 for d in display:
@@ -123,14 +142,23 @@ class TranscriptView(ScrollableContainer):
                             set_transcript_markdown_options(d.content)
                         widgets.append(Static(d.content, markup=False))
                         widgets.append(Static(Text(" ")))
-                        widget_count += 1
 
-            # only render the N most recent events
-            if widget_count >= limit:
-                break
+                        if not showed_filtered_count and filtered_count > 0:
+                            showed_filtered_count = True
 
-        # reverse the list since we added the events in reverse order
-        return widgets[::-1]
+                            widgets.append(
+                                Static(
+                                    transcript_separator(
+                                        f"{filtered_count} events..."
+                                        if filtered_count > 1
+                                        else "1 event...",
+                                        self.app.current_theme.primary,
+                                    )
+                                )
+                            )
+                            widgets.append(Static(Text(" ")))
+
+        return widgets
 
 
 class EventDisplay(NamedTuple):
