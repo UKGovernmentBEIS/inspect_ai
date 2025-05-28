@@ -298,6 +298,10 @@ def mistral_message_reducer(
     messages: list[ChatRequestMessage],
     message: ChatRequestMessage,
 ) -> list[ChatRequestMessage]:
+    """
+    Fold any user messages found immediately after tool messages
+    into the last tool message.
+    """
     if (
         len(messages) > 0
         and isinstance(messages[-1], ToolMessage)
@@ -315,21 +319,21 @@ def fold_user_message_into_tool_message(
     user_message: UserMessage,
 ) -> ToolMessage:
     def convert_content_items_to_string(list_content: list[ContentItem]) -> str:
-        assert all(
+        if not all(
             isinstance(item, (TextContentItem, ImageContentItem))
             for item in list_content
-        ), "Expected all items to be TextContentItem or ImageContentItem"
+        ):
+            raise TypeError("Expected all items to be TextContentItem or ImageContentItem")
 
-        ret = ""
+        parts = []
         for item in list_content:
             if isinstance(item, TextContentItem):
-                ret += item.text
+                parts.append(item.text)
             elif isinstance(item, ImageContentItem):
-                ret += f"[Image: {item.image_url.url}]"
+                parts.append(f"[Image: {item.image_url.url}]")
             else:
                 raise ValueError("Unexpected content item type")
-
-        return ret
+        return ''.join(parts)
 
     def normalise_content(
         content: str | list[ContentItem] | None,
