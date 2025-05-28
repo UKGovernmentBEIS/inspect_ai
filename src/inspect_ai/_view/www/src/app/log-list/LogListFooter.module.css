@@ -27,7 +27,6 @@
   margin-top: -3px;
 }
 
-
 .right {
   display: grid;
   grid-template-columns: repeat(auto-fit, max-content);

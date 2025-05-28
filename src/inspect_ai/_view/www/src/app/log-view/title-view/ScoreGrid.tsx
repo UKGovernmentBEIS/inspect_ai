@@ -1,12 +1,12 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
 import { formatPrettyDecimal } from "../../../utils/format";
-import { ResultsScorer } from "./ResultsPanel";
 
+import { ScoreSummary } from "../../../scoring/types";
 import styles from "./ScoreGrid.module.css";
 
 interface ScoreGridProps {
-  scoreGroups: ResultsScorer[][];
+  scoreGroups: ScoreSummary[][];
   showReducer?: boolean;
   className?: string | string[];
   striped?: boolean;

@@ -1,26 +1,15 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { Scores } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { LinkButton } from "../../../components/LinkButton";
 import { Modal } from "../../../components/Modal";
+import { metricDisplayName } from "../../../scoring/metrics";
+import { groupScorers } from "../../../scoring/scores";
+import { MetricSummary, ScoreSummary } from "../../../scoring/types";
 import { useProperty } from "../../../state/hooks";
 import { formatPrettyDecimal } from "../../../utils/format";
-import { metricDisplayName } from "../utils";
 import styles from "./ResultsPanel.module.css";
 import { ScoreGrid } from "./ScoreGrid";
-
-export interface ResultsMetric {
-  name: string;
-  params?: {};
-  value: number;
-}
-
-export interface ResultsScorer {
-  scorer: string;
-  reducer?: string;
-  metrics: ResultsMetric[];
-}
 
 const kMaxPrimaryScoreRows = 4;
 
@@ -35,7 +24,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
       : metric.scorer;
   };
 
-  const scorers: Record<string, ResultsScorer> = {};
+  const scorers: Record<string, ScoreSummary> = {};
   metrics.forEach((metric) => {
     if (metric.value !== undefined && metric.value !== null) {
       const key = getKey(metric);
@@ -62,29 +51,8 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
   return Object.values(scorers);
 };
 
-export const toDisplayScorers = (scores?: Scores): ResultsScorer[] => {
-  if (!scores) {
-    return [];
-  }
-
-  return scores.map((score) => {
-    return {
-      scorer: score.name,
-      reducer: score.reducer === null ? undefined : score.reducer,
-      metrics: Object.keys(score.metrics).map((key) => {
-        const metric = score.metrics[key];
-        return {
-          name: metric.name,
-          value: metric.value,
-          params: metric.params,
-        };
-      }),
-    };
-  });
-};
-
 interface ResultsPanelProps {
-  scorers?: ResultsScorer[];
+  scorers?: ScoreSummary[];
 }
 
 export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
@@ -121,7 +89,7 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
     );
   } else {
     const showReducer = scorers.findIndex((score) => !!score.reducer) !== -1;
-    const grouped = groupMetrics(scorers);
+    const grouped = groupScorers(scorers);
 
     // Try to select metrics with a group size 5 or less, if possible
     let primaryResults = grouped[0];
@@ -174,26 +142,8 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
   }
 };
 
-const metricsKey = (metrics: ResultsMetric[]): string => {
-  const metricKey = metrics.map((m) => m.name).join("");
-  return metricKey;
-};
-
-const groupMetrics = (scorers: ResultsScorer[]): ResultsScorer[][] => {
-  const results: Record<string, ResultsScorer[]> = {};
-  scorers.forEach((scorer) => {
-    if (scorer.metrics.length > 0) {
-      const key = metricsKey(scorer.metrics);
-      results[key] = results[key] || [];
-
-      results[key].push(scorer);
-    }
-  });
-  return Object.values(results);
-};
-
 interface VerticalMetricProps {
-  metric: ResultsMetric;
+  metric: MetricSummary;
   reducer?: string;
   isFirst: boolean;
   showReducer: boolean;

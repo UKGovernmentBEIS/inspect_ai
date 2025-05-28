@@ -4,16 +4,13 @@ import { EvalResults, EvalSpec, Status } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
 import { kModelNone } from "../../../constants";
+import { toDisplayScorers } from "../../../scoring/metrics";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ModelRolesView } from "./ModelRolesView";
 import styles from "./PrimaryBar.module.css";
-import {
-  displayScorersFromRunningMetrics,
-  ResultsPanel,
-  toDisplayScorers,
-} from "./ResultsPanel";
+import { displayScorersFromRunningMetrics, ResultsPanel } from "./ResultsPanel";
 import { RunningStatusPanel } from "./RunningStatusPanel";
 import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 
