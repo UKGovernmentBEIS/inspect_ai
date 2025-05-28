@@ -1,6 +1,6 @@
 import { FC } from "react";
 import { useParams } from "react-router-dom";
-import { LogListView } from "../log-list/LogListView";
+import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 
 /**
@@ -13,7 +13,7 @@ export const RouteDispatcher: FC = () => {
 
   // If no logPath is provided, show the logs directory view
   if (!logPath) {
-    return <LogListView />;
+    return <LogsPanel />;
   }
 
   // Decode the logPath in case it's URL encoded
@@ -27,6 +27,6 @@ export const RouteDispatcher: FC = () => {
   if (isLogFile) {
     return <LogViewContainer />;
   } else {
-    return <LogListView />;
+    return <LogsPanel />;
   }
 };

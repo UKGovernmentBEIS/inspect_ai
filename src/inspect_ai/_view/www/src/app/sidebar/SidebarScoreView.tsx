@@ -3,7 +3,7 @@ import { EvalScore } from "../../@types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 
 import { FC } from "react";
-import { metricDisplayName } from "../log-view/utils";
+import { metricDisplayName } from "../../scoring/metrics";
 import styles from "./SidebarScoreView.module.css";
 interface SidebarScoreProps {
   scorer: EvalScore;

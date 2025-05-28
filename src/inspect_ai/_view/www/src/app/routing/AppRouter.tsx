@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 import { storeImplementation } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
-import { LogListView } from "../log-list/LogListView";
+import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
 import {
@@ -47,7 +47,7 @@ export const AppRouter = createHashRouter(
         },
         {
           path: kLogsRouteUrlPattern,
-          element: <LogListView />,
+          element: <LogsPanel />,
         },
         {
           path: kLogRouteUrlPattern,

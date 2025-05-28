@@ -1,156 +1,125 @@
-import clsx from "clsx";
-import { FC, useEffect, useMemo } from "react";
+import { FC, useCallback } from "react";
 
-import { useParams } from "react-router-dom";
-import { EvalLogHeader } from "../../client/api/types";
-import { ProgressBar } from "../../components/ProgressBar";
-import { useLogs, usePagination } from "../../state/hooks";
+import { clsx } from "clsx";
+import { Virtuoso } from "react-virtuoso";
 import { useStore } from "../../state/store";
-import { isInDirectory } from "../../utils/path";
-import { directoryRelativeUrl, join } from "../../utils/uri";
-import { Navbar } from "../navbar/Navbar";
-import { logUrl } from "../routing/url";
-import { LogItem } from "./LogItem";
-import { LogListFooter } from "./LogListFooter";
-import { LogListGrid } from "./LogListGrid";
+import { FileLogItem, FolderLogItem } from "./LogItem";
+
+import { Link } from "react-router-dom";
+import { toDisplayScorers } from "../../scoring/metrics";
+import { groupScorers } from "../../scoring/scores";
+import { ApplicationIcons } from "../appearance/icons";
+import { ScoreGrid } from "../log-view/title-view/ScoreGrid";
 import styles from "./LogListView.module.css";
 
-const rootName = (relativePath: string) => {
-  const parts = relativePath.split("/");
-  if (parts.length === 0) {
-    return "";
-  }
-  return parts[0];
-};
+interface LogListViewProps {
+  items: (FileLogItem | FolderLogItem)[];
+  className?: string | string[];
+}
 
-interface LogListViewProps {}
-
-export const LogListView: FC<LogListViewProps> = () => {
-  // Get the logs from the store
-  const loading = useStore((state) => state.app.status.loading);
-
-  const { loadLogs } = useLogs();
-  const logs = useStore((state) => state.logs.logs);
-
-  const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
-  const logHeaders = useStore((state) => state.logs.logHeaders);
-  const updateLogHeaders = useStore(
-    (state) => state.logsActions.updateLogHeaders,
+export const LogListView: FC<LogListViewProps> = ({ items, className }) => {
+  const renderRow = useCallback(
+    (_index: number, item: FileLogItem | FolderLogItem) => {
+      return <LogListRow item={item} />;
+    },
+    [],
   );
 
-  const { logPath } = useParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
+  return (
+    <Virtuoso<FileLogItem | FolderLogItem>
+      style={{ height: "100%" }}
+      data={items}
+      defaultItemHeight={50}
+      itemContent={renderRow}
+      atBottomThreshold={30}
+      increaseViewportBy={{ top: 300, bottom: 300 }}
+      overscan={{
+        main: 10,
+        reverse: 10,
+      }}
+      className={clsx(className, "samples-list")}
+      skipAnimationFrameInResizeObserver={true}
+      tabIndex={0}
+    />
+  );
+};
 
-  const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
+interface LogListRowProps {
+  item: FileLogItem | FolderLogItem;
+}
 
-  const { page, itemsPerPage } = usePagination(currentDir);
+const LogListRow: FC<LogListRowProps> = ({ item }) => {
+  const fileItem = item.type === "file" ? item : undefined;
 
-  // All the items visible in the current directory (might span
-  // multiple pages)
-  const logItems: LogItem[] = useMemo(() => {
-    // Build the list of files / folders that for the current directory
-    const logItems: LogItem[] = [];
+  const headerInfo = useStore(
+    (state) => state.logs.logHeaders[fileItem?.logFile.name || ""],
+  );
+  const completed = headerInfo?.stats?.completed_at;
+  const time = completed ? new Date(completed) : undefined;
+  const timeStr = time
+    ? `${time.toDateString()}
+    ${time.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`
+    : "";
 
-    // Track process folders to avoid duplicates
-    const processedFolders = new Set<string>();
+  const scorers = headerInfo?.results?.scores || [];
+  const grouped = groupScorers(toDisplayScorers(scorers));
 
-    for (const logFile of logs.files) {
-      // The file name
-      const name = logFile.name;
-
-      // Process paths in the current directory
-      const cleanDir = currentDir.endsWith("/")
-        ? currentDir.slice(0, -1)
-        : currentDir;
-
-      if (isInDirectory(logFile.name, cleanDir)) {
-        // This is a file within the current directory
-        const relativePath = directoryRelativeUrl(name, currentDir);
-        const fileOrFolderName = rootName(relativePath);
-
-        logItems.push({
-          id: fileOrFolderName,
-          name: fileOrFolderName,
-          type: "file",
-          url: logUrl(relativePath, logs.log_dir),
-          logFile: logFile,
-        });
-      } else if (name.startsWith(currentDir)) {
-        // This is file that is next level (or deeper) child
-        // of the current directory, extract the top level folder name
-        const relativePath = directoryRelativeUrl(name, currentDir);
-        const dirName = decodeURIComponent(rootName(relativePath));
-        if (!processedFolders.has(dirName)) {
-          logItems.push({
-            id: dirName,
-            name: dirName,
-            type: "folder",
-            url: logUrl(dirName, logs.log_dir),
-          });
-          processedFolders.add(dirName);
-        }
-      }
+  let primaryResults = grouped.length > 0 ? grouped[0] : [];
+  if (primaryResults.length > 3) {
+    const shorterResults = grouped.find((g) => {
+      return g.length <= 3;
+    });
+    if (shorterResults) {
+      primaryResults = shorterResults;
     }
 
-    return logItems;
-  }, [logPath, logs.files]);
-
-  // Items that are in the current page
-  const pageItems = useMemo(() => {
-    const start = (page || 0) * itemsPerPage;
-    const end = start + itemsPerPage;
-    return logItems.slice(start, end);
-  }, [logItems, page, itemsPerPage]);
-
-  // Load headers for any files that are not yet loaded
-  useEffect(() => {
-    const fileItems = pageItems.filter((item) => item.type === "file");
-    const logFiles = fileItems
-      .map((item) => item.logFile)
-      .filter((file) => file !== undefined)
-      .filter((logFile) => {
-        // Filter out files that are already loaded
-        return logHeaders[logFile.name] === undefined;
-      });
-
-    const exec = async () => {
-      const headers = await loadHeaders(logFiles);
-      if (headers) {
-        const updatedHeaders: Record<string, EvalLogHeader> = {};
-
-        headers.forEach((header, index) => {
-          const logFile = logFiles[index];
-          updatedHeaders[logFile.name] = header as EvalLogHeader;
-        });
-        updateLogHeaders(updatedHeaders);
-      }
-    };
-    exec();
-  }, [pageItems]);
-
-  useEffect(() => {
-    const exec = async () => {
-      await loadLogs();
-    };
-    exec();
-  }, [loadLogs]);
+    // If the primary metrics are still too long, truncate them and
+    // show the rest in the modal
+    if (primaryResults.length > 3) {
+      primaryResults = primaryResults.slice(0, 3);
+    }
+  }
 
   return (
-    <div className={clsx(styles.panel)}>
-      <Navbar />
-      <ProgressBar animating={loading} />
-      <div className={clsx(styles.list, "text-size-smaller")}>
-        <LogListGrid items={pageItems} />
+    <div className={clsx(styles.row)}>
+      <div className={clsx(styles.left)}>
+        <div className={clsx(styles.icon)}>
+          <i
+            className={clsx(
+              item.type === "file"
+                ? ApplicationIcons.file
+                : ApplicationIcons.folder,
+            )}
+          />
+        </div>
+        <div className={clsx(styles.task, "text-size-base")}>
+          {item.url ? (
+            <Link to={item.url}>
+              {fileItem?.logFile ? headerInfo?.eval.task : item.name}
+            </Link>
+          ) : fileItem?.logFile ? (
+            headerInfo?.eval.task
+          ) : (
+            item.name
+          )}
+        </div>
+        <div className={clsx(styles.taskDetail)}>
+          <div className={clsx("text-size-smallest")}>{timeStr}</div>
+          <div className={clsx("text-size-smallest")}>
+            {fileItem?.logFile ? headerInfo?.eval.model : undefined}
+          </div>
+        </div>
       </div>
-      <LogListFooter
-        logDir={currentDir}
-        itemCount={logItems.length}
-        running={loading}
-      />
+      <div className={clsx(styles.right)}>
+        {item.type === "file" ? (
+          primaryResults.length && <ScoreGrid scoreGroups={[primaryResults]} />
+        ) : (
+          <div className={clsx(styles.folderItems)}>{item.itemCount} logs</div>
+        )}
+      </div>
     </div>
   );
 };

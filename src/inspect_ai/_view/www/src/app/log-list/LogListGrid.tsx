@@ -14,14 +14,14 @@ import { Link } from "react-router-dom";
 
 import { useStore } from "../../state/store";
 import { ApplicationIcons } from "../appearance/icons";
-import { LogItem } from "./LogItem";
+import { FileLogItem, FolderLogItem } from "./LogItem";
 import styles from "./LogListGrid.module.css";
 
 interface LogListGridProps {
-  items: LogItem[];
+  items: Array<FileLogItem | FolderLogItem>;
 }
 
-const columnHelper = createColumnHelper<LogItem>();
+const columnHelper = createColumnHelper<FileLogItem | FolderLogItem>();
 
 export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   // TODO: Convert to store state
@@ -55,8 +55,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         id: "task",
         header: "Task",
         cell: (info) => {
-          const item = info.row.original;
-          const logFile = item.logFile;
+          const item = info.row.original as FileLogItem | FolderLogItem;
+          const logFile = item.type === "file" ? item.logFile : undefined;
           if (!logFile) {
             return <div className={styles.typeCell}>{item.name}</div>;
           }
