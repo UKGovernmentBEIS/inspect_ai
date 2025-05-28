@@ -47656,6 +47656,10 @@ categories: ${categories.join(" ")}`;
       }
       return "";
     };
+    const isInDirectory = (path, directory) => {
+      directory = directory.endsWith("/") ? directory.slice(0, -1) : directory;
+      return dirname$1(path) === directory;
+    };
     const header$4 = "_header_fev74_1";
     const breadcrumbs = "_breadcrumbs_fev74_11";
     const styles$1c = {
@@ -50750,19 +50754,19 @@ categories: ${categories.join(" ")}`;
       }));
       return tableRef.current;
     }
-    const gridContainer = "_gridContainer_1j0jy_1";
-    const grid$7 = "_grid_1j0jy_1";
-    const headerRow = "_headerRow_1j0jy_15";
-    const headerCell = "_headerCell_1j0jy_26";
-    const sortable = "_sortable_1j0jy_41";
-    const sortIndicator = "_sortIndicator_1j0jy_50";
-    const bodyContainer$1 = "_bodyContainer_1j0jy_57";
-    const bodyRow = "_bodyRow_1j0jy_62";
-    const bodyCell = "_bodyCell_1j0jy_79";
-    const iconCell = "_iconCell_1j0jy_91";
-    const nameCell = "_nameCell_1j0jy_99";
-    const logLink$1 = "_logLink_1j0jy_106";
-    const typeCell = "_typeCell_1j0jy_120";
+    const gridContainer = "_gridContainer_15552_1";
+    const grid$7 = "_grid_15552_1";
+    const headerRow = "_headerRow_15552_15";
+    const headerCell = "_headerCell_15552_26";
+    const sortable = "_sortable_15552_41";
+    const sortIndicator = "_sortIndicator_15552_50";
+    const bodyContainer$1 = "_bodyContainer_15552_57";
+    const bodyRow = "_bodyRow_15552_62";
+    const bodyCell = "_bodyCell_15552_79";
+    const iconCell = "_iconCell_15552_91";
+    const nameCell = "_nameCell_15552_99";
+    const logLink$1 = "_logLink_15552_106";
+    const typeCell = "_typeCell_15552_120";
     const styles$19 = {
       gridContainer,
       grid: grid$7,
@@ -50783,6 +50787,7 @@ categories: ${categories.join(" ")}`;
       const [sorting, setSorting] = reactExports.useState([]);
       const [filtering, setFiltering] = reactExports.useState([]);
       const [globalFilter, setGlobalFilter] = reactExports.useState("");
+      const logHeaders = useStore((state) => state.logs.logHeaders);
       const columns = reactExports.useMemo(
         () => [
           columnHelper.accessor("type", {
@@ -50800,6 +50805,24 @@ categories: ${categories.join(" ")}`;
             enableGlobalFilter: false,
             size: 40
           }),
+          columnHelper.display({
+            id: "task",
+            header: "Task",
+            cell: (info) => {
+              const item2 = info.row.original;
+              const logFile = item2.logFile;
+              if (!logFile) {
+                return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.typeCell, children: item2.name });
+              }
+              const headerInfo = logHeaders[logFile.name || ""];
+              if (!headerInfo) {
+                return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.typeCell, children: "Loading..." });
+              }
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.typeCell, children: headerInfo.eval.task });
+            },
+            enableSorting: true,
+            enableGlobalFilter: true
+          }),
           columnHelper.accessor("name", {
             id: "name",
             header: "Name",
@@ -50816,10 +50839,10 @@ categories: ${categories.join(" ")}`;
             cell: (info) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.typeCell, children: info.getValue() === "file" ? "File" : "Folder" }),
             enableSorting: true,
             enableGlobalFilter: true,
-            size: 80
+            size: 40
           })
         ],
-        []
+        [logHeaders]
       );
       const table2 = useReactTable({
         data: items,
@@ -50892,38 +50915,69 @@ categories: ${categories.join(" ")}`;
       const loading = useStore((state) => state.app.status.loading);
       const { loadLogs } = useLogs();
       const logs = useStore((state) => state.logs.logs);
+      const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const updateLogHeaders = useStore(
+        (state) => state.logsActions.updateLogHeaders
+      );
       const { logPath } = useParams();
       const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
-      const fileOrFolderNames = reactExports.useMemo(() => {
-        const itemNames = [];
+      const { page, itemsPerPage } = usePagination(currentDir);
+      const logItems = reactExports.useMemo(() => {
+        const logItems2 = [];
+        const processedFolders = /* @__PURE__ */ new Set();
         for (const logFile of logs.files) {
           const name2 = logFile.name;
-          if (name2.startsWith(currentDir)) {
+          const cleanDir = currentDir.endsWith("/") ? currentDir.slice(0, -1) : currentDir;
+          if (isInDirectory(logFile.name, cleanDir)) {
             const relativePath = directoryRelativeUrl(name2, currentDir);
-            const root2 = rootName(relativePath);
-            itemNames.push(decodeURIComponent(root2));
+            const fileOrFolderName = rootName(relativePath);
+            logItems2.push({
+              id: fileOrFolderName,
+              name: fileOrFolderName,
+              type: "file",
+              url: logUrl(relativePath, logs.log_dir),
+              logFile
+            });
+          } else if (name2.startsWith(currentDir)) {
+            const relativePath = directoryRelativeUrl(name2, currentDir);
+            const dirName = decodeURIComponent(rootName(relativePath));
+            if (!processedFolders.has(dirName)) {
+              logItems2.push({
+                id: dirName,
+                name: dirName,
+                type: "folder",
+                url: logUrl(dirName, logs.log_dir)
+              });
+              processedFolders.add(dirName);
+            }
           }
         }
-        const fileOrFolderNameSet = new Set(itemNames);
-        const result2 = [];
-        for (const fileOrFolderName of fileOrFolderNameSet) {
-          const relativeDir = directoryRelativeUrl(currentDir, logs.log_dir);
-          const relativePath = join(fileOrFolderName, relativeDir);
-          result2.push({
-            id: fileOrFolderName,
-            name: fileOrFolderName,
-            type: fileOrFolderName.endsWith(".json") || fileOrFolderName.endsWith(".eval") ? "file" : "folder",
-            url: logUrl(relativePath, logs.log_dir)
-          });
-        }
-        return result2;
+        return logItems2;
       }, [logPath, logs.files]);
-      const { page, itemsPerPage } = usePagination(currentDir);
       const pageItems = reactExports.useMemo(() => {
         const start2 = (page || 0) * itemsPerPage;
         const end2 = start2 + itemsPerPage;
-        return fileOrFolderNames.slice(start2, end2);
-      }, [fileOrFolderNames, page, itemsPerPage]);
+        return logItems.slice(start2, end2);
+      }, [logItems, page, itemsPerPage]);
+      reactExports.useEffect(() => {
+        const fileItems = pageItems.filter((item2) => item2.type === "file");
+        const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
+          return logHeaders[logFile.name] === void 0;
+        });
+        const exec2 = async () => {
+          const headers = await loadHeaders(logFiles);
+          if (headers) {
+            const updatedHeaders = {};
+            headers.forEach((header2, index2) => {
+              const logFile = logFiles[index2];
+              updatedHeaders[logFile.name] = header2;
+            });
+            updateLogHeaders(updatedHeaders);
+          }
+        };
+        exec2();
+      }, [pageItems]);
       reactExports.useEffect(() => {
         const exec2 = async () => {
           await loadLogs();
@@ -50938,7 +50992,7 @@ categories: ${categories.join(" ")}`;
           LogListFooter,
           {
             logDir: currentDir,
-            itemCount: fileOrFolderNames.length,
+            itemCount: logItems.length,
             running: loading
           }
         )

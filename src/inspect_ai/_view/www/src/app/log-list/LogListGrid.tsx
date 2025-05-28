@@ -12,6 +12,7 @@ import clsx from "clsx";
 import { FC, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { useStore } from "../../state/store";
 import { ApplicationIcons } from "../appearance/icons";
 import { LogItem } from "./LogItem";
 import styles from "./LogListGrid.module.css";
@@ -27,6 +28,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [filtering, setFiltering] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+
+  const logHeaders = useStore((state) => state.logs.logHeaders);
 
   const columns = useMemo(
     () => [
@@ -48,6 +51,26 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         enableGlobalFilter: false,
         size: 40,
       }),
+      columnHelper.display({
+        id: "task",
+        header: "Task",
+        cell: (info) => {
+          const item = info.row.original;
+          const logFile = item.logFile;
+          if (!logFile) {
+            return <div className={styles.typeCell}>{item.name}</div>;
+          }
+
+          const headerInfo = logHeaders[logFile.name || ""];
+          if (!headerInfo) {
+            return <div className={styles.typeCell}>Loading...</div>;
+          }
+          return <div className={styles.typeCell}>{headerInfo.eval.task}</div>;
+        },
+        enableSorting: true,
+        enableGlobalFilter: true,
+      }),
+
       columnHelper.accessor("name", {
         id: "name",
         header: "Name",
@@ -78,10 +101,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         ),
         enableSorting: true,
         enableGlobalFilter: true,
-        size: 80,
+        size: 40,
       }),
     ],
-    [],
+    [logHeaders],
   );
 
   const table = useReactTable({

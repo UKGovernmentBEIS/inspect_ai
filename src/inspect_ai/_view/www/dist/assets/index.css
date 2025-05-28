@@ -16058,13 +16058,13 @@ a._citationLink_t2k1z_9:hover {
 
 ._item_1jvk9_9:not(.disabled) {
     cursor: pointer;
-}._gridContainer_1j0jy_1 {
+}._gridContainer_15552_1 {
   height: 100%;
   overflow: auto;
   padding: 0;
 }
 
-._grid_1j0jy_1 {
+._grid_15552_1 {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
@@ -16072,9 +16072,9 @@ a._citationLink_t2k1z_9:hover {
 }
 
 /* Header Styles */
-._headerRow_1j0jy_15 {
+._headerRow_15552_15 {
   display: grid;
-  grid-template-columns: 40px 1fr 80px;
+  grid-template-columns: 40px 0.5fr 1fr 40px;
   column-gap: 0.5em;
   background: var(--bs-gray-100);
   border-bottom: 1px solid var(--bs-border-color);
@@ -16083,7 +16083,7 @@ a._citationLink_t2k1z_9:hover {
   z-index: 1;
 }
 
-._headerCell_1j0jy_26 {
+._headerCell_15552_26 {
   padding: 0.5em 0.25em;
   font-weight: 600;
   font-size: 0.875rem;
@@ -16094,49 +16094,49 @@ a._citationLink_t2k1z_9:hover {
   border-right: 1px solid var(--bs-border-color-translucent);
 }
 
-._headerCell_1j0jy_26:last-child {
+._headerCell_15552_26:last-child {
   border-right: none;
 }
 
-._sortable_1j0jy_41 {
+._sortable_15552_41 {
   cursor: pointer;
   user-select: none;
 }
 
-._sortable_1j0jy_41:hover {
+._sortable_15552_41:hover {
   background: var(--bs-gray-200);
 }
 
-._sortIndicator_1j0jy_50 {
+._sortIndicator_15552_50 {
   margin-left: 0.25em;
   font-size: 0.75rem;
   color: var(--bs-primary);
 }
 
 /* Body Styles */
-._bodyContainer_1j0jy_57 {
+._bodyContainer_15552_57 {
   overflow-y: auto;
   min-height: 0;
 }
 
-._bodyRow_1j0jy_62 {
+._bodyRow_15552_62 {
   display: grid;
-  grid-template-columns: 40px 1fr 80px;
+  grid-template-columns: 40px 0.5fr 1fr 40px;
   column-gap: 0.5em;
   border-bottom: 1px solid var(--bs-border-color-translucent);
   transition: background-color 0.15s ease-in-out;
 }
 
-._bodyRow_1j0jy_62:hover {
+._bodyRow_15552_62:hover {
   background: var(--bs-gray-50);
 }
 
-._bodyRow_1j0jy_62:last-child {
+._bodyRow_15552_62:last-child {
   border-bottom: none;
 }
 
 /* Cell Styles */
-._bodyCell_1j0jy_79 {
+._bodyCell_15552_79 {
   padding: 0.5em 0.25em;
   display: flex;
   align-items: center;
@@ -16144,11 +16144,11 @@ a._citationLink_t2k1z_9:hover {
   min-height: 2.5em;
 }
 
-._bodyCell_1j0jy_79:last-child {
+._bodyCell_15552_79:last-child {
   border-right: none;
 }
 
-._iconCell_1j0jy_91 {
+._iconCell_15552_91 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16156,14 +16156,14 @@ a._citationLink_t2k1z_9:hover {
   color: var(--bs-gray-600);
 }
 
-._nameCell_1j0jy_99 {
+._nameCell_15552_99 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._logLink_1j0jy_106 {
+._logLink_15552_106 {
   color: var(--bs-link-color);
   text-decoration: none;
   overflow: hidden;
@@ -16172,55 +16172,54 @@ a._citationLink_t2k1z_9:hover {
   max-width: 100%;
 }
 
-._logLink_1j0jy_106:hover {
+._logLink_15552_106:hover {
   color: var(--bs-link-hover-color);
   text-decoration: underline;
 }
 
-._typeCell_1j0jy_120 {
+._typeCell_15552_120 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
-  text-transform: capitalize;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  ._headerRow_1j0jy_15,
-  ._bodyRow_1j0jy_62 {
+  ._headerRow_15552_15,
+  ._bodyRow_15552_62 {
     grid-template-columns: 40px 1fr;
   }
 
-  ._typeCell_1j0jy_120 {
+  ._typeCell_15552_120 {
     display: none;
   }
 }
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-  ._headerRow_1j0jy_15 {
+  ._headerRow_15552_15 {
     background: var(--bs-dark);
     border-bottom-color: var(--bs-gray-700);
   }
 
-  ._headerCell_1j0jy_26 {
+  ._headerCell_15552_26 {
     color: var(--bs-gray-300);
   }
 
-  ._sortable_1j0jy_41:hover {
+  ._sortable_15552_41:hover {
     background: var(--bs-gray-800);
   }
 
-  ._bodyRow_1j0jy_62:hover {
+  ._bodyRow_15552_62:hover {
     background: var(--bs-gray-900);
   }
 
-  ._bodyCell_1j0jy_79 {
+  ._bodyCell_15552_79 {
     border-right-color: var(--bs-gray-700);
   }
 
-  ._bodyRow_1j0jy_62 {
+  ._bodyRow_15552_62 {
     border-bottom-color: var(--bs-gray-700);
   }
 }
