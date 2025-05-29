@@ -50803,8 +50803,7 @@ categories: ${categories.join(" ")}`;
     const LogListGrid = ({ items }) => {
       var _a2;
       const [sorting, setSorting] = reactExports.useState([
-        { id: "icon", desc: true },
-        { id: "task", desc: false }
+        { id: "icon", desc: true }
       ]);
       const [filtering, setFiltering] = reactExports.useState([]);
       const [globalFilter, setGlobalFilter] = reactExports.useState("");

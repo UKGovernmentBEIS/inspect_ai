@@ -34,7 +34,6 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   // TODO: Convert to store state
   const [sorting, setSorting] = useState<SortingState>([
     { id: "icon", desc: true },
-    { id: "task", desc: false },
   ]);
   const [filtering, setFiltering] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
