@@ -23,7 +23,7 @@ class ContentText(ContentBase):
     format: Literal["markdown", "json"] | None = Field(default=None)
     """Format of the text content. Default is 'markdown'"""
 
-    citations: Sequence[object] | None = Field(default=None)
+    citations: Sequence[dict[str, JsonValue]] | None = Field(default=None)
     """Citations supporting the text block."""
 
 

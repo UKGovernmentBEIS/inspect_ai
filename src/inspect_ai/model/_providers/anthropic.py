@@ -23,6 +23,7 @@ from anthropic.types import (
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
     ServerToolUseBlock,
+    ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
     ThinkingBlock,
@@ -34,6 +35,7 @@ from anthropic.types import (
     ToolUseBlockParam,
     WebSearchTool20250305Param,
     WebSearchToolResultBlock,
+    WebSearchToolResultBlockParam,
     message_create_params,
 )
 from anthropic.types.beta import (
@@ -46,6 +48,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -832,17 +835,15 @@ async def model_output_from_message(
                 content_text = content_text.replace("<result>", "").replace(
                     "</result>", ""
                 )
-            foo = content_block.model_dump()["citations"]
-            # foo = (
-            #     json.loads(json.dumps(content_block.citations))
-            #     if content_block.citations
-            #     else None
-            # )
             content.append(
                 ContentText(
                     type="text",
                     text=content_text,
-                    citations=foo if content_block.citations else None,
+                    citations=(
+                        [citation.model_dump() for citation in content_block.citations]
+                        if content_block.citations
+                        else None
+                    ),
                 )
             )
         elif isinstance(content_block, ToolUseBlock):
@@ -856,13 +857,16 @@ async def model_output_from_message(
                     internal=internal_name,
                 )
             )
-        elif isinstance(content_block, ServerToolUseBlock | WebSearchToolResultBlock):
-            print(content_block)
-            content.append(
-                ContentText(
-                    type="text", format="json", text=content_block.model_dump_json()
-                )
-            )
+        elif isinstance(content_block, ServerToolUseBlock):
+            # TODO
+            # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
+            v1 = ServerToolUseBlock.model_validate(content_block.model_dump())
+            content.append(ContentData(data=v1.model_dump()))
+        elif isinstance(content_block, WebSearchToolResultBlock):
+            # TODO
+            # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
+            v2 = WebSearchToolResultBlock.model_validate(content_block.model_dump())
+            content.append(ContentData(data=v2.model_dump()))
         elif isinstance(content_block, RedactedThinkingBlock):
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
@@ -969,7 +973,14 @@ def split_system_messages(
 
 async def message_param_content(
     content: Content,
-) -> TextBlockParam | ImageBlockParam | ThinkingBlockParam | RedactedThinkingBlockParam:
+) -> (
+    TextBlockParam
+    | ImageBlockParam
+    | ThinkingBlockParam
+    | RedactedThinkingBlockParam
+    | ServerToolUseBlockParam
+    | WebSearchToolResultBlockParam
+):
     if isinstance(content, ContentText):
         return TextBlockParam(type="text", text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
@@ -999,6 +1010,15 @@ async def message_param_content(
             return ThinkingBlockParam(
                 type="thinking", thinking=content.reasoning, signature=content.signature
             )
+    elif isinstance(content, ContentData):
+        match content.data.get("type", None):
+            case "server_tool_use":
+                v1 = ServerToolUseBlock.model_validate(content.data)
+                return cast(ServerToolUseBlockParam, v1.model_dump())
+            case "web_search_tool_result":
+                v2 = WebSearchToolResultBlock.model_validate(content.data)
+                return cast(WebSearchToolResultBlockParam, v2.model_dump())
+        raise NotImplementedError()
     else:
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."
