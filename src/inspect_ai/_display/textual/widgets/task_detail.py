@@ -30,6 +30,8 @@ class TaskDetail(Widget):
         width: 100%;
         height: auto;
         grid-gutter: 1 3;
+        grid-size-columns: 3;
+        grid-columns: 1fr 1fr 1fr;
     }
     """
 
@@ -92,20 +94,6 @@ class TaskDetail(Widget):
         if len(self.by_reducer) == 0:
             return
 
-        # Compute the row and column count
-        row_count = len(self.by_reducer)
-        col_count = len(next(iter(self.by_reducer.values())))
-
-        # If this can fit in a single row, make it fit
-        # otherwise place each reducer on their own row
-        self.grid.styles.grid_columns = "auto"
-        if row_count * col_count < 4:
-            self.grid.styles.grid_size_columns = row_count * col_count
-            self.grid.styles.grid_size_rows = 1
-        else:
-            self.grid.styles.grid_size_columns = col_count
-            self.grid.styles.grid_size_rows = row_count
-
         # In order to reduce flashing the below tracks use of widgets
         # and updates them when possible (removing and adding them as needed)
         # Makes keys for tracking Task Metric widgets
@@ -142,6 +130,7 @@ class TaskMetrics(Widget):
     TaskMetrics {
         width: auto;
         height: auto;
+        border: solid $foreground 20%;
     }
     TaskMetrics Grid {
         width: auto;
