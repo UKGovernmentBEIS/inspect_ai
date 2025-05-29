@@ -11,7 +11,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import clsx from "clsx";
-import { FC, useMemo, useState } from "react";
+import { FC, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { firstMetric } from "../../../scoring/metrics";
@@ -45,6 +45,19 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   );
 
   const logHeaders = useStore((state) => state.logs.logHeaders);
+
+  const itemName = useCallback((item: FileLogItem | FolderLogItem) => {
+    let value = item.name;
+    if (item.type === "file") {
+      if (logHeaders[item.logFile?.name || ""]?.eval.task) {
+        value = logHeaders[item.logFile?.name || ""].eval.task;
+      } else {
+        const parsed = parseLogFileName(item.name);
+        value = parsed.name;
+      }
+    }
+    return value;
+  }, []);
 
   const columns = useMemo(
     () => [
@@ -80,12 +93,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         header: "Task",
         cell: (info) => {
           const item = info.row.original as FileLogItem | FolderLogItem;
-          let value = item.name;
-          if (item.type === "file") {
-            const parsed = parseLogFileName(item.name);
-            value = parsed.name;
-          }
-
+          let value = itemName(item);
           return (
             <div className={styles.nameCell}>
               {item.url ? (
@@ -107,14 +115,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
           const itemA = rowA.original as FileLogItem | FolderLogItem;
           const itemB = rowB.original as FileLogItem | FolderLogItem;
 
-          const valueA =
-            itemA.type === "file"
-              ? parseLogFileName(itemA.name).name
-              : itemA.name;
-          const valueB =
-            itemB.type === "file"
-              ? parseLogFileName(itemB.name).name
-              : itemB.name;
+          const valueA = itemName(itemA);
+          const valueB = itemName(itemB);
 
           return valueA.localeCompare(valueB);
         },

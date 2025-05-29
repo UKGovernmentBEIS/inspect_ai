@@ -80,7 +80,10 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
         const relativePath = directoryRelativeUrl(name, currentDir);
 
         const fileOrFolderName = decodeURIComponent(rootName(relativePath));
-        const path = join(relativePath, decodeURIComponent(dirName));
+        const path = join(
+          decodeURIComponent(relativePath),
+          decodeURIComponent(dirName),
+        );
 
         logItems.push({
           id: fileOrFolderName,

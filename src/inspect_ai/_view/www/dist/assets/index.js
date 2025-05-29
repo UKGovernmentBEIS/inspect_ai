@@ -50813,6 +50813,19 @@ categories: ${categories.join(" ")}`;
         kDefaultPageSize
       );
       const logHeaders = useStore((state) => state.logs.logHeaders);
+      const itemName = reactExports.useCallback((item2) => {
+        var _a3, _b2, _c;
+        let value2 = item2.name;
+        if (item2.type === "file") {
+          if ((_b2 = logHeaders[((_a3 = item2.logFile) == null ? void 0 : _a3.name) || ""]) == null ? void 0 : _b2.eval.task) {
+            value2 = logHeaders[((_c = item2.logFile) == null ? void 0 : _c.name) || ""].eval.task;
+          } else {
+            const parsed = parseLogFileName(item2.name);
+            value2 = parsed.name;
+          }
+        }
+        return value2;
+      }, []);
       const columns = reactExports.useMemo(
         () => [
           columnHelper.accessor("type", {
@@ -50843,11 +50856,7 @@ categories: ${categories.join(" ")}`;
             header: "Task",
             cell: (info) => {
               const item2 = info.row.original;
-              let value2 = item2.name;
-              if (item2.type === "file") {
-                const parsed = parseLogFileName(item2.name);
-                value2 = parsed.name;
-              }
+              let value2 = itemName(item2);
               return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$1b.logLink, children: value2 }) : value2 });
             },
             enableSorting: true,
@@ -50858,8 +50867,8 @@ categories: ${categories.join(" ")}`;
             sortingFn: (rowA, rowB) => {
               const itemA = rowA.original;
               const itemB = rowB.original;
-              const valueA = itemA.type === "file" ? parseLogFileName(itemA.name).name : itemA.name;
-              const valueB = itemB.type === "file" ? parseLogFileName(itemB.name).name : itemB.name;
+              const valueA = itemName(itemA);
+              const valueB = itemName(itemB);
               return valueA.localeCompare(valueB);
             }
           }),
@@ -51227,7 +51236,10 @@ categories: ${categories.join(" ")}`;
             const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
             const relativePath = directoryRelativeUrl(name2, currentDir);
             const fileOrFolderName = decodeURIComponent(rootName(relativePath));
-            const path = join(relativePath, decodeURIComponent(dirName));
+            const path = join(
+              decodeURIComponent(relativePath),
+              decodeURIComponent(dirName)
+            );
             logItems2.push({
               id: fileOrFolderName,
               name: fileOrFolderName,
