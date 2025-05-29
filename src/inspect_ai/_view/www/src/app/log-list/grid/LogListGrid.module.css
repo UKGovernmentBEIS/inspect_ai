@@ -25,7 +25,7 @@
 }
 
 .headerCell {
-  padding: 0.5em 0.25em;
+  padding: 0.1em 0.1em;
   font-weight: 600;
   font-size: 0.875rem;
   color: var(--bs-gray-700);
@@ -93,7 +93,6 @@
 .bodyRow {
   display: grid;
   column-gap: 0.5em;
-  border-bottom: 1px solid var(--bs-border-color-translucent);
   transition: background-color 0.15s ease-in-out;
   width: fit-content;
   min-width: 100%;
@@ -109,11 +108,9 @@
 
 /* Cell Styles */
 .bodyCell {
-  padding: 0.5em 0.25em;
+  padding: 0.1em 0.1em;
   display: flex;
   align-items: center;
-  border-right: 1px solid var(--bs-border-color-translucent);
-  min-height: 2.5em;
   box-sizing: border-box;
   overflow: hidden;
 }

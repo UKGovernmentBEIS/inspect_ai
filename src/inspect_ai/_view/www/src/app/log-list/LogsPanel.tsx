@@ -24,6 +24,7 @@ const rootName = (relativePath: string) => {
 };
 
 export const kLogsPaginationId = "logs-list-pagination";
+export const kDefaultPageSize = 40;
 
 interface LogsPanelProps {}
 
@@ -41,7 +42,10 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   );
 
   // Items that are in the current page
-  const { page, itemsPerPage } = usePagination(kLogsPaginationId);
+  const { page, itemsPerPage } = usePagination(
+    kLogsPaginationId,
+    kDefaultPageSize,
+  );
 
   const { logPath } = useParams<{
     logPath?: string;
@@ -72,14 +76,17 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
 
       if (isInDirectory(logFile.name, cleanDir)) {
         // This is a file within the current directory
+        const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
         const relativePath = directoryRelativeUrl(name, currentDir);
+
         const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+        const path = join(relativePath, decodeURIComponent(dirName));
 
         logItems.push({
           id: fileOrFolderName,
           name: fileOrFolderName,
           type: "file",
-          url: logUrl(fileOrFolderName, logs.log_dir),
+          url: logUrl(path, logs.log_dir),
           logFile: logFile,
         });
       } else if (name.startsWith(currentDir)) {
