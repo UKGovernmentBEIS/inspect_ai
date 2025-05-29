@@ -238,7 +238,17 @@ if limit_scope.limit_error:
 
 ```
 
-You can query how much of a limited resource has been used so far.
+### Checking Usage
+
+::: callout-note
+The `usage` property described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+You can query how much of a limited resource has been used so far via the `usage` property of a scoped limit. For example:
 
 ``` python
 with token_limit(10_000) as limit:
