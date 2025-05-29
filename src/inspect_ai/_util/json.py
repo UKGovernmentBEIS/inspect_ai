@@ -13,7 +13,7 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 
 
 def jsonable_python(x: Any) -> Any:
-        return to_jsonable_python(x, exclude_none=True, fallback=lambda _x: None)
+    return to_jsonable_python(x, exclude_none=True, fallback=lambda _x: None)
 
 
 def jsonable_dict(x: Any) -> dict[str, JsonValue]:

@@ -1,5 +1,4 @@
 import functools
-import json
 import os
 import re
 from copy import copy

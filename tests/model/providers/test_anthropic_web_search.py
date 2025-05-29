@@ -1,9 +1,6 @@
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from inspect_ai.model._providers.anthropic import _web_search_tool_param
-from inspect_ai.tool._tool_info import ToolInfo
 
 
 class TestAnthropicWebSearch:
