@@ -290,7 +290,7 @@ class TaskState:
         return self._tools
 
     @tools.setter
-    def tools(self, tools: list[Tool | ToolDef]) -> None:
+    def tools(self, tools: Sequence[Tool | ToolDef]) -> None:
         self._tools.clear()
         for tool in tools:
             self._tools.append(tool if isinstance(tool, Tool) else tool.as_tool())
