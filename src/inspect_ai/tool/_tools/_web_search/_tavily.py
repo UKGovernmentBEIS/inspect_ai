@@ -41,6 +41,9 @@ class TavilySearchResult(BaseModel):
     content: str
     score: float
 
+    def __str__(self) -> str:
+        return f"[{self.title}]({self.url}):\n{self.content}"
+
 
 class TavilySearchResponse(BaseModel):
     query: str
@@ -95,6 +98,10 @@ def tavily_search_provider(
             return response
 
         async with concurrency("tavily_web_search", max_connections):
-            return TavilySearchResponse.model_validate((await _search()).json()).answer
+            tavily_search_response = TavilySearchResponse.model_validate(
+                (await _search()).json()
+            )
+            result: str = f"Answer: {tavily_search_response.answer}\n\n{[str(result) for result in tavily_search_response.results]}"
+            return result
 
     return search
