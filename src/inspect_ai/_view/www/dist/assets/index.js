@@ -50748,6 +50748,24 @@ categories: ${categories.join(" ")}`;
         };
       });
     };
+    const kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
+    const parseLogFileName = (logFileName) => {
+      const match = logFileName.match(kLogFilePattern);
+      if (!match) {
+        return {
+          timestamp: void 0,
+          name: filename(logFileName),
+          taskId: void 0,
+          extension: logFileName.endsWith(".eval") ? "eval" : "json"
+        };
+      }
+      return {
+        timestamp: new Date(Date.parse(match[1])),
+        name: match[2],
+        taskId: match[3],
+        extension: match[4]
+      };
+    };
     const gridContainer = "_gridContainer_1emol_1";
     const grid$7 = "_grid_1emol_1";
     const headerRow = "_headerRow_1emol_15";
@@ -50823,9 +50841,12 @@ categories: ${categories.join(" ")}`;
             id: "task",
             header: "Task",
             cell: (info) => {
-              var _a3, _b2;
               const item2 = info.row.original;
-              const value2 = item2.type === "file" ? ((_b2 = logHeaders[((_a3 = item2.logFile) == null ? void 0 : _a3.name) || ""]) == null ? void 0 : _b2.eval.task) || item2.name : item2.name;
+              let value2 = item2.name;
+              if (item2.type === "file") {
+                const parsed = parseLogFileName(item2.name);
+                value2 = parsed.name;
+              }
               return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$1b.logLink, children: value2 }) : value2 });
             },
             enableSorting: true,
@@ -50834,11 +50855,10 @@ categories: ${categories.join(" ")}`;
             minSize: 150,
             enableResizing: true,
             sortingFn: (rowA, rowB) => {
-              var _a3, _b2, _c, _d;
               const itemA = rowA.original;
               const itemB = rowB.original;
-              const valueA = itemA.type === "file" ? ((_b2 = logHeaders[((_a3 = itemA.logFile) == null ? void 0 : _a3.name) || ""]) == null ? void 0 : _b2.eval.task) || itemA.name : itemA.name;
-              const valueB = itemB.type === "file" ? ((_d = logHeaders[((_c = itemB.logFile) == null ? void 0 : _c.name) || ""]) == null ? void 0 : _d.eval.task) || itemB.name : itemB.name;
+              const valueA = itemA.type === "file" ? parseLogFileName(itemA.name).name : itemA.name;
+              const valueB = itemB.type === "file" ? parseLogFileName(itemB.name).name : itemB.name;
               return valueA.localeCompare(valueB);
             }
           }),
