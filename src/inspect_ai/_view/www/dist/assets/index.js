@@ -47705,128 +47705,6 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
-    const footer$1 = "_footer_r5aa3_1";
-    const spinnerContainer$1 = "_spinnerContainer_r5aa3_11";
-    const spinner$2 = "_spinner_r5aa3_11";
-    const label$8 = "_label_r5aa3_25";
-    const right$1 = "_right_r5aa3_30";
-    const left$1 = "_left_r5aa3_38";
-    const styles$1b = {
-      footer: footer$1,
-      spinnerContainer: spinnerContainer$1,
-      spinner: spinner$2,
-      label: label$8,
-      right: right$1,
-      left: left$1
-    };
-    const pager = "_pager_as2da_1";
-    const item$3 = "_item_as2da_8";
-    const styles$1a = {
-      pager,
-      item: item$3
-    };
-    const LogPager = ({ itemCount }) => {
-      const { page, itemsPerPage, setPage } = usePagination(kLogsPaginationId);
-      const pageCount = Math.ceil(itemCount / itemsPerPage);
-      const currentPage = page || 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { "aria-label": "Log Pagination", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: clsx("pagination", styles$1a.pager), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "li",
-          {
-            className: clsx(
-              "page-item",
-              currentPage === 0 ? "disabled" : "",
-              styles$1a.item
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "a",
-              {
-                className: clsx("page-link"),
-                onClick: () => {
-                  if (currentPage > 0) {
-                    setPage(currentPage - 1);
-                  }
-                },
-                children: "Previous"
-              }
-            )
-          }
-        ),
-        Array.from({ length: pageCount }, (_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "li",
-          {
-            className: clsx(
-              "page-item",
-              index2 === currentPage ? "active" : void 0,
-              styles$1a.item
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "a",
-              {
-                className: clsx("page-link"),
-                onClick: () => {
-                  setPage(index2);
-                },
-                children: index2 + 1
-              }
-            )
-          },
-          index2
-        )),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "li",
-          {
-            className: clsx(
-              "page-item",
-              currentPage + 1 >= pageCount ? "disabled" : "",
-              styles$1a.item
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "a",
-              {
-                className: clsx("page-link"),
-                onClick: () => {
-                  if (currentPage < pageCount) {
-                    setPage(currentPage + 1);
-                  }
-                },
-                children: "Next"
-              }
-            )
-          }
-        )
-      ] }) });
-    };
-    const LogListFooter = ({
-      itemCount,
-      running: running2,
-      logDir
-    }) => {
-      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
-      const pageItemCount = Math.min(
-        itemsPerPage,
-        itemCount - (page || 0) * itemsPerPage
-      );
-      const startItem = (page || 0) * itemsPerPage + 1;
-      const endItem = startItem + pageItemCount - 1;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$1b.footer), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1b.left), children: [
-          running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1b.spinnerContainer), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx("spinner-border", styles$1b.spinner),
-                role: "status",
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$1b.label), children: "running..." })
-          ] }) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1b.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) })
-      ] });
-    };
     /**
        * table-core
        *
@@ -50886,7 +50764,7 @@ categories: ${categories.join(" ")}`;
     const nameCell = "_nameCell_1emol_133";
     const logLink$1 = "_logLink_1emol_140";
     const typeCell = "_typeCell_1emol_154";
-    const styles$19 = {
+    const styles$1b = {
       gridContainer,
       grid: grid$7,
       headerRow,
@@ -50921,7 +50799,7 @@ categories: ${categories.join(" ")}`;
           columnHelper.accessor("type", {
             id: "icon",
             header: "",
-            cell: (info) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.iconCell, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            cell: (info) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.iconCell, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               "i",
               {
                 className: clsx(
@@ -50948,7 +50826,7 @@ categories: ${categories.join(" ")}`;
               var _a3, _b2;
               const item2 = info.row.original;
               const value2 = item2.type === "file" ? ((_b2 = logHeaders[((_a3 = item2.logFile) == null ? void 0 : _a3.name) || ""]) == null ? void 0 : _b2.eval.task) || item2.name : item2.name;
-              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$19.logLink, children: value2 }) : value2 });
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$1b.logLink, children: value2 }) : value2 });
             },
             enableSorting: true,
             enableGlobalFilter: true,
@@ -50978,7 +50856,7 @@ categories: ${categories.join(" ")}`;
                 hour: "2-digit",
                 minute: "2-digit"
               })}` : "";
-              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: timeStr });
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.nameCell, children: timeStr });
             },
             enableSorting: true,
             enableGlobalFilter: true,
@@ -50994,7 +50872,7 @@ categories: ${categories.join(" ")}`;
               var _a3;
               const item2 = info.row.original;
               const header2 = item2.type === "file" ? logHeaders[((_a3 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a3.name) || ""] : void 0;
-              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: (header2 == null ? void 0 : header2.eval.model) || "" });
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.nameCell, children: (header2 == null ? void 0 : header2.eval.model) || "" });
             },
             sortingFn: (rowA, rowB) => {
               var _a3, _b2;
@@ -51024,7 +50902,7 @@ categories: ${categories.join(" ")}`;
               if (!metric2) {
                 return emptyCell();
               }
-              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.typeCell, children: metric2 ? formatPrettyDecimal(metric2.value) : "" });
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.typeCell, children: metric2 ? formatPrettyDecimal(metric2.value) : "" });
             },
             sortingFn: (rowA, rowB) => {
               var _a3, _b2;
@@ -51069,11 +50947,11 @@ categories: ${categories.join(" ")}`;
         getPaginationRowModel: getPaginationRowModel(),
         enableColumnResizing: true
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.grid, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1b.grid, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: styles$19.headerRow,
+            className: styles$1b.headerRow,
             style: {
               gridTemplateColumns: ((_a2 = table2.getHeaderGroups()[0]) == null ? void 0 : _a2.headers.map((header2) => `${header2.getSize()}px`).join(" ")) || "40px 0.5fr 0.25fr 0.25fr 0.1fr"
             },
@@ -51081,9 +50959,9 @@ categories: ${categories.join(" ")}`;
               (headerGroup) => headerGroup.headers.map((header2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
                 {
-                  className: clsx(styles$19.headerCell, {
-                    [styles$19.sortable]: header2.column.getCanSort(),
-                    [styles$19.resizing]: header2.column.getIsResizing()
+                  className: clsx(styles$1b.headerCell, {
+                    [styles$1b.sortable]: header2.column.getCanSort(),
+                    [styles$1b.resizing]: header2.column.getIsResizing()
                   }),
                   onClick: (event) => {
                     var _a3;
@@ -51101,7 +50979,7 @@ categories: ${categories.join(" ")}`;
                       header2.column.columnDef.header,
                       header2.getContext()
                     ),
-                    header2.column.getCanSort() && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$19.sortIndicator, children: {
+                    header2.column.getCanSort() && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$1b.sortIndicator, children: {
                       asc: " ↑",
                       desc: " ↓"
                     }[header2.column.getIsSorted()] ?? "" }),
@@ -51119,8 +50997,8 @@ categories: ${categories.join(" ")}`;
                         onClick: (e) => {
                           e.stopPropagation();
                         },
-                        className: clsx(styles$19.resizer, {
-                          [styles$19.isResizing]: header2.column.getIsResizing()
+                        className: clsx(styles$1b.resizer, {
+                          [styles$1b.isResizing]: header2.column.getIsResizing()
                         })
                       }
                     )
@@ -51131,10 +51009,10 @@ categories: ${categories.join(" ")}`;
             )
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.bodyContainer, children: table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.bodyContainer, children: table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: styles$19.bodyRow,
+            className: styles$1b.bodyRow,
             style: {
               gridTemplateColumns: row2.getVisibleCells().map((cell2) => `${cell2.column.getSize()}px`).join(" ")
             },
@@ -51142,8 +51020,8 @@ categories: ${categories.join(" ")}`;
               "div",
               {
                 className: clsx(
-                  styles$19.bodyCell,
-                  styles$19[`${cell2.column.id}Cell`]
+                  styles$1b.bodyCell,
+                  styles$1b[`${cell2.column.id}Cell`]
                 ),
                 style: {
                   width: cell2.column.getSize()
@@ -51158,7 +51036,129 @@ categories: ${categories.join(" ")}`;
       ] }) });
     };
     const emptyCell = () => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.emptyCell, children: "-" });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.emptyCell, children: "-" });
+    };
+    const footer$1 = "_footer_r5aa3_1";
+    const spinnerContainer$1 = "_spinnerContainer_r5aa3_11";
+    const spinner$2 = "_spinner_r5aa3_11";
+    const label$8 = "_label_r5aa3_25";
+    const right$1 = "_right_r5aa3_30";
+    const left$1 = "_left_r5aa3_38";
+    const styles$1a = {
+      footer: footer$1,
+      spinnerContainer: spinnerContainer$1,
+      spinner: spinner$2,
+      label: label$8,
+      right: right$1,
+      left: left$1
+    };
+    const pager = "_pager_as2da_1";
+    const item$3 = "_item_as2da_8";
+    const styles$19 = {
+      pager,
+      item: item$3
+    };
+    const LogPager = ({ itemCount }) => {
+      const { page, itemsPerPage, setPage } = usePagination(kLogsPaginationId);
+      const pageCount = Math.ceil(itemCount / itemsPerPage);
+      const currentPage = page || 0;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { "aria-label": "Log Pagination", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: clsx("pagination", styles$19.pager), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
+          {
+            className: clsx(
+              "page-item",
+              currentPage === 0 ? "disabled" : "",
+              styles$19.item
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                className: clsx("page-link"),
+                onClick: () => {
+                  if (currentPage > 0) {
+                    setPage(currentPage - 1);
+                  }
+                },
+                children: "Previous"
+              }
+            )
+          }
+        ),
+        Array.from({ length: pageCount }, (_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
+          {
+            className: clsx(
+              "page-item",
+              index2 === currentPage ? "active" : void 0,
+              styles$19.item
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                className: clsx("page-link"),
+                onClick: () => {
+                  setPage(index2);
+                },
+                children: index2 + 1
+              }
+            )
+          },
+          index2
+        )),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
+          {
+            className: clsx(
+              "page-item",
+              currentPage + 1 >= pageCount ? "disabled" : "",
+              styles$19.item
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                className: clsx("page-link"),
+                onClick: () => {
+                  if (currentPage < pageCount) {
+                    setPage(currentPage + 1);
+                  }
+                },
+                children: "Next"
+              }
+            )
+          }
+        )
+      ] }) });
+    };
+    const LogListFooter = ({
+      itemCount,
+      running: running2,
+      logDir
+    }) => {
+      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
+      const pageItemCount = Math.min(
+        itemsPerPage,
+        itemCount - (page || 0) * itemsPerPage
+      );
+      const startItem = (page || 0) * itemsPerPage + 1;
+      const endItem = startItem + pageItemCount - 1;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$1a.footer), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1a.left), children: [
+          running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1a.spinnerContainer), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx("spinner-border", styles$1a.spinner),
+                role: "status",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$1a.label), children: "running..." })
+          ] }) : void 0,
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1a.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) })
+      ] });
     };
     const panel$3 = "_panel_18nhs_1";
     const list$1 = "_list_18nhs_8";

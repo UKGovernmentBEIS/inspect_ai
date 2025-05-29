@@ -10,9 +10,9 @@ import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl } from "../routing/url";
+import { LogListGrid } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
-import { LogListGrid } from "./LogListGrid";
 import styles from "./LogsPanel.module.css";
 
 const rootName = (relativePath: string) => {

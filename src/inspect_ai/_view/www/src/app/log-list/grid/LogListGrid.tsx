@@ -14,14 +14,14 @@ import clsx from "clsx";
 import { FC, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { firstMetric } from "../../scoring/metrics";
-import { usePagination } from "../../state/hooks";
-import { useStore } from "../../state/store";
-import { formatPrettyDecimal } from "../../utils/format";
-import { ApplicationIcons } from "../appearance/icons";
-import { FileLogItem, FolderLogItem } from "./LogItem";
+import { firstMetric } from "../../../scoring/metrics";
+import { usePagination } from "../../../state/hooks";
+import { useStore } from "../../../state/store";
+import { formatPrettyDecimal } from "../../../utils/format";
+import { ApplicationIcons } from "../../appearance/icons";
+import { FileLogItem, FolderLogItem } from "../LogItem";
+import { kLogsPaginationId } from "../LogsPanel";
 import styles from "./LogListGrid.module.css";
-import { kLogsPaginationId } from "./LogsPanel";
 
 interface LogListGridProps {
   items: Array<FileLogItem | FolderLogItem>;

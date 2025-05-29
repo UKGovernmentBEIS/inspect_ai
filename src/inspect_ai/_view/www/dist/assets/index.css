@@ -16004,60 +16004,6 @@ a._citationLink_t2k1z_9:hover {
 ._breadcrumbs_fev74_11 {
   margin-bottom: 0;
 }
-._footer_r5aa3_1 {
-  border-top: solid var(--bs-light-border-subtle) 1px;
-  background: var(--bs-light-bg-subtle);
-  display: grid;
-  grid-template-columns: max-content max-content;
-  justify-content: space-between;
-
-  padding: 0.2em 1em;
-}
-
-._spinnerContainer_r5aa3_11 {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 0.3em;
-  padding-top: 0.2em;
-}
-
-._spinner_r5aa3_11 {
-  height: 11px;
-  width: 11px;
-  color: var(--bs-secondary);
-  border-width: 1px;
-}
-
-._label_r5aa3_25 {
-  margin-left: 0.1em;
-  margin-top: -3px;
-}
-
-._right_r5aa3_30 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, max-content);
-  justify-content: end;
-  align-items: center;
-  column-gap: 0.5em;
-}
-
-._left_r5aa3_38 {
-  display: grid;
-  justify-content: start;
-  align-items: center;
-  grid-template-columns: repeat(auto-fit, max-content);
-  column-gap: 0.5em;
-}
-._pager_as2da_1 {
-  --bs-pagination-padding-x: 0.5em;
-  --bs-pagination-padding-y: 0.15em;
-  --bs-pagination-font-size: 0.8rem;
-  margin-bottom: 0;
-}
-
-._item_as2da_8:not(.disabled) {
-  cursor: pointer;
-}
 ._gridContainer_1emol_1 {
   height: 100%;
   overflow: auto;
@@ -16251,6 +16197,60 @@ a._citationLink_t2k1z_9:hover {
   ._bodyRow_1emol_93 {
     border-bottom-color: var(--bs-gray-700);
   }
+}
+._footer_r5aa3_1 {
+  border-top: solid var(--bs-light-border-subtle) 1px;
+  background: var(--bs-light-bg-subtle);
+  display: grid;
+  grid-template-columns: max-content max-content;
+  justify-content: space-between;
+
+  padding: 0.2em 1em;
+}
+
+._spinnerContainer_r5aa3_11 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+  padding-top: 0.2em;
+}
+
+._spinner_r5aa3_11 {
+  height: 11px;
+  width: 11px;
+  color: var(--bs-secondary);
+  border-width: 1px;
+}
+
+._label_r5aa3_25 {
+  margin-left: 0.1em;
+  margin-top: -3px;
+}
+
+._right_r5aa3_30 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, max-content);
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+._left_r5aa3_38 {
+  display: grid;
+  justify-content: start;
+  align-items: center;
+  grid-template-columns: repeat(auto-fit, max-content);
+  column-gap: 0.5em;
+}
+._pager_as2da_1 {
+  --bs-pagination-padding-x: 0.5em;
+  --bs-pagination-padding-y: 0.15em;
+  --bs-pagination-font-size: 0.8rem;
+  margin-bottom: 0;
+}
+
+._item_as2da_8:not(.disabled) {
+  cursor: pointer;
 }
 ._panel_18nhs_1 {
   height: 100vh;
