@@ -1,6 +1,7 @@
 ## Unreleased
 
 - [time_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#time-limit) and [working_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#working-limit) context managers for scoped application of time limits.
+- Abiliy to query current usage for scoped limits (e.g. time or tokens).
 - Added native OpenAI web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
 - Limit `docker compose` concurrency to 2 * os.cpu_count() by default (override with `INSPECT_DOCKER_CLI_CONCURRENCY`).
 - ReAct agent: Only send custom `on_continue` message to the model if the model made no tool calls.
