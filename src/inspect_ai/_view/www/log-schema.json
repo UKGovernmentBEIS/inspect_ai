@@ -656,6 +656,17 @@
     "ContentAudio": {
       "description": "Audio content.",
       "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "audio",
           "default": "audio",
@@ -676,6 +687,7 @@
         }
       },
       "required": [
+        "internal",
         "type",
         "audio",
         "format"
@@ -687,6 +699,17 @@
     "ContentImage": {
       "description": "Image content.",
       "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "image",
           "default": "image",
@@ -709,6 +732,7 @@
         }
       },
       "required": [
+        "internal",
         "type",
         "image",
         "detail"
@@ -720,6 +744,17 @@
     "ContentReasoning": {
       "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.",
       "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "reasoning",
           "default": "reasoning",
@@ -749,6 +784,7 @@
         }
       },
       "required": [
+        "internal",
         "type",
         "reasoning",
         "signature",
@@ -761,6 +797,17 @@
     "ContentText": {
       "description": "Text content.",
       "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "text",
           "default": "text",
@@ -785,6 +832,7 @@
         }
       },
       "required": [
+        "internal",
         "type",
         "text",
         "refusal"
@@ -796,6 +844,17 @@
     "ContentVideo": {
       "description": "Video content.",
       "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "video",
           "default": "video",
@@ -817,6 +876,7 @@
         }
       },
       "required": [
+        "internal",
         "type",
         "video",
         "format"

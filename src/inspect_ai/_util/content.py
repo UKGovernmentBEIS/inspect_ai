@@ -1,9 +1,14 @@
 from typing import Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 
 
-class ContentText(BaseModel):
+class ContentBase(BaseModel):
+    internal: JsonValue | None = Field(default=None)
+    """Model provider specific payload - typically used to aid transformation back to model types."""
+
+
+class ContentText(ContentBase):
     """Text content."""
 
     type: Literal["text"] = Field(default="text")
@@ -16,7 +21,7 @@ class ContentText(BaseModel):
     """Was this a refusal message?"""
 
 
-class ContentReasoning(BaseModel):
+class ContentReasoning(ContentBase):
     """Reasoning content.
 
     See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
@@ -35,7 +40,7 @@ class ContentReasoning(BaseModel):
     """Indicates that the explicit content of this reasoning block has been redacted."""
 
 
-class ContentImage(BaseModel):
+class ContentImage(ContentBase):
     """Image content."""
 
     type: Literal["image"] = Field(default="image")
@@ -51,7 +56,7 @@ class ContentImage(BaseModel):
     """
 
 
-class ContentAudio(BaseModel):
+class ContentAudio(ContentBase):
     """Audio content."""
 
     type: Literal["audio"] = Field(default="audio")
@@ -64,7 +69,7 @@ class ContentAudio(BaseModel):
     """Format of audio data ('mp3' or 'wav')"""
 
 
-class ContentVideo(BaseModel):
+class ContentVideo(ContentBase):
     """Video content."""
 
     type: Literal["video"] = Field(default="video")

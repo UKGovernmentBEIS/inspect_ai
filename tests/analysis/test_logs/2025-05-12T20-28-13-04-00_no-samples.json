@@ -1,0 +1,148 @@
+{
+  "version": 2,
+  "status": "cancelled",
+  "eval": {
+    "eval_id": "SnKtvCqGnnegLQ7qSBFDzy",
+    "run_id": "8KyCuAQSqp76qKQZEKmG6P",
+    "created": "2025-05-12T20:28:13-04:00",
+    "task": "testtaskname",
+    "task_id": "TtTeKV9GPJi8gTfN3Garu6",
+    "task_version": 0,
+    "task_file": "examples/testtaskname.py",
+    "task_registry_name": "testtaskname",
+    "task_attribs": {},
+    "task_args": {},
+    "dataset": {
+      "name": "testtaskname",
+      "location": "example://testtaskname",
+      "samples": 100,
+      "sample_ids": [
+        1,
+        2,
+        3
+      ],
+      "shuffled": false
+    },
+    "model": "openai/gpt-4o-mini",
+    "model_generate_config": {},
+    "model_args": {},
+    "model_roles": {},
+    "config": {
+      "limit": 3,
+      "epochs": 1,
+      "epochs_reducer": [
+        "mean"
+      ],
+      "fail_on_error": true,
+      "sandbox_cleanup": true,
+      "log_samples": true,
+      "log_realtime": true,
+      "log_images": true,
+      "log_shared": 0,
+      "score_display": true
+    },
+    "revision": {
+      "type": "git",
+      "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+      "commit": "e9a9d7161"
+    },
+    "packages": {
+      "inspect_ai": "0.3.95.dev16+g6527d0861"
+    },
+    "scorers": [
+      {
+        "name": "match",
+        "options": {},
+        "metrics": [
+          {
+            "name": "inspect_ai/accuracy",
+            "options": {}
+          },
+          {
+            "name": "inspect_ai/stderr",
+            "options": {}
+          }
+        ],
+        "metadata": {}
+      }
+    ]
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "system_message",
+        "params": {
+          "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+        }
+      },
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {}
+  },
+  "results": {
+    "total_samples": 3,
+    "completed_samples": 3,
+    "scores": [
+      {
+        "name": "match",
+        "scorer": "match",
+        "params": {},
+        "metrics": {
+          "accuracy": {
+            "name": "accuracy",
+            "value": 0.6666666666666666,
+            "params": {}
+          },
+          "stderr": {
+            "name": "stderr",
+            "value": 0.33333333333333337,
+            "params": {}
+          }
+        }
+      }
+    ]
+  },
+  "stats": {
+    "started_at": "2025-05-12T20:28:13-04:00",
+    "completed_at": "2025-05-12T20:28:15-04:00",
+    "model_usage": {
+      "openai/gpt-4o-mini": {
+        "input_tokens": 192,
+        "output_tokens": 6,
+        "total_tokens": 198,
+        "input_tokens_cache_read": 0,
+        "reasoning_tokens": 0
+      }
+    }
+  },
+  "samples": [],
+  "reductions": [
+    {
+      "scorer": "match",
+      "samples": [
+        {
+          "value": 1.0,
+          "answer": "Yes",
+          "explanation": "Yes",
+          "sample_id": 1
+        },
+        {
+          "value": 1.0,
+          "answer": "No",
+          "explanation": "No",
+          "sample_id": 2
+        },
+        {
+          "value": 0,
+          "answer": "No",
+          "explanation": "No",
+          "sample_id": 3
+        }
+      ]
+    }
+  ]
+}

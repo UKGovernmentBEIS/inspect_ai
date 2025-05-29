@@ -175,6 +175,7 @@ const normalizeContent = (
             type: "text",
             text: String(output),
             refusal: null,
+            internal: null,
           },
         ],
       },
