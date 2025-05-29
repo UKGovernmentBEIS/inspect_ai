@@ -1,5 +1,6 @@
 import {
   ColumnFiltersState,
+  ColumnResizeMode,
   createColumnHelper,
   flexRender,
   getCoreRowModel,
@@ -36,6 +37,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   ]);
   const [filtering, setFiltering] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
   const { page, itemsPerPage } = usePagination(kLogsPaginationId);
 
@@ -59,7 +61,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         ),
         enableSorting: true,
         enableGlobalFilter: false,
-        size: 40,
+        size: 50,
+        minSize: 40,
+        maxSize: 60,
+        enableResizing: true,
         sortingFn: (rowA, rowB) => {
           const typeA = rowA.original.type;
           const typeB = rowB.original.type;
@@ -90,6 +95,9 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         },
         enableSorting: true,
         enableGlobalFilter: true,
+        size: 450,
+        minSize: 150,
+        enableResizing: true,
         sortingFn: (rowA, rowB) => {
           const itemA = rowA.original as FileLogItem | FolderLogItem;
           const itemB = rowB.original as FileLogItem | FolderLogItem;
@@ -131,6 +139,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         },
         enableSorting: true,
         enableGlobalFilter: true,
+        size: 200,
+        minSize: 120,
+        maxSize: 300,
+        enableResizing: true,
       }),
       columnHelper.accessor("name", {
         id: "model",
@@ -166,6 +178,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
         enableSorting: true,
         enableGlobalFilter: true,
+        size: 250,
+        minSize: 100,
+        maxSize: 350,
+        enableResizing: true,
       }),
       columnHelper.accessor("name", {
         id: "score",
@@ -214,7 +230,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         },
         enableSorting: true,
         enableGlobalFilter: true,
-        size: 40,
+        size: 80,
+        minSize: 60,
+        maxSize: 120,
+        enableResizing: true,
       }),
     ],
     [logHeaders],
@@ -223,6 +242,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const table = useReactTable({
     data: items,
     columns,
+    columnResizeMode,
     state: {
       sorting,
       columnFilters: filtering,
@@ -240,19 +260,30 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    enableColumnResizing: true,
   });
 
   return (
     <div className={styles.gridContainer}>
       <div className={styles.grid}>
         {/* Header */}
-        <div className={styles.headerRow}>
+        <div
+          className={styles.headerRow}
+          style={{
+            gridTemplateColumns:
+              table
+                .getHeaderGroups()[0]
+                ?.headers.map((header) => `${header.getSize()}px`)
+                .join(" ") || "40px 0.5fr 0.25fr 0.25fr 0.1fr",
+          }}
+        >
           {table.getHeaderGroups().map((headerGroup) =>
             headerGroup.headers.map((header) => (
               <div
                 key={header.id}
                 className={clsx(styles.headerCell, {
                   [styles.sortable]: header.column.getCanSort(),
+                  [styles.resizing]: header.column.getIsResizing(),
                 })}
                 onClick={(event) => {
                   console.log(
@@ -261,7 +292,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
                   header.column.getToggleSortingHandler()?.(event);
                 }}
                 style={{
-                  gridColumn: `span ${header.column.id === "name" ? 1 : header.column.id === "icon" ? 1 : 1}`,
+                  width: header.getSize(),
+                  position: "relative",
                 }}
               >
                 {header.isPlaceholder
@@ -278,6 +310,24 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
                     }[header.column.getIsSorted() as string] ?? ""}
                   </span>
                 )}
+                {header.column.getCanResize() && (
+                  <div
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      header.getResizeHandler()(e);
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      header.getResizeHandler()(e);
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className={clsx(styles.resizer, {
+                      [styles.isResizing]: header.column.getIsResizing(),
+                    })}
+                  />
+                )}
               </div>
             )),
           )}
@@ -286,7 +336,16 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         {/* Body */}
         <div className={styles.bodyContainer}>
           {table.getRowModel().rows.map((row) => (
-            <div key={row.id} className={styles.bodyRow}>
+            <div
+              key={row.id}
+              className={styles.bodyRow}
+              style={{
+                gridTemplateColumns: row
+                  .getVisibleCells()
+                  .map((cell) => `${cell.column.getSize()}px`)
+                  .join(" "),
+              }}
+            >
               {row.getVisibleCells().map((cell) => (
                 <div
                   key={cell.id}
@@ -294,6 +353,9 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
                     styles.bodyCell,
                     styles[`${cell.column.id}Cell`],
                   )}
+                  style={{
+                    width: cell.column.getSize(),
+                  }}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </div>
