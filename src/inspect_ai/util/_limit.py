@@ -91,6 +91,7 @@ class Limit(abc.ABC):
     @property
     @abc.abstractmethod
     def usage(self) -> float:
+        """The current usage of the resource being limited."""
         pass
 
     def _check_reuse(self) -> None:
