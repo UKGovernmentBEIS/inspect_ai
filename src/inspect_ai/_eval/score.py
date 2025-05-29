@@ -1,7 +1,7 @@
 import functools
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Literal
 
 import anyio
 
@@ -270,9 +270,7 @@ def metrics_from_log(log: EvalLog) -> list[Metric] | dict[str, list[Metric]] | N
 
 
 def metric_from_log(metric: EvalMetricDefinition) -> Metric:
-    return cast(
-        Metric, registry_create("metric", metric.name, **(metric.options or {}))
-    )
+    return registry_create("metric", metric.name, **(metric.options or {}))
 
 
 def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:

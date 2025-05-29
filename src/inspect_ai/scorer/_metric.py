@@ -7,7 +7,6 @@ from typing import (
     Protocol,
     Type,
     Union,
-    cast,
     overload,
     runtime_checkable,
 )
@@ -356,7 +355,7 @@ def metric(
             )
             return metric
 
-        return metric_register(cast(Callable[P, Metric], metric_wrapper), metric_name)
+        return metric_register(metric_wrapper, metric_name)
 
     # for decorators with an explicit name, one more wrapper for the name
     if isinstance(name, str):
