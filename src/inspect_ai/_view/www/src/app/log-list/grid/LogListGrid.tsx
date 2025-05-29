@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import { firstMetric } from "../../../scoring/metrics";
 import { usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
+import { parseLogFileName } from "../../../utils/evallog";
 import { formatPrettyDecimal } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { FileLogItem, FolderLogItem } from "../LogItem";
@@ -77,10 +78,12 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         header: "Task",
         cell: (info) => {
           const item = info.row.original as FileLogItem | FolderLogItem;
-          const value =
-            item.type === "file"
-              ? logHeaders[item.logFile?.name || ""]?.eval.task || item.name
-              : item.name;
+          let value = item.name;
+          if (item.type === "file") {
+            const parsed = parseLogFileName(item.name);
+            value = parsed.name;
+          }
+
           return (
             <div className={styles.nameCell}>
               {item.url ? (
@@ -104,11 +107,11 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
           const valueA =
             itemA.type === "file"
-              ? logHeaders[itemA.logFile?.name || ""]?.eval.task || itemA.name
+              ? parseLogFileName(itemA.name).name
               : itemA.name;
           const valueB =
             itemB.type === "file"
-              ? logHeaders[itemB.logFile?.name || ""]?.eval.task || itemB.name
+              ? parseLogFileName(itemB.name).name
               : itemB.name;
 
           return valueA.localeCompare(valueB);
