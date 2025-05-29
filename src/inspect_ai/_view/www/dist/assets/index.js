@@ -50870,19 +50870,22 @@ categories: ${categories.join(" ")}`;
         };
       });
     };
-    const gridContainer = "_gridContainer_1w2lc_1";
-    const grid$7 = "_grid_1w2lc_1";
-    const headerRow = "_headerRow_1w2lc_15";
-    const headerCell = "_headerCell_1w2lc_26";
-    const sortable = "_sortable_1w2lc_41";
-    const sortIndicator = "_sortIndicator_1w2lc_50";
-    const bodyContainer$1 = "_bodyContainer_1w2lc_57";
-    const bodyRow = "_bodyRow_1w2lc_62";
-    const bodyCell = "_bodyCell_1w2lc_79";
-    const iconCell = "_iconCell_1w2lc_91";
-    const nameCell = "_nameCell_1w2lc_99";
-    const logLink$1 = "_logLink_1w2lc_106";
-    const typeCell = "_typeCell_1w2lc_120";
+    const gridContainer = "_gridContainer_1emol_1";
+    const grid$7 = "_grid_1emol_1";
+    const headerRow = "_headerRow_1emol_15";
+    const headerCell = "_headerCell_1emol_27";
+    const sortable = "_sortable_1emol_44";
+    const sortIndicator = "_sortIndicator_1emol_53";
+    const resizer = "_resizer_1emol_60";
+    const isResizing = "_isResizing_1emol_75";
+    const resizing = "_resizing_1emol_83";
+    const bodyContainer$1 = "_bodyContainer_1emol_88";
+    const bodyRow = "_bodyRow_1emol_93";
+    const bodyCell = "_bodyCell_1emol_111";
+    const iconCell = "_iconCell_1emol_125";
+    const nameCell = "_nameCell_1emol_133";
+    const logLink$1 = "_logLink_1emol_140";
+    const typeCell = "_typeCell_1emol_154";
     const styles$19 = {
       gridContainer,
       grid: grid$7,
@@ -50890,6 +50893,9 @@ categories: ${categories.join(" ")}`;
       headerCell,
       sortable,
       sortIndicator,
+      resizer,
+      isResizing,
+      resizing,
       bodyContainer: bodyContainer$1,
       bodyRow,
       bodyCell,
@@ -50900,12 +50906,14 @@ categories: ${categories.join(" ")}`;
     };
     const columnHelper = createColumnHelper();
     const LogListGrid = ({ items }) => {
+      var _a2;
       const [sorting, setSorting] = reactExports.useState([
         { id: "icon", desc: true },
         { id: "task", desc: false }
       ]);
       const [filtering, setFiltering] = reactExports.useState([]);
       const [globalFilter, setGlobalFilter] = reactExports.useState("");
+      const [columnResizeMode] = reactExports.useState("onChange");
       const { page, itemsPerPage } = usePagination(kLogsPaginationId);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const columns = reactExports.useMemo(
@@ -50923,7 +50931,10 @@ categories: ${categories.join(" ")}`;
             ) }),
             enableSorting: true,
             enableGlobalFilter: false,
-            size: 40,
+            size: 50,
+            minSize: 40,
+            maxSize: 60,
+            enableResizing: true,
             sortingFn: (rowA, rowB) => {
               const typeA = rowA.original.type;
               const typeB = rowB.original.type;
@@ -50934,18 +50945,21 @@ categories: ${categories.join(" ")}`;
             id: "task",
             header: "Task",
             cell: (info) => {
-              var _a2, _b2;
+              var _a3, _b2;
               const item2 = info.row.original;
-              const value2 = item2.type === "file" ? ((_b2 = logHeaders[((_a2 = item2.logFile) == null ? void 0 : _a2.name) || ""]) == null ? void 0 : _b2.eval.task) || item2.name : item2.name;
+              const value2 = item2.type === "file" ? ((_b2 = logHeaders[((_a3 = item2.logFile) == null ? void 0 : _a3.name) || ""]) == null ? void 0 : _b2.eval.task) || item2.name : item2.name;
               return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$19.logLink, children: value2 }) : value2 });
             },
             enableSorting: true,
             enableGlobalFilter: true,
+            size: 450,
+            minSize: 150,
+            enableResizing: true,
             sortingFn: (rowA, rowB) => {
-              var _a2, _b2, _c, _d;
+              var _a3, _b2, _c, _d;
               const itemA = rowA.original;
               const itemB = rowB.original;
-              const valueA = itemA.type === "file" ? ((_b2 = logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""]) == null ? void 0 : _b2.eval.task) || itemA.name : itemA.name;
+              const valueA = itemA.type === "file" ? ((_b2 = logHeaders[((_a3 = itemA.logFile) == null ? void 0 : _a3.name) || ""]) == null ? void 0 : _b2.eval.task) || itemA.name : itemA.name;
               const valueB = itemB.type === "file" ? ((_d = logHeaders[((_c = itemB.logFile) == null ? void 0 : _c.name) || ""]) == null ? void 0 : _d.eval.task) || itemB.name : itemB.name;
               return valueA.localeCompare(valueB);
             }
@@ -50954,9 +50968,9 @@ categories: ${categories.join(" ")}`;
             id: "completed",
             header: "Completed",
             cell: (info) => {
-              var _a2, _b2;
+              var _a3, _b2;
               const item2 = info.row.original;
-              const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const header2 = item2.type === "file" ? logHeaders[((_a3 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a3.name) || ""] : void 0;
               const completed = (_b2 = header2 == null ? void 0 : header2.stats) == null ? void 0 : _b2.completed_at;
               const time = completed ? new Date(completed) : void 0;
               const timeStr = time ? `${time.toDateString()}
@@ -50967,37 +50981,45 @@ categories: ${categories.join(" ")}`;
               return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: timeStr });
             },
             enableSorting: true,
-            enableGlobalFilter: true
+            enableGlobalFilter: true,
+            size: 200,
+            minSize: 120,
+            maxSize: 300,
+            enableResizing: true
           }),
           columnHelper.accessor("name", {
             id: "model",
             header: "Model",
             cell: (info) => {
-              var _a2;
+              var _a3;
               const item2 = info.row.original;
-              const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const header2 = item2.type === "file" ? logHeaders[((_a3 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a3.name) || ""] : void 0;
               return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.nameCell, children: (header2 == null ? void 0 : header2.eval.model) || "" });
             },
             sortingFn: (rowA, rowB) => {
-              var _a2, _b2;
+              var _a3, _b2;
               const itemA = rowA.original;
               const itemB = rowB.original;
-              const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const headerA = itemA.type === "file" ? logHeaders[((_a3 = itemA.logFile) == null ? void 0 : _a3.name) || ""] : void 0;
               const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
               const modelA = (headerA == null ? void 0 : headerA.eval.model) || "";
               const modelB = (headerB == null ? void 0 : headerB.eval.model) || "";
               return modelA.localeCompare(modelB);
             },
             enableSorting: true,
-            enableGlobalFilter: true
+            enableGlobalFilter: true,
+            size: 250,
+            minSize: 100,
+            maxSize: 350,
+            enableResizing: true
           }),
           columnHelper.accessor("name", {
             id: "score",
             header: "Score",
             cell: (info) => {
-              var _a2;
+              var _a3;
               const item2 = info.row.original;
-              const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const header2 = item2.type === "file" ? logHeaders[((_a3 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a3.name) || ""] : void 0;
               const metric2 = header2 && header2.results ? firstMetric(header2.results) : void 0;
               if (!metric2) {
                 return emptyCell();
@@ -51005,10 +51027,10 @@ categories: ${categories.join(" ")}`;
               return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.typeCell, children: metric2 ? formatPrettyDecimal(metric2.value) : "" });
             },
             sortingFn: (rowA, rowB) => {
-              var _a2, _b2;
+              var _a3, _b2;
               const itemA = rowA.original;
               const itemB = rowB.original;
-              const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+              const headerA = itemA.type === "file" ? logHeaders[((_a3 = itemA.logFile) == null ? void 0 : _a3.name) || ""] : void 0;
               const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
               const metricA = headerA && headerA.results ? firstMetric(headerA.results) : void 0;
               const metricB = headerB && headerB.results ? firstMetric(headerB.results) : void 0;
@@ -51016,7 +51038,10 @@ categories: ${categories.join(" ")}`;
             },
             enableSorting: true,
             enableGlobalFilter: true,
-            size: 40
+            size: 80,
+            minSize: 60,
+            maxSize: 120,
+            enableResizing: true
           })
         ],
         [logHeaders]
@@ -51024,6 +51049,7 @@ categories: ${categories.join(" ")}`;
       const table2 = useReactTable({
         data: items,
         columns,
+        columnResizeMode,
         state: {
           sorting,
           columnFilters: filtering,
@@ -51040,51 +51066,95 @@ categories: ${categories.join(" ")}`;
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
-        getPaginationRowModel: getPaginationRowModel()
+        getPaginationRowModel: getPaginationRowModel(),
+        enableColumnResizing: true
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.grid, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.headerRow, children: table2.getHeaderGroups().map(
-          (headerGroup) => headerGroup.headers.map((header2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "div",
-            {
-              className: clsx(styles$19.headerCell, {
-                [styles$19.sortable]: header2.column.getCanSort()
-              }),
-              onClick: (event) => {
-                var _a2;
-                console.log(
-                  `Column ${header2.id} canSort: ${header2.column.getCanSort()}`
-                );
-                (_a2 = header2.column.getToggleSortingHandler()) == null ? void 0 : _a2(event);
-              },
-              style: {
-                gridColumn: `span ${header2.column.id === "name" ? 1 : header2.column.id === "icon" ? 1 : 1}`
-              },
-              children: [
-                header2.isPlaceholder ? null : flexRender(
-                  header2.column.columnDef.header,
-                  header2.getContext()
-                ),
-                header2.column.getCanSort() && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$19.sortIndicator, children: {
-                  asc: " ↑",
-                  desc: " ↓"
-                }[header2.column.getIsSorted()] ?? "" })
-              ]
-            },
-            header2.id
-          ))
-        ) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.bodyContainer, children: table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.bodyRow, children: row2.getVisibleCells().map((cell2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx(
-              styles$19.bodyCell,
-              styles$19[`${cell2.column.id}Cell`]
-            ),
-            children: flexRender(cell2.column.columnDef.cell, cell2.getContext())
+            className: styles$19.headerRow,
+            style: {
+              gridTemplateColumns: ((_a2 = table2.getHeaderGroups()[0]) == null ? void 0 : _a2.headers.map((header2) => `${header2.getSize()}px`).join(" ")) || "40px 0.5fr 0.25fr 0.25fr 0.1fr"
+            },
+            children: table2.getHeaderGroups().map(
+              (headerGroup) => headerGroup.headers.map((header2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "div",
+                {
+                  className: clsx(styles$19.headerCell, {
+                    [styles$19.sortable]: header2.column.getCanSort(),
+                    [styles$19.resizing]: header2.column.getIsResizing()
+                  }),
+                  onClick: (event) => {
+                    var _a3;
+                    console.log(
+                      `Column ${header2.id} canSort: ${header2.column.getCanSort()}`
+                    );
+                    (_a3 = header2.column.getToggleSortingHandler()) == null ? void 0 : _a3(event);
+                  },
+                  style: {
+                    width: header2.getSize(),
+                    position: "relative"
+                  },
+                  children: [
+                    header2.isPlaceholder ? null : flexRender(
+                      header2.column.columnDef.header,
+                      header2.getContext()
+                    ),
+                    header2.column.getCanSort() && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$19.sortIndicator, children: {
+                      asc: " ↑",
+                      desc: " ↓"
+                    }[header2.column.getIsSorted()] ?? "" }),
+                    header2.column.getCanResize() && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "div",
+                      {
+                        onMouseDown: (e) => {
+                          e.stopPropagation();
+                          header2.getResizeHandler()(e);
+                        },
+                        onTouchStart: (e) => {
+                          e.stopPropagation();
+                          header2.getResizeHandler()(e);
+                        },
+                        onClick: (e) => {
+                          e.stopPropagation();
+                        },
+                        className: clsx(styles$19.resizer, {
+                          [styles$19.isResizing]: header2.column.getIsResizing()
+                        })
+                      }
+                    )
+                  ]
+                },
+                header2.id
+              ))
+            )
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.bodyContainer, children: table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: styles$19.bodyRow,
+            style: {
+              gridTemplateColumns: row2.getVisibleCells().map((cell2) => `${cell2.column.getSize()}px`).join(" ")
+            },
+            children: row2.getVisibleCells().map((cell2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  styles$19.bodyCell,
+                  styles$19[`${cell2.column.id}Cell`]
+                ),
+                style: {
+                  width: cell2.column.getSize()
+                },
+                children: flexRender(cell2.column.columnDef.cell, cell2.getContext())
+              },
+              cell2.id
+            ))
           },
-          cell2.id
-        )) }, row2.id)) })
+          row2.id
+        )) })
       ] }) });
     };
     const emptyCell = () => {

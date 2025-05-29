@@ -14,13 +14,14 @@
 /* Header Styles */
 .headerRow {
   display: grid;
-  grid-template-columns: 40px 0.5fr 0.25fr 0.25fr 0.1fr;
   column-gap: 0.5em;
   background: var(--bs-gray-100);
   border-bottom: 1px solid var(--bs-border-color);
   position: sticky;
   top: 0;
   z-index: 1;
+  width: fit-content;
+  min-width: 100%;
 }
 
 .headerCell {
@@ -32,6 +33,8 @@
   align-items: center;
   justify-content: flex-start;
   border-right: 1px solid var(--bs-border-color-translucent);
+  position: relative;
+  box-sizing: border-box;
 }
 
 .headerCell:last-child {
@@ -53,6 +56,34 @@
   color: var(--bs-primary);
 }
 
+/* Resizer Styles */
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 5px;
+  background: rgba(0, 0, 0, 0.5);
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.resizer:hover,
+.isResizing {
+  opacity: 1;
+}
+
+.headerCell:hover .resizer {
+  opacity: 0.3;
+}
+
+.resizing {
+  background: var(--bs-gray-200);
+}
+
 /* Body Styles */
 .bodyContainer {
   overflow-y: auto;
@@ -61,10 +92,11 @@
 
 .bodyRow {
   display: grid;
-  grid-template-columns: 40px 0.5fr 0.25fr 0.25fr 0.1fr;
   column-gap: 0.5em;
   border-bottom: 1px solid var(--bs-border-color-translucent);
   transition: background-color 0.15s ease-in-out;
+  width: fit-content;
+  min-width: 100%;
 }
 
 .bodyRow:hover {
@@ -82,6 +114,8 @@
   align-items: center;
   border-right: 1px solid var(--bs-border-color-translucent);
   min-height: 2.5em;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .bodyCell:last-child {
@@ -126,11 +160,6 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .headerRow,
-  .bodyRow {
-    grid-template-columns: 40px 1fr;
-  }
-
   .typeCell {
     display: none;
   }
