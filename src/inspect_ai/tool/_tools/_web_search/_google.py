@@ -32,9 +32,10 @@ class GoogleOptions(BaseModel):
 
 
 class SearchLink:
-    def __init__(self, url: str, snippet: str) -> None:
+    def __init__(self, url: str, snippet: str, title: str) -> None:
         self.url = url
         self.snippet = snippet
+        self.title = title
 
 
 def maybe_get_google_api_keys() -> tuple[str, str] | None:
@@ -71,8 +72,7 @@ def google_search_provider(
     async def search(query: str) -> str | None:
         # limit number of concurrent searches
         page_contents: list[str] = []
-        urls: list[str] = []
-        snippets: list[str] = []
+        processed_links: list[SearchLink] = []
         search_calls = 0
 
         # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
@@ -87,8 +87,7 @@ def google_search_provider(
                         page = await page_if_relevant(link.url, query, model, client)
                         if page:
                             page_contents.append(page)
-                            urls.append(link.url)
-                            snippets.append(link.snippet)
+                            processed_links.append(link)
                     # exceptions fetching pages are very common!
                     except Exception:
                         pass
@@ -98,8 +97,15 @@ def google_search_provider(
 
             search_calls += 1
 
-        all_page_contents = "\n\n".join(page_contents)
-        return None if all_page_contents == "" else all_page_contents
+        result_template = "[{title}]({url}):\n{page_content}"
+        result = "\n\n".join(
+            result_template.format(
+                title=link.title, url=link.url, page_content=page_content
+            )
+            for link, page_content in zip(processed_links, page_contents)
+        )
+
+        return None if result == "" else result
 
     async def _search(query: str, start_idx: int) -> list[SearchLink]:
         # List of allowed parameters can be found https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list
@@ -127,7 +133,14 @@ def google_search_provider(
         data = result.json()
 
         if "items" in data:
-            return [SearchLink(item["link"], item["snippet"]) for item in data["items"]]
+            return [
+                SearchLink(
+                    url=item["link"],
+                    snippet=item["snippet"],
+                    title=item["title"],
+                )
+                for item in data["items"]
+            ]
         else:
             return []
 
@@ -135,13 +148,13 @@ def google_search_provider(
 
 
 async def page_if_relevant(
-    link: str, query: str, relevance_model: str | None, client: httpx.AsyncClient
+    url: str, query: str, relevance_model: str | None, client: httpx.AsyncClient
 ) -> str | None:
     """
     Use parser model to determine if a web page contents is relevant to a query.
 
     Args:
-        link (str): Web page link.
+        url (str): Web page url.
         query (str): Search query.
         relevance_model (Model): Model used to parse web pages for relevance.
         client: (httpx.Client): HTTP client to use to fetch the page
@@ -156,7 +169,7 @@ async def page_if_relevant(
 
     # retrieve document
     try:
-        response = await client.get(link)
+        response = await client.get(url)
         response.raise_for_status()
     except httpx.HTTPError as exc:
         raise Exception(f"HTTP error occurred: {exc}")
