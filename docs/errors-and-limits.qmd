@@ -242,7 +242,7 @@ You can query how much of a limited resource has been used so far.
 
 ``` python
 with token_limit(10_000) as limit:
-    generate()
+    await generate()
     print(f"Used {limit.usage:,} of 10,000 tokens")
 ```
 
@@ -251,7 +251,8 @@ If you're passing the limit instance to `apply_limits()` or an agent and want to
 ``` python
 limit = token_limit(10_000)
 with apply_limits([limit]):
-    usage = limit.usage
+    await generate()
+    print(f"Used {limit.usage:,} of 10,000 tokens")
 ```
 
 ### Time Limit
