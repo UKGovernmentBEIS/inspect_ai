@@ -606,8 +606,7 @@ export const useLogs = () => {
   return { loadLogs, loadHeaders };
 };
 
-export const usePagination = (name: string) => {
-  const defaultPageSize = 20;
+export const usePagination = (name: string, defaultPageSize: number) => {
   const page = useStore((state) => state.app.pagination[name]?.page || 0);
   const itemsPerPage = useStore(
     (state) => state.app.pagination[name]?.pageSize || defaultPageSize,

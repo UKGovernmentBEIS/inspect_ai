@@ -21,7 +21,7 @@ import { parseLogFileName } from "../../../utils/evallog";
 import { formatPrettyDecimal } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { FileLogItem, FolderLogItem } from "../LogItem";
-import { kLogsPaginationId } from "../LogsPanel";
+import { kDefaultPageSize, kLogsPaginationId } from "../LogsPanel";
 import styles from "./LogListGrid.module.css";
 
 interface LogListGridProps {
@@ -40,7 +40,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
 
-  const { page, itemsPerPage } = usePagination(kLogsPaginationId);
+  const { page, itemsPerPage } = usePagination(
+    kLogsPaginationId,
+    kDefaultPageSize,
+  );
 
   const logHeaders = useStore((state) => state.logs.logHeaders);
 
@@ -62,10 +65,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         ),
         enableSorting: true,
         enableGlobalFilter: false,
-        size: 50,
-        minSize: 40,
+        size: 30,
+        minSize: 30,
         maxSize: 60,
-        enableResizing: true,
+        enableResizing: false,
         sortingFn: (rowA, rowB) => {
           const typeA = rowA.original.type;
           const typeB = rowB.original.type;
@@ -181,9 +184,9 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
         enableSorting: true,
         enableGlobalFilter: true,
-        size: 250,
+        size: 300,
         minSize: 100,
-        maxSize: 350,
+        maxSize: 400,
         enableResizing: true,
       }),
       columnHelper.accessor("name", {

@@ -47590,8 +47590,7 @@ categories: ${categories.join(" ")}`;
       );
       return { loadLogs, loadHeaders };
     };
-    const usePagination = (name2) => {
-      const defaultPageSize2 = 20;
+    const usePagination = (name2, defaultPageSize2) => {
       const page = useStore((state) => {
         var _a2;
         return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.page) || 0;
@@ -50766,22 +50765,22 @@ categories: ${categories.join(" ")}`;
         extension: match[4]
       };
     };
-    const gridContainer = "_gridContainer_1emol_1";
-    const grid$7 = "_grid_1emol_1";
-    const headerRow = "_headerRow_1emol_15";
-    const headerCell = "_headerCell_1emol_27";
-    const sortable = "_sortable_1emol_44";
-    const sortIndicator = "_sortIndicator_1emol_53";
-    const resizer = "_resizer_1emol_60";
-    const isResizing = "_isResizing_1emol_75";
-    const resizing = "_resizing_1emol_83";
-    const bodyContainer$1 = "_bodyContainer_1emol_88";
-    const bodyRow = "_bodyRow_1emol_93";
-    const bodyCell = "_bodyCell_1emol_111";
-    const iconCell = "_iconCell_1emol_125";
-    const nameCell = "_nameCell_1emol_133";
-    const logLink$1 = "_logLink_1emol_140";
-    const typeCell = "_typeCell_1emol_154";
+    const gridContainer = "_gridContainer_1f1pq_1";
+    const grid$7 = "_grid_1f1pq_1";
+    const headerRow = "_headerRow_1f1pq_15";
+    const headerCell = "_headerCell_1f1pq_27";
+    const sortable = "_sortable_1f1pq_44";
+    const sortIndicator = "_sortIndicator_1f1pq_53";
+    const resizer = "_resizer_1f1pq_60";
+    const isResizing = "_isResizing_1f1pq_75";
+    const resizing = "_resizing_1f1pq_83";
+    const bodyContainer$1 = "_bodyContainer_1f1pq_88";
+    const bodyRow = "_bodyRow_1f1pq_93";
+    const bodyCell = "_bodyCell_1f1pq_110";
+    const iconCell = "_iconCell_1f1pq_122";
+    const nameCell = "_nameCell_1f1pq_130";
+    const logLink$1 = "_logLink_1f1pq_137";
+    const typeCell = "_typeCell_1f1pq_151";
     const styles$1b = {
       gridContainer,
       grid: grid$7,
@@ -50810,7 +50809,10 @@ categories: ${categories.join(" ")}`;
       const [filtering, setFiltering] = reactExports.useState([]);
       const [globalFilter, setGlobalFilter] = reactExports.useState("");
       const [columnResizeMode] = reactExports.useState("onChange");
-      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
+      const { page, itemsPerPage } = usePagination(
+        kLogsPaginationId,
+        kDefaultPageSize
+      );
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const columns = reactExports.useMemo(
         () => [
@@ -50827,10 +50829,10 @@ categories: ${categories.join(" ")}`;
             ) }),
             enableSorting: true,
             enableGlobalFilter: false,
-            size: 50,
-            minSize: 40,
+            size: 30,
+            minSize: 30,
             maxSize: 60,
-            enableResizing: true,
+            enableResizing: false,
             sortingFn: (rowA, rowB) => {
               const typeA = rowA.original.type;
               const typeB = rowB.original.type;
@@ -50906,9 +50908,9 @@ categories: ${categories.join(" ")}`;
             },
             enableSorting: true,
             enableGlobalFilter: true,
-            size: 250,
+            size: 300,
             minSize: 100,
-            maxSize: 350,
+            maxSize: 400,
             enableResizing: true
           }),
           columnHelper.accessor("name", {
@@ -51079,7 +51081,10 @@ categories: ${categories.join(" ")}`;
       item: item$3
     };
     const LogPager = ({ itemCount }) => {
-      const { page, itemsPerPage, setPage } = usePagination(kLogsPaginationId);
+      const { page, itemsPerPage, setPage } = usePagination(
+        kLogsPaginationId,
+        kDefaultPageSize
+      );
       const pageCount = Math.ceil(itemCount / itemsPerPage);
       const currentPage = page || 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { "aria-label": "Log Pagination", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: clsx("pagination", styles$19.pager), children: [
@@ -51155,7 +51160,10 @@ categories: ${categories.join(" ")}`;
       running: running2,
       logDir
     }) => {
-      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
+      const { page, itemsPerPage } = usePagination(
+        kLogsPaginationId,
+        kDefaultPageSize
+      );
       const pageItemCount = Math.min(
         itemsPerPage,
         itemCount - (page || 0) * itemsPerPage
@@ -51194,6 +51202,7 @@ categories: ${categories.join(" ")}`;
       return parts[0];
     };
     const kLogsPaginationId = "logs-list-pagination";
+    const kDefaultPageSize = 40;
     const LogsPanel = () => {
       const loading = useStore((state) => state.app.status.loading);
       const { loadLogs } = useLogs();
@@ -51203,7 +51212,10 @@ categories: ${categories.join(" ")}`;
       const updateLogHeaders = useStore(
         (state) => state.logsActions.updateLogHeaders
       );
-      const { page, itemsPerPage } = usePagination(kLogsPaginationId);
+      const { page, itemsPerPage } = usePagination(
+        kLogsPaginationId,
+        kDefaultPageSize
+      );
       const { logPath } = useParams();
       const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
       const logItems = reactExports.useMemo(() => {
@@ -51213,13 +51225,15 @@ categories: ${categories.join(" ")}`;
           const name2 = logFile.name;
           const cleanDir = currentDir.endsWith("/") ? currentDir.slice(0, -1) : currentDir;
           if (isInDirectory(logFile.name, cleanDir)) {
+            const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
             const relativePath = directoryRelativeUrl(name2, currentDir);
             const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+            const path = join(relativePath, decodeURIComponent(dirName));
             logItems2.push({
               id: fileOrFolderName,
               name: fileOrFolderName,
               type: "file",
-              url: logUrl(fileOrFolderName, logs.log_dir),
+              url: logUrl(path, logs.log_dir),
               logFile
             });
           } else if (name2.startsWith(currentDir)) {
