@@ -95,6 +95,14 @@ def tavily_search_provider(
             return response
 
         async with concurrency("tavily_web_search", max_connections):
-            return TavilySearchResponse.model_validate((await _search()).json()).answer
+            tavily_search_response = TavilySearchResponse.model_validate(
+                (await _search()).json()
+            )
+            return f"Answer: {tavily_search_response.answer}\n\n{
+                [
+                    f'[{result.title}]({result.url}):\n{result.content}'
+                    for result in tavily_search_response.results
+                ]
+            }"
 
     return search
