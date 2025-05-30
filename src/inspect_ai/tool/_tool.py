@@ -13,6 +13,7 @@ from typing import (
 
 from inspect_ai._util.content import (
     ContentAudio,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -41,7 +42,15 @@ ToolResult = (
     | ContentImage
     | ContentAudio
     | ContentVideo
-    | list[ContentText | ContentReasoning | ContentImage | ContentAudio | ContentVideo]
+    | ContentData
+    | list[
+        ContentText
+        | ContentReasoning
+        | ContentImage
+        | ContentAudio
+        | ContentVideo
+        | ContentData
+    ]
 )
 """Valid types for results from tool calls."""
 

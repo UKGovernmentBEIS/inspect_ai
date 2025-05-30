@@ -1,8 +1,8 @@
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, example_dataset
 from inspect_ai.scorer import model_graded_qa
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import web_search
+from inspect_ai.solver._basic_agent import basic_agent
+from inspect_ai.tool import bash, web_search
 
 openai_options = {
     "search_context_size": "high",
@@ -23,13 +23,18 @@ def biology_qa() -> Task:
             name="biology_qa",
             sample_fields=FieldSpec(input="question", target="answer"),
         ),
-        solver=[
-            use_tools(
+        sandbox=("docker", "./intervention/multi_tool/compose.yaml"),
+        solver=basic_agent(
+            tools=[
+                bash(),
                 web_search(
-                    providers={"openai": openai_options, "tavily": tavily_options},
-                )
-            ),
-            generate(),
-        ],
+                    providers={
+                        "openai": openai_options,
+                        "anthropic": None,
+                        "tavily": tavily_options,
+                    },
+                ),
+            ]
+        ),
         scorer=model_graded_qa(),
     )
