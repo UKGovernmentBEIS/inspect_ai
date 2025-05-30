@@ -41,9 +41,6 @@ class TavilySearchResult(BaseModel):
     content: str
     score: float
 
-    def __str__(self) -> str:
-        return f"[{self.title}]({self.url}):\n{self.content}"
-
 
 class TavilySearchResponse(BaseModel):
     query: str
