@@ -336,7 +336,7 @@ async def compose_command(
     # retry time down) to make the odds of hanging vanishingly small
 
     if timeout is not None:
-        MAX_RETRIES = 2
+        MAX_RETRIES = 0
         retries = 0
         while True:
             try:

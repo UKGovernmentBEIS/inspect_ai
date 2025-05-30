@@ -2,6 +2,7 @@ import functools
 import io
 import os
 import shlex
+import sys
 from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -146,11 +147,16 @@ async def subprocess(
                     buffer.write(chunk)
                     written += len(chunk)
                     if output_limit is not None and written > output_limit:
+                        logger.warning(
+                            f"Output limit exceeded: {written} bytes (limit: {output_limit} bytes). Killing process {process.pid}."
+                        )
                         process.kill()
+                        logger.warning(f"Killed process {process.pid}.")
                         break
 
                 return buffer.getvalue()
 
+            logger.info(f"Awaiting stdout and stderr for process {process.pid}.")
             stdout, stderr = await tg_collect(
                 [
                     functools.partial(read_stream, process.stdout),
@@ -158,8 +164,12 @@ async def subprocess(
                 ]
             )
 
+            logger.info(f"Awaiting return code for process {process.pid}.")
             returncode = await process.wait()
             success = returncode == 0
+            logger.info(
+                f"Yielding result for process {process.pid} with return code {returncode}."
+            )
             if text:
                 yield ExecResult[str](
                     success=success,
@@ -176,6 +186,7 @@ async def subprocess(
                 )
         finally:
             try:
+                logger.info(f"Awaiting process {process.pid} to close.")
                 await process.aclose()
             except ProcessLookupError:
                 # the anyio ansycio backend calls process.kill() from within
@@ -193,20 +204,43 @@ async def subprocess(
             # await result wrapped in timeout handler if requested
             if timeout is not None:
                 try:
+                    logger.info(f"Started subprocess {proc.pid} {args}")
                     with anyio.fail_after(timeout):
+                        logger.info(f"Entered timeout scope for subprocess {proc.pid}.")
                         result = await anext(rc)
+                        logger.info(f"Subprocess {proc.pid} completed.")
                         return cast(Union[ExecResult[str], ExecResult[bytes]], result)
                 except TimeoutError:
+                    logger.warning(f"Subprocess timed out {proc.pid}")
                     # terminate timed out process -- try for graceful termination
                     # then be more forceful if requied
                     with anyio.CancelScope(shield=True):
                         try:
+                            logger.warning(
+                                f"Sending terminate signal to subprocess {proc.pid}."
+                            )
                             proc.terminate()
+                            logger.warning(
+                                f"Sent terminate signal to subprocess {proc.pid}."
+                            )
                             await anyio.sleep(2)
+                            logger.warning(
+                                f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
+                            )
                             if proc.returncode is None:
+                                logger.warning(
+                                    f"Subprocess did not terminate, sending kill signal to {proc.pid}."
+                                )
                                 proc.kill()
-                        except Exception:
+                                logger.warning(
+                                    f"Sent kill signal to subprocess {proc.pid}."
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
+                            )
                             pass
+                    logger.warning(f"Re-raising {sys.exc_info()[0]} after timeout.")
                     raise
 
             # await result without timeout
