@@ -26,6 +26,8 @@ from anthropic.types import (
     ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
+    TextCitation,
+    TextCitationParam,
     ThinkingBlock,
     ThinkingBlockParam,
     ToolParam,
@@ -42,7 +44,7 @@ from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
 )
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
@@ -982,7 +984,14 @@ async def message_param_content(
     | WebSearchToolResultBlockParam
 ):
     if isinstance(content, ContentText):
-        return TextBlockParam(type="text", text=content.text or NO_CONTENT)
+        citations = (
+            TypeAdapter(list[TextCitationParam]).validate_python(content.citations)
+            if content.citations
+            else None
+        )
+        return TextBlockParam(
+            type="text", text=content.text or NO_CONTENT, citations=citations
+        )
     elif isinstance(content, ContentImage):
         # resolve to url
         image = await file_as_data_uri(content.image)

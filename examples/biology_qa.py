@@ -28,7 +28,11 @@ def biology_qa() -> Task:
             tools=[
                 bash(),
                 web_search(
-                    providers={"openai": openai_options, "tavily": tavily_options},
+                    providers={
+                        "openai": openai_options,
+                        "anthropic": None,
+                        "tavily": tavily_options,
+                    },
                 ),
             ]
         ),
