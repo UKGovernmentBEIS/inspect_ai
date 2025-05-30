@@ -188,6 +188,7 @@ async def subprocess(
             try:
                 logger.info(f"Awaiting process {process.pid} to close.")
                 await process.aclose()
+                logger.info(f"Process {process.pid} closed.")
             except ProcessLookupError:
                 # the anyio ansycio backend calls process.kill() from within
                 # its aclose() method without an enclosing exception handler
@@ -208,7 +209,9 @@ async def subprocess(
                     with anyio.fail_after(timeout):
                         logger.info(f"Entered timeout scope for subprocess {proc.pid}.")
                         result = await anext(rc)
-                        logger.info(f"Subprocess {proc.pid} completed.")
+                        logger.info(
+                            f"Subprocess {proc.pid} completed, returning exec result {result}"
+                        )
                         return cast(Union[ExecResult[str], ExecResult[bytes]], result)
                 except TimeoutError:
                     logger.warning(f"Subprocess timed out {proc.pid}")

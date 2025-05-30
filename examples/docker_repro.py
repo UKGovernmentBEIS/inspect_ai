@@ -67,7 +67,7 @@ if __name__ == "__main__":
     eval(
         exec_hang_mre(),
         model="mockllm/model",
-        epochs=500,
+        epochs=1,  # Can always repro with 500, but 1 seems to often do the trick.
         max_sandboxes=500,
         max_connections=500,
         max_subprocesses=500,
