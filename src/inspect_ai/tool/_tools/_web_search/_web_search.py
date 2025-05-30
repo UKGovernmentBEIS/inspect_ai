@@ -14,7 +14,7 @@ from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai.tool._tool_def import ToolDef
 
 from ..._tool import Tool, ToolResult, tool
-from ._google import GoogleOptions, google_search_provider, maybe_get_google_api_keys
+from ._google import GoogleOptions, google_search_provider
 from ._tavily import TavilyOptions, tavily_search_provider
 
 Provider: TypeAlias = Literal["openai", "tavily", "google"]  # , "gemini", "anthropic"
@@ -83,6 +83,8 @@ def web_search(
         supports several formats based on either a `str` specifying a provider or
         a `dict` whose keys are the provider names and whose values are the
         provider-specific options. A single value or a list of these can be passed.
+        This arg is optional just for backwards compatibility. New code should
+        always provide this argument.
 
         Single provider:
         ```
@@ -167,10 +169,10 @@ def _normalize_config(
     #     ValueError
     # 2. Neither deprecated_provider nor providers is set
     #     act as if they passed provider="google"
-    # - Only providers is set
+    # 3. Only providers is set
     #     if any of the other deprecated parameters is set, then ValueError
     #     else Happy path
-    # - Only deprecated_provider is set
+    # 4. Only deprecated_provider is set
     #     convert to new config format - including processing old other params
 
     deprecated_provider = deprecated.get("provider", None)
