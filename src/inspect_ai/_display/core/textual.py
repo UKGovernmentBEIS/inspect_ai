@@ -17,7 +17,8 @@ def textual_enable_mouse_support(driver: Driver) -> None:
             enable_mouse_support()
             # Re-enable SGR-Pixels format if it was previously enabled.
             # See #1943.
-            if getattr(driver, "_mouse_pixels", False):
-                driver.write("\x1b[?1016h")
+            enable_mouse_pixels = getattr(driver, "_enable_mouse_pixels", None)
+            if enable_mouse_pixels and getattr(driver, "_mouse_pixels", False):
+                enable_mouse_pixels()
         except Exception as ex:
             logger.warning(f"Error enabling mouse support: {ex}")
