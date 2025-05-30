@@ -174,7 +174,7 @@ class TaskProgressView(Widget):
         color:$text-secondary;
     }
     #task-detail {
-        column-span: 9;
+        column-span: 8;
     }
     .hidden {
         display: none;
