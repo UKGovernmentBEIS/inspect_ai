@@ -101,7 +101,11 @@ def tavily_search_provider(
             tavily_search_response = TavilySearchResponse.model_validate(
                 (await _search()).json()
             )
-            result: str = f"Answer: {tavily_search_response.answer}\n\n{[str(result) for result in tavily_search_response.results]}"
-            return result
+            return f"Answer: {tavily_search_response.answer}\n\n{
+                [
+                    f'[{result.title}]({result.url}):\n{result.content}'
+                    for result in tavily_search_response.results
+                ]
+            }"
 
     return search
