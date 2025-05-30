@@ -97,15 +97,18 @@ def google_search_provider(
 
             search_calls += 1
 
-        result_template = "[{title}]({url}):\n{page_content}"
-        result = "\n\n".join(
-            result_template.format(
-                title=link.title, url=link.url, page_content=page_content
+        return (
+            "\n\n".join(
+                "[{title}]({url}):\n{page_content}".format(
+                    title=link.title, url=link.url, page_content=page_content
+                )
+                for link, page_content in zip(
+                    processed_links, page_contents, strict=True
+                )
             )
-            for link, page_content in zip(processed_links, page_contents)
+            if processed_links
+            else None
         )
-
-        return None if result == "" else result
 
     async def _search(query: str, start_idx: int) -> list[SearchLink]:
         # List of allowed parameters can be found https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list
