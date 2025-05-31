@@ -146,6 +146,18 @@ def vllm() -> type[ModelAPI]:
     return VLLMAPI
 
 
+@modelapi(name="vllm_router")
+def vllm_router() -> type[ModelAPI]:
+    # Only validate OpenAI compatibility (needed for the API interface)
+    validate_openai_client("vLLM Router")
+
+    # Import VLLMAPI without checking for vllm package yet
+    # The actual vllm dependency will only be checked if needed to start a server
+    from .model_router import VLLMRouter
+
+    return VLLMRouter
+
+
 @modelapi(name="cf")
 def cf() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI

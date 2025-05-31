@@ -1,0 +1,9 @@
+model: 
+  provider: vllm_router
+  name: math_router
+  args:
+    models:
+      non_reasoning: "Qwen/Qwen2.5-7B-Instruct"
+      reasoning: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+    routing_config:
+      weights_path: "/home/ubuntu/inspect_ai/router_weights.pt"
