@@ -26,8 +26,8 @@ class ActiveSample:
         token_limit: int | None,
         time_limit: int | None,
         working_limit: int | None,
-        price_limit: float | None,
-        price_file: Path | None,
+        cost_limit: float | None,
+        cost_file: Path | None,
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
@@ -44,8 +44,8 @@ class ActiveSample:
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
-        self.price_limit = price_limit
-        self.price_file = price_file
+        self.cost_limit = cost_limit
+        self.cost_file = cost_file
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
@@ -89,8 +89,8 @@ async def active_sample(
     token_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
-    price_limit: float | None,
-    price_file: Path | None,
+    cost_limit: float | None,
+    cost_file: Path | None,
     fails_on_error: bool,
     transcript: Transcript,
 ) -> AsyncGenerator[ActiveSample, None]:
@@ -105,8 +105,8 @@ async def active_sample(
         token_limit=token_limit,
         time_limit=time_limit,
         working_limit=working_limit,
-        price_limit=price_limit,
-        price_file=price_file,
+        cost_limit=cost_limit,
+        cost_file=cost_file,
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,

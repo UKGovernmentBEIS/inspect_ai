@@ -62,7 +62,7 @@ export const ApplicationIcons = {
     tokens: "bi bi-list",
     time: "bi bi-clock",
     execution: "bi bi-stopwatch",
-    price: "bi bi-currency-dollar",
+    cost: "bi bi-currency-dollar",
   },
   link: "bi bi-link-45deg",
   logging: loggingIcons,

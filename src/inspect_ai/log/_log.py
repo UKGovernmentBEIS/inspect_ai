@@ -108,10 +108,10 @@ class EvalConfig(BaseModel):
     working_limit: int | None = Field(default=None)
     """Maximum working time per sample."""
 
-    price_limit: float | None = Field(default=None)
-    """Maximum price (USD) per sample."""
+    cost_limit: float | None = Field(default=None)
+    """Maximum cost (USD) per sample."""
 
-    price_file: Path | None = Field(default=None)
+    cost_file: Path | None = Field(default=None)
     """Path to a JSON file mapping model names to pricing info."""
 
     max_samples: int | None = Field(default=None)
@@ -168,7 +168,7 @@ class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
     type: Literal[
-        "context", "time", "working", "message", "token", "operator", "price", "custom"
+        "context", "time", "working", "message", "token", "operator", "cost", "custom"
     ]
     """The type of limit"""
 

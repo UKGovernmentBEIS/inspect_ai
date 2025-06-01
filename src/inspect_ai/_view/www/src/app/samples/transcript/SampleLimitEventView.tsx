@@ -31,8 +31,8 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
         return "Operator Canceled";
       case "working":
         return "Execution Time Limit Exceeded";
-      case "price":
-        return "Price Limit Exceeded";
+      case "cost":
+        return "Cost Limit Exceeded";
     }
   };
 
@@ -50,8 +50,8 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
         return ApplicationIcons.limits.operator;
       case "working":
         return ApplicationIcons.limits.execution;
-      case "price":
-        return ApplicationIcons.limits.price;
+      case "cost":
+        return ApplicationIcons.limits.cost;
     }
   };
 

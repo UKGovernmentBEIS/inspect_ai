@@ -291,21 +291,21 @@ def check_working_limit() -> None:
     node.check()
 
 
-def price_limit(limit: float | None, price_file: Path | None) -> _PriceLimit:
-    """Limits the inference price for a sample.
+def cost_limit(limit: float | None, cost_file: Path | None) -> _CostLimit:
+    """Limits the inference cost for a sample.
 
     ::: callout-note
-    The `price_limit()` function is available only in the development version of Inspect. To install the development version from GitHub:
+    The `cost_limit()` function is available only in the development version of Inspect. To install the development version from GitHub:
 
     ``` bash
     pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
     ```
     :::
 
-    Price is calculated based on the number of input and output tokens sent to a
-    model using the pricing details specified in the price_file.
+    Cost is calculated based on the number of input and output tokens sent to a
+    model using the pricing details specified in the cost_file.
 
-    Prices are calculated from when the context manager is opened and stops when it is closed.
+    Costs are calculated from when the context manager is opened and stops when it is closed.
 
     These limits can be stacked.
 
@@ -314,31 +314,31 @@ def price_limit(limit: float | None, price_file: Path | None) -> _PriceLimit:
     Args:
       limit: The maximum number of USD that can be used while the context
         manager is open. A value of None means unlimited cost.
-      price_file: The path to a JSON file mapping from model names to
+      cost_file: The path to a JSON file mapping from model names to
         pricing details.
     """
-    return _PriceLimit(limit, price_file)
+    return _CostLimit(limit, cost_file)
 
 
-def record_model_usage_price(usage: ModelUsage) -> None:
-    """Record model usage against any active price limits.
+def record_model_usage_cost(usage: ModelUsage) -> None:
+    """Record model usage against any active cost limits.
 
     Does not check if the limit has been exceeded.
     """
-    node = price_limit_tree.get()
+    node = cost_limit_tree.get()
     if node is None:
         return
     node.record(usage)
 
 
-def check_price_limit() -> None:
-    """Check if the current price usage exceeds _any_ of the price limits.
+def check_cost_limit() -> None:
+    """Check if the current cost usage exceeds _any_ of the cost limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
 
-    Note that all active price limits are checked, not just the most recent one.
+    Note that all active cost limits are checked, not just the most recent one.
     """
-    node = price_limit_tree.get()
+    node = cost_limit_tree.get()
     if node is None:
         return
     node.check()
@@ -378,7 +378,7 @@ token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
 # check_message_limit().
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
 working_limit_tree: _Tree[_WorkingLimit] = _Tree("working_limit_tree")
-price_limit_tree: _Tree[_PriceLimit] = _Tree("price_limit_tree")
+cost_limit_tree: _Tree[_CostLimit] = _Tree("cost_limit_tree")
 
 
 class _Node:
@@ -553,26 +553,26 @@ class _MessageLimit(Limit, _Node):
             )
 
 
-class _PriceLimit(Limit, _Node):
-    def __init__(self, limit: float | None, price_file: Path | None) -> None:
+class _CostLimit(Limit, _Node):
+    def __init__(self, limit: float | None, cost_file: Path | None) -> None:
         from inspect_ai.model._model_output import ModelUsage
 
         super().__init__()
-        if price_file:
-            self._prices = self._load_price_file(price_file)
+        if cost_file:
+            self._costs = self._load_cost_file(cost_file)
         elif limit is not None:
-            # If we have a limit, we *must* have a price_file
+            # If we have a limit, we *must* have a cost_file
             raise ValueError(
-                "Price limit requires setting a price file, but no file was specified"
+                "Cost limit requires setting a cost file, but no file was specified"
             )
-        self._validate_price_limit(limit)
+        self._validate_cost_limit(limit)
         self._limit = limit
-        self._price_file = price_file
+        self._cost_file = cost_file
         self._usage = ModelUsage()
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
-        price_limit_tree.push(self)
+        cost_limit_tree.push(self)
         return self
 
     def __exit__(
@@ -581,21 +581,21 @@ class _PriceLimit(Limit, _Node):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        self._pop_and_check_identity(price_limit_tree)
+        self._pop_and_check_identity(cost_limit_tree)
 
     @property
     def limit(self) -> int | None:
-        """Get the configured price limit value."""
+        """Get the configured cost limit value."""
         return self._limit
 
     @limit.setter
     def limit(self, value: int | None) -> None:
-        """Update the price limit value.
+        """Update the cost limit value.
 
-        This does not trigger a check of the price limit (which could now have been
+        This does not trigger a check of the cost limit (which could now have been
         exceeded).
         """
-        self._validate_price_limit(value)
+        self._validate_cost_limit(value)
         self._limit = value
 
     def record(self, usage: ModelUsage) -> None:
@@ -605,7 +605,7 @@ class _PriceLimit(Limit, _Node):
         self._usage += usage
 
     def check(self) -> None:
-        """Check if this price limit or any ancestor limits have been exceeded.
+        """Check if this cost limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
         simultaneously exceeded, the outermost (closest to root) one raises the error,
@@ -615,22 +615,22 @@ class _PriceLimit(Limit, _Node):
             self.parent.check()
         self._check_self()
 
-    def _load_price_file(self, price_file: Path) -> Dict:
-        with open(price_file) as f:
-            prices = json.load(f)
+    def _load_cost_file(self, cost_file: Path) -> Dict:
+        with open(cost_file) as f:
+            costs = json.load(f)
 
-        # TODO: validate price format is correct!
+        # TODO: validate cost format is correct!
         # TODO: Can we load this file elsewhere instead of in every sample?
         # TODO: Do we know what the model is at this point? Could multiple models
         #    be in play here or does a _Node only have one model? If only one model
         #    we should avoid storing details of others
 
-        return prices
+        return costs
 
-    def _validate_price_limit(self, value: int | None) -> None:
+    def _validate_cost_limit(self, value: int | None) -> None:
         if value is not None and value < 0:
             raise ValueError(
-                f"Price limit value must be a non-negative float or None: {value}"
+                f"Cost limit value must be a non-negative float or None: {value}"
             )
 
     def _check_self(self) -> None:
@@ -641,12 +641,12 @@ class _PriceLimit(Limit, _Node):
             return
 
         model = get_model()
-        if model.name not in self._prices:
+        if model.name not in self._costs:
             raise ValueError(
-                f"Model {model.name} is missing from price file {self._price_file}."
+                f"Model {model.name} is missing from cost file {self._cost_file}."
             )
 
-        model_price = self._prices[model.name]
+        model_cost = self._costs[model.name]
 
         # TODO: Some models have different pricing for reasoning vs regular
         # output tokens. We should support both
@@ -655,20 +655,20 @@ class _PriceLimit(Limit, _Node):
         output_tokens = self._usage.output_tokens
 
         total = (
-            model_price["input_cost_per_token"] * uncached_input_tokens
-            + model_price["cache_read_input_token_cost"] * cached_input_tokens
-            + model_price["output_cost_per_token"] * output_tokens
+            model_cost["input_cost_per_token"] * uncached_input_tokens
+            + model_cost["cache_read_input_token_cost"] * cached_input_tokens
+            + model_cost["output_cost_per_token"] * output_tokens
         )
 
         if total > self.limit:
             message = (
-                f"Price limit exceeded. value: {total:.02f}; limit: {self.limit:.02f}"
+                f"Cost limit exceeded. value: {total:.02f}; limit: {self.limit:.02f}"
             )
             transcript()._event(
-                SampleLimitEvent(type="price", limit=self.limit, message=message)
+                SampleLimitEvent(type="cost", limit=self.limit, message=message)
             )
             raise LimitExceededError(
-                "price", value=total, limit=self.limit, message=message, source=self
+                "cost", value=total, limit=self.limit, message=message, source=self
             )
 
 

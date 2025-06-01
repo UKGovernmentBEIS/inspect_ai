@@ -64,8 +64,8 @@ class Task:
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
-        price_limit: float | None = None,
-        price_file: Path | None = None,
+        cost_limit: float | None = None,
+        cost_file: Path | None = None,
         name: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
@@ -100,10 +100,10 @@ class Task:
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
-            price_limit: Limit on price (in USD) for sample. Tokens read from Inspect's
+            cost_limit: Limit on cost (in USD) for sample. Tokens read from Inspect's
                 cache are treated as non-free for this calculation to ensure fair
-                comparisons when price limits are used.
-            price_file: JSON file mapping model name to pricing details.
+                comparisons when cost limits are used.
+            cost_file: JSON file mapping model name to pricing details.
             name: Task name. If not specified is automatically
                 determined based on the name of the task directory (or "task")
                 if its anonymous task (e.g. created in a notebook and passed to
@@ -156,8 +156,8 @@ class Task:
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
-        self.price_limit = price_limit
-        self.price_file = price_file
+        self.cost_limit = cost_limit
+        self.cost_file = cost_file
         self.version = version
         self._name = name
         self.metadata = metadata
@@ -206,8 +206,8 @@ def task_with(
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
-    price_limit: float | None | NotGiven = NOT_GIVEN,
-    price_file: Path | None | NotGiven = NOT_GIVEN,
+    cost_limit: float | None | NotGiven = NOT_GIVEN,
+    cost_file: Path | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
@@ -246,10 +246,10 @@ def task_with(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
-        price_limit: Limit on price (in USD) for sample. Tokens read from Inspect's
+        cost_limit: Limit on cost (in USD) for sample. Tokens read from Inspect's
             cache are treated as non-free for this calculation to ensure fair
-            comparisons when price limits are used.
-        price_file: JSON file mapping model name to pricing details.
+            comparisons when cost limits are used.
+        cost_file: JSON file mapping model name to pricing details.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
@@ -297,10 +297,10 @@ def task_with(
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):
         task.working_limit = working_limit
-    if not isinstance(price_limit, NotGiven):
-        task.price_limit = price_limit
-    if not isinstance(price_file, NotGiven):
-        task.price_file = price_file
+    if not isinstance(cost_limit, NotGiven):
+        task.cost_limit = cost_limit
+    if not isinstance(cost_file, NotGiven):
+        task.cost_file = cost_file
     if not isinstance(version, NotGiven):
         task.version = version
     if not isinstance(name, NotGiven):

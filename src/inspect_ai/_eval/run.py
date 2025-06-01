@@ -185,11 +185,11 @@ async def eval_run(
                 else:
                     task.working_limit = task_eval_config.working_limit
 
-                # sample price limit
-                if task_eval_config.price_limit is None:
-                    task_eval_config.price_limit = task.price_limit
+                # sample cost limit
+                if task_eval_config.cost_limit is None:
+                    task_eval_config.cost_limit = task.cost_limit
                 else:
-                    task.price_limit = task_eval_config.price_limit
+                    task.cost_limit = task_eval_config.cost_limit
 
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:

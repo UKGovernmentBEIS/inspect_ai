@@ -296,9 +296,9 @@ def test_working_limit_reporting():
     assert waiting_time > 3
 
 
-def test_price_limit(tmp_path):
+def test_cost_limit(tmp_path):
     # Build a temporary JSON file under tmp_path (set by pytest)
-    price_file = tmp_path / "price_config.json"
+    cost_file = tmp_path / "cost_config.json"
     data = {
         "model": {
             "input_cost_per_token": 0.01,
@@ -306,7 +306,7 @@ def test_price_limit(tmp_path):
             "cache_read_input_token_cost": 0.10,
         }
     }
-    price_file.write_text(json.dumps(data))
+    cost_file.write_text(json.dumps(data))
 
     model = get_model(
         "mockllm/model",
@@ -322,22 +322,22 @@ def test_price_limit(tmp_path):
         ),
     )
 
-    # With our simulated prices, each turn should cost $0.111 so after 10 turns
+    # With our simulated costs, each turn should cost $0.111 so after 10 turns
     # we should hit the limit at 30 total tokens.
-    # The price limit should be hit while the token and turn limits should not
+    # The cost limit should be hit while the token and turn limits should not
     token_limit = 31
     message_limit = 21  # Expect 10 messages from "user", 10 from assistant
-    price_limit = 1.00
+    cost_limit = 1.00
 
     log = eval(
         Task(solver=looping_solver()),
         model=model,
         token_limit=token_limit,
         message_limit=message_limit,
-        price_limit=price_limit,
-        price_file=price_file,
+        cost_limit=cost_limit,
+        cost_file=cost_file,
     )[0]
-    check_price_limit_event(log, price_limit)
+    check_cost_limit_event(log, cost_limit)
 
 
 @pytest.mark.slow
@@ -366,10 +366,10 @@ def check_working_limit_event(log: EvalLog, working_limit: int):
     check_limit_event(log, "working")
 
 
-def check_price_limit_event(log: EvalLog, price_limit: float):
-    assert log.eval.config.price_limit == price_limit
+def check_cost_limit_event(log: EvalLog, cost_limit: float):
+    assert log.eval.config.cost_limit == cost_limit
     assert log.samples
-    check_limit_event(log, "price")
+    check_limit_event(log, "cost")
 
 
 def mock_model_output(**kwargs) -> ModelOutput:

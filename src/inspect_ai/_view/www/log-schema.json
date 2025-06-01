@@ -1395,7 +1395,7 @@
           "default": null,
           "title": "Working Limit"
         },
-        "price_limit": {
+        "cost_limit": {
           "anyOf": [
             {
               "type": "float"
@@ -1405,7 +1405,7 @@
             }
           ],
           "default": null,
-          "title": "Price Limit"
+          "title": "Cost Limit"
         },
         "max_samples": {
           "anyOf": [
@@ -2310,7 +2310,7 @@
             "working",
             "message",
             "token",
-            "price",
+            "cost",
             "operator",
             "custom"
           ],
@@ -4534,7 +4534,7 @@
             "time",
             "working",
             "token",
-            "price",
+            "cost",
             "operator",
             "custom"
           ],
