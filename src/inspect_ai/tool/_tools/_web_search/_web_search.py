@@ -50,15 +50,6 @@ def web_search(
 ) -> Tool:
     """Web search tool.
 
-    ::: callout-note
-    The "openai" web search provider described below is available only in the development version of Inspect.
-    To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Web searches are executed using a provider. Providers are split
     into two categories:
 
