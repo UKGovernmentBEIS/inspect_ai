@@ -104,7 +104,8 @@ def registry_tag(
     """
     # bind arguments to params
     named_params: dict[str, Any] = {}
-    bound_params = inspect.signature(type).bind(*args, **kwargs)
+    bound_params = inspect.signature(type).bind_partial(*args, **kwargs)
+    bound_params.apply_defaults()
     for param, value in bound_params.arguments.items():
         named_params[param] = registry_value(value)
 

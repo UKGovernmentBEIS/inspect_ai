@@ -1,3 +1,4 @@
+from inspect_ai import Task, eval, task
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
     registry_create_from_dict,
@@ -5,6 +6,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_value,
 )
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.scorer import Metric, metric
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Solver, solver, use_tools
@@ -40,3 +42,20 @@ def test_registry_dict() -> None:
 
     mysolver2 = registry_create_from_dict(solver_dict)
     assert isinstance(mysolver2, Solver)
+
+
+@task
+def task_with_default(variant: str = "default") -> Task:
+    return Task(dataset=[Sample(input="")], plan=[])
+
+
+def test_registry_tag_applies_default_arguments() -> None:
+    task_instance = task_with_default()
+    log = eval(task_instance)[0]
+    assert log.eval.task_args == {"variant": "default"}
+
+
+def test_registry_tag_applies_default_arguments_with_override() -> None:
+    task_instance = task_with_default(variant="override")
+    log = eval(task_instance)[0]
+    assert log.eval.task_args == {"variant": "override"}
