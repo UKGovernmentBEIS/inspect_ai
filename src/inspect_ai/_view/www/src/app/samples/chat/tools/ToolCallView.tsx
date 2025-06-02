@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FC, useMemo } from "react";
 import {
   ContentAudio,
+  ContentData,
   ContentImage,
   ContentReasoning,
   ContentText,
@@ -31,6 +32,7 @@ interface ToolCallViewProps {
     | ContentVideo
     | ContentTool
     | ContentReasoning
+    | ContentData
     | (
         | ContentText
         | ContentAudio
@@ -38,6 +40,7 @@ interface ToolCallViewProps {
         | ContentVideo
         | ContentTool
         | ContentReasoning
+        | ContentData
       )[];
   mode?: "compact";
 }
@@ -65,7 +68,8 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
       | ContentImage
       | ContentVideo
       | ContentTool
-      | ContentReasoning,
+      | ContentReasoning
+      | ContentData,
   ) {
     if (value && typeof value === "object") {
       if (value.type === "image") {
@@ -148,6 +152,7 @@ const normalizeContent = (
     | ContentVideo
     | ContentTool
     | ContentReasoning
+    | ContentData
     | (
         | ContentText
         | ContentImage
@@ -155,6 +160,7 @@ const normalizeContent = (
         | ContentVideo
         | ContentTool
         | ContentReasoning
+        | ContentData
       )[],
 ): (
   | ContentText
@@ -163,6 +169,7 @@ const normalizeContent = (
   | ContentVideo
   | ContentTool
   | ContentReasoning
+  | ContentData
 )[] => {
   if (Array.isArray(output)) {
     return output;
@@ -176,6 +183,8 @@ const normalizeContent = (
             text: String(output),
             refusal: null,
             internal: null,
+            format: null,
+            citations: null,
           },
         ],
       },

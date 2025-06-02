@@ -184,6 +184,7 @@
             "model_length",
             "tool_calls",
             "content_filter",
+            "pause_turn",
             "unknown"
           ],
           "title": "Stop Reason",
@@ -247,6 +248,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -366,6 +370,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -456,6 +463,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -584,6 +594,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -693,6 +706,43 @@
         "format"
       ],
       "title": "ContentAudio",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentData": {
+      "description": "Model internal.",
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "data",
+          "default": "data",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Data",
+          "type": "object"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "data"
+      ],
+      "title": "ContentData",
       "type": "object",
       "additionalProperties": false
     },
@@ -829,13 +879,49 @@
           ],
           "default": null,
           "title": "Refusal"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "enum": [
+                "markdown",
+                "json"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Format"
+        },
+        "citations": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/JsonValue"
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citations"
         }
       },
       "required": [
         "internal",
         "type",
         "text",
-        "refusal"
+        "refusal",
+        "format",
+        "citations"
       ],
       "title": "ContentText",
       "type": "object",
@@ -5474,6 +5560,9 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
+              "$ref": "#/$defs/ContentData"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
@@ -5490,6 +5579,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },

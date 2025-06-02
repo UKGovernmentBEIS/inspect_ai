@@ -3,12 +3,13 @@ import clsx from "clsx";
 import { FC, ReactNode } from "react";
 import {
   ContentAudio,
+  ContentData,
   ContentImage,
   ContentReasoning,
   ContentText,
   ContentVideo,
-  Format1,
   Format2,
+  Format3,
 } from "../../../@types/log";
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
@@ -24,7 +25,8 @@ type ContentType =
   | ContentImage
   | ContentAudio
   | ContentVideo
-  | ContentTool;
+  | ContentTool
+  | ContentData;
 
 interface MessageContentProps {
   contents:
@@ -37,6 +39,7 @@ interface MessageContentProps {
         | ContentAudio
         | ContentVideo
         | ContentTool
+        | ContentData
       )[];
 }
 
@@ -55,6 +58,8 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
             text: content,
             refusal: null,
             internal: null,
+            format: null,
+            citations: null,
           },
           index === contents.length - 1,
         );
@@ -80,6 +85,8 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
       text: contents,
       refusal: null,
       internal: null,
+      format: null,
+      citations: null,
     };
     return messageRenderers["text"].render(
       "text-message-content",
@@ -178,7 +185,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
  * Renders message content based on its type.
  * Supports rendering strings, images, and tools using specific renderers.
  */
-const mimeTypeForFormat = (format: Format1 | Format2): string => {
+const mimeTypeForFormat = (format: Format2 | Format3): string => {
   switch (format) {
     case "mov":
       return "video/quicktime";
@@ -190,5 +197,7 @@ const mimeTypeForFormat = (format: Format1 | Format2): string => {
       return "video/mp4";
     case "mpeg":
       return "video/mpeg";
+    default:
+      return "video/mp4"; // Default to mp4 for unknown formats
   }
 };
