@@ -14,7 +14,7 @@ from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai.tool._tool_def import ToolDef
 
 from ..._tool import Tool, ToolResult, tool
-from ._google import GoogleOptions, google_search_provider, maybe_get_google_api_keys
+from ._google import GoogleOptions, google_search_provider
 from ._tavily import TavilyOptions, tavily_search_provider
 
 Provider: TypeAlias = Literal["openai", "tavily", "google"]  # , "gemini", "anthropic"
@@ -45,19 +45,10 @@ class WebSearchDeprecatedArgs(TypedDict, total=False):
 
 @tool
 def web_search(
-    providers: Provider | Providers | list[Provider | Providers],
+    providers: Provider | Providers | list[Provider | Providers] | None = None,
     **deprecated: Unpack[WebSearchDeprecatedArgs],
 ) -> Tool:
     """Web search tool.
-
-    ::: callout-note
-    The "openai" web search provider described below is available only in the development version of Inspect.
-    To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
 
     Web searches are executed using a provider. Providers are split
     into two categories:
@@ -83,6 +74,8 @@ def web_search(
         supports several formats based on either a `str` specifying a provider or
         a `dict` whose keys are the provider names and whose values are the
         provider-specific options. A single value or a list of these can be passed.
+        This arg is optional just for backwards compatibility. New code should
+        always provide this argument.
 
         Single provider:
         ```
@@ -166,12 +159,11 @@ def _normalize_config(
     # 1. Both deprecated_provider and providers are set
     #     ValueError
     # 2. Neither deprecated_provider nor providers is set
-    #     Do the google_none_hack.
-    #     if deprecated_provider is still none ValueError
-    # - Only providers is set
+    #     act as if they passed provider="google"
+    # 3. Only providers is set
     #     if any of the other deprecated parameters is set, then ValueError
     #     else Happy path
-    # - Only deprecated_provider is set
+    # 4. Only deprecated_provider is set
     #     convert to new config format - including processing old other params
 
     deprecated_provider = deprecated.get("provider", None)
@@ -180,12 +172,8 @@ def _normalize_config(
         raise ValueError("`provider` is deprecated. Please only specify `providers`.")
 
     # Case 2.
-    if (
-        providers is None
-        and deprecated_provider is None
-        and (deprecated_provider := _google_none_hack()) is None
-    ):
-        raise ValueError("`providers` must be specified.")
+    if providers is None and deprecated_provider is None:
+        deprecated_provider = "google"
 
     num_results = deprecated.get("num_results", None)
     max_provider_calls = deprecated.get("max_provider_calls", None)
@@ -215,19 +203,6 @@ def _normalize_config(
                     raise ValueError(f"Invalid provider: '{key}'")
                 normalized[key] = value  # type: ignore
     return normalized
-
-
-def _google_none_hack() -> Literal["google"]:
-    """If no config nor provider was set, infer 'google' if the API keys are set."""
-    if maybe_get_google_api_keys():
-        deprecation_warning(
-            "The `google` `web_search` provider was inferred based on the presence of environment variables. Please specify the provider explicitly to avoid this warning."
-        )
-        return "google"
-    else:
-        raise ValueError(
-            "Omitting `provider` is no longer supported. Please specify a `web_search` config explicitly to avoid this error."
-        )
 
 
 def _get_config_via_back_compat(
