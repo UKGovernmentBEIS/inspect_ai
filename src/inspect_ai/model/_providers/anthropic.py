@@ -3,7 +3,7 @@ import os
 import re
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, cast
+from typing import Any, Iterable, Literal, Optional, Tuple, cast
 
 from anthropic import (
     APIConnectionError,
@@ -17,6 +17,8 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
+    ContentBlock,
+    DocumentBlockParam,
     ImageBlockParam,
     Message,
     MessageParam,
@@ -260,13 +262,23 @@ class AnthropicAPI(ModelAPI):
             )
 
             if pause_turn:
-                last_chat_message_assistant = output.choices[-1].message
-                # TODO: Not sure what model_call I should be returning. As coded,
-                # I'm returning the last model call, but that may not be correct.
-                print("XXXXX calling generate recursively because of pause_turn")
-                return await self.generate(
-                    input + [last_chat_message_assistant], tools, tool_choice, config
+                head_chat_message_assistant = output.message
+
+                result = await self.generate(
+                    input + [head_chat_message_assistant], tools, tool_choice, config
                 )
+                (output_or_exception, mc) = (
+                    result if isinstance(result, tuple) else (result, model_call())
+                )
+                if isinstance(output_or_exception, Exception):
+                    return output_or_exception, mc
+                tail_chat_message_assistant = output_or_exception.message
+
+                tail_chat_message_assistant.content = _content_list(
+                    head_chat_message_assistant.content
+                ) + _content_list(tail_chat_message_assistant.content)
+
+                return result
 
             # return output and call
             return output, model_call()
@@ -466,10 +478,27 @@ class AnthropicAPI(ModelAPI):
         # includes a trailing `server_tool_use` block with no corresponding
         # `web_search_results` block. To work around this, we filter out trailing
         # `server_tool_use` blocks.
-        messages = filter_trailing_server_tool_use(messages)
+        # messages = filter_trailing_server_tool_use(messages)
 
         # messages
         message_params = [(await message_param(message)) for message in messages]
+
+        # HACK-O-RAMA: Make sure all `server_tool_use` blocks precede all `web_search_results`
+        # def sort_blocks(block) -> int:
+        #     # Ensure server_tool_use comes before web_search_results
+        #     if isinstance(block, dict) and "type" in block:
+        #         if block["type"] == "server_tool_use":
+        #             return 0
+        #         if block["type"] == "web_search_results":
+        #             return 1
+        #     return 2
+
+        # for msg in message_params:
+        #     content = msg["content"]
+        #     if isinstance(content, Iterable) and not isinstance(content, str):
+        #         new_content = list(content)
+        #         new_content.sort(key=sort_blocks)
+        #         msg["content"] = new_content
 
         # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
         message_params = functools.reduce(
@@ -882,13 +911,29 @@ async def model_output_from_message(
         elif isinstance(content_block, ServerToolUseBlock):
             # TODO
             # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
-            v1 = ServerToolUseBlock.model_validate(content_block.model_dump())
-            content.append(ContentData(data=v1.model_dump()))
+            validatedServerToolUseBlock = ServerToolUseBlock.model_validate(
+                content_block.model_dump()
+            )
+            print(
+                f"Creating ServerToolUse({validatedServerToolUseBlock.id})({validatedServerToolUseBlock.input})"
+            )
+            content.append(
+                ContentData(
+                    data=ServerToolUseBlock.model_validate(
+                        content_block.model_dump()
+                    ).model_dump()
+                )
+            )
         elif isinstance(content_block, WebSearchToolResultBlock):
             # TODO
             # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
-            v2 = WebSearchToolResultBlock.model_validate(content_block.model_dump())
-            content.append(ContentData(data=v2.model_dump()))
+            validatedWebSearchResult = WebSearchToolResultBlock.model_validate(
+                content_block.model_dump()
+            )
+            print(
+                f"Creating WebSearchResult({validatedWebSearchResult.tool_use_id}) w/{len(validatedWebSearchResult.content) if isinstance(validatedWebSearchResult.content, list) else 666} results"
+            )
+            content.append(ContentData(data=validatedWebSearchResult.model_dump()))
         elif isinstance(content_block, RedactedThinkingBlock):
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
@@ -1016,7 +1061,7 @@ async def message_param_content(
             else None
         )
         return TextBlockParam(
-            type="text", text=content.text or NO_CONTENT, citations=citations
+            type="text", text=content.text or NO_CONTENT, citations=None
         )
     elif isinstance(content, ContentImage):
         # resolve to url
@@ -1114,3 +1159,7 @@ def filter_trailing_server_tool_use(messages: list[ChatMessage]) -> list[ChatMes
         return acc
 
     return functools.reduce(_the_filter, messages, [])
+
+
+def _content_list(input: str | list[Content]) -> list[Content]:
+    return [ContentText(text=input)] if isinstance(input, str) else input
