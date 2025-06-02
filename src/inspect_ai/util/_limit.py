@@ -236,14 +236,6 @@ def check_message_limit(count: int, raise_for_equal: bool) -> None:
 def time_limit(limit: float | None) -> _TimeLimit:
     """Limits the wall clock time which can elapse.
 
-    ::: callout-note
-    The `time_limit()` function below is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     The timer starts when the context manager is opened and stops when it is closed.
 
     These limits can be stacked.
@@ -266,14 +258,6 @@ def time_limit(limit: float | None) -> _TimeLimit:
 
 def working_limit(limit: float | None) -> _WorkingLimit:
     """Limits the working time which can elapse.
-
-    ::: callout-note
-    The `working_limit()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
 
     Working time is the wall clock time minus any waiting time e.g. waiting before
     retrying in response to rate limits or waiting on a semaphore.

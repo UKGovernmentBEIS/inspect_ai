@@ -3,10 +3,12 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._web_search._web_search import (
     Providers,
     _create_external_provider,
     _normalize_config,
+    web_search,
 )
 
 
@@ -110,32 +112,6 @@ class TestNormalizeConfig:
         with pytest.raises(ValueError, match=r"`provider` is deprecated"):
             _normalize_config(["google"], provider="tavily")
 
-    @patch(
-        "inspect_ai.tool._tools._web_search._web_search.maybe_get_google_api_keys",
-        return_value=True,
-    )
-    def test_no_params_with_api_keys(self, mock_google_api_keys) -> None:
-        """Test the google_none_hack when API keys are available."""
-        # Mock the deprecation warning to avoid cluttering test output
-        with patch(
-            "inspect_ai.tool._tools._web_search._web_search.deprecation_warning"
-        ):
-            result = _normalize_config(None)
-            assert result == {"google": None}
-            mock_google_api_keys.assert_called_once()
-
-    @patch(
-        "inspect_ai.tool._tools._web_search._web_search.maybe_get_google_api_keys",
-        return_value=False,
-    )
-    def test_no_params_without_api_keys(self, mock_google_api_keys) -> None:
-        """Test error when no providers or provider is set and no Google API keys are available."""
-        with pytest.raises(
-            ValueError, match=r"Please specify a `web_search` config explicitly"
-        ):
-            _normalize_config(None)
-            mock_google_api_keys.assert_called_once()
-
     def test_invalid_provider_in_list(self) -> None:
         """Test handling of invalid provider names."""
         with pytest.raises(ValueError, match=r"Invalid provider: 'invalid_provider'"):
@@ -209,3 +185,65 @@ class TestCreateExternalProvider:
     )
     def test_google_provider_with_none(self, mock_google_api_keys) -> None:
         assert callable(_create_external_provider({"google": None}))
+
+
+class TestOldSignatureVariants:
+    """Tests for the old signature variants of web_search function."""
+
+    # web_search(model=web_search_model, num_results=1)
+    @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
+    def test_bug_report_cse(self, mock_warning):
+        assert ToolDef(web_search(model="NA", num_results=1)).options == {
+            "google": {"model": "NA", "num_results": 1}
+        }
+
+    @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
+    def test_no_parameters(self, mock_warning):
+        assert ToolDef(web_search()).options == {"google": None}
+
+    @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
+    def test_only_provider_parameter(self, mock_warning):
+        assert ToolDef(web_search(provider="google")).options == {"google": None}
+        assert ToolDef(web_search(provider="tavily")).options == {"tavily": None}
+
+    @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
+    def test_provider_with_num_results(self, mock_warning):
+        assert ToolDef(web_search(provider="google", num_results=10)).options == {
+            "google": {"num_results": 10}
+        }
+        assert ToolDef(web_search(provider="tavily", num_results=10)).options == {
+            "tavily": {"max_results": 10}
+        }
+
+    @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
+    def test_num_results_only(self, mock_warning):
+        assert ToolDef(web_search(num_results=10)).options == {
+            "google": {"num_results": 10}
+        }
+
+    @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
+    def test_provider_with_multiple_parameters(self, mock_warning):
+        assert ToolDef(
+            web_search(
+                provider="google",
+                num_results=10,
+                max_provider_calls=5,
+                max_connections=15,
+                model="gpt-4o",
+            )
+        ).options == {
+            "google": {
+                "num_results": 10,
+                "max_provider_calls": 5,
+                "max_connections": 15,
+                "model": "gpt-4o",
+            }
+        }
+
+        assert ToolDef(
+            web_search(provider="tavily", num_results=10, max_connections=15)
+        ).options == {"tavily": {"max_results": 10, "max_connections": 15}}
+
+    def test_conflict_between_old_and_new_signatures(self):
+        with pytest.raises(ValueError, match=r"`provider` is deprecated"):
+            web_search(["google"], provider="tavily")

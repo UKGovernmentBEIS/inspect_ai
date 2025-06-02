@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Inspect View: Display sample id & epoch in sample dialog title bar.
+- Inspect View: Don't open sample dialog when simply navigating the sample list.
+
+## v0.3.100 (01 June 2025)
+
 - [time_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#time-limit) and [working_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#working-limit) context managers for scoped application of time limits.
 - Abiliy to query current usage for scoped limits (e.g. time or tokens).
 - Added native OpenAI web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
@@ -10,6 +15,7 @@
 - Task display: Simplify task display for `plain` mode (no outline, don't expand tables to console width).
 - Task display: Truncate task config to prevent overflow (collapse dicts, limit individual values to 50 chars, limit overall output to 500 chars).
 - Task display: Always show the sample init event in the task transcript display.
+- Task display: Fix mouse support on ghostty (and possibly other terminals).
 - Inspect View: Outline view for transcript which enables high level navigation to solvers, agents, scorers, etc.
 - Inspect View: Fix an issue that prevented the display of the viewer in VSCode when the viewer tab was moved to the background.
 - Inspect View: Don't error when metadata contains null values.

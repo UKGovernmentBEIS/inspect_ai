@@ -171,7 +171,7 @@ export const useSampleNavigation = () => {
     const itemsCount = sampleSummaries.length;
     const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
     if (next > -1) {
-      showSample(next, sampleTabId);
+      selectSample(next);
     }
   }, [selectedSampleIndex, showSample, sampleTabId]);
 
@@ -179,7 +179,7 @@ export const useSampleNavigation = () => {
   const previousSample = useCallback(() => {
     const prev = selectedSampleIndex - 1;
     if (prev > -1) {
-      showSample(prev, sampleTabId);
+      selectSample(prev);
     }
   }, [selectedSampleIndex, showSample, sampleTabId]);
 
