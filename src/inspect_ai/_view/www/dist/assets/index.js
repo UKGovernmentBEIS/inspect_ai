@@ -38880,6 +38880,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           const c2 = content2;
           return /* @__PURE__ */ jsxRuntimeExports.jsx(ToolOutput, { output: c2.content }, key2);
         }
+      },
+      data: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { style: { border: "solid red 1px" }, children: JSON.stringify(c2.data) });
+        }
       }
     };
     const mimeTypeForFormat = (format2) => {
@@ -56176,7 +56182,7 @@ self.onmessage = function (e) {
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.toolConfig, "text-size-small"), children: toolEls }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$o.toolChoice, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$o.toolChoice, "text-size-small"), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
         ] })

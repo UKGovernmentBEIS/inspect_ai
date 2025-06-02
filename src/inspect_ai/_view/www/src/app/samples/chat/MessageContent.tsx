@@ -179,6 +179,16 @@ const messageRenderers: Record<string, MessageRenderer> = {
       return <ToolOutput output={c.content} key={key} />;
     },
   },
+  data: {
+    render: (key, content) => {
+      const c = content as ContentData;
+      return (
+        <code style={{ border: "solid red 1px" }}>
+          {JSON.stringify(c.data)}
+        </code>
+      );
+    },
+  },
 };
 
 /**
