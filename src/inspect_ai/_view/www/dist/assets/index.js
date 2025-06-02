@@ -42486,14 +42486,30 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       text: {
         render: (key2, content2, isLast) => {
           const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MarkdownDiv,
-            {
-              markdown: c2.text || "",
-              className: isLast ? "no-last-para-padding" : ""
-            },
-            key2
-          );
+          const cites = citations(c2);
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MarkdownDiv,
+              {
+                markdown: c2.text || "",
+                className: isLast ? "no-last-para-padding" : ""
+              },
+              key2
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: cites.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "a",
+                {
+                  href: citation.url,
+                  target: "_blank",
+                  rel: "noopener noreferrer",
+                  title: citation.cited_text + "\n" + citation.url,
+                  children: index2 + 1
+                }
+              ),
+              index2 < cites.length - 1 ? ", " : ""
+            ] })) })
+          ] });
         }
       },
       reasoning: {
@@ -42574,6 +42590,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         default:
           return "video/mp4";
       }
+    };
+    const citations = (contents2) => {
+      const results = [];
+      for (const citation of contents2.citations || []) {
+        if (citation.url === void 0 || citation.cited_text === void 0) {
+          console.error("Invalid citation format", citation);
+        }
+        results.push(citation);
+      }
+      return results;
     };
     const resolveToolInput = (fn2, toolArgs) => {
       const toolName = fn2;

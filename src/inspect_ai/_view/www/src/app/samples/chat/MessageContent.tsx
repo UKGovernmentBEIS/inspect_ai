@@ -17,6 +17,7 @@ import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { RecordTree } from "../../content/RecordTree";
 import styles from "./MessageContent.module.css";
 import { ToolOutput } from "./tools/ToolOutput";
+import { Citation } from "./types";
 
 type ContentType =
   | string
@@ -105,12 +106,31 @@ const messageRenderers: Record<string, MessageRenderer> = {
   text: {
     render: (key, content, isLast) => {
       const c = content as ContentText;
+      const cites = citations(c);
+
       return (
-        <MarkdownDiv
-          key={key}
-          markdown={c.text || ""}
-          className={isLast ? "no-last-para-padding" : ""}
-        />
+        <>
+          <MarkdownDiv
+            key={key}
+            markdown={c.text || ""}
+            className={isLast ? "no-last-para-padding" : ""}
+          />
+          <div>
+            {cites.map((citation, index) => (
+              <>
+                <a
+                  href={citation.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={citation.cited_text + "\n" + citation.url}
+                >
+                  {index + 1}
+                </a>
+                {index < cites.length - 1 ? ", " : ""}
+              </>
+            ))}
+          </div>
+        </>
       );
     },
   },
@@ -208,4 +228,15 @@ const mimeTypeForFormat = (format: Format2 | Format3): string => {
     default:
       return "video/mp4"; // Default to mp4 for unknown formats
   }
+};
+
+const citations = (contents: ContentText): Citation[] => {
+  const results: Citation[] = [];
+  for (const citation of contents.citations || []) {
+    if (citation.url === undefined || citation.cited_text === undefined) {
+      console.error("Invalid citation format", citation);
+    }
+    results.push(citation as Citation);
+  }
+  return results;
 };
