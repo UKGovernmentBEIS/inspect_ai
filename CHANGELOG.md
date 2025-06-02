@@ -1,3 +1,8 @@
+## Unreleased
+
+- Inspect View: Display sample id & epoch in sample dialog title bar.
+- Inspect View: Don't open sample dialog when simply navigating the sample list.
+
 ## v0.3.100 (01 June 2025)
 
 - [time_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#time-limit) and [working_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#working-limit) context managers for scoped application of time limits.
@@ -14,8 +19,6 @@
 - Inspect View: Outline view for transcript which enables high level navigation to solvers, agents, scorers, etc.
 - Inspect View: Fix an issue that prevented the display of the viewer in VSCode when the viewer tab was moved to the background.
 - Inspect View: Don't error when metadata contains null values.
-- Inspect View: Display sample id & epoch in sample dialog title bar.
-- Inspect View: Don't open sample dialog when simply navigating the sample list.
 
 ## v0.3.99 (22 May 2025)
 
