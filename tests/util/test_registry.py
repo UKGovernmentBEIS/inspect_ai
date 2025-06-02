@@ -60,6 +60,7 @@ def test_registry_tag_overridden_default() -> None:
     log = eval(task_instance)[0]
     assert log.eval.task_args == {"variant": "override"}
 
+
 @task
 def task_with_default_and_required(required: str, variant: str = "default") -> Task:
     return Task(dataset=[Sample(input="")], plan=[])
