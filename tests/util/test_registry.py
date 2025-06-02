@@ -49,13 +49,29 @@ def task_with_default(variant: str = "default") -> Task:
     return Task(dataset=[Sample(input="")], plan=[])
 
 
-def test_registry_tag_applies_default_arguments() -> None:
+def test_registry_tag_default_argument() -> None:
     task_instance = task_with_default()
     log = eval(task_instance)[0]
     assert log.eval.task_args == {"variant": "default"}
 
 
-def test_registry_tag_applies_default_arguments_with_override() -> None:
+def test_registry_tag_overridden_default() -> None:
     task_instance = task_with_default(variant="override")
     log = eval(task_instance)[0]
     assert log.eval.task_args == {"variant": "override"}
+
+@task
+def task_with_default_and_required(required: str, variant: str = "default") -> Task:
+    return Task(dataset=[Sample(input="")], plan=[])
+
+
+def test_registry_tag_default_with_required() -> None:
+    task_instance = task_with_default_and_required("required_value")
+    log = eval(task_instance)[0]
+    assert log.eval.task_args == {"required": "required_value", "variant": "default"}
+
+
+def test_registry_tag_overridden_default_with_required() -> None:
+    task_instance = task_with_default_and_required("required_value", variant="override")
+    log = eval(task_instance)[0]
+    assert log.eval.task_args == {"required": "required_value", "variant": "override"}
