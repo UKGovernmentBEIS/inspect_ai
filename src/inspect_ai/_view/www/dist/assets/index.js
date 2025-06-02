@@ -86463,7 +86463,7 @@ Supported expressions:
         const itemCount = counter.item();
         return [
           {
-            label: `Sample ${itemCount}`,
+            label: `Sample ${sample2.id}`,
             number: itemCount,
             index: index2,
             data: sample2,
@@ -86501,10 +86501,10 @@ Supported expressions:
         if (sample2.id !== lastId) {
           counter.incrementGroup();
           results.push({
-            label: `Sample ${itemCount}`,
+            label: `Sample ${sample2.id}`,
             number: counter.group(),
             index: index2,
-            data: `Sample ${counter.group()}`,
+            data: `Sample ${sample2.id}`,
             type: "separator"
           });
           counter.resetItem();
@@ -86544,7 +86544,7 @@ Supported expressions:
         }
         counter.incrementItem();
         results.push({
-          label: `Sample ${counter.item()} (Epoch ${counter.group()})`,
+          label: `Sample ${sample2.id} (Epoch ${sample2.epoch})`,
           number: counter.item(),
           index: index2,
           data: sample2,

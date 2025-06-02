@@ -47,7 +47,7 @@ const noGrouping = (
     const itemCount = counter.item();
     return [
       {
-        label: `Sample ${itemCount}`,
+        label: `Sample ${sample.id}`,
         number: itemCount,
         index: index,
         data: sample,
@@ -104,13 +104,13 @@ const groupBySample = (
     const results = [];
     // Add a separator when the id changes
     const lastId = previousSample ? previousSample.id : undefined;
-    if (sample.id !== lastId) {
+    if (sample.id !== lastId) { 
       counter.incrementGroup();
       results.push({
-        label: `Sample ${itemCount}`,
+        label: `Sample ${sample.id}`,
         number: counter.group(),
         index: index,
-        data: `Sample ${counter.group()}`,
+        data: `Sample ${sample.id}`,
         type: "separator",
       } as SeparatorListItem);
       counter.resetItem();
@@ -175,7 +175,7 @@ const groupByEpoch = (
     // Compute the index within the epoch
     counter.incrementItem();
     results.push({
-      label: `Sample ${counter.item()} (Epoch ${counter.group()})`,
+      label: `Sample ${sample.id} (Epoch ${sample.epoch})`,
       number: counter.item(),
       index: index,
       data: sample,
