@@ -255,9 +255,18 @@ class AnthropicAPI(ModelAPI):
             response = message.model_dump()
 
             # extract output
-            output = await model_output_from_message(
+            output, pause_turn = await model_output_from_message(
                 self.client, self.service_model_name(), message, tools
             )
+
+            if pause_turn:
+                last_chat_message_assistant = output.choices[-1].message
+                # TODO: Not sure what model_call I should be returning. As coded,
+                # I'm returning the last model call, but that may not be correct.
+                print("XXXXX calling generate recursively because of pause_turn")
+                return await self.generate(
+                    input + [last_chat_message_assistant], tools, tool_choice, config
+                )
 
             # return output and call
             return output, model_call()
@@ -833,7 +842,7 @@ async def model_output_from_message(
     model: str,
     message: Message,
     tools: list[ToolInfo],
-) -> ModelOutput:
+) -> tuple[ModelOutput, bool]:
     # extract content and tool calls
     content: list[Content] = []
     reasoning_tokens = 0
@@ -895,11 +904,12 @@ async def model_output_from_message(
             )
 
     # resolve choice
+    stop_reason, pause_turn = message_stop_reason(message)
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
-        stop_reason=message_stop_reason(message),
+        stop_reason=stop_reason,
     )
 
     # return ModelOutput
@@ -912,17 +922,20 @@ async def model_output_from_message(
         + (input_tokens_cache_read or 0)
         + message.usage.output_tokens  # includes reasoning tokens
     )
-    return ModelOutput(
-        model=message.model,
-        choices=[choice],
-        usage=ModelUsage(
-            input_tokens=message.usage.input_tokens,
-            output_tokens=message.usage.output_tokens,
-            total_tokens=total_tokens,
-            input_tokens_cache_write=input_tokens_cache_write,
-            input_tokens_cache_read=input_tokens_cache_read,
-            reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+    return (
+        ModelOutput(
+            model=message.model,
+            choices=[choice],
+            usage=ModelUsage(
+                input_tokens=message.usage.input_tokens,
+                output_tokens=message.usage.output_tokens,
+                total_tokens=total_tokens,
+                input_tokens_cache_write=input_tokens_cache_write,
+                input_tokens_cache_read=input_tokens_cache_read,
+                reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+            ),
         ),
+        pause_turn,
     )
 
 
@@ -961,18 +974,18 @@ def _names_for_tool_call(
     )
 
 
-def message_stop_reason(message: Message) -> StopReason:
+def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
     match message.stop_reason:
         case "end_turn" | "stop_sequence":
-            return "stop"
+            return "stop", False
         case "tool_use":
-            return "tool_calls"
+            return "tool_calls", False
         case "max_tokens":
-            return message.stop_reason
+            return message.stop_reason, False
         case "refusal":
-            return "content_filter"
+            return "content_filter", False
         case _:
-            return "unknown"
+            return "unknown", message.stop_reason == "pause_turn"
 
 
 def split_system_messages(
