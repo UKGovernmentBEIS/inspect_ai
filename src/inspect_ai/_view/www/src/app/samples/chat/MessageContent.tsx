@@ -183,7 +183,8 @@ const messageRenderers: Record<string, MessageRenderer> = {
   data: {
     render: (key, content) => {
       const c = content as ContentData;
-      return <RecordTree key={key} id={key} record={c.data} />;
+      const { encrypted_content, ...record } = c.data;
+      return <RecordTree key={key} id={key} record={record} />;
     },
   },
 };

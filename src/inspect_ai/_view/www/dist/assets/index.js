@@ -42554,7 +42554,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       data: {
         render: (key2, content2) => {
           const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(RecordTree, { id: key2, record: c2.data }, key2);
+          const { encrypted_content, ...record } = c2.data;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(RecordTree, { id: key2, record }, key2);
         }
       }
     };
