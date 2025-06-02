@@ -14,6 +14,7 @@ import {
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
+import { RecordTree } from "../../content/RecordTree";
 import styles from "./MessageContent.module.css";
 import { ToolOutput } from "./tools/ToolOutput";
 
@@ -182,11 +183,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
   data: {
     render: (key, content) => {
       const c = content as ContentData;
-      return (
-        <code style={{ border: "solid red 1px" }}>
-          {JSON.stringify(c.data)}
-        </code>
-      );
+      return <RecordTree key={key} id={key} record={c.data} />;
     },
   },
 };
