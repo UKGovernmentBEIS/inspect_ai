@@ -366,14 +366,6 @@ inspect eval computer.py --no-internal-tools
 
 ## Web Search {#sec-web-search}
 
-::: callout-note
-The "openai" web search provider described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
 
 -   Internal providers: "openai" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
