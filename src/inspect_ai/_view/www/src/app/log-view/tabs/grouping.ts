@@ -104,7 +104,7 @@ const groupBySample = (
     const results = [];
     // Add a separator when the id changes
     const lastId = previousSample ? previousSample.id : undefined;
-    if (sample.id !== lastId) { 
+    if (sample.id !== lastId) {
       counter.incrementGroup();
       results.push({
         label: `Sample ${sample.id}`,
