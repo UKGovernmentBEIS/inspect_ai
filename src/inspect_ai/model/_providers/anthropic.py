@@ -742,6 +742,8 @@ async def message_param(message: ChatMessage) -> MessageParam:
                     | ImageBlockParam
                     | ThinkingBlockParam
                     | RedactedThinkingBlockParam
+                    | ServerToolUseBlockParam
+                    | WebSearchToolResultBlockParam
                 ]
             ) = message.error.message
             # anthropic requires that content be populated when
@@ -779,6 +781,8 @@ async def message_param(message: ChatMessage) -> MessageParam:
             | RedactedThinkingBlockParam
             | ImageBlockParam
             | ToolUseBlockParam
+            | ServerToolUseBlockParam
+            | WebSearchToolResultBlockParam
         ] = (
             [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
@@ -965,6 +969,8 @@ def message_stop_reason(message: Message) -> StopReason:
             return "tool_calls"
         case "max_tokens":
             return message.stop_reason
+        case "refusal":
+            return "content_filter"
         case _:
             return "unknown"
 
