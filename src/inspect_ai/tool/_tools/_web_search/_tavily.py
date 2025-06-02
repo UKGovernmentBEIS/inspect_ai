@@ -98,11 +98,11 @@ def tavily_search_provider(
             tavily_search_response = TavilySearchResponse.model_validate(
                 (await _search()).json()
             )
-            return f"Answer: {tavily_search_response.answer}\n\n{
+            return f"Answer: {tavily_search_response.answer}\n\n{'\n\n'.join(
                 [
                     f'[{result.title}]({result.url}):\n{result.content}'
                     for result in tavily_search_response.results
                 ]
-            }"
+            )}"
 
     return search
