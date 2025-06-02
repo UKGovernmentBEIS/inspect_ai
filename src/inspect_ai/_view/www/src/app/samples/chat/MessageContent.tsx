@@ -204,7 +204,14 @@ const messageRenderers: Record<string, MessageRenderer> = {
     render: (key, content) => {
       const c = content as ContentData;
       const { encrypted_content, ...record } = c.data;
-      return <RecordTree key={key} id={key} record={record} />;
+      return (
+        <RecordTree
+          key={key}
+          id={key}
+          record={record}
+          className={clsx(styles.data)}
+        />
+      );
     },
   },
 };

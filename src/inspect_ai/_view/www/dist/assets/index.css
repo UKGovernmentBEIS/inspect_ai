@@ -15714,17 +15714,23 @@ pre[class*="language-"] {
 ._treeIcon_1ltuo_20 {
   margin-top: -3px;
 }
-._contentImage_61gdd_1 {
+._contentImage_8rgix_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._reasoning_61gdd_6 {
+._reasoning_8rgix_6 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 1em;
   margin-bottom: 0.5em;
   background-color: var(--bs-light-bg-subtle);
   border-radius: var(--bs-border-radius);
+}
+
+._data_8rgix_14 {
+  border: solid var(--bs-light-border-subtle) 1px;
+  padding: 1em;
+  margin-bottom: 0.5em;
 }
 ._toolImage_bv5nm_1 {
   max-width: 800px;
