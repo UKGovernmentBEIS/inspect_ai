@@ -67,8 +67,8 @@
     "@popperjs/core": "^2.11.8",
     "ansi-output": "^0.0.9",
     "asciinema-player": "^3.9.0",
-    "bootstrap": "^5.3.3",
-    "bootstrap-icons": "^1.11.3",
+    "bootstrap": "^5.3.6",
+    "bootstrap-icons": "^1.12.1",
     "clipboard": "^2.0.11",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.1",
@@ -90,7 +90,7 @@
     "react-dom": "^19.0.0",
     "react-popper": "^2.3.0",
     "react-router-dom": "^7.6.0",
-    "react-virtuoso": "^4.12.6",
+    "react-virtuoso": "^4.12.7",
     "zustand": "^5.0.5",
     "use-resize-observer": "^9.1.0"
   }
