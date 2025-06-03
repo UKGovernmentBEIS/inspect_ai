@@ -127,7 +127,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
       );
       let inlineCites = "";
       if (citeText.length > 0) {
-        inlineCites = `^${citeText.join(",")}^`;
+        inlineCites = `<sup>${citeText.join(",")}</sup>`;
       }
       context.citeOffset = citeOffset + cites.length;
       context.citations.push(...cites);
@@ -136,7 +136,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
         <>
           <MarkdownDiv
             key={key}
-            markdown={(c.text || "") + inlineCites}
+            markdown={(c.text || "") + " " + inlineCites}
             className={isLast ? "no-last-para-padding" : ""}
           />
         </>

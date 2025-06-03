@@ -38249,7 +38249,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const unescaped = unprotectMarkdown(renderedHtml);
         const withCode = unescapeCodeHtmlEntities(unescaped);
-        const markup = { __html: withCode };
+        const withSup = unescapeSupHtmlEntities(withCode);
+        const markup = { __html: withSup };
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -38346,6 +38347,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       txt = txt.replaceAll("(close:767A125E)", "]");
       return txt;
     };
+    function unescapeSupHtmlEntities(str2) {
+      if (!str2) {
+        return str2;
+      }
+      return str2.replace(/&lt;sup&gt;/g, "<sup>").replace(/&lt;\/sup&gt;/g, "</sup>");
+    }
     function unescapeCodeHtmlEntities(str2) {
       if (!str2) return str2;
       const htmlEntities = {
@@ -42689,14 +42696,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           );
           let inlineCites = "";
           if (citeText.length > 0) {
-            inlineCites = `^${citeText.join(",")}^`;
+            inlineCites = `<sup>${citeText.join(",")}</sup>`;
           }
           context.citeOffset = citeOffset + cites.length;
           context.citations.push(...cites);
           return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MarkdownDiv,
             {
-              markdown: (c2.text || "") + inlineCites,
+              markdown: (c2.text || "") + " " + inlineCites,
               className: isLast ? "no-last-para-padding" : ""
             },
             key2

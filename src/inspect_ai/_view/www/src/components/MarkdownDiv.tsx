@@ -2,7 +2,6 @@ import clsx from "clsx";
 import "katex/dist/katex.min.css";
 import markdownit from "markdown-it";
 import markdownitKatex from "markdown-it-katex";
-import sup from "markdown-it-sup";
 import { CSSProperties, forwardRef } from "react";
 import "./MarkdownDiv.css";
 
@@ -40,7 +39,6 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
         throwOnError: false,
         errorColor: "#cc0000",
       });
-      md.use(sup);
 
       renderedHtml = md.render(preparedForMarkdown);
     } catch (ex) {
@@ -53,8 +51,11 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
     // For `code` tags, reverse the escaping if we can
     const withCode = unescapeCodeHtmlEntities(unescaped);
 
+    // For `sup` tags, reverse the escaping if we can
+    const withSup = unescapeSupHtmlEntities(withCode);
+
     // Return the rendered markdown
-    const markup = { __html: withCode };
+    const markup = { __html: withSup };
 
     return (
       <div
@@ -194,6 +195,16 @@ const unprotectMarkdown = (txt: string): string => {
   txt = txt.replaceAll("(close:767A125E)", "]");
   return txt;
 };
+
+function unescapeSupHtmlEntities(str: string): string {
+  // replace &lt;sup&gt; with <sup>
+  if (!str) {
+    return str;
+  }
+  return str
+    .replace(/&lt;sup&gt;/g, "<sup>")
+    .replace(/&lt;\/sup&gt;/g, "</sup>");
+}
 
 function unescapeCodeHtmlEntities(str: string): string {
   if (!str) return str;
