@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FC } from "react";
 import { Citation } from "./types";
 
+import { decodeHtmlEntities } from "../../../utils/html";
 import styles from "./MessageCitations.module.css";
 
 export interface MessageCitationProps {
@@ -25,7 +26,7 @@ export const MessageCitations: FC<MessageCitationProps> = ({ citations }) => {
             title={citation.url}
             className={clsx(styles.citationLink)}
           >
-            {citation.cited_text || citation.title}
+            {decodeHtmlEntities(citation.cited_text || citation.title || "")}
           </a>
         </>
       ))}

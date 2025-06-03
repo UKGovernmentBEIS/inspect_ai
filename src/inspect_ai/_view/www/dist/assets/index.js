@@ -42527,6 +42527,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       webSearchResultsServerToolRenderer,
       serverToolRenderer
     ];
+    function escapeSelector(id) {
+      return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+    }
+    const decodeHtmlEntities = (text2) => {
+      const parser2 = new DOMParser();
+      const doc2 = parser2.parseFromString(text2, "text/html");
+      return doc2.documentElement.textContent || text2;
+    };
     const citations$1 = "_citations_t2k1z_1";
     const citationLink = "_citationLink_t2k1z_9";
     const styles$1k = {
@@ -42547,7 +42555,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             rel: "noopener noreferrer",
             title: citation.url,
             className: clsx(styles$1k.citationLink),
-            children: citation.cited_text || citation.title
+            children: decodeHtmlEntities(citation.cited_text || citation.title || "")
           }
         )
       ] })) });
@@ -51934,9 +51942,6 @@ self.onmessage = function (e) {
         evalStatus !== "started" && (evalStats == null ? void 0 : evalStats.model_usage) && Object.keys(evalStats.model_usage).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(UsageCard, { stats: evalStats })
       ] }) });
     };
-    function escapeSelector(id) {
-      return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
-    }
     const panel$2 = "_panel_twp3v_1";
     const container$9 = "_container_twp3v_7";
     const styles$H = {
