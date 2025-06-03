@@ -15,6 +15,7 @@ import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { ContentDataView } from "./content-data/ContentDataView";
+import { MessageCitations } from "./MessageCitations";
 import styles from "./MessageContent.module.css";
 import { MessagesContext } from "./MessageContents";
 import { ToolOutput } from "./tools/ToolOutput";
@@ -109,36 +110,27 @@ interface MessageRenderer {
 
 const messageRenderers: Record<string, MessageRenderer> = {
   text: {
-    render: (key, content, isLast, context) => {
+    render: (key, content, isLast) => {
       // The context provides a way to share context between different
       // rendering. In this case, we'll use it to keep track of citations
       const c = content as ContentText;
-      const citeOffset = (context.citeOffset as number) || 0;
+
       const cites = citations(c);
 
       if (!c.text && !cites.length) {
         return undefined;
       }
 
-      // Generate a superscript mark for each citation (using a message level counter)
-      // and append it to the text. Add the citation to the context for later rendering / use.
-      const citeText = cites.map(
-        (_citation, index) => `${citeOffset + index + 1}`,
-      );
-      let inlineCites = "";
-      if (citeText.length > 0) {
-        inlineCites = `<sup>${citeText.join(",")}</sup>`;
-      }
-      context.citeOffset = citeOffset + cites.length;
-      context.citations.push(...cites);
-
       return (
         <>
           <MarkdownDiv
             key={key}
-            markdown={(c.text || "") + " " + inlineCites}
+            markdown={c.text || ""}
             className={isLast ? "no-last-para-padding" : ""}
           />
+          {c.citations ? (
+            <MessageCitations citations={c.citations as Citation[]} />
+          ) : undefined}
         </>
       );
     },
@@ -241,7 +233,10 @@ const mimeTypeForFormat = (format: Format2 | Format3): string => {
 const citations = (contents: ContentText): Citation[] => {
   const results: Citation[] = [];
   for (const citation of contents.citations || []) {
-    if (citation.url === undefined || citation.cited_text === undefined) {
+    if (
+      citation.url === undefined ||
+      (citation.cited_text === undefined && citation.title === undefined)
+    ) {
       console.error("Invalid citation format", citation);
     }
     results.push(citation as Citation);
@@ -249,6 +244,10 @@ const citations = (contents: ContentText): Citation[] => {
   return results;
 };
 
+// This collapses sequential runs of text content into a single text content,
+// adding citations as superscript counters at the end of the text for each block
+// containing citations. The citations are then attached to the content where
+// they can be rendered separately (with coordinating numbers).
 const normalizeContent = (contents: Contents): Contents => {
   // its a string
   if (typeof contents === "string") {
@@ -261,34 +260,35 @@ const normalizeContent = (contents: Contents): Contents => {
   }
 
   const result: ContentObject[] = [];
-  let collecting = false;
   const collection: ContentText[] = [];
 
   const collect = () => {
     if (collection.length > 0) {
       // Flatten the citations from the collection
-      const citations = collection
-        .flatMap((c) => c.citations || [])
-        .filter((c, index, self) => {
-          // remove duplicates
-          return (
-            self.findIndex(
-              (item) => item.url === c.url && item.cited_text === c.cited_text,
-            ) === index
-          );
-        });
+      const filteredCitations = collection.flatMap((c) => c.citations || []);
+      // Render citations as superscript counters
+      let citeCount = 0;
+      const textWithCites = collection
+        .map((c) => {
+          const citeText = c.citations?.map((_citation) => `${++citeCount}`);
+          let inlineCites = "";
+          if (citeText && citeText.length > 0) {
+            inlineCites = `<sup>${citeText.join(",")}</sup>`;
+          }
+          return (c.text || "") + inlineCites;
+        })
+        .join("");
 
       // Flatten the text from the collection into a single text content
       result.push({
         type: "text",
-        text: collection.map((c) => c.text).join(" "),
+        text: textWithCites,
         refusal: null,
         internal: null,
         format: null,
-        citations: citations,
+        citations: filteredCitations,
       });
       collection.length = 0;
-      collecting = false;
     }
   };
 
@@ -308,11 +308,8 @@ const normalizeContent = (contents: Contents): Contents => {
     }
 
     if (content.type === "text") {
-      // Collect text until we hit a  non-text content or a text with citations
+      // Collect text until we hit a  non-text content
       collection.push(content);
-      if (content.citations && content.citations.length > 0) {
-        collect();
-      }
       continue;
     } else {
       // collect any text content before this non-text content

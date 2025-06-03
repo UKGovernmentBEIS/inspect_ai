@@ -37647,7 +37647,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (this.mode === "text") {
         return base2;
       }
-      var superscript2;
+      var superscript;
       var subscript;
       while (true) {
         var lex2 = this.nextToken;
@@ -37665,14 +37665,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           this.consume();
         } else if (lex2.text === "^") {
-          if (superscript2) {
+          if (superscript) {
             throw new ParseError$1(
               "Double superscript",
               this.lexer,
               this.pos
             );
           }
-          superscript2 = this.handleSupSubscript("superscript");
+          superscript = this.handleSupSubscript("superscript");
         } else if (lex2.text === "_") {
           if (subscript) {
             throw new ParseError$1(
@@ -37690,15 +37690,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             primes.push(prime);
             this.consume();
           }
-          superscript2 = new ParseNode("ordgroup", primes, this.mode);
+          superscript = new ParseNode("ordgroup", primes, this.mode);
         } else {
           break;
         }
       }
-      if (superscript2 || subscript) {
+      if (superscript || subscript) {
         return new ParseNode("supsub", {
           base: base2,
-          sup: superscript2,
+          sup: superscript,
           sub: subscript
         }, this.mode);
       } else {
@@ -38178,52 +38178,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       md.renderer.rules.math_block = blockRenderer;
     };
     const markdownitKatex = /* @__PURE__ */ getDefaultExportFromCjs(markdownItKatex);
-    const UNESCAPE_RE = /\\([ \\!"#$%&'()*+,./:;<=>?@[\]^_`{|}~-])/g;
-    function superscript(state, silent) {
-      const max2 = state.posMax;
-      const start2 = state.pos;
-      if (state.src.charCodeAt(start2) !== 94) {
-        return false;
-      }
-      if (silent) {
-        return false;
-      }
-      if (start2 + 2 >= max2) {
-        return false;
-      }
-      state.pos = start2 + 1;
-      let found = false;
-      while (state.pos < max2) {
-        if (state.src.charCodeAt(state.pos) === 94) {
-          found = true;
-          break;
-        }
-        state.md.inline.skipToken(state);
-      }
-      if (!found || start2 + 1 === state.pos) {
-        state.pos = start2;
-        return false;
-      }
-      const content2 = state.src.slice(start2 + 1, state.pos);
-      if (content2.match(/(^|[^\\])(\\\\)*\s/)) {
-        state.pos = start2;
-        return false;
-      }
-      state.posMax = state.pos;
-      state.pos = start2 + 1;
-      const token_so = state.push("sup_open", "sup", 1);
-      token_so.markup = "^";
-      const token_t = state.push("text", "", 0);
-      token_t.content = content2.replace(UNESCAPE_RE, "$1");
-      const token_sc = state.push("sup_close", "sup", -1);
-      token_sc.markup = "^";
-      state.pos = state.posMax + 1;
-      state.posMax = max2;
-      return true;
-    }
-    function sup_plugin(md) {
-      md.inline.ruler.after("emphasis", "sup", superscript);
-    }
     const MarkdownDiv = reactExports.forwardRef(
       ({ markdown, style: style2, className: className2 }, ref) => {
         const protectedContent = protectBackslashesInLatex(markdown);
@@ -38241,7 +38195,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             throwOnError: false,
             errorColor: "#cc0000"
           });
-          md.use(sup_plugin);
           renderedHtml = md.render(preparedForMarkdown);
         } catch (ex) {
           console.log("Unable to markdown render content");
@@ -42575,9 +42528,34 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       webSearchResultsServerToolRenderer,
       serverToolRenderer
     ];
+    const citations$1 = "_citations_t2k1z_1";
+    const citationLink = "_citationLink_t2k1z_9";
+    const styles$1k = {
+      citations: citations$1,
+      citationLink
+    };
+    const MessageCitations = ({ citations: citations2 }) => {
+      if (citations2.length === 0) {
+        return void 0;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "a",
+          {
+            href: citation.url,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            title: citation.url,
+            className: clsx(styles$1k.citationLink),
+            children: citation.cited_text || citation.title
+          }
+        )
+      ] })) });
+    };
     const contentImage = "_contentImage_8rgix_1";
     const reasoning = "_reasoning_8rgix_6";
-    const styles$1k = {
+    const styles$1j = {
       contentImage,
       reasoning
     };
@@ -42585,7 +42563,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const output = "_output_bv5nm_6";
     const textOutput = "_textOutput_bv5nm_10";
     const textCode = "_textCode_bv5nm_18";
-    const styles$1j = {
+    const styles$1i = {
       toolImage,
       output,
       textOutput,
@@ -42607,7 +42585,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "img",
                   {
-                    className: clsx(styles$1j.toolImage),
+                    className: clsx(styles$1i.toolImage),
                     src: out.image
                   },
                   key2
@@ -42623,10 +42601,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.output), children: outputs });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1j.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1j.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1i.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1i.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({
       contents: contents2,
@@ -42684,30 +42662,23 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const messageRenderers = {
       text: {
-        render: (key2, content2, isLast, context) => {
+        render: (key2, content2, isLast) => {
           const c2 = content2;
-          const citeOffset = context.citeOffset || 0;
-          const cites = citations$1(c2);
+          const cites = citations(c2);
           if (!c2.text && !cites.length) {
             return void 0;
           }
-          const citeText = cites.map(
-            (_citation, index2) => `${citeOffset + index2 + 1}`
-          );
-          let inlineCites = "";
-          if (citeText.length > 0) {
-            inlineCites = `<sup>${citeText.join(",")}</sup>`;
-          }
-          context.citeOffset = citeOffset + cites.length;
-          context.citations.push(...cites);
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MarkdownDiv,
-            {
-              markdown: (c2.text || "") + " " + inlineCites,
-              className: isLast ? "no-last-para-padding" : ""
-            },
-            key2
-          ) });
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MarkdownDiv,
+              {
+                markdown: c2.text || "",
+                className: isLast ? "no-last-para-padding" : ""
+              },
+              key2
+            ),
+            c2.citations ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: c2.citations }) : void 0
+          ] });
         }
       },
       reasoning: {
@@ -42716,7 +42687,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (!r2.reasoning && !r2.redacted) {
             return void 0;
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1k.reasoning, "text-size-small"), children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1j.reasoning, "text-size-small"), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -42741,7 +42712,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1k.contentImage }, key2);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1j.contentImage }, key2);
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
           }
@@ -42788,10 +42759,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return "video/mp4";
       }
     };
-    const citations$1 = (contents2) => {
+    const citations = (contents2) => {
       const results = [];
       for (const citation of contents2.citations || []) {
-        if (citation.url === void 0 || citation.cited_text === void 0) {
+        if (citation.url === void 0 || citation.cited_text === void 0 && citation.title === void 0) {
           console.error("Invalid citation format", citation);
         }
         results.push(citation);
@@ -42809,18 +42780,24 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const collection = [];
       const collect = () => {
         if (collection.length > 0) {
-          const citations2 = collection.flatMap((c2) => c2.citations || []).filter((c2, index2, self2) => {
-            return self2.findIndex(
-              (item2) => item2.url === c2.url && item2.cited_text === c2.cited_text
-            ) === index2;
-          });
+          const filteredCitations = collection.flatMap((c2) => c2.citations || []);
+          let citeCount = 0;
+          const textWithCites = collection.map((c2) => {
+            var _a2;
+            const citeText = (_a2 = c2.citations) == null ? void 0 : _a2.map((_citation) => `${++citeCount}`);
+            let inlineCites = "";
+            if (citeText && citeText.length > 0) {
+              inlineCites = `<sup>${citeText.join(",")}</sup>`;
+            }
+            return (c2.text || "") + inlineCites;
+          }).join("");
           result2.push({
             type: "text",
-            text: collection.map((c2) => c2.text).join(" "),
+            text: textWithCites,
             refusal: null,
             internal: null,
             format: null,
-            citations: citations2
+            citations: filteredCitations
           });
           collection.length = 0;
         }
@@ -42839,9 +42816,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         if (content2.type === "text") {
           collection.push(content2);
-          if (content2.citations && content2.citations.length > 0) {
-            collect();
-          }
           continue;
         } else {
           collect();
@@ -42907,31 +42881,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         input: void 0,
         args: []
       };
-    };
-    const citations = "_citations_t2k1z_1";
-    const citationLink = "_citationLink_t2k1z_9";
-    const styles$1i = {
-      citations,
-      citationLink
-    };
-    const MessageCitations = ({ citations: citations2 }) => {
-      if (citations2.length === 0) {
-        return void 0;
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "a",
-          {
-            href: citation.url,
-            target: "_blank",
-            rel: "noopener noreferrer",
-            title: citation.url,
-            className: clsx(styles$1i.citationLink),
-            children: citation.cited_text
-          }
-        )
-      ] })) });
     };
     const toolCallView = "_toolCallView_16q6n_1";
     const styles$1h = {
@@ -43044,7 +42993,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             }
           )
         ] }),
-        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           ExpandablePanel,
           {
             id: `${id}-tool-input`,
@@ -43052,10 +43001,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             border: true,
             lines: 15,
             className: clsx("text-size-small"),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent, context }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: context.citations })
-            ]
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent, context })
           }
         ) : void 0
       ] });
@@ -43137,17 +43083,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1e.content, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: context.citations })
-          ] }),
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) }),
           toolCalls
         ] });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: context.citations })
-        ] });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) });
       }
     };
     const resolveToolMessage = (toolMessage) => {

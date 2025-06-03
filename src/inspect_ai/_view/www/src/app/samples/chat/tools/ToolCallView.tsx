@@ -11,7 +11,6 @@ import {
 } from "../../../../@types/log";
 import { ContentTool } from "../../../../app/types";
 import ExpandablePanel from "../../../../components/ExpandablePanel";
-import { MessageCitations } from "../MessageCitations";
 import { MessageContent } from "../MessageContent";
 import { defaultContext } from "../MessageContents";
 import styles from "./ToolCallView.module.css";
@@ -135,7 +134,6 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           className={clsx("text-size-small")}
         >
           <MessageContent contents={normalizedContent} context={context} />
-          <MessageCitations citations={context.citations} />
         </ExpandablePanel>
       ) : undefined}
     </div>

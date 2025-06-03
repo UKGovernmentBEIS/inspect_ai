@@ -11,7 +11,6 @@ import { ToolCallView } from "./tools/ToolCallView";
 import clsx from "clsx";
 import { FC, Fragment } from "react";
 import { ContentTool } from "../../../app/types";
-import { MessageCitations } from "./MessageCitations";
 import styles from "./MessageContents.module.css";
 import { ChatViewToolCallStyle, Citation } from "./types";
 
@@ -23,7 +22,6 @@ interface MessageContentsProps {
 }
 
 export interface MessagesContext {
-  citeOffset: number;
   citations: Citation[];
 }
 
@@ -94,7 +92,6 @@ export const MessageContents: FC<MessageContentsProps> = ({
         {message.content && (
           <div className={styles.content}>
             <MessageContent contents={message.content} context={context} />
-            <MessageCitations citations={context.citations} />
           </div>
         )}
         {toolCalls}
@@ -104,7 +101,6 @@ export const MessageContents: FC<MessageContentsProps> = ({
     return (
       <>
         <MessageContent contents={message.content} context={context} />
-        <MessageCitations citations={context.citations} />
       </>
     );
   }

@@ -25,7 +25,7 @@ export const MessageCitations: FC<MessageCitationProps> = ({ citations }) => {
             title={citation.url}
             className={clsx(styles.citationLink)}
           >
-            {citation.cited_text}
+            {citation.cited_text || citation.title}
           </a>
         </>
       ))}
