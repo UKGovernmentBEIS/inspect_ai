@@ -26,6 +26,7 @@ from anthropic.types import (
     ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
+    TextCitation,
     TextCitationParam,
     ThinkingBlock,
     ThinkingBlockParam,
@@ -891,7 +892,10 @@ async def model_output_from_message(
                     type="text",
                     text=content_text,
                     citations=(
-                        [citation.model_dump() for citation in content_block.citations]
+                        [
+                            _sanitize_citation(citation).model_dump()
+                            for citation in content_block.citations
+                        ]
                         if content_block.citations
                         else None
                     ),
@@ -1163,3 +1167,14 @@ def filter_trailing_server_tool_use(messages: list[ChatMessage]) -> list[ChatMes
 
 def _content_list(input: str | list[Content]) -> list[Content]:
     return [ContentText(text=input)] if isinstance(input, str) else input
+
+
+def _sanitize_citation(input: TextCitation) -> TextCitation:
+    """Sanitize a citation to work around https://github.com/anthropics/anthropic-sdk-python/issues/965."""
+    if (
+        hasattr(input, "title")
+        and isinstance(input.title, str)
+        and len(input.title) > 255
+    ):
+        input.title = input.title[:254] + "…"
+    return input
