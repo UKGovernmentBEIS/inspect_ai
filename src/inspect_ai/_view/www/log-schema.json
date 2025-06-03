@@ -184,7 +184,6 @@
             "model_length",
             "tool_calls",
             "content_filter",
-            "pause_turn",
             "unknown"
           ],
           "title": "Stop Reason",

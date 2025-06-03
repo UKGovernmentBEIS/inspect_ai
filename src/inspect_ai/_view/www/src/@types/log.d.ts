@@ -301,7 +301,6 @@ export type StopReason =
   | "model_length"
   | "tool_calls"
   | "content_filter"
-  | "pause_turn"
   | "unknown";
 export type Token = string;
 export type Logprob1 = number;
