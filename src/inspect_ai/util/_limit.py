@@ -41,7 +41,9 @@ class LimitExceededError(Exception):
 
     def __init__(
         self,
-        type: Literal["message", "time", "working", "token", "operator", "custom"],
+        type: Literal[
+            "message", "time", "working", "token", "cost", "operator", "custom"
+        ],
         *,
         value: float,
         limit: float,
