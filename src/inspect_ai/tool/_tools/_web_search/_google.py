@@ -130,6 +130,7 @@ def google_search_provider(
             before_sleep=log_httpx_retry_attempt(search_url),
         )
         async def execute_search() -> httpx.Response:
+            # See https://developers.google.com/custom-search/v1/reference/rest/v1/Search
             return await client.get(search_url)
 
         result = await execute_search()

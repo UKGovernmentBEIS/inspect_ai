@@ -75,6 +75,7 @@ def tavily_search_provider(
     client = httpx.AsyncClient(timeout=30)
 
     async def search(query: str) -> str | None:
+        # See https://docs.tavily.com/documentation/api-reference/endpoint/search
         search_url = "https://api.tavily.com/search"
         headers = {
             "Authorization": f"Bearer {tavily_api_key}",
