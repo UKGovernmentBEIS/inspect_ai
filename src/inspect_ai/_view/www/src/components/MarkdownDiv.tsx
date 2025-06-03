@@ -2,6 +2,7 @@ import clsx from "clsx";
 import "katex/dist/katex.min.css";
 import markdownit from "markdown-it";
 import markdownitKatex from "markdown-it-katex";
+import sup from "markdown-it-sup";
 import { CSSProperties, forwardRef } from "react";
 import "./MarkdownDiv.css";
 
@@ -39,6 +40,7 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
         throwOnError: false,
         errorColor: "#cc0000",
       });
+      md.use(sup);
 
       renderedHtml = md.render(preparedForMarkdown);
     } catch (ex) {
