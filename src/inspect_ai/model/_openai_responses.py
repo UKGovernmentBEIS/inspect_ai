@@ -251,7 +251,18 @@ def _chat_message_assistant_from_openai_response(
             case ResponseOutputMessage(content=content, id=id):
                 message_content.extend(
                     [
-                        ContentText(text=c.text, internal={"id": id})
+                        ContentText(
+                            text=c.text,
+                            internal={"id": id},
+                            citations=(
+                                [
+                                    annotation.model_dump()
+                                    for annotation in c.annotations
+                                ]
+                                if c.annotations
+                                else None
+                            ),
+                        )
                         if isinstance(c, ResponseOutputText)
                         else ContentText(
                             text=c.refusal, refusal=True, internal={"id": id}
