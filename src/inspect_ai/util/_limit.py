@@ -5,6 +5,7 @@ import json
 import logging
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
+from decimal import Decimal, getcontext
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
     from inspect_ai.solver._task_state import TaskState
 
 
+getcontext().perc = 6
 logger = logging.getLogger(__name__)
 TNode = TypeVar("TNode", bound="_Node")
 
@@ -556,7 +558,7 @@ class _MessageLimit(Limit, _Node):
 
 
 class _CostLimit(Limit, _Node):
-    def __init__(self, limit: float | None, cost_file: Path | None) -> None:
+    def __init__(self, limit: Decimal | None, cost_file: Path | None) -> None:
         from inspect_ai.model._model_output import ModelUsage
 
         super().__init__()
@@ -629,7 +631,7 @@ class _CostLimit(Limit, _Node):
 
         return costs
 
-    def _validate_cost_limit(self, value: int | None) -> None:
+    def _validate_cost_limit(self, value: Decimal | None) -> None:
         if value is not None and value < 0:
             raise ValueError(
                 f"Cost limit value must be a non-negative float or None: {value}"
