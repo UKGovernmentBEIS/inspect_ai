@@ -47,7 +47,7 @@ def agent(tools: bool):
             ),
         )
         if tools:
-            params["tools"] = openai_chat_tools([testing_tool_info()])
+            params["tools"] = openai_chat_tools([get_testing_tool_info()])
             params["tool_choice"] = "auto"
         else:
             params["logprobs"] = True
@@ -180,7 +180,7 @@ def test_bridged_agent_context():
             check_anthropic_log_json(log_json)
 
 
-def testing_tool_info() -> ToolInfo:
+def get_testing_tool_info() -> ToolInfo:
     return ToolInfo(
         name="testing_tool",
         description="This is a testing tool.",
