@@ -242,7 +242,9 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 **self.completion_params(config, False),
             )
-        elif self.responses_api or is_native_tool_configured(tools, config):
+        elif self.responses_api or is_native_tool_configured(
+            tools, self.model_name, config
+        ):
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
