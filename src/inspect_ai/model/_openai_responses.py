@@ -47,15 +47,16 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
 from inspect_ai.model._openai import is_o_series
-from inspect_ai.model._openai_computer_use import (
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo
+
+from ._providers._openai_computer_use import (
     computer_call_output,
     maybe_computer_use_preview_tool,
     tool_call_from_openai_computer_tool_call,
 )
-from inspect_ai.model._openai_web_search import maybe_web_search_tool
-from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.tool._tool_choice import ToolChoice
-from inspect_ai.tool._tool_info import ToolInfo
+from ._providers._openai_web_search import maybe_web_search_tool
 
 
 async def openai_responses_inputs(

@@ -19,6 +19,7 @@ tavily_options = {"max_results": 5, "max_connections": 8}
 @task
 def biology_qa() -> Task:
     return Task(
+        model="openai/o4-mini",
         dataset=example_dataset(
             name="biology_qa",
             sample_fields=FieldSpec(input="question", target="answer"),
