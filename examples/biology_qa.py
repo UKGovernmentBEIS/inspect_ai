@@ -1,7 +1,7 @@
 from inspect_ai import Task, task
+from inspect_ai.agent import react
 from inspect_ai.dataset import FieldSpec, example_dataset
 from inspect_ai.scorer import model_graded_qa
-from inspect_ai.solver._basic_agent import basic_agent
 from inspect_ai.tool import bash, web_search
 
 openai_options = {
@@ -24,7 +24,7 @@ def biology_qa() -> Task:
             sample_fields=FieldSpec(input="question", target="answer"),
         ),
         sandbox=("docker", "./intervention/multi_tool/compose.yaml"),
-        solver=basic_agent(
+        solver=react(
             tools=[
                 bash(),
                 web_search(

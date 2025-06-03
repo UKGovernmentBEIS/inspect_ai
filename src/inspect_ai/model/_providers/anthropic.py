@@ -1,9 +1,9 @@
+import copy
 import functools
 import os
 import re
-from copy import copy
 from logging import getLogger
-from typing import Any, Iterable, Literal, Optional, Tuple, cast
+from typing import Any, Literal, Optional, Tuple, cast
 
 from anthropic import (
     APIConnectionError,
@@ -17,8 +17,6 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
-    ContentBlock,
-    DocumentBlockParam,
     ImageBlockParam,
     Message,
     MessageParam,
@@ -241,46 +239,19 @@ class AnthropicAPI(ModelAPI):
             if self.extra_body is not None:
                 request["extra_body"] = self.extra_body
 
-            # make request (unless overrideen, stream if we are using reasoning)
+            # make request (unless overridden, stream if we are using reasoning)
             streaming = (
                 self.is_using_thinking(config)
                 if self.streaming == "auto"
                 else self.streaming
             )
-            if streaming:
-                async with self.client.messages.stream(**request) as stream:
-                    message = await stream.get_final_message()
-            else:
-                message = await self.client.messages.create(**request, stream=False)
 
-            # set response for ModelCall
-            response = message.model_dump()
-
-            # extract output
-            output, pause_turn = await model_output_from_message(
-                self.client, self.service_model_name(), message, tools
+            message, output = await self._perform_request_and_continuations(
+                request, streaming, tools
             )
 
-            if pause_turn:
-                head_chat_message_assistant = output.message
+            response = message.model_dump()
 
-                result = await self.generate(
-                    input + [head_chat_message_assistant], tools, tool_choice, config
-                )
-                (output_or_exception, mc) = (
-                    result if isinstance(result, tuple) else (result, model_call())
-                )
-                if isinstance(output_or_exception, Exception):
-                    return output_or_exception, mc
-                tail_chat_message_assistant = output_or_exception.message
-
-                tail_chat_message_assistant.content = _content_list(
-                    head_chat_message_assistant.content
-                ) + _content_list(tail_chat_message_assistant.content)
-
-                return result
-
-            # return output and call
             return output, model_call()
 
         except BadRequestError as ex:
@@ -296,6 +267,60 @@ class AnthropicAPI(ModelAPI):
                 ), model_call()
             else:
                 raise ex
+
+    async def _perform_request_and_continuations(
+        self,
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[ToolInfo],
+    ) -> tuple[Message, ModelOutput]:
+        if streaming:
+            async with self.client.messages.stream(**request) as stream:
+                head_message = await stream.get_final_message()
+        else:
+            head_message = await self.client.messages.create(**request, stream=False)
+
+        # extract output
+        head_model_output, pause_turn = await model_output_from_message(
+            self.client, self.service_model_name(), head_message, tools
+        )
+
+        if pause_turn:
+            new_request = dict(request)
+            new_request["messages"] = request["messages"] + [
+                MessageParam(role=head_message.role, content=head_message.content)
+            ]
+            _, tail_model_output = await self._perform_request_and_continuations(
+                new_request, streaming, tools
+            )
+
+            head_content = _content_list(head_model_output.message.content)
+            tail_content = _content_list(tail_model_output.message.content)
+            print(
+                f"Recursion joined content: {len(head_content)} + {(tail_content)}'s together"
+            )
+            joined_content = head_content + tail_content
+            for c in joined_content:
+                if isinstance(c, ContentData):
+                    typ = c.data["type"]
+                    print(
+                        f"ContentData - id: {c.data.get('id', None) if typ == 'server_tool_use' else c.data.get('tool_use_id', None)}, type: {c.data.get('type', None)}"
+                    )
+                elif isinstance(c, ContentText):
+                    print(
+                        f"ContentText - {c.text} {len(c.citations) if c.citations else 0} citations"
+                    )
+                else:
+                    print(f"type: {type(c).__name__}")
+            tail_model_output.message.content = joined_content
+
+            # TODO:
+            # This looks weird, but the contract for this function is that it returns
+            # the head message even when it has needed to recurse. This is because
+            # model_call() above doesn't currently support multiple requests
+            return head_message, tail_model_output
+
+        return head_message, head_model_output
 
     def completion_config(
         self, config: GenerateConfig
