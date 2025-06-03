@@ -162,9 +162,9 @@ def openai_responses_tool_choice(
 
 
 def openai_responses_tools(
-    tools: list[ToolInfo], config: GenerateConfig
+    tools: list[ToolInfo], model_name: str, config: GenerateConfig
 ) -> list[ToolParam]:
-    return [_tool_param_for_tool_info(tool, config) for tool in tools]
+    return [_tool_param_for_tool_info(tool, model_name, config) for tool in tools]
 
 
 def openai_responses_chat_choices(
@@ -433,11 +433,13 @@ def _model_tool_call_for_internal(
 
 def _maybe_native_tool_param(
     tool: ToolInfo,
+    model_name: str,
     config: GenerateConfig,
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_preview_tool(tool) or maybe_web_search_tool(tool)
+            maybe_computer_use_preview_tool(tool)
+            or maybe_web_search_tool(model_name, tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
@@ -502,11 +504,12 @@ _ResponseToolCallParam = (
 
 def _tool_param_for_tool_info(
     tool: ToolInfo,
+    model_name: str,
     config: GenerateConfig,
 ) -> ToolParam:
     # Use a native tool implementation when available. Otherwise, use the
     # standard tool implementation
-    return _maybe_native_tool_param(tool, config) or FunctionToolParam(
+    return _maybe_native_tool_param(tool, model_name, config) or FunctionToolParam(
         type="function",
         name=_responses_tool_alias(tool.name),
         description=tool.description,
