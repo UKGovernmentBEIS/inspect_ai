@@ -11,7 +11,9 @@ import {
 } from "../../../../@types/log";
 import { ContentTool } from "../../../../app/types";
 import ExpandablePanel from "../../../../components/ExpandablePanel";
+import { MessageCitations } from "../MessageCitations";
 import { MessageContent } from "../MessageContent";
+import { defaultContext } from "../MessageContents";
 import styles from "./ToolCallView.module.css";
 import { ToolInput } from "./ToolInput";
 import { ToolTitle } from "./ToolTitle";
@@ -109,6 +111,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   });
 
   const contents = mode !== "compact" ? input : input || functionCall;
+  const context = defaultContext();
   return (
     <div className={clsx(styles.toolCallView)}>
       <div>
@@ -131,7 +134,8 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           lines={15}
           className={clsx("text-size-small")}
         >
-          <MessageContent contents={normalizedContent} />
+          <MessageContent contents={normalizedContent} context={context} />
+          <MessageCitations citations={context.citations} />
         </ExpandablePanel>
       ) : undefined}
     </div>

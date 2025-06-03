@@ -24709,7 +24709,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1r = {
+    const styles$1s = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24725,9 +24725,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1r.circle,
+                styles$1s.circle,
                 "text-size-small",
-                score2 ? styles$1r.green : styles$1r.red
+                score2 ? styles$1s.green : styles$1s.red
               ),
               children: String(score2)
             }
@@ -24798,7 +24798,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const container$l = "_container_1ramc_1";
     const key$1 = "_key_1ramc_12";
     const value$2 = "_value_1ramc_16";
-    const styles$1q = {
+    const styles$1r = {
       container: container$l,
       key: key$1,
       value: value$2
@@ -24841,12 +24841,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1r.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1r.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1r.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -31484,19 +31484,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1p[sup[this.id]];
+      return styles$1q[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1p[sub[this.id]];
+      return styles$1q[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1p[fracNum[this.id]];
+      return styles$1q[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1p[fracDen[this.id]];
+      return styles$1q[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1p[cramp[this.id]];
+      return styles$1q[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -31524,7 +31524,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1p = [
+    var styles$1q = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -31540,10 +31540,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1p[D],
-      TEXT: styles$1p[T],
-      SCRIPT: styles$1p[S],
-      SCRIPTSCRIPT: styles$1p[SS]
+      DISPLAY: styles$1q[D],
+      TEXT: styles$1q[T],
+      SCRIPT: styles$1q[S],
+      SCRIPTSCRIPT: styles$1q[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -37647,7 +37647,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (this.mode === "text") {
         return base2;
       }
-      var superscript;
+      var superscript2;
       var subscript;
       while (true) {
         var lex2 = this.nextToken;
@@ -37665,14 +37665,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           this.consume();
         } else if (lex2.text === "^") {
-          if (superscript) {
+          if (superscript2) {
             throw new ParseError$1(
               "Double superscript",
               this.lexer,
               this.pos
             );
           }
-          superscript = this.handleSupSubscript("superscript");
+          superscript2 = this.handleSupSubscript("superscript");
         } else if (lex2.text === "_") {
           if (subscript) {
             throw new ParseError$1(
@@ -37690,15 +37690,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             primes.push(prime);
             this.consume();
           }
-          superscript = new ParseNode("ordgroup", primes, this.mode);
+          superscript2 = new ParseNode("ordgroup", primes, this.mode);
         } else {
           break;
         }
       }
-      if (superscript || subscript) {
+      if (superscript2 || subscript) {
         return new ParseNode("supsub", {
           base: base2,
-          sup: superscript,
+          sup: superscript2,
           sub: subscript
         }, this.mode);
       } else {
@@ -38178,6 +38178,52 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       md.renderer.rules.math_block = blockRenderer;
     };
     const markdownitKatex = /* @__PURE__ */ getDefaultExportFromCjs(markdownItKatex);
+    const UNESCAPE_RE = /\\([ \\!"#$%&'()*+,./:;<=>?@[\]^_`{|}~-])/g;
+    function superscript(state, silent) {
+      const max2 = state.posMax;
+      const start2 = state.pos;
+      if (state.src.charCodeAt(start2) !== 94) {
+        return false;
+      }
+      if (silent) {
+        return false;
+      }
+      if (start2 + 2 >= max2) {
+        return false;
+      }
+      state.pos = start2 + 1;
+      let found = false;
+      while (state.pos < max2) {
+        if (state.src.charCodeAt(state.pos) === 94) {
+          found = true;
+          break;
+        }
+        state.md.inline.skipToken(state);
+      }
+      if (!found || start2 + 1 === state.pos) {
+        state.pos = start2;
+        return false;
+      }
+      const content2 = state.src.slice(start2 + 1, state.pos);
+      if (content2.match(/(^|[^\\])(\\\\)*\s/)) {
+        state.pos = start2;
+        return false;
+      }
+      state.posMax = state.pos;
+      state.pos = start2 + 1;
+      const token_so = state.push("sup_open", "sup", 1);
+      token_so.markup = "^";
+      const token_t = state.push("text", "", 0);
+      token_t.content = content2.replace(UNESCAPE_RE, "$1");
+      const token_sc = state.push("sup_close", "sup", -1);
+      token_sc.markup = "^";
+      state.pos = state.posMax + 1;
+      state.posMax = max2;
+      return true;
+    }
+    function sup_plugin(md) {
+      md.inline.ruler.after("emphasis", "sup", superscript);
+    }
     const MarkdownDiv = reactExports.forwardRef(
       ({ markdown, style: style2, className: className2 }, ref) => {
         const protectedContent = protectBackslashesInLatex(markdown);
@@ -38195,6 +38241,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             throwOnError: false,
             errorColor: "#cc0000"
           });
+          md.use(sup_plugin);
           renderedHtml = md.render(preparedForMarkdown);
         } catch (ex) {
           console.log("Unable to markdown render content");
@@ -38322,7 +38369,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1o = {
+    const styles$1p = {
       visible,
       hidden: hidden$2,
       pills,
@@ -38354,7 +38401,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1o.visible : styles$1o.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1p.visible : styles$1p.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -38364,7 +38411,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1o.pills),
+            className: clsx("nav", "nav-pills", styles$1p.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -38400,7 +38447,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$1o.pill
+              styles$1p.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -38416,7 +38463,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       final: 1e3
     };
     const copyButton = "_copyButton_1goi8_1";
-    const styles$1n = {
+    const styles$1o = {
       copyButton
     };
     const CopyButton = ({
@@ -38446,7 +38493,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "button",
         {
           type: "button",
-          className: clsx("copy-button", styles$1n.copyButton, className2),
+          className: clsx("copy-button", styles$1o.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -38487,7 +38534,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const bordered = "_bordered_elrou_35";
     const moreToggleButton = "_moreToggleButton_elrou_39";
     const separator$5 = "_separator_elrou_45";
-    const styles$1m = {
+    const styles$1n = {
       expandablePanel,
       expandableBordered,
       expandableCollapsed,
@@ -38529,10 +38576,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                styles$1m.expandablePanel,
-                collapsed2 ? styles$1m.expandableCollapsed : void 0,
-                border ? styles$1m.expandableBordered : void 0,
-                showToggle ? styles$1m.padBottom : void 0
+                styles$1n.expandablePanel,
+                collapsed2 ? styles$1n.expandableCollapsed : void 0,
+                border ? styles$1n.expandableBordered : void 0,
+                showToggle ? styles$1n.padBottom : void 0
               ),
               children: [
                 children2,
@@ -38547,7 +38594,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.separator) })
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1n.separator) })
         ] });
       }
     );
@@ -38564,12 +38611,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1m.moreToggle, border ? styles$1m.bordered : void 0),
+          className: clsx(styles$1n.moreToggle, border ? styles$1n.bordered : void 0),
           style: style2,
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              className: clsx("btn", styles$1m.moreToggleButton, "text-size-smallest"),
+              className: clsx("btn", styles$1n.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
                 text2,
@@ -38704,7 +38751,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const messageContents = "_messageContents_17kai_20";
     const indented = "_indented_17kai_25";
     const copyLink$1 = "_copyLink_17kai_29";
-    const styles$1l = {
+    const styles$1m = {
       message: message$1,
       systemRole,
       messageGrid,
@@ -42030,7 +42077,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const key = "_key_1ltuo_1";
     const pre = "_pre_1ltuo_16";
     const treeIcon = "_treeIcon_1ltuo_20";
-    const styles$1k = {
+    const styles$1l = {
       keyPairContainer,
       key,
       pre,
@@ -42212,7 +42259,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$1k.keyPairContainer, "text-size-small"),
+            className: clsx(styles$1l.keyPairContainer, "text-size-small"),
             style: {
               paddingLeft: `${item2.depth * 20}px`
             },
@@ -42223,7 +42270,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   "data-index": index2,
                   className: clsx(
                     kRecordTreeKey,
-                    styles$1k.key,
+                    styles$1l.key,
                     "font-monospace",
                     "text-style-secondary"
                   ),
@@ -42233,16 +42280,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1k.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1l.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
-                          styles$1k.treeIcon
+                          styles$1l.treeIcon
                         )
                       }
                     ) }) : void 0 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1k.pre), children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1l.pre), children: [
                       item2.key,
                       ":"
                     ] })
@@ -42397,7 +42444,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const contentImage = "_contentImage_8rgix_1";
     const reasoning = "_reasoning_8rgix_6";
     const data = "_data_8rgix_14";
-    const styles$1j = {
+    const styles$1k = {
       contentImage,
       reasoning,
       data
@@ -42406,7 +42453,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const output = "_output_bv5nm_6";
     const textOutput = "_textOutput_bv5nm_10";
     const textCode = "_textCode_bv5nm_18";
-    const styles$1i = {
+    const styles$1j = {
       toolImage,
       output,
       textOutput,
@@ -42428,7 +42475,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "img",
                   {
-                    className: clsx(styles$1i.toolImage),
+                    className: clsx(styles$1j.toolImage),
                     src: out.image
                   },
                   key2
@@ -42444,14 +42491,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.output), children: outputs });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1i.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1i.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1j.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1j.textCode), children: text2.trim() }) });
     };
-    const MessageContent = ({ contents: contents2 }) => {
-      if (Array.isArray(contents2)) {
-        return contents2.map((content2, index2) => {
+    const MessageContent = ({
+      contents: contents2,
+      context
+    }) => {
+      const normalized = normalizeContent$2(contents2);
+      if (Array.isArray(normalized)) {
+        return normalized.map((content2, index2) => {
           if (typeof content2 === "string") {
             return messageRenderers["text"].render(
               `text-content-${index2}`,
@@ -42463,7 +42514,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 format: null,
                 citations: null
               },
-              index2 === contents2.length - 1
+              index2 === contents2.length - 1,
+              context
             );
           } else {
             if (content2) {
@@ -42472,7 +42524,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 return renderer.render(
                   `text-${content2.type}-${index2}`,
                   content2,
-                  index2 === contents2.length - 1
+                  index2 === contents2.length - 1,
+                  context
                 );
               } else {
                 console.error(`Unknown message content type '${content2.type}'`);
@@ -42483,7 +42536,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       } else {
         const contentText = {
           type: "text",
-          text: contents2,
+          text: normalized,
           refusal: null,
           internal: null,
           format: null,
@@ -42492,38 +42545,37 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return messageRenderers["text"].render(
           "text-message-content",
           contentText,
-          true
+          true,
+          context
         );
       }
     };
     const messageRenderers = {
       text: {
-        render: (key2, content2, isLast) => {
+        render: (key2, content2, isLast, context) => {
+          const citeOffset = context.citeOffset || 0;
           const c2 = content2;
-          const cites = citations(c2);
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MarkdownDiv,
-              {
-                markdown: c2.text || "",
-                className: isLast ? "no-last-para-padding" : ""
-              },
-              key2
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: cites.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "a",
-                {
-                  href: citation.url,
-                  target: "_blank",
-                  rel: "noopener noreferrer",
-                  title: citation.cited_text + "\n" + citation.url,
-                  children: index2 + 1
-                }
-              ),
-              index2 < cites.length - 1 ? ", " : ""
-            ] })) })
-          ] });
+          const cites = citations$1(c2);
+          if (!c2.text && !cites.length) {
+            return void 0;
+          }
+          const citeText = cites.map(
+            (_citation, index2) => `${citeOffset + index2 + 1}`
+          );
+          let inlineCites = "";
+          if (citeText.length > 0) {
+            inlineCites = `^${citeText.join(",")}^`;
+          }
+          context.citeOffset = citeOffset + cites.length;
+          context.citations.push(...cites);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            MarkdownDiv,
+            {
+              markdown: (c2.text || "") + inlineCites,
+              className: isLast ? "no-last-para-padding" : ""
+            },
+            key2
+          ) });
         }
       },
       reasoning: {
@@ -42532,7 +42584,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (!r2.reasoning && !r2.redacted) {
             return void 0;
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1j.reasoning, "text-size-small"), children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1k.reasoning, "text-size-small"), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -42557,7 +42609,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1j.contentImage }, key2);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1k.contentImage }, key2);
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
           }
@@ -42590,7 +42642,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             {
               id: key2,
               record,
-              className: clsx(styles$1j.data)
+              className: clsx(styles$1k.data)
             },
             key2
           );
@@ -42613,7 +42665,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return "video/mp4";
       }
     };
-    const citations = (contents2) => {
+    const citations$1 = (contents2) => {
       const results = [];
       for (const citation of contents2.citations || []) {
         if (citation.url === void 0 || citation.cited_text === void 0) {
@@ -42622,6 +42674,59 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         results.push(citation);
       }
       return results;
+    };
+    const normalizeContent$2 = (contents2) => {
+      if (typeof contents2 === "string") {
+        return contents2;
+      }
+      if (contents2.length > 0 && typeof contents2[0] === "string") {
+        return contents2;
+      }
+      const result2 = [];
+      const collection = [];
+      const collect = () => {
+        if (collection.length > 0) {
+          const citations2 = collection.flatMap((c2) => c2.citations || []).filter((c2, index2, self2) => {
+            return self2.findIndex(
+              (item2) => item2.url === c2.url && item2.cited_text === c2.cited_text
+            ) === index2;
+          });
+          result2.push({
+            type: "text",
+            text: collection.map((c2) => c2.text).join(" "),
+            refusal: null,
+            internal: null,
+            format: null,
+            citations: citations2
+          });
+          collection.length = 0;
+        }
+      };
+      for (const content2 of contents2) {
+        if (typeof content2 === "string") {
+          result2.push({
+            type: "text",
+            text: content2,
+            refusal: null,
+            internal: null,
+            format: null,
+            citations: null
+          });
+          continue;
+        }
+        if (content2.type === "text") {
+          collection.push(content2);
+          if (!content2.citations || content2.citations.length === 0) ;
+          else {
+            collect();
+          }
+          continue;
+        } else {
+          collect();
+          result2.push(content2);
+        }
+      }
+      return result2;
     };
     const resolveToolInput = (fn2, toolArgs) => {
       const toolName = fn2;
@@ -42679,6 +42784,31 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         input: void 0,
         args: []
       };
+    };
+    const citations = "_citations_1tzwh_1";
+    const citationLink = "_citationLink_1tzwh_8";
+    const styles$1i = {
+      citations,
+      citationLink
+    };
+    const MessageCitations = ({ citations: citations2 }) => {
+      if (citations2.length === 0) {
+        return void 0;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "a",
+          {
+            href: citation.url,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            title: citation.cited_text,
+            className: clsx(styles$1i.citationLink),
+            children: citation.cited_text
+          }
+        )
+      ] })) });
     };
     const toolCallView = "_toolCallView_16q6n_1";
     const styles$1h = {
@@ -42778,6 +42908,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
+      const context = defaultContext();
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1h.toolCallView), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
@@ -42790,7 +42921,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             }
           )
         ] }),
-        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
           ExpandablePanel,
           {
             id: `${id}-tool-input`,
@@ -42798,7 +42929,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             border: true,
             lines: 15,
             className: clsx("text-size-small"),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent, context }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: context.citations })
+            ]
           }
         ) : void 0
       ] });
@@ -42830,12 +42964,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       content: content$2,
       codeCompact
     };
+    const defaultContext = () => {
+      return {
+        citeOffset: 0,
+        citations: []
+      };
+    };
     const MessageContents = ({
       id,
       message: message2,
       toolMessages,
       toolCallStyle
     }) => {
+      const context = defaultContext();
       if (message2.role === "assistant" && message2.tool_calls && message2.tool_calls.length) {
         const toolCalls = message2.tool_calls.map((tool_call, idx) => {
           const { input: input2, functionCall, highlightLanguage } = resolveToolInput(
@@ -42873,11 +43014,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1e.content, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: context.citations })
+          ] }),
           toolCalls
         ] });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content });
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: context.citations })
+        ] });
       }
     };
     const resolveToolMessage = (toolMessage) => {
@@ -42947,19 +43094,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1l.message,
-            message2.role === "system" ? styles$1l.systemRole : void 0,
-            message2.role === "user" ? styles$1l.userRole : void 0
+            styles$1m.message,
+            message2.role === "system" ? styles$1m.systemRole : void 0,
+            message2.role === "user" ? styles$1m.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1l.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1m.messageGrid, "text-style-label"), children: [
               message2.role,
               supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: toFullUrl(messageUrl),
-                  className: clsx(styles$1l.copyLink)
+                  className: clsx(styles$1m.copyLink)
                 }
               ) : ""
             ] }),
@@ -42967,8 +43114,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "div",
               {
                 className: clsx(
-                  styles$1l.messageContents,
-                  indented2 ? styles$1l.indented : void 0
+                  styles$1m.messageContents,
+                  indented2 ? styles$1m.indented : void 0
                 ),
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   ExpandablePanel,
