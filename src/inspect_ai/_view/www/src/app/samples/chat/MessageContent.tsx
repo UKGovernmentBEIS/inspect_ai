@@ -14,7 +14,7 @@ import {
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { RecordTree } from "../../content/RecordTree";
+import { ContentDataView } from "./content-data/ContentDataView";
 import styles from "./MessageContent.module.css";
 import { MessagesContext } from "./MessageContents";
 import { ToolOutput } from "./tools/ToolOutput";
@@ -212,15 +212,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
   data: {
     render: (key, content) => {
       const c = content as ContentData;
-      const { encrypted_content, ...record } = c.data;
-      return (
-        <RecordTree
-          key={key}
-          id={key}
-          record={record}
-          className={clsx(styles.data)}
-        />
-      );
+      return <ContentDataView id={key} contentData={c} />;
     },
   },
 };

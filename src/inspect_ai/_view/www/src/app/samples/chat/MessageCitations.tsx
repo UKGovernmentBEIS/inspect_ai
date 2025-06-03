@@ -22,7 +22,7 @@ export const MessageCitations: FC<MessageCitationProps> = ({ citations }) => {
             href={citation.url}
             target="_blank"
             rel="noopener noreferrer"
-            title={citation.cited_text}
+            title={citation.url}
             className={clsx(styles.citationLink)}
           >
             {citation.cited_text}

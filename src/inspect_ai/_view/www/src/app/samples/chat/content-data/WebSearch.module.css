@@ -1,0 +1,10 @@
+.webSearch {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.5em;
+  align-items: baseline;
+}
+
+.query {
+  font-family: var(--bs-font-monospace);
+}

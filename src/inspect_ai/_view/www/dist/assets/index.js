@@ -10829,11 +10829,11 @@ var require_assets = __commonJS({
       targetInstance = targetInstance.previousSibling;
       for (var depth = 0; targetInstance; ) {
         if (8 === targetInstance.nodeType) {
-          var data2 = targetInstance.data;
-          if ("$" === data2 || "$!" === data2 || "$?" === data2) {
+          var data = targetInstance.data;
+          if ("$" === data || "$!" === data || "$?" === data) {
             if (0 === depth) return targetInstance;
             depth--;
-          } else "/$" === data2 && depth++;
+          } else "/$" === data && depth++;
         }
         targetInstance = targetInstance.previousSibling;
       }
@@ -15613,12 +15613,12 @@ var require_assets = __commonJS({
                       return this.on(name2, listener, ctx);
                     },
                     emit: function(name2) {
-                      var data2 = [].slice.call(arguments, 1);
+                      var data = [].slice.call(arguments, 1);
                       var evtArr = ((this.e || (this.e = {}))[name2] || []).slice();
                       var i2 = 0;
                       var len = evtArr.length;
                       for (i2; i2 < len; i2++) {
-                        evtArr[i2].fn.apply(evtArr[i2].ctx, data2);
+                        evtArr[i2].fn.apply(evtArr[i2].ctx, data);
                       }
                       return this;
                     },
@@ -24709,7 +24709,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1s = {
+    const styles$1v = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24725,9 +24725,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1s.circle,
+                styles$1v.circle,
                 "text-size-small",
-                score2 ? styles$1s.green : styles$1s.red
+                score2 ? styles$1v.green : styles$1v.red
               ),
               children: String(score2)
             }
@@ -24798,7 +24798,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const container$l = "_container_1ramc_1";
     const key$1 = "_key_1ramc_12";
     const value$2 = "_value_1ramc_16";
-    const styles$1r = {
+    const styles$1u = {
       container: container$l,
       key: key$1,
       value: value$2
@@ -24841,12 +24841,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1r.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1r.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1r.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -26246,14 +26246,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const JSONPanel = ({
       id,
       json,
-      data: data2,
+      data,
       simple = false,
       style: style2,
       className: className2
     }) => {
       const sourceCode = reactExports.useMemo(() => {
-        return json || JSON.stringify(resolveBase64(data2), void 0, 2);
-      }, [json, data2]);
+        return json || JSON.stringify(resolveBase64(data), void 0, 2);
+      }, [json, data]);
       const prismParentRef = usePrismHighlight(sourceCode);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "pre",
@@ -31484,19 +31484,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1q[sup[this.id]];
+      return styles$1t[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1q[sub[this.id]];
+      return styles$1t[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1q[fracNum[this.id]];
+      return styles$1t[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1q[fracDen[this.id]];
+      return styles$1t[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1q[cramp[this.id]];
+      return styles$1t[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -31524,7 +31524,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1q = [
+    var styles$1t = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -31540,10 +31540,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1q[D],
-      TEXT: styles$1q[T],
-      SCRIPT: styles$1q[S],
-      SCRIPTSCRIPT: styles$1q[SS]
+      DISPLAY: styles$1t[D],
+      TEXT: styles$1t[T],
+      SCRIPT: styles$1t[S],
+      SCRIPTSCRIPT: styles$1t[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -36421,25 +36421,25 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return makeSpan$1(["katex-mathml"], [math]);
     };
     var buildMathML_1 = buildMathML$1;
-    function Options$1(data2) {
-      this.style = data2.style;
-      this.color = data2.color;
-      this.size = data2.size;
-      this.phantom = data2.phantom;
-      this.font = data2.font;
-      if (data2.parentStyle === void 0) {
-        this.parentStyle = data2.style;
+    function Options$1(data) {
+      this.style = data.style;
+      this.color = data.color;
+      this.size = data.size;
+      this.phantom = data.phantom;
+      this.font = data.font;
+      if (data.parentStyle === void 0) {
+        this.parentStyle = data.style;
       } else {
-        this.parentStyle = data2.parentStyle;
+        this.parentStyle = data.parentStyle;
       }
-      if (data2.parentSize === void 0) {
-        this.parentSize = data2.size;
+      if (data.parentSize === void 0) {
+        this.parentSize = data.size;
       } else {
-        this.parentSize = data2.parentSize;
+        this.parentSize = data.parentSize;
       }
     }
     Options$1.prototype.extend = function(extension) {
-      var data2 = {
+      var data = {
         style: this.style,
         size: this.size,
         color: this.color,
@@ -36450,10 +36450,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       for (var key2 in extension) {
         if (extension.hasOwnProperty(key2)) {
-          data2[key2] = extension[key2];
+          data[key2] = extension[key2];
         }
       }
-      return new Options$1(data2);
+      return new Options$1(data);
     };
     Options$1.prototype.withStyle = function(style2) {
       return this.extend({
@@ -36590,7 +36590,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (typeof props === "number") {
           props = { numArgs: props };
         }
-        var data2 = {
+        var data = {
           numArgs: props.numArgs,
           argTypes: props.argTypes,
           greediness: props.greediness === void 0 ? 1 : props.greediness,
@@ -36599,7 +36599,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           handler
         };
         for (var i2 = 0; i2 < names.length; ++i2) {
-          module2.exports[names[i2]] = data2;
+          module2.exports[names[i2]] = data;
         }
       }
       defineFunction("\\sqrt", {
@@ -37225,7 +37225,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (typeof props === "number") {
           props = { numArgs: props };
         }
-        var data2 = {
+        var data = {
           numArgs: props.numArgs || 0,
           argTypes: props.argTypes,
           greediness: 1,
@@ -37234,7 +37234,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           handler
         };
         for (var i2 = 0; i2 < names.length; ++i2) {
-          module2.exports[names[i2]] = data2;
+          module2.exports[names[i2]] = data;
         }
       }
       defineEnvironment("array", {
@@ -37389,9 +37389,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function Lexer$1(input2) {
       this._input = input2;
     }
-    function Token(text2, data2, position) {
+    function Token(text2, data, position) {
       this.text = text2;
-      this.data = data2;
+      this.data = data;
       this.position = position;
     }
     var tokenRegex = new RegExp(
@@ -37902,16 +37902,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         this.expect(optional ? "[" : "{");
         var inner = this.nextToken;
         this.mode = outerMode;
-        var data2;
+        var data;
         if (innerMode === "color") {
-          data2 = inner.text;
+          data = inner.text;
         } else {
-          data2 = inner.data;
+          data = inner.data;
         }
         this.consume();
         this.expect(optional ? "]" : "}");
         return new ParseFuncOrArgument(
-          new ParseNode(innerMode, data2, outerMode),
+          new ParseNode(innerMode, data, outerMode),
           false
         );
       } else if (innerMode === "text") {
@@ -38369,7 +38369,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1p = {
+    const styles$1s = {
       visible,
       hidden: hidden$2,
       pills,
@@ -38401,7 +38401,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1p.visible : styles$1p.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1s.visible : styles$1s.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -38411,7 +38411,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1p.pills),
+            className: clsx("nav", "nav-pills", styles$1s.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -38447,7 +38447,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$1p.pill
+              styles$1s.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -38463,7 +38463,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       final: 1e3
     };
     const copyButton = "_copyButton_1goi8_1";
-    const styles$1o = {
+    const styles$1r = {
       copyButton
     };
     const CopyButton = ({
@@ -38493,7 +38493,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "button",
         {
           type: "button",
-          className: clsx("copy-button", styles$1o.copyButton, className2),
+          className: clsx("copy-button", styles$1r.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -38534,7 +38534,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const bordered = "_bordered_elrou_35";
     const moreToggleButton = "_moreToggleButton_elrou_39";
     const separator$5 = "_separator_elrou_45";
-    const styles$1n = {
+    const styles$1q = {
       expandablePanel,
       expandableBordered,
       expandableCollapsed,
@@ -38576,10 +38576,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                styles$1n.expandablePanel,
-                collapsed2 ? styles$1n.expandableCollapsed : void 0,
-                border ? styles$1n.expandableBordered : void 0,
-                showToggle ? styles$1n.padBottom : void 0
+                styles$1q.expandablePanel,
+                collapsed2 ? styles$1q.expandableCollapsed : void 0,
+                border ? styles$1q.expandableBordered : void 0,
+                showToggle ? styles$1q.padBottom : void 0
               ),
               children: [
                 children2,
@@ -38594,7 +38594,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1n.separator) })
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.separator) })
         ] });
       }
     );
@@ -38611,12 +38611,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1n.moreToggle, border ? styles$1n.bordered : void 0),
+          className: clsx(styles$1q.moreToggle, border ? styles$1q.bordered : void 0),
           style: style2,
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              className: clsx("btn", styles$1n.moreToggleButton, "text-size-smallest"),
+              className: clsx("btn", styles$1q.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
                 text2,
@@ -38751,13 +38751,25 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const messageContents = "_messageContents_17kai_20";
     const indented = "_indented_17kai_25";
     const copyLink$1 = "_copyLink_17kai_29";
-    const styles$1m = {
+    const styles$1p = {
       message: message$1,
       systemRole,
       messageGrid,
       messageContents,
       indented,
       copyLink: copyLink$1
+    };
+    const webSearch = "_webSearch_1376z_1";
+    const query$1 = "_query_1376z_8";
+    const styles$1o = {
+      webSearch,
+      query: query$1
+    };
+    const WebSearch = ({ query: query2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.webSearch, "text-size-smaller"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1o.query, "text-size-smallest"), children: query2 })
+      ] });
     };
     const we = 0, zt = 1, qt = 2, En = 4;
     function ln(t2) {
@@ -42077,7 +42089,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const key = "_key_1ltuo_1";
     const pre = "_pre_1ltuo_16";
     const treeIcon = "_treeIcon_1ltuo_20";
-    const styles$1l = {
+    const styles$1n = {
       keyPairContainer,
       key,
       pre,
@@ -42259,7 +42271,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$1l.keyPairContainer, "text-size-small"),
+            className: clsx(styles$1n.keyPairContainer, "text-size-small"),
             style: {
               paddingLeft: `${item2.depth * 20}px`
             },
@@ -42270,7 +42282,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   "data-index": index2,
                   className: clsx(
                     kRecordTreeKey,
-                    styles$1l.key,
+                    styles$1n.key,
                     "font-monospace",
                     "text-style-secondary"
                   ),
@@ -42280,16 +42292,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1l.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1n.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
-                          styles$1l.treeIcon
+                          styles$1n.treeIcon
                         )
                       }
                     ) }) : void 0 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1l.pre), children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1n.pre), children: [
                       item2.key,
                       ":"
                     ] })
@@ -42441,13 +42453,126 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const isPrimitiveOrNull = (value2) => {
       return value2 === null || value2 === void 0 || typeof value2 === "string" || typeof value2 === "number" || typeof value2 === "boolean";
     };
+    const contentData = "_contentData_1sd1z_1";
+    const styles$1m = {
+      contentData
+    };
+    const result$1 = "_result_1mixg_12";
+    const styles$1l = {
+      result: result$1
+    };
+    const WebSearchResults = ({
+      results
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              styles$1l.label,
+              "text-style-label",
+              "text-style-secondary",
+              "text-size-smaller"
+            ),
+            children: "Results"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx(styles$1l.results, "text-size-smaller"), children: results.map((result2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
+          {
+            className: clsx(styles$1l.result, "text-style-secondary"),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                href: result2.url,
+                target: "_blank",
+                rel: "noopener noreferrer",
+                title: result2.url + (result2.page_age ? `
+(Age: ${result2.page_age})` : ""),
+                children: result2.title
+              }
+            )
+          },
+          index2
+        )) })
+      ] });
+    };
+    const ContentDataView = ({ id, contentData: contentData2 }) => {
+      const renderableData = contentData2.data;
+      const renderer = contentDataRenderers.find(
+        (r2) => r2.canRender(renderableData)
+      );
+      if (!renderer) {
+        const { encrypted_content, ...record } = renderableData;
+        console.log({ id });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          RecordTree,
+          {
+            id: `${id}-tree`,
+            record,
+            className: clsx(styles$1m.data),
+            defaultExpandLevel: 0
+          }
+        ) });
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: renderer.render(renderableData) });
+    };
+    const webSearchServerToolRenderer = {
+      name: "WebSearch",
+      canRender: (data) => {
+        return data.type === "server_tool_use" && data.name === "web_search";
+      },
+      render: (data) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(WebSearch, { query: data.input.query });
+      }
+    };
+    const webSearchResultsServerToolRenderer = {
+      name: "WebSearchResults",
+      canRender: (data) => {
+        return data.type === "web_search_tool_result" && Array.isArray(data.content);
+      },
+      render: (data) => {
+        const results = data.content;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(WebSearchResults, { results });
+      }
+    };
+    const serverToolRenderer = {
+      name: "ServerTool",
+      canRender: (data) => data.type === "server_tool_use",
+      render: (data) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "text-style-label",
+                "text-style-secondary",
+                "text-size-smaller"
+              ),
+              children: "Server Tool"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RecordTree,
+            {
+              id: data.name || "server-tool",
+              record: data,
+              className: clsx(styles$1m.data)
+            }
+          )
+        ] });
+      }
+    };
+    const contentDataRenderers = [
+      webSearchServerToolRenderer,
+      webSearchResultsServerToolRenderer,
+      serverToolRenderer
+    ];
     const contentImage = "_contentImage_8rgix_1";
     const reasoning = "_reasoning_8rgix_6";
-    const data = "_data_8rgix_14";
     const styles$1k = {
       contentImage,
-      reasoning,
-      data
+      reasoning
     };
     const toolImage = "_toolImage_bv5nm_1";
     const output = "_output_bv5nm_6";
@@ -42553,8 +42678,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const messageRenderers = {
       text: {
         render: (key2, content2, isLast, context) => {
-          const citeOffset = context.citeOffset || 0;
           const c2 = content2;
+          const citeOffset = context.citeOffset || 0;
           const cites = citations$1(c2);
           if (!c2.text && !cites.length) {
             return void 0;
@@ -42636,16 +42761,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       data: {
         render: (key2, content2) => {
           const c2 = content2;
-          const { encrypted_content, ...record } = c2.data;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            RecordTree,
-            {
-              id: key2,
-              record,
-              className: clsx(styles$1k.data)
-            },
-            key2
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ContentDataView, { id: key2, contentData: c2 });
         }
       }
     };
@@ -42716,8 +42832,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         if (content2.type === "text") {
           collection.push(content2);
-          if (!content2.citations || content2.citations.length === 0) ;
-          else {
+          if (content2.citations && content2.citations.length > 0) {
             collect();
           }
           continue;
@@ -42726,6 +42841,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           result2.push(content2);
         }
       }
+      collect();
       return result2;
     };
     const resolveToolInput = (fn2, toolArgs) => {
@@ -42785,8 +42901,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         args: []
       };
     };
-    const citations = "_citations_1tzwh_1";
-    const citationLink = "_citationLink_1tzwh_8";
+    const citations = "_citations_t2k1z_1";
+    const citationLink = "_citationLink_t2k1z_9";
     const styles$1i = {
       citations,
       citationLink
@@ -42803,7 +42919,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             href: citation.url,
             target: "_blank",
             rel: "noopener noreferrer",
-            title: citation.cited_text,
+            title: citation.url,
             className: clsx(styles$1i.citationLink),
             children: citation.cited_text
           }
@@ -43094,19 +43210,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1m.message,
-            message2.role === "system" ? styles$1m.systemRole : void 0,
-            message2.role === "user" ? styles$1m.userRole : void 0
+            styles$1p.message,
+            message2.role === "system" ? styles$1p.systemRole : void 0,
+            message2.role === "user" ? styles$1p.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1m.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1p.messageGrid, "text-style-label"), children: [
               message2.role,
               supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: toFullUrl(messageUrl),
-                  className: clsx(styles$1m.copyLink)
+                  className: clsx(styles$1p.copyLink)
                 }
               ) : ""
             ] }),
@@ -43114,8 +43230,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "div",
               {
                 className: clsx(
-                  styles$1m.messageContents,
-                  indented2 ? styles$1m.indented : void 0
+                  styles$1p.messageContents,
+                  indented2 ? styles$1p.indented : void 0
                 ),
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   ExpandablePanel,
@@ -46508,9 +46624,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return nakedProp(name2, obj, type);
       }
       let func = new Function("call", "ops", "std", "prop", "data", js.join(""));
-      return function(data2) {
+      return function(data) {
         try {
-          return func(createCall(functions2), operators, std, prop, data2);
+          return func(createCall(functions2), operators, std, prop, data);
         } catch (e) {
           return e;
         }
@@ -50299,26 +50415,26 @@ self.onmessage = function (e) {
         err(6, "invalid zlib data: " + (d[1] & 32 ? "need" : "unexpected") + " dictionary");
       return (d[1] >> 3 & 4) + 2;
     };
-    function inflate(data2, opts, cb) {
+    function inflate(data, opts, cb) {
       if (!cb)
         cb = opts, opts = {};
       if (typeof cb != "function")
         err(7);
-      return cbify(data2, opts, [
+      return cbify(data, opts, [
         bInflt
       ], function(ev) {
         return pbf(inflateSync(ev.data[0], gopt(ev.data[1])));
       }, 1, cb);
     }
-    function inflateSync(data2, opts) {
-      return inflt(data2, { i: 2 }, opts && opts.out, opts && opts.dictionary);
+    function inflateSync(data, opts) {
+      return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
     }
-    function gunzip(data2, opts, cb) {
+    function gunzip(data, opts, cb) {
       if (!cb)
         cb = opts, opts = {};
       if (typeof cb != "function")
         err(7);
-      return cbify(data2, opts, [
+      return cbify(data, opts, [
         bInflt,
         guze,
         function() {
@@ -50328,18 +50444,18 @@ self.onmessage = function (e) {
         return pbf(gunzipSync(ev.data[0], ev.data[1]));
       }, 3, cb);
     }
-    function gunzipSync(data2, opts) {
-      var st2 = gzs(data2);
-      if (st2 + 8 > data2.length)
+    function gunzipSync(data, opts) {
+      var st2 = gzs(data);
+      if (st2 + 8 > data.length)
         err(6, "invalid gzip data");
-      return inflt(data2.subarray(st2, -8), { i: 2 }, opts && opts.out || new u8(gzl(data2)), opts && opts.dictionary);
+      return inflt(data.subarray(st2, -8), { i: 2 }, opts && opts.out || new u8(gzl(data)), opts && opts.dictionary);
     }
-    function unzlib(data2, opts, cb) {
+    function unzlib(data, opts, cb) {
       if (!cb)
         cb = opts, opts = {};
       if (typeof cb != "function")
         err(7);
-      return cbify(data2, opts, [
+      return cbify(data, opts, [
         bInflt,
         zule,
         function() {
@@ -50349,15 +50465,15 @@ self.onmessage = function (e) {
         return pbf(unzlibSync(ev.data[0], gopt(ev.data[1])));
       }, 5, cb);
     }
-    function unzlibSync(data2, opts) {
-      return inflt(data2.subarray(zls(data2, opts && opts.dictionary), -4), { i: 2 }, opts && opts.out, opts && opts.dictionary);
+    function unzlibSync(data, opts) {
+      return inflt(data.subarray(zls(data, opts && opts.dictionary), -4), { i: 2 }, opts && opts.out, opts && opts.dictionary);
     }
-    function decompress(data2, opts, cb) {
+    function decompress(data, opts, cb) {
       if (!cb)
         cb = opts, opts = {};
       if (typeof cb != "function")
         err(7);
-      return data2[0] == 31 && data2[1] == 139 && data2[2] == 8 ? gunzip(data2, opts, cb) : (data2[0] & 15) != 8 || data2[0] >> 4 > 7 || (data2[0] << 8 | data2[1]) % 31 ? inflate(data2, opts, cb) : unzlib(data2, opts, cb);
+      return data[0] == 31 && data[1] == 139 && data[2] == 8 ? gunzip(data, opts, cb) : (data[0] & 15) != 8 || data[0] >> 4 > 7 || (data[0] << 8 | data[1]) % 31 ? inflate(data, opts, cb) : unzlib(data, opts, cb);
     }
     var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
     var tds = 0;
@@ -50492,9 +50608,9 @@ self.onmessage = function (e) {
       const arrayBuffer = await response.arrayBuffer();
       return new Uint8Array(arrayBuffer);
     };
-    const decompressAsync = async (data2, opts) => {
+    const decompressAsync = async (data, opts) => {
       return new Promise((resolve, reject) => {
-        decompress(data2, opts, (err2, result2) => {
+        decompress(data, opts, (err2, result2) => {
           if (err2) {
             reject(err2);
           } else {
@@ -50552,7 +50668,7 @@ self.onmessage = function (e) {
         offset2 = headerOffset;
       }
       offset2 += filenameLength + extraFieldLength;
-      const data2 = rawData.subarray(offset2, offset2 + compressedSize);
+      const data = rawData.subarray(offset2, offset2 + compressedSize);
       return {
         versionNeeded,
         bitFlag,
@@ -50562,7 +50678,7 @@ self.onmessage = function (e) {
         uncompressedSize,
         filenameLength,
         extraFieldLength,
-        data: data2
+        data
       };
     };
     const kFileHeaderSize = 46;
@@ -50775,8 +50891,8 @@ self.onmessage = function (e) {
     const kJsonRpcVersion = "2.0";
     function webViewJsonRpcClient(vscode2) {
       const target2 = {
-        postMessage: (data2) => {
-          vscode2.postMessage(data2);
+        postMessage: (data) => {
+          vscode2.postMessage(data);
         },
         onMessage: (handler) => {
           const onMessage = (ev) => {
@@ -50826,14 +50942,14 @@ self.onmessage = function (e) {
     function isJsonRpcMessage(message2) {
       return message2.jsonrpc !== void 0 && message2.id !== void 0;
     }
-    function asJsonRpcMessage(data2) {
-      if (isJsonRpcMessage(data2) && data2.jsonrpc === kJsonRpcVersion) {
-        return data2;
+    function asJsonRpcMessage(data) {
+      if (isJsonRpcMessage(data) && data.jsonrpc === kJsonRpcVersion) {
+        return data;
       }
       return null;
     }
-    function asJsonRpcResponse(data2) {
-      const message2 = asJsonRpcMessage(data2);
+    function asJsonRpcResponse(data) {
+      const message2 = asJsonRpcMessage(data);
       if (message2) {
         return message2;
       }
@@ -51023,9 +51139,9 @@ self.onmessage = function (e) {
       );
       const readJSONFile = async (file, maxBytes) => {
         try {
-          const data2 = await remoteZipFile.readFile(file, maxBytes);
+          const data = await remoteZipFile.readFile(file, maxBytes);
           const textDecoder = new TextDecoder("utf-8");
-          const jsonString = textDecoder.decode(data2);
+          const jsonString = textDecoder.decode(data);
           return asyncJsonParse(jsonString);
         } catch (error2) {
           if (error2 instanceof FileSizeLimitError) {
@@ -51399,11 +51515,11 @@ self.onmessage = function (e) {
         if (scriptEl) {
           const context = scriptEl.textContent;
           if (context !== null) {
-            const data2 = lib$1.parse(context);
-            if (data2.log_dir || data2.log_file) {
-              const log_dir2 = data2.log_dir || dirname(data2.log_file);
-              const api2 = simpleHttpApi(log_dir2, data2.log_file);
-              return clientApi(api2, data2.log_file);
+            const data = lib$1.parse(context);
+            if (data.log_dir || data.log_file) {
+              const log_dir2 = data.log_dir || dirname(data.log_file);
+              const api2 = simpleHttpApi(log_dir2, data.log_file);
+              return clientApi(api2, data.log_file);
             }
           }
         }
@@ -51980,7 +52096,7 @@ self.onmessage = function (e) {
     const LiveVirtualList = ({
       id,
       className: className2,
-      data: data2,
+      data,
       renderRow,
       scrollRef,
       live,
@@ -52084,7 +52200,7 @@ self.onmessage = function (e) {
           ref: listHandle,
           customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
           style: { height: "100%", width: "100%" },
-          data: data2,
+          data,
           defaultItemHeight: 250,
           itemContent: renderRow,
           increaseViewportBy: { top: 1e3, bottom: 1e3 },
@@ -54211,16 +54327,16 @@ self.onmessage = function (e) {
     function offset(_ref2) {
       var state = _ref2.state, options2 = _ref2.options, name2 = _ref2.name;
       var _options$offset = options2.offset, offset2 = _options$offset === void 0 ? [0, 0] : _options$offset;
-      var data2 = placements.reduce(function(acc, placement) {
+      var data = placements.reduce(function(acc, placement) {
         acc[placement] = distanceAndSkiddingToXY(placement, state.rects, offset2);
         return acc;
       }, {});
-      var _data$state$placement = data2[state.placement], x2 = _data$state$placement.x, y = _data$state$placement.y;
+      var _data$state$placement = data[state.placement], x2 = _data$state$placement.x, y = _data$state$placement.y;
       if (state.modifiersData.popperOffsets != null) {
         state.modifiersData.popperOffsets.x += x2;
         state.modifiersData.popperOffsets.y += y;
       }
-      state.modifiersData[name2] = data2;
+      state.modifiersData[name2] = data;
     }
     const offset$1 = {
       name: "offset",
@@ -54275,7 +54391,7 @@ self.onmessage = function (e) {
         altAxis: 0
       }, tetherOffsetValue);
       var offsetModifierState = state.modifiersData.offset ? state.modifiersData.offset[state.placement] : null;
-      var data2 = {
+      var data = {
         x: 0,
         y: 0
       };
@@ -54311,7 +54427,7 @@ self.onmessage = function (e) {
         var tetherMax = offset2 + maxOffset2 - offsetModifierValue;
         var preventedOffset = within(tether ? min$1(min2, tetherMin) : min2, offset2, tether ? max$1(max2, tetherMax) : max2);
         popperOffsets2[mainAxis] = preventedOffset;
-        data2[mainAxis] = preventedOffset - offset2;
+        data[mainAxis] = preventedOffset - offset2;
       }
       if (checkAltAxis) {
         var _offsetModifierState$2;
@@ -54327,9 +54443,9 @@ self.onmessage = function (e) {
         var _tetherMax = isOriginSide ? _offset + referenceRect[_len] + popperRect[_len] - _offsetModifierValue - normalizedTetherOffsetValue.altAxis : _max;
         var _preventedOffset = tether && isOriginSide ? withinMaxClamp(_tetherMin, _offset, _tetherMax) : within(tether ? _tetherMin : _min, _offset, tether ? _tetherMax : _max);
         popperOffsets2[altAxis] = _preventedOffset;
-        data2[altAxis] = _preventedOffset - _offset;
+        data[altAxis] = _preventedOffset - _offset;
       }
-      state.modifiersData[name2] = data2;
+      state.modifiersData[name2] = data;
     }
     const preventOverflow$1 = {
       name: "preventOverflow",
@@ -59016,11 +59132,11 @@ ${val.stack}`;
         };
       }
     }
-    async function parse$2(data2) {
+    async function parse$2(data) {
       let header2;
       let events;
-      if (data2 instanceof Response) {
-        const text2 = await data2.text();
+      if (data instanceof Response) {
+        const text2 = await data.text();
         const result2 = parseJsonl(text2);
         if (result2 !== void 0) {
           header2 = result2.header;
@@ -59028,11 +59144,11 @@ ${val.stack}`;
         } else {
           header2 = JSON.parse(text2);
         }
-      } else if (typeof data2 === "object" && typeof data2.version === "number") {
-        header2 = data2;
-      } else if (Array.isArray(data2)) {
-        header2 = data2[0];
-        events = data2.slice(1, data2.length);
+      } else if (typeof data === "object" && typeof data.version === "number") {
+        header2 = data;
+      } else if (Array.isArray(data)) {
+        header2 = data[0];
+        events = data.slice(1, data.length);
       } else {
         throw "invalid data";
       }
@@ -59058,15 +59174,15 @@ ${val.stack}`;
         events
       };
     }
-    function parseAsciicastV1(data2) {
+    function parseAsciicastV1(data) {
       let time = 0;
-      const events = new Stream(data2.stdout).map((e) => {
+      const events = new Stream(data.stdout).map((e) => {
         time += e[0];
         return [time, "o", e[1]];
       });
       return {
-        cols: data2.width,
-        rows: data2.height,
+        cols: data.width,
+        rows: data.height,
         events
       };
     }
@@ -59183,21 +59299,21 @@ ${events}
       function doFetch(_ref3) {
         let {
           url,
-          data: data2,
+          data,
           fetchOpts = {}
         } = _ref3;
         if (typeof url === "string") {
           return doFetchOne(url, fetchOpts);
         } else if (Array.isArray(url)) {
           return Promise.all(url.map((url2) => doFetchOne(url2, fetchOpts)));
-        } else if (data2 !== void 0) {
-          if (typeof data2 === "function") {
-            data2 = data2();
+        } else if (data !== void 0) {
+          if (typeof data === "function") {
+            data = data();
           }
-          if (!(data2 instanceof Promise)) {
-            data2 = Promise.resolve(data2);
+          if (!(data instanceof Promise)) {
+            data = Promise.resolve(data);
           }
-          return data2.then((value2) => {
+          return data.then((value2) => {
             if (typeof value2 === "string" || value2 instanceof ArrayBuffer) {
               return new Response(value2);
             } else {
@@ -59250,16 +59366,16 @@ ${events}
         eventTimeoutId = null;
       }
       function executeEvent2(event) {
-        const [time, type, data2] = event;
+        const [time, type, data] = event;
         if (type === "o") {
-          feed(data2);
+          feed(data);
         } else if (type === "i") {
-          onInput(data2);
+          onInput(data);
         } else if (type === "r") {
-          const [cols2, rows2] = data2.split("x");
+          const [cols2, rows2] = data.split("x");
           resize(cols2, rows2);
         } else if (type === "m") {
-          onMarker(data2);
+          onMarker(data);
           if (pauseOnMarkers) {
             pause();
             pauseElapsedTime = time * 1e3;
@@ -59675,7 +59791,7 @@ ${events}
         setState,
         now: now2
       } = _ref2;
-      let data2;
+      let data;
       let byteCount = 0;
       return {
         async init() {
@@ -59685,15 +59801,15 @@ ${events}
             rows,
             events
           } = recording2;
-          data2 = Array.from(events).filter((_ref3) => {
+          data = Array.from(events).filter((_ref3) => {
             let [_time, type, _text] = _ref3;
             return type === "o";
           }).map((_ref4) => {
             let [time, _type, text2] = _ref4;
             return [time, text2];
           });
-          const duration = data2[data2.length - 1][0];
-          for (const [_2, text2] of data2) {
+          const duration = data[data.length - 1][0];
+          for (const [_2, text2] of data) {
             byteCount += new Blob([text2]).size;
           }
           return {
@@ -59705,7 +59821,7 @@ ${events}
         play() {
           const startTime = now2();
           for (let i2 = 0; i2 < iterations; i2++) {
-            for (const [_2, text2] of data2) {
+            for (const [_2, text2] of data) {
               feed(text2);
             }
             feed("\x1Bc");
@@ -59793,11 +59909,11 @@ ${events}
       };
     }
     function executeEvent(feed, resize) {
-      return function(code2, data2) {
+      return function(code2, data) {
         if (code2 === "o") {
-          feed(data2);
+          feed(data);
         } else if (code2 === "r") {
-          resize(data2.cols, data2.rows);
+          resize(data.cols, data.rows);
         }
       };
     }
@@ -60483,10 +60599,10 @@ ${events}
       if (array.length < 13) return;
       const time = parseTimestamp(array.subarray(0, 8));
       const len = parseNumber(array.subarray(8, 12));
-      const data2 = array.subarray(12, 12 + len);
+      const data = array.subarray(12, 12 + len);
       return {
         time,
-        data: data2,
+        data,
         len: len + 12
       };
     }
@@ -60504,7 +60620,7 @@ ${events}
         this.core = core;
         this.driver = core.driver;
       }
-      onEnter(data2) {
+      onEnter(data) {
       }
       init() {
       }
@@ -60678,9 +60794,9 @@ ${events}
       async init() {
         this.wasm = await vt;
         const feed = this._feed.bind(this);
-        const onInput = (data2) => {
+        const onInput = (data) => {
           this._dispatchEvent("input", {
-            data: data2
+            data
           });
         };
         const onMarker = (_ref4) => {
@@ -60834,9 +60950,9 @@ ${events}
         this.eventHandlers.get(eventName).push(handler);
       }
       _dispatchEvent(eventName) {
-        let data2 = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
+        let data = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
         for (const h of this.eventHandlers.get(eventName)) {
-          h(data2);
+          h(data);
         }
       }
       _withState(f) {
@@ -60847,7 +60963,7 @@ ${events}
         return this.commandQueue;
       }
       _setState(newState) {
-        let data2 = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
+        let data = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
         if (this.stateName === newState) return this.state;
         this.stateName = newState;
         if (newState === "playing") {
@@ -60865,15 +60981,15 @@ ${events}
         } else {
           throw `invalid state: ${newState}`;
         }
-        this.state.onEnter(data2);
+        this.state.onEnter(data);
         return this.state;
       }
-      _feed(data2) {
-        this._doFeed(data2);
+      _feed(data) {
+        this._doFeed(data);
         this._dispatchEvent("terminalUpdate");
       }
-      _doFeed(data2) {
-        const affectedLines = this.vt.feed(data2);
+      _doFeed(data) {
+        const affectedLines = this.vt.feed(data);
         affectedLines.forEach((i2) => this.changedLines.add(i2));
         this.cursor = void 0;
       }
@@ -61823,8 +61939,8 @@ ${events}
       while (node2) {
         const handler = node2[key2];
         if (handler && !node2.disabled) {
-          const data2 = node2[`${key2}Data`];
-          data2 !== void 0 ? handler.call(node2, data2, e) : handler.call(node2, e);
+          const data = node2[`${key2}Data`];
+          data !== void 0 ? handler.call(node2, data, e) : handler.call(node2, e);
           if (e.cancelBubble) return;
         }
         node2 = node2._$host || node2.parentNode || node2.host;
@@ -63538,8 +63654,8 @@ ${events}
     }) => {
       const player_fns = [];
       const revokableUrls = [];
-      const revokableUrl = (data2) => {
-        const blob = new Blob([data2], { type: "text/plain" });
+      const revokableUrl = (data) => {
+        const blob = new Blob([data], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
         revokableUrls.push(url);
         return url;
@@ -73583,9 +73699,9 @@ ${events}
       if (view.state.readOnly)
         return true;
       view.observer.flush();
-      let data2 = brokenClipboardAPI ? null : event.clipboardData;
-      if (data2) {
-        doPaste(view, data2.getData("text/plain") || data2.getData("text/uri-list"));
+      let data = brokenClipboardAPI ? null : event.clipboardData;
+      if (data) {
+        doPaste(view, data.getData("text/plain") || data.getData("text/uri-list"));
         return true;
       } else {
         capturePaste(view);
@@ -73640,10 +73756,10 @@ ${events}
           scrollIntoView: true,
           userEvent: "delete.cut"
         });
-      let data2 = brokenClipboardAPI ? null : event.clipboardData;
-      if (data2) {
-        data2.clearData();
-        data2.setData("text/plain", text2);
+      let data = brokenClipboardAPI ? null : event.clipboardData;
+      if (data) {
+        data.clearData();
+        data.setData("text/plain", text2);
         return true;
       } else {
         captureCopy(view, text2);
@@ -78900,8 +79016,8 @@ ${events}
       Build a tree from a postfix-ordered buffer of node information,
       or a cursor over such a buffer.
       */
-      static build(data2) {
-        return buildTree(data2);
+      static build(data) {
+        return buildTree(data);
       }
     }
     Tree.empty = new Tree(NodeType.none, [], [], 0);
@@ -79762,9 +79878,9 @@ ${events}
     function hasChild(tree) {
       return tree.children.some((ch3) => ch3 instanceof TreeBuffer || !ch3.type.isAnonymous || hasChild(ch3));
     }
-    function buildTree(data2) {
+    function buildTree(data) {
       var _a2;
-      let { buffer: buffer2, nodeSet: nodeSet2, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet2.types.length } = data2;
+      let { buffer: buffer2, nodeSet: nodeSet2, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet2.types.length } = data;
       let cursor = Array.isArray(buffer2) ? new FlatBufferCursor(buffer2, buffer2.length) : buffer2;
       let types2 = nodeSet2.types;
       let contextHash = 0, lookAhead = 0;
@@ -79791,11 +79907,11 @@ ${events}
         let type = types2[id], node2, buffer3;
         let startPos = start2 - parentStart;
         if (end2 - start2 <= maxBufferLength && (buffer3 = findBufferSize(cursor.pos - minPos, inRepeat))) {
-          let data3 = new Uint16Array(buffer3.size - buffer3.skip);
-          let endPos = cursor.pos - buffer3.size, index2 = data3.length;
+          let data2 = new Uint16Array(buffer3.size - buffer3.skip);
+          let endPos = cursor.pos - buffer3.size, index2 = data2.length;
           while (cursor.pos > endPos)
-            index2 = copyToBuffer(buffer3.start, data3, index2);
-          node2 = new TreeBuffer(data3, end2 - buffer3.start, nodeSet2);
+            index2 = copyToBuffer(buffer3.start, data2, index2);
+          node2 = new TreeBuffer(data2, end2 - buffer3.start, nodeSet2);
           startPos = buffer3.start - parentStart;
         } else {
           let endPos = cursor.pos - size;
@@ -79959,9 +80075,9 @@ ${events}
       }
       let children2 = [], positions = [];
       while (cursor.pos > 0)
-        takeNode(data2.start || 0, data2.bufferStart || 0, children2, positions, -1, 0);
-      let length = (_a2 = data2.length) !== null && _a2 !== void 0 ? _a2 : children2.length ? positions[0] + children2[0].length : 0;
-      return new Tree(types2[data2.topID], children2.reverse(), positions.reverse(), length);
+        takeNode(data.start || 0, data.bufferStart || 0, children2, positions, -1, 0);
+      let length = (_a2 = data.length) !== null && _a2 !== void 0 ? _a2 : children2.length ? positions[0] + children2[0].length : 0;
+      return new Tree(types2[data.topID], children2.reverse(), positions.reverse(), length);
     }
     const nodeSizeCache = /* @__PURE__ */ new WeakMap();
     function nodeSize(balanceType, node2) {
@@ -80846,8 +80962,8 @@ ${events}
       configure your parser to [attach](https://codemirror.net/6/docs/ref/#language.languageDataProp) it
       to the language's outer syntax node.
       */
-      constructor(data2, parser2, extraExtensions = [], name2 = "") {
-        this.data = data2;
+      constructor(data, parser2, extraExtensions = [], name2 = "") {
+        this.data = data;
         this.name = name2;
         if (!EditorState.prototype.hasOwnProperty("tree"))
           Object.defineProperty(EditorState.prototype, "tree", { get() {
@@ -80857,16 +80973,16 @@ ${events}
         this.extension = [
           language$1.of(this),
           EditorState.languageData.of((state, pos2, side) => {
-            let top2 = topNodeAt(state, pos2, side), data3 = top2.type.prop(languageDataProp);
-            if (!data3)
+            let top2 = topNodeAt(state, pos2, side), data2 = top2.type.prop(languageDataProp);
+            if (!data2)
               return [];
-            let base2 = state.facet(data3), sub2 = top2.type.prop(sublanguageProp);
+            let base2 = state.facet(data2), sub2 = top2.type.prop(sublanguageProp);
             if (sub2) {
               let innerNode = top2.resolve(pos2 - top2.from, side);
               for (let sublang of sub2)
                 if (sublang.test(innerNode, state)) {
-                  let data4 = state.facet(sublang.facet);
-                  return sublang.type == "replace" ? data4 : data4.concat(base2);
+                  let data3 = state.facet(sublang.facet);
+                  return sublang.type == "replace" ? data3 : data3.concat(base2);
                 }
             }
             return base2;
@@ -82092,15 +82208,15 @@ ${events}
     const IndentedFrom = /* @__PURE__ */ new WeakMap();
     class StreamLanguage extends Language {
       constructor(parser2) {
-        let data2 = defineLanguageFacet(parser2.languageData);
+        let data = defineLanguageFacet(parser2.languageData);
         let p = fullParser(parser2), self2;
         let impl = new class extends Parser {
           createParse(input2, fragments, ranges) {
             return new Parse(self2, input2, fragments, ranges);
           }
         }();
-        super(data2, impl, [], parser2.name);
-        this.topNode = docID(data2, this);
+        super(data, impl, [], parser2.name);
+        this.topNode = docID(data, this);
         self2 = this;
         this.streamParser = p;
         this.stateAfter = new NodeProp({ perNode: true });
@@ -82427,9 +82543,9 @@ ${events}
       typeArray.push(type);
       return type.id;
     }
-    function docID(data2, lang) {
+    function docID(data, lang) {
       let type = NodeType.define({ id: typeArray.length, name: "Document", props: [
-        languageDataProp.add(() => data2),
+        languageDataProp.add(() => data),
         indentNodeProp.add(() => (cx) => lang.getIndent(cx))
       ], top: true });
       typeArray.push(type);
@@ -84428,8 +84544,8 @@ ${events}
       /* CommentOption.Toggle */
     );
     function getConfig(state, pos2) {
-      let data2 = state.languageDataAt("commentTokens", pos2, 1);
-      return data2.length ? data2[0] : {};
+      let data = state.languageDataAt("commentTokens", pos2, 1);
+      return data.length ? data[0] : {};
     }
     const SearchMargin = 50;
     function findBlockComment(state, { open, close: close2 }, from, to2) {

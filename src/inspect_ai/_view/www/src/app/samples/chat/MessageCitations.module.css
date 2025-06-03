@@ -1,4 +1,5 @@
 .citations {
+  margin-top: 1em;
   margin-bottom: 1em;
   display: grid;
   grid-template-columns: max-content 1fr;
