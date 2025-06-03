@@ -17,8 +17,8 @@ def add():
         Add two numbers.
 
         Args:
-            x (int): First number to add.
-            y (int): Second number to add.
+            x: First number to add.
+            y: Second number to add.
 
         Returns:
             The sum of the two numbers.
@@ -43,7 +43,7 @@ def list_files():
         """List the files in a directory.
 
         Args:
-            dir (str): Directory
+            dir: Directory
 
         Returns:
             File listing of the directory
@@ -92,7 +92,7 @@ def read_file():
         """Read the contents of a file.
 
         Args:
-            file (str): File to read
+            file: File to read
 
         Returns:
             File contents
@@ -118,8 +118,8 @@ def write_file():
         """Write content to a file.
 
         Args:
-            file (str): File to write
-            contents (str): Contents of file
+            file: File to write
+            contents: Contents of file
         """
         return await sandbox().write_file(file, contents)
 

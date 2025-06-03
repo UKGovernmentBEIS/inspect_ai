@@ -1,3 +1,8 @@
+## Unreleased
+
+- Inspect View: Display sample id & epoch in sample dialog title bar.
+- Inspect View: Don't open sample dialog when simply navigating the sample list.
+
 ## v0.3.100 (01 June 2025)
 
 - [time_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#time-limit) and [working_limit()](https://inspect.aisi.org.uk/errors-and-limits.html#working-limit) context managers for scoped application of time limits.
