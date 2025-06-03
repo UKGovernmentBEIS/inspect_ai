@@ -27,7 +27,6 @@ export const ContentDataView: FC<ContentDataProps> = ({ id, contentData }) => {
 
   if (!renderer) {
     const { encrypted_content, ...record } = renderableData;
-    console.log({ id });
     return (
       <div className={clsx(styles.contentData)}>
         <RecordTree

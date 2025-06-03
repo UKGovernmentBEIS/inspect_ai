@@ -38215,7 +38215,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         );
       }
     );
-    const kLetterListPattern = /^([a-zA-Z0-9][).]\s.*?)$/gm;
+    const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
     const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
     const protectBackslashesInLatex = (content2) => {
       if (!content2) return content2;
@@ -42464,7 +42464,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       );
       if (!renderer) {
         const { encrypted_content, ...record } = renderableData;
-        console.log({ id });
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           RecordTree,
           {
