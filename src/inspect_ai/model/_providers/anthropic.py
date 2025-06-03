@@ -1061,7 +1061,7 @@ async def message_param_content(
             else None
         )
         return TextBlockParam(
-            type="text", text=content.text or NO_CONTENT, citations=None
+            type="text", text=content.text or NO_CONTENT, citations=citations
         )
     elif isinstance(content, ContentImage):
         # resolve to url
