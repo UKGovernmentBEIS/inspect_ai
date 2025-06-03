@@ -472,33 +472,8 @@ class AnthropicAPI(ModelAPI):
         # extract system message
         system_messages, messages = split_system_messages(input, config)
 
-        # Anthropic will 400 a request that includes a `server_too_use` block
-        # without the corresponding `web_search_results`. Nevertheless, they will
-        # sometimes return a response with a stop reason of `pause_turn` that
-        # includes a trailing `server_tool_use` block with no corresponding
-        # `web_search_results` block. To work around this, we filter out trailing
-        # `server_tool_use` blocks.
-        # messages = filter_trailing_server_tool_use(messages)
-
         # messages
         message_params = [(await message_param(message)) for message in messages]
-
-        # HACK-O-RAMA: Make sure all `server_tool_use` blocks precede all `web_search_results`
-        # def sort_blocks(block) -> int:
-        #     # Ensure server_tool_use comes before web_search_results
-        #     if isinstance(block, dict) and "type" in block:
-        #         if block["type"] == "server_tool_use":
-        #             return 0
-        #         if block["type"] == "web_search_results":
-        #             return 1
-        #     return 2
-
-        # for msg in message_params:
-        #     content = msg["content"]
-        #     if isinstance(content, Iterable) and not isinstance(content, str):
-        #         new_content = list(content)
-        #         new_content.sort(key=sort_blocks)
-        #         msg["content"] = new_content
 
         # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
         message_params = functools.reduce(
