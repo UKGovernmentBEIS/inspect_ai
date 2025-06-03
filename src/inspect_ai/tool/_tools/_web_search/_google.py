@@ -140,7 +140,7 @@ def google_search_provider(
             return [
                 SearchLink(
                     url=item["link"],
-                    snippet=item["snippet"],
+                    snippet=item.get("snippet", ""),  # sometimes not present
                     title=item["title"],
                 )
                 for item in data["items"]
