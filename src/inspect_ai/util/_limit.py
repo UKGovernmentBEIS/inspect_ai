@@ -7,7 +7,7 @@ from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Dict, Generic, Iterator, Literal, TypeVar
+from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
 
 import anyio
 from typing_extensions import Self
@@ -615,7 +615,7 @@ class _CostLimit(Limit, _Node):
             self.parent.check()
         self._check_self()
 
-    def _load_cost_file(self, cost_file: Path) -> Dict:
+    def _load_cost_file(self, cost_file: Path) -> dict:
         with open(cost_file) as f:
             costs = json.load(f)
 
