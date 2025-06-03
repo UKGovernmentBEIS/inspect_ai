@@ -270,12 +270,37 @@ const normalizeContent = (contents: Contents): Contents => {
       let citeCount = 0;
       const textWithCites = collection
         .map((c) => {
-          const citeText = c.citations?.map((_citation) => `${++citeCount}`);
+          // separate the cites into those with a position and those without
+          // sort by end_index (to allow for numbering to not affect indexes)
+          const positionalCites =
+            c.citations
+              ?.filter((citation) => citation.end_index !== undefined)
+              .sort((a, b) => {
+                return (b.end_index as number) - (a.end_index as number);
+              }) || [];
+          const endCites = c.citations?.filter(
+            (citation) => citation.end_index === undefined,
+          );
+
+          // Process cites with positions
+          let textWithCites = c.text;
+          for (let i = 0; i < positionalCites.length; i++) {
+            const citation = positionalCites[i];
+
+            textWithCites =
+              textWithCites.slice(0, citation.end_index as number) +
+              `<sup>${positionalCites.length - i}</sup>` +
+              textWithCites.slice(citation.end_index as number);
+          }
+          citeCount = citeCount + positionalCites.length;
+
+          // Process cites without positions (they just attach to the end of the content)
+          const citeText = endCites?.map((_citation) => `${++citeCount}`);
           let inlineCites = "";
           if (citeText && citeText.length > 0) {
             inlineCites = `<sup>${citeText.join(",")}</sup>`;
           }
-          return (c.text || "") + inlineCites;
+          return (textWithCites || "") + inlineCites;
         })
         .join("");
 

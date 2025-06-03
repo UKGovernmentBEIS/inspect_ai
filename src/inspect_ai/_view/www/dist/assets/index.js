@@ -42782,13 +42782,25 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           const filteredCitations = collection.flatMap((c2) => c2.citations || []);
           let citeCount = 0;
           const textWithCites = collection.map((c2) => {
-            var _a2;
-            const citeText = (_a2 = c2.citations) == null ? void 0 : _a2.map((_citation) => `${++citeCount}`);
+            var _a2, _b2;
+            const positionalCites = ((_a2 = c2.citations) == null ? void 0 : _a2.filter((citation) => citation.end_index !== void 0).sort((a, b) => {
+              return b.end_index - a.end_index;
+            })) || [];
+            const endCites = (_b2 = c2.citations) == null ? void 0 : _b2.filter(
+              (citation) => citation.end_index === void 0
+            );
+            let textWithCites2 = c2.text;
+            for (let i2 = 0; i2 < positionalCites.length; i2++) {
+              const citation = positionalCites[i2];
+              textWithCites2 = textWithCites2.slice(0, citation.end_index) + `<sup>${positionalCites.length - i2}</sup>` + textWithCites2.slice(citation.end_index);
+            }
+            citeCount = citeCount + positionalCites.length;
+            const citeText = endCites == null ? void 0 : endCites.map((_citation) => `${++citeCount}`);
             let inlineCites = "";
             if (citeText && citeText.length > 0) {
               inlineCites = `<sup>${citeText.join(",")}</sup>`;
             }
-            return (c2.text || "") + inlineCites;
+            return (textWithCites2 || "") + inlineCites;
           }).join("");
           result2.push({
             type: "text",
