@@ -6,25 +6,29 @@ import pytest
 
 from inspect_ai.tool._tools._web_search._tavily import tavily_search_provider
 
+# See https://docs.tavily.com/documentation/api-reference/endpoint/search
 EXAMPLE_RESPONSE = {
-    "answer": "test answer",
-    "images": [],
     "query": "test query",
+    "answer": "test answer",
+    "follow_up_questions": None,
+    "images": [],
     "results": [
         {
             "title": "First Result",
             "url": "https://example.com/1",
             "content": "This is the first search result content.",
-            "score": 0.7,
+            "score": 0.80698997,
+            "raw_content": None,
         },
         {
             "title": "Second Result",
             "url": "https://example.com/2",
             "content": "This is the second search result content.",
-            "score": 0.8,
+            "score": 0.79901963,
+            "raw_content": None,
         },
     ],
-    "response_time": 0.5,
+    "response_time": 2.42,
 }
 
 
