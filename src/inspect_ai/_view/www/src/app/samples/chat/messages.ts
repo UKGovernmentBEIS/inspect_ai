@@ -134,7 +134,6 @@ const normalizeContent = (
       text: content,
       refusal: null,
       internal: null,
-      format: null,
       citations: null,
     };
   } else {
