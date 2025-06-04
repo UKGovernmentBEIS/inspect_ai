@@ -275,35 +275,40 @@ class AnthropicAPI(ModelAPI):
         streaming: bool,
         tools: list[ToolInfo],
     ) -> tuple[Message, ModelOutput]:
+        """
+        This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
+
+        It considers the result from the initial request the "head" and the result
+        from the continuation the "tail".
+        """
         if streaming:
             async with self.client.messages.stream(**request) as stream:
                 head_message = await stream.get_final_message()
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
-        # extract output
-        head_model_output, pause_turn = await model_output_from_message(
+        head_model_output, continuation_required = await model_output_from_message(
             self.client, self.service_model_name(), head_message, tools
         )
 
-        if pause_turn:
-            new_request = dict(request)
-            new_request["messages"] = request["messages"] + [
+        if continuation_required:
+            tail_request = dict(request)
+            tail_request["messages"] = request["messages"] + [
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
             _, tail_model_output = await self._perform_request_and_continuations(
-                new_request, streaming, tools
+                tail_request, streaming, tools
             )
 
             head_content = _content_list(head_model_output.message.content)
             tail_content = _content_list(tail_model_output.message.content)
-            joined_content = head_content + tail_content
-            tail_model_output.message.content = joined_content
+            tail_model_output.message.content = head_content + tail_content
 
             # TODO:
-            # This looks weird, but the contract for this function is that it returns
-            # the head message even when it has needed to recurse. This is because
-            # model_call() above doesn't currently support multiple requests
+            # It looks weird to return the head message with the tail output, but
+            # the contract for this function is that it returns the head message
+            # even when it has needed to recurse. This is because model_call()
+            # above doesn't currently support multiple requests
             return head_message, tail_model_output
 
         return head_message, head_model_output
@@ -904,25 +909,9 @@ async def model_output_from_message(
                 )
             )
         elif isinstance(content_block, ServerToolUseBlock):
-            # TODO
-            # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
-            content.append(
-                ContentData(
-                    data=ServerToolUseBlock.model_validate(
-                        content_block.model_dump()
-                    ).model_dump()
-                )
-            )
+            content.append(ContentData(data=content_block.model_dump()))
         elif isinstance(content_block, WebSearchToolResultBlock):
-            # TODO
-            # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
-            content.append(
-                ContentData(
-                    data=WebSearchToolResultBlock.model_validate(
-                        content_block.model_dump()
-                    ).model_dump()
-                )
-            )
+            content.append(ContentData(data=content_block.model_dump()))
         elif isinstance(content_block, RedactedThinkingBlock):
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
@@ -1082,11 +1071,15 @@ async def message_param_content(
     elif isinstance(content, ContentData):
         match content.data.get("type", None):
             case "server_tool_use":
-                v1 = ServerToolUseBlock.model_validate(content.data)
-                return cast(ServerToolUseBlockParam, v1.model_dump())
+                return cast(
+                    ServerToolUseBlockParam,
+                    ServerToolUseBlock.model_validate(content.data).model_dump(),
+                )
             case "web_search_tool_result":
-                v2 = WebSearchToolResultBlock.model_validate(content.data)
-                return cast(WebSearchToolResultBlockParam, v2.model_dump())
+                return cast(
+                    WebSearchToolResultBlockParam,
+                    WebSearchToolResultBlock.model_validate(content.data).model_dump(),
+                )
         raise NotImplementedError()
     else:
         raise RuntimeError(
@@ -1130,24 +1123,6 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
-
-
-def filter_trailing_server_tool_use(messages: list[ChatMessage]) -> list[ChatMessage]:
-    # Filter out trailing ContentData with data.type == "server_tool_use" in ChatMessageAssistant
-    def _the_filter(acc: list[ChatMessage], msg: ChatMessage) -> list[ChatMessage]:
-        if (
-            isinstance(msg, ChatMessageAssistant)
-            and isinstance(msg.content, list)
-            and len(msg.content) > 0
-            and isinstance(msg.content[-1], ContentData)
-            and msg.content[-1].data.get("type") == "server_tool_use"
-        ):
-            msg = msg.model_copy()
-            msg.content = msg.content[:-1]
-        acc.append(msg)
-        return acc
-
-    return functools.reduce(_the_filter, messages, [])
 
 
 def _content_list(input: str | list[Content]) -> list[Content]:
