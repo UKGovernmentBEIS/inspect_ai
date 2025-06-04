@@ -10,7 +10,6 @@ import {
   ContentVideo,
   Format1,
   Format2,
-  Format3,
 } from "../../../@types/log";
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
