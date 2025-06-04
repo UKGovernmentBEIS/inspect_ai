@@ -98,6 +98,10 @@ def is_computer_use_preview(name: str) -> bool:
     return "computer-use-preview" in name
 
 
+def is_codex(name: str) -> bool:
+    return "codex" in name
+
+
 def is_gpt(name: str) -> bool:
     return "gpt" in name
 
