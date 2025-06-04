@@ -658,22 +658,30 @@ class AnthropicAPI(ModelAPI):
 def _web_search_tool_param(
     maybe_anthropic_options: object,
 ) -> WebSearchTool20250305Param:
-    if maybe_anthropic_options is None:
-        maybe_anthropic_options = {}
-    elif not isinstance(maybe_anthropic_options, dict):
+    if maybe_anthropic_options is not None and not isinstance(
+        maybe_anthropic_options, dict
+    ):
         raise TypeError(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
 
-    return WebSearchTool20250305Param(
+    result = WebSearchTool20250305Param(
         name="web_search",
         type="web_search_20250305",
-        allowed_domains=maybe_anthropic_options.get("allowed_domains", None),
-        blocked_domains=maybe_anthropic_options.get("blocked_domains", None),
-        cache_control=maybe_anthropic_options.get("cache_control", None),
-        max_uses=maybe_anthropic_options.get("max_uses", None),
-        user_location=maybe_anthropic_options.get("user_location", None),
     )
+
+    if maybe_anthropic_options:
+        for key in [
+            "allowed_domains",
+            "blocked_domains",
+            "cache_control",
+            "max_uses",
+            "user_location",
+        ]:
+            if value := maybe_anthropic_options.get(key, None) is not None:
+                setattr(result, key, value)
+
+    return result
 
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
