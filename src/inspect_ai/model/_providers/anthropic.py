@@ -1,7 +1,7 @@
-import copy
 import functools
 import os
 import re
+from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, cast
 
@@ -661,7 +661,13 @@ def _web_search_tool_param(
         )
 
     return WebSearchTool20250305Param(
-        name="web_search", type="web_search_20250305", **(maybe_anthropic_options)
+        name="web_search",
+        type="web_search_20250305",
+        allowed_domains=maybe_anthropic_options.get("allowed_domains", None),
+        blocked_domains=maybe_anthropic_options.get("blocked_domains", None),
+        cache_control=maybe_anthropic_options.get("cache_control", None),
+        max_uses=maybe_anthropic_options.get("max_uses", None),
+        user_location=maybe_anthropic_options.get("user_location", None),
     )
 
 
