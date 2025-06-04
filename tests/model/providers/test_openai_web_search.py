@@ -12,11 +12,12 @@ class TestOpenAIWebSearch:
     def test_maybe_web_search_tool_returns_none_for_non_web_search(self):
         assert (
             maybe_web_search_tool(
+                "gpt-4o",
                 ToolInfo(
                     name="not_web_search",
                     description="Not a web search tool",
                     options={"openai": {}},
-                )
+                ),
             )
             is None
         )
@@ -24,9 +25,10 @@ class TestOpenAIWebSearch:
     def test_maybe_web_search_tool_returns_none_for_no_options(self):
         assert (
             maybe_web_search_tool(
+                "gpt-4o",
                 ToolInfo(
                     name="web_search", description="A web search tool", options=None
-                )
+                ),
             )
             is None
         )
@@ -34,11 +36,12 @@ class TestOpenAIWebSearch:
     def test_maybe_web_search_tool_returns_none_for_no_openai_options(self):
         assert (
             maybe_web_search_tool(
+                "gpt-4o",
                 ToolInfo(
                     name="web_search",
                     description="A web search tool",
                     options={"not_openai": {}},
-                )
+                ),
             )
             is None
         )
@@ -49,11 +52,12 @@ class TestOpenAIWebSearch:
         with patch("inspect_ai.model._openai_web_search._web_search_tool") as mock_tool:
             mock_tool.return_value = {"type": "web_search_preview", "key": "value"}
             result = maybe_web_search_tool(
+                "gpt-4o",
                 ToolInfo(
                     name="web_search",
                     description="A web search tool",
                     options={"openai": openai_options},
-                )
+                ),
             )
 
             mock_tool.assert_called_once_with(openai_options)
