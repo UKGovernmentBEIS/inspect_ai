@@ -50804,6 +50804,16 @@ categories: ${categories.join(" ")}`;
           })}` : "";
           return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1h.dateCell, children: timeStr });
         },
+        sortingFn: (rowA, rowB) => {
+          var _a2, _b2, _c, _d;
+          const itemA = rowA.original;
+          const itemB = rowB.original;
+          const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+          const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
+          const timeA = new Date(((_c = headerA == null ? void 0 : headerA.stats) == null ? void 0 : _c.completed_at) || 0);
+          const timeB = new Date(((_d = headerB == null ? void 0 : headerB.stats) == null ? void 0 : _d.completed_at) || 0);
+          return timeA.getTime() - timeB.getTime();
+        },
         enableSorting: true,
         enableGlobalFilter: true,
         size: 200,

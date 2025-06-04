@@ -1,4 +1,5 @@
 import { EvalLogHeader } from "../../../../client/api/types";
+import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
 import styles from "./CompletedDate.module.css";
@@ -28,6 +29,24 @@ export const completedDateColumn = (
 
       return <div className={styles.dateCell}>{timeStr}</div>;
     },
+    sortingFn: (rowA, rowB) => {
+      const itemA = rowA.original as FileLogItem | FolderLogItem;
+      const itemB = rowB.original as FileLogItem | FolderLogItem;
+
+      const headerA =
+        itemA.type === "file"
+          ? logHeaders[itemA.logFile?.name || ""]
+          : undefined;
+      const headerB =
+        itemB.type === "file"
+          ? logHeaders[itemB.logFile?.name || ""]
+          : undefined;
+
+      const timeA = new Date(headerA?.stats?.completed_at || 0);
+      const timeB = new Date(headerB?.stats?.completed_at || 0);
+      return timeA.getTime() - timeB.getTime();
+    },
+
     enableSorting: true,
     enableGlobalFilter: true,
     size: 200,
