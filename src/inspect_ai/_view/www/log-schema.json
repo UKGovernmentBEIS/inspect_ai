@@ -879,22 +879,6 @@
           "default": null,
           "title": "Refusal"
         },
-        "format": {
-          "anyOf": [
-            {
-              "enum": [
-                "markdown",
-                "json"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Format"
-        },
         "citations": {
           "anyOf": [
             {
@@ -919,7 +903,6 @@
         "type",
         "text",
         "refusal",
-        "format",
         "citations"
       ],
       "title": "ContentText",

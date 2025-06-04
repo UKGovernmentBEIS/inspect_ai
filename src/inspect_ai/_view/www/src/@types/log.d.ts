@@ -199,7 +199,6 @@ export type Content =
 export type Type3 = "text";
 export type Text = string;
 export type Refusal = boolean | null;
-export type Format1 = ("markdown" | "json") | null;
 export type Citations =
   | {
       [k: string]: JsonValue;
@@ -215,10 +214,10 @@ export type Image = string;
 export type Detail = "auto" | "low" | "high";
 export type Type6 = "audio";
 export type Audio = string;
-export type Format2 = "wav" | "mp3";
+export type Format1 = "wav" | "mp3";
 export type Type7 = "video";
 export type Video = string;
-export type Format3 = "mp4" | "mpeg" | "mov";
+export type Format2 = "mp4" | "mpeg" | "mov";
 export type Type8 = "data";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
@@ -254,7 +253,7 @@ export type Id4 = string;
 export type Function = string;
 export type ParseError = string | null;
 export type Title = string | null;
-export type Format4 = "text" | "markdown";
+export type Format3 = "text" | "markdown";
 export type Content3 = string;
 export type Type9 = string | null;
 export type Model2 = string | null;
@@ -1027,7 +1026,6 @@ export interface ContentText {
   type: Type3;
   text: Text;
   refusal: Refusal;
-  format: Format1;
   citations: Citations;
 }
 /**
@@ -1058,7 +1056,7 @@ export interface ContentAudio {
   internal: unknown;
   type: Type6;
   audio: Audio;
-  format: Format2;
+  format: Format1;
 }
 /**
  * Video content.
@@ -1067,7 +1065,7 @@ export interface ContentVideo {
   internal: unknown;
   type: Type7;
   video: Video;
-  format: Format3;
+  format: Format2;
 }
 /**
  * Model internal.
@@ -1120,7 +1118,7 @@ export interface Arguments {
  */
 export interface ToolCallContent {
   title: Title;
-  format: Format4;
+  format: Format3;
   content: Content3;
 }
 /**

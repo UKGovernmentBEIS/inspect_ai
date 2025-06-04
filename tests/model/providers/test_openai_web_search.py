@@ -2,7 +2,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from inspect_ai.model._openai_web_search import _web_search_tool, maybe_web_search_tool
+from inspect_ai.model._provider._openai_web_search import (
+    _web_search_tool,
+    maybe_web_search_tool,
+)
 from inspect_ai.tool._tool_info import ToolInfo
 
 

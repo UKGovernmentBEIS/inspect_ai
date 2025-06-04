@@ -20,9 +20,6 @@ class ContentText(ContentBase):
     refusal: bool | None = Field(default=None)
     """Was this a refusal message?"""
 
-    format: Literal["markdown", "json"] | None = Field(default=None)
-    """Format of the text content. Default is 'markdown'"""
-
     citations: Sequence[dict[str, JsonValue]] | None = Field(default=None)
     """Citations supporting the text block."""
 
