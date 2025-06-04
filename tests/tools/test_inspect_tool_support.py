@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from test_helpers.tool_call_utils import (
     get_tool_call,
     get_tool_response,
@@ -26,6 +27,7 @@ def inspect_tool_support_sandbox() -> tuple[str, str]:
     )
 
 
+@pytest.mark.slow
 def test_text_editor_read():
     task = Task(
         dataset=[Sample(input="Please read the file '/etc/passwd'")],
@@ -61,6 +63,7 @@ def test_text_editor_read():
     )
 
 
+@pytest.mark.slow
 def test_text_editor_read_missing():
     task = Task(
         dataset=[Sample(input="Please read the file '/missing.txt'")],
