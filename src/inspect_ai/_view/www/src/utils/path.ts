@@ -59,3 +59,10 @@ export const isInDirectory = (path: string, directory: string): boolean => {
 
   return dirname(path) === directory;
 };
+
+export const ensureTrailingSlash = (path?: string): string => {
+  if (!path) {
+    return "";
+  }
+  return path.endsWith("/") ? path : path + "/";
+};

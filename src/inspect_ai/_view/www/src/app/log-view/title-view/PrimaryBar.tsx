@@ -1,13 +1,15 @@
 import clsx from "clsx";
-import { FC, useCallback } from "react";
+import { FC } from "react";
+import { Link } from "react-router-dom";
 import { EvalResults, EvalSpec, Status } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
 import { kModelNone } from "../../../constants";
 import { toDisplayScorers } from "../../../scoring/metrics";
 import { useStore } from "../../../state/store";
-import { filename } from "../../../utils/path";
+import { dirname, ensureTrailingSlash, filename } from "../../../utils/path";
 import { ApplicationIcons } from "../../appearance/icons";
+import { logUrl } from "../../routing/url";
 import { ModelRolesView } from "./ModelRolesView";
 import styles from "./PrimaryBar.module.css";
 import { displayScorersFromRunningMetrics, ResultsPanel } from "./ResultsPanel";
@@ -31,18 +33,19 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   evalSpec,
   sampleCount,
 }) => {
-  const offCanvas = useStore((state) => state.app.offcanvas);
-  const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 
-  const handleToggle = useCallback(() => {
-    setOffCanvas(!offCanvas);
-  }, [offCanvas, setOffCanvas]);
-
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
+  const logDirectory = useStore((state) => state.logs.logs.log_dir);
+
+  const backUrl = logUrl(
+    ensureTrailingSlash(dirname(selectedLogFile || "")),
+    logDirectory,
+  );
+  console.log({ selectedLogFile, logDirectory, backUrl });
 
   return (
     <div className={clsx(styles.wrapper)}>
@@ -55,18 +58,9 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
         )}
       >
         {showToggle ? (
-          <button
-            id="sidebarToggle"
-            onClick={handleToggle}
-            className={clsx(
-              "btn",
-              offCanvas ? "d-md-none" : undefined,
-              styles.toggle,
-            )}
-            type="button"
-          >
-            <i className={ApplicationIcons.menu}></i>
-          </button>
+          <Link to={backUrl} className={clsx("btn", styles.toggle)}>
+            <i className={ApplicationIcons.previous}></i>
+          </Link>
         ) : (
           ""
         )}

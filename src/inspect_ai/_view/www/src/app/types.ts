@@ -35,7 +35,6 @@ import { ScorerInfo } from "../state/scoring";
 
 export interface AppState {
   status: AppStatus;
-  offcanvas: boolean;
   showFind: boolean;
   tabs: {
     workspace: string;

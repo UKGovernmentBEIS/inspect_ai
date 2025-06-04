@@ -10,7 +10,6 @@ export interface AppSlice {
   capabilities: Capabilities;
   appActions: {
     setStatus: (status: AppStatus) => void;
-    setOffcanvas: (show: boolean) => void;
     setShowFind: (show: boolean) => void;
     hideFind: () => void;
 
@@ -61,7 +60,6 @@ const kDefaultSampleTab = kSampleTranscriptTabId;
 
 const initialState: AppState = {
   status: { loading: false },
-  offcanvas: false,
   showFind: false,
   dialogs: {
     sample: false,
@@ -105,11 +103,6 @@ export const createAppSlice = (
       setStatus: (status: AppStatus) =>
         set((state) => {
           state.app.status = status;
-        }),
-
-      setOffcanvas: (show: boolean) =>
-        set((state) => {
-          state.app.offcanvas = show;
         }),
 
       setShowFind: (show: boolean) =>

@@ -12,6 +12,8 @@
 }
 
 .toggle {
+  margin-top: 0.3em;
+  font-size: 1em;
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
