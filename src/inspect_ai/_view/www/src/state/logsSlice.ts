@@ -7,7 +7,6 @@ import { EvalLog } from "../@types/log";
 import { LogsState } from "../app/types";
 import { EvalLogHeader, LogFile, LogFiles } from "../client/api/types";
 import { createLogger } from "../utils/logger";
-import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
@@ -56,8 +55,6 @@ export const createLogsSlice = (
   get: () => StoreState,
   _store: any,
 ): [LogsSlice, () => void] => {
-  const logsPolling = createLogsPolling(get, set);
-
   const slice = {
     // State
     logs: initialState,
@@ -72,17 +69,6 @@ export const createLogsSlice = (
               ? logs.files[state.logs.selectedLogIndex]?.name
               : undefined;
         });
-
-        // If we have files in the logs, load the headers
-        if (logs.files.length > 0) {
-          // ensure state is updated first
-          setTimeout(() => {
-            const currentState = get();
-            if (!currentState.logs.headersLoading) {
-              logsPolling.startPolling(logs);
-            }
-          }, 100);
-        }
       },
       setLogHeaders: (headers: Record<string, EvalLogHeader>) =>
         set((state) => {

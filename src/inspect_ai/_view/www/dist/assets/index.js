@@ -1205,10 +1205,10 @@ var require_assets = __commonJS({
         } catch (err2) {
         }
     }
-    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$9 = Math.log, LN2 = Math.LN2;
+    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$8 = Math.log, LN2 = Math.LN2;
     function clz32Fallback(x2) {
       x2 >>>= 0;
-      return 0 === x2 ? 32 : 31 - (log$9(x2) / LN2 | 0) | 0;
+      return 0 === x2 ? 32 : 31 - (log$8(x2) / LN2 | 0) | 0;
     }
     var nextTransitionLane = 256, nextRetryLane = 4194304;
     function getHighestPriorityLanes(lanes) {
@@ -23310,7 +23310,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       return { name: name2, start: start2, stop };
     };
-    const log$8 = createLogger("logPolling");
+    const log$7 = createLogger("logPolling");
     const kRetries = 10;
     const kPollingInterval$1 = 2;
     function createLogPolling(get2, set2) {
@@ -23326,19 +23326,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!api2 || !selectedLogFile) {
           return false;
         }
-        log$8.debug(`refresh: ${selectedLogFile}`);
+        log$7.debug(`refresh: ${selectedLogFile}`);
         try {
           const logContents = await api2.get_log_summary(selectedLogFile);
           set2((state2) => {
             state2.log.selectedLogSummary = logContents;
-            log$8.debug(
+            log$7.debug(
               `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
               logContents
             );
             if (clearPending) {
               const pendingSampleSummaries = state2.log.pendingSampleSummaries;
               if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-                log$8.debug(
+                log$7.debug(
                   `Clearing pending summaries during refresh for: ${logFileName}`
                 );
                 state2.log.pendingSampleSummaries = {
@@ -23350,7 +23350,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           });
           return true;
         } catch (error2) {
-          log$8.error("Error refreshing log:", error2);
+          log$7.error("Error refreshing log:", error2);
           return false;
         }
       };
@@ -23366,7 +23366,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           async () => {
             var _a3, _b2;
             if (abortController.signal.aborted) {
-              log$8.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$7.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
@@ -23377,13 +23377,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             if (abortController.signal.aborted) {
               return false;
             }
-            log$8.debug(`Polling running samples: ${logFileName}`);
+            log$7.debug(`Polling running samples: ${logFileName}`);
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
             );
-            log$8.debug(`Received pending samples`, pendingSamples);
+            log$7.debug(`Received pending samples`, pendingSamples);
             if (abortController.signal.aborted) {
               return false;
             }
@@ -23395,9 +23395,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               await refreshLog(logFileName, false);
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$8.debug(`Stop polling running samples: ${logFileName}`);
+              log$7.debug(`Stop polling running samples: ${logFileName}`);
               if (loadedPendingSamples || ((_b2 = state.log.selectedLogSummary) == null ? void 0 : _b2.status) === "started") {
-                log$8.debug(`Refresh log: ${logFileName}`);
+                log$7.debug(`Refresh log: ${logFileName}`);
                 await refreshLog(logFileName, true);
               }
               return false;
@@ -23417,7 +23417,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$8.debug(`Clear pending: ${logFileName}`);
+          log$7.debug(`Clear pending: ${logFileName}`);
           return refreshLog(logFileName, true);
         }
         return false;
@@ -23429,7 +23429,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       };
       const cleanup = () => {
-        log$8.debug(`Cleanup`);
+        log$7.debug(`Cleanup`);
         abortController.abort();
         stopPolling();
       };
@@ -23442,7 +23442,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         refreshLog: (clearPending = false) => refreshLog(get2().logs.selectedLogFile || "", clearPending)
       };
     }
-    const log$7 = createLogger("logSlice");
+    const log$6 = createLogger("logSlice");
     const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
@@ -23520,7 +23520,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               console.error("API not initialized in Store");
               return;
             }
-            log$7.debug(`Load log: ${logFileName}`);
+            log$6.debug(`Load log: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -23541,7 +23541,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               });
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$7.error("Error loading log:", error2);
+              log$6.error("Error loading log:", error2);
               throw error2;
             }
           },
@@ -23558,12 +23558,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$7.debug(`refresh: ${selectedLogFile}`);
+            log$6.debug(`refresh: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$7.error("Error refreshing log:", error2);
+              log$6.error("Error refreshing log:", error2);
               throw error2;
             }
           }
@@ -23581,82 +23581,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
-    const log$6 = createLogger("logsPolling");
-    function createLogsPolling(get2, _set) {
-      let currentPolling = null;
-      let isActive = true;
-      const startPolling = (logFiles) => {
-        const api2 = get2().api;
-        if (!api2) {
-          throw new Error("Failed to start polling - no API");
-        }
-        if (currentPolling) {
-          currentPolling.stop();
-        }
-        isActive = true;
-        log$6.debug("LOADING HEADERS");
-        get2().logsActions.setHeadersLoading(true);
-        const chunkSize = 8;
-        const fileLists = [];
-        for (let i2 = 0; i2 < logFiles.files.length; i2 += chunkSize) {
-          const chunk = logFiles.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
-          fileLists.push(chunk);
-        }
-        const totalLen = fileLists.length;
-        currentPolling = createPolling(
-          `LogHeaders`,
-          async () => {
-            if (!isActive) {
-              get2().logsActions.setHeadersLoading(false);
-              return false;
-            }
-            log$6.debug(`POLL HEADERS`);
-            const currentFileList = fileLists.shift();
-            if (currentFileList) {
-              log$6.debug(
-                `LOADING ${totalLen - fileLists.length} of ${totalLen} CHUNKS`
-              );
-              const headers = await api2.get_log_headers(currentFileList);
-              const updatedHeaders = {};
-              headers.forEach((header2, index2) => {
-                const logFile = currentFileList[index2];
-                updatedHeaders[logFile] = header2;
-              });
-              get2().logsActions.updateLogHeaders(updatedHeaders);
-            } else {
-              get2().logsActions.setHeadersLoading(false);
-              return false;
-            }
-            if (!isActive) {
-              get2().logsActions.setHeadersLoading(false);
-              return false;
-            }
-            return true;
-          },
-          {
-            maxRetries: 10,
-            interval: 5
-          }
-        );
-        currentPolling.start();
-      };
-      const stopPolling = () => {
-        if (currentPolling) {
-          currentPolling.stop();
-          currentPolling = null;
-        }
-      };
-      const cleanup = () => {
-        log$6.debug(`CLEANUP`);
-        isActive = false;
-        stopPolling();
-      };
-      return {
-        startPolling,
-        stopPolling,
-        cleanup
-      };
-    }
     const log$5 = createLogger("Log Slice");
     const kEmptyLogs = {
       log_dir: "",
@@ -23671,7 +23595,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       listing: {}
     };
     const createLogsSlice = (set2, get2, _store) => {
-      const logsPolling = createLogsPolling(get2);
       const slice = {
         // State
         logs: initialState$1,
@@ -23683,14 +23606,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.logs.logs = logs;
               state.logs.selectedLogFile = state.logs.selectedLogIndex > -1 ? (_a2 = logs.files[state.logs.selectedLogIndex]) == null ? void 0 : _a2.name : void 0;
             });
-            if (logs.files.length > 0) {
-              setTimeout(() => {
-                const currentState = get2();
-                if (!currentState.logs.headersLoading) {
-                  logsPolling.startPolling(logs);
-                }
-              }, 100);
-            }
           },
           setLogHeaders: (headers) => set2((state) => {
             state.logs.logHeaders = headers;
