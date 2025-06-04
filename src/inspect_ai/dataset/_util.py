@@ -234,10 +234,11 @@ def shuffle_choices_if_requested(
     """
     Shuffle the choices in the dataset if requested.
 
-    The `shuffle_choices` parameter passed to `Dataset.shuffle_choices` can be
-    a boolean, an integer, or `None`. If it is a boolean, it will shuffle the choices
-    if the value is `True` and do nothing if it is `False`. If it is an integer, it will
-    shuffle the choices using the integer as the seed.
+    The `shuffle_choices` parameter passed to `json_dataset`, `csv_dataset`, and `hf_dataset` can be
+    a boolean, an integer, or `None`.
+    If it is a boolean, it will shuffle the choices
+    if the value is `True` and do nothing if it is `False`.
+    If it is an integer, it will shuffle the choices using the integer as the seed.
     """
     # Note that `isinstance(x, int)` returns True if x is True or False,
     # so we need to check for both explicitly
