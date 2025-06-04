@@ -16130,6 +16130,29 @@ a._citationLink_t2k1z_9:hover {
   min-width: 0;
   flex: 1;
 }
+._emptyCell_17jto_1 {
+  display: block;
+}
+._nameCell_arm8o_1 {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+._fileLink_arm8o_8 {
+  color: var(--bs-body-color);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+._fileLink_arm8o_8:hover {
+  color: var(--bs-link-hover-color);
+  text-decoration: underline;
+}
 ._iconCell_r7y7d_1 {
   display: flex;
   align-items: center;
@@ -16142,9 +16165,6 @@ a._citationLink_t2k1z_9:hover {
   align-items: center;
   min-width: 0;
   flex: 1;
-}
-._emptyCell_17jto_1 {
-  display: block;
 }
 ._scoreCell_1xqe0_1 {
   display: flex;

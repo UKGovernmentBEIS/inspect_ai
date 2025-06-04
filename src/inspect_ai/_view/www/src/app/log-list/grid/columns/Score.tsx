@@ -47,7 +47,7 @@ export const scoreColumn = (logHeaders: Record<string, EvalLogHeader>) => {
       const metricB =
         headerB && headerB.results ? firstMetric(headerB.results) : undefined;
 
-      return (metricA?.value || 0) - (metricB?.value || 0);
+      return (metricA?.value || -1) - (metricB?.value || -1);
     },
     enableSorting: true,
     enableGlobalFilter: true,
