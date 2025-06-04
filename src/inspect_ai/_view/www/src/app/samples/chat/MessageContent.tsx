@@ -212,7 +212,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
  * Renders message content based on its type.
  * Supports rendering strings, images, and tools using specific renderers.
  */
-const mimeTypeForFormat = (format: Format1 | Format2 | Format3): string => {
+const mimeTypeForFormat = (format: Format1 | Format2): string => {
   switch (format) {
     case "mov":
       return "video/quicktime";

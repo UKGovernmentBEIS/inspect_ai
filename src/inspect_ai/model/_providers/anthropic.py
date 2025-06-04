@@ -78,6 +78,14 @@ ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
+COMPATIBLE_MODELS = [
+    "claude-opus-4-20250514",
+    "claude-sonnet-4-20250514",
+    "claude-3-7-sonnet-20250219",
+    "claude-3-5-sonnet-latest",
+    "claude-3-5-haiku-latest",
+]
+
 
 class AnthropicAPI(ModelAPI):
     def __init__(
@@ -649,7 +657,12 @@ class AnthropicAPI(ModelAPI):
     def web_search_tool_param(
         self, tool: ToolInfo
     ) -> WebSearchTool20250305Param | None:
-        if tool.name == "web_search" and tool.options and "anthropic" in tool.options:
+        if (
+            tool.name == "web_search"
+            and tool.options
+            and "anthropic" in tool.options
+            and self.model_name in COMPATIBLE_MODELS
+        ):
             return _web_search_tool_param(tool.options["anthropic"])
         else:
             return None

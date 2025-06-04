@@ -368,7 +368,7 @@ inspect eval computer.py --no-internal-tools
 
 The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
 
--   Internal providers: "openai" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
+-   Internal providers: "openai" and "anthropic" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
 
 -   External providers: "tavily" and "google". These are external services that work with any model and require separate accounts and API keys.
 
@@ -399,6 +399,14 @@ The `web_search()` tool can use OpenAI's built-in search capability when running
 For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
 Note that when using the "openai" provider, you should also specify a fallback external provider (like "tavily" or "google") if you are also running the evaluation with non-OpenAI model.
+
+### Anthropic Options
+
+The `web_search()` tool can use Anthropic's built-in search capability when running on a limited number of Anthropic models (currently "claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"). This provider does not require any API keys beyond what's needed for the model itself.
+
+For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
+
+Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily" or "google") if you are also running the evaluation with non-OpenAI model.
 
 ### Tavily Options
 

@@ -23,10 +23,10 @@ export const MessageCitations: FC<MessageCitationProps> = ({ citations }) => {
             href={citation.url}
             target="_blank"
             rel="noopener noreferrer"
-            title={citation.url}
             className={clsx(styles.citationLink)}
+            title={`${citation.cited_text || ""}\n${citation.url}`}
           >
-            {decodeHtmlEntities(citation.cited_text || citation.title || "")}
+            {decodeHtmlEntities(citation.title || citation.cited_text || "")}
           </a>
         </>
       ))}
