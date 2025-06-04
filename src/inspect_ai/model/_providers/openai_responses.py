@@ -58,7 +58,11 @@ async def generate_responses(
         )
 
     # prepare request (we do this so we can log the ModelCall)
-    tool_params = openai_responses_tools(tools, config) if len(tools) > 0 else NOT_GIVEN
+    tool_params = (
+        openai_responses_tools(tools, model_name, config)
+        if len(tools) > 0
+        else NOT_GIVEN
+    )
     request = dict(
         input=await openai_responses_inputs(input, model_name),
         tools=tool_params,

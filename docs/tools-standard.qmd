@@ -394,7 +394,7 @@ web_search([{"openai": None}, {"google": {"num_results": 5}}])
 
 ### OpenAI Options
 
-The `web_search()` tool can use OpenAI's built-in search capability when running on OpenAI models. This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", and "gpt-4.1"). This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 

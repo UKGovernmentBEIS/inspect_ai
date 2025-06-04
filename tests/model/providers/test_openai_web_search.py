@@ -15,11 +15,12 @@ class TestOpenAIWebSearch:
     def test_maybe_web_search_tool_returns_none_for_non_web_search(self):
         assert (
             maybe_web_search_tool(
+                "gpt-4o",
                 ToolInfo(
                     name="not_web_search",
                     description="Not a web search tool",
                     options={"openai": {}},
-                )
+                ),
             )
             is None
         )
@@ -27,9 +28,10 @@ class TestOpenAIWebSearch:
     def test_maybe_web_search_tool_returns_none_for_no_options(self):
         assert (
             maybe_web_search_tool(
+                "gpt-4o",
                 ToolInfo(
                     name="web_search", description="A web search tool", options=None
-                )
+                ),
             )
             is None
         )
@@ -37,22 +39,24 @@ class TestOpenAIWebSearch:
     def test_maybe_web_search_tool_returns_none_for_no_openai_options(self):
         assert (
             maybe_web_search_tool(
+                "gpt-4o",
                 ToolInfo(
                     name="web_search",
                     description="A web search tool",
                     options={"not_openai": {}},
-                )
+                ),
             )
             is None
         )
 
     def test_maybe_web_search_tool_returns_tool_param(self):
         assert maybe_web_search_tool(
+            "gpt-4o",
             ToolInfo(
                 name="web_search",
                 description="A web search tool",
                 options={"openai": {"key": "value"}},
-            )
+            ),
         ) == {"type": "web_search_preview", "key": "value"}
 
     def test_web_search_tool_raises_type_error(self):

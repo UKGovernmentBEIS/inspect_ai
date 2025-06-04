@@ -4,11 +4,18 @@ from openai.types.responses import WebSearchTool, WebSearchToolParam
 
 from inspect_ai.tool._tool_info import ToolInfo
 
+COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1"]
 
-def maybe_web_search_tool(tool: ToolInfo) -> WebSearchToolParam | None:
+
+def maybe_web_search_tool(model_name: str, tool: ToolInfo) -> WebSearchToolParam | None:
     return (
         _web_search_tool(tool.options["openai"])
-        if tool.name == "web_search" and tool.options and "openai" in tool.options
+        if (
+            tool.name == "web_search"
+            and tool.options
+            and "openai" in tool.options
+            and model_name in COMPATIBLE_MODELS
+        )
         else None
     )
 
