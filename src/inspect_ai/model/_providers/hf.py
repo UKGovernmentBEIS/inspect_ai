@@ -297,10 +297,7 @@ def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
             is_multimodal = any(
                 isinstance(
                     item,
-                    ContentAudio
-                    | ContentImage
-                    | ContentVideo
-                    | ContentData,  # TODO: I doubt we want ContentData here
+                    ContentAudio | ContentImage | ContentVideo,
                 )
                 for item in message.content
             )
