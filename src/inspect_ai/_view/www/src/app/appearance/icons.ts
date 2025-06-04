@@ -23,6 +23,7 @@ export const ApplicationIcons = {
     down: "bi bi-arrow-down",
     up: "bi bi-arrow-up",
   },
+  cancelled: "bi bi-x-circle",
   caret: {
     right: "bi bi-caret-right",
     down: "bi bi-caret-down",
@@ -106,6 +107,7 @@ export const ApplicationIcons = {
   },
   step: "bi bi-fast-forward-btn",
   subtask: "bi bi-subtract",
+  success: "bi bi-check-circle",
   transcript: "bi bi-list-columns-reverse",
   tree: {
     open: "bi bi-caret-down-fill",
