@@ -3,6 +3,7 @@
 - Eval set: Default `max_tasks` to the greater of 4 and the number of models being evaluated.
 - Inspect View: Display sample id & epoch in sample dialog title bar.
 - Inspect View: Don't open sample dialog when simply navigating the sample list.
+- Web Search Tool: Include links specified by providers in the results.
 - Bugfix: Ensure that dataset shuffle_choices=True always uses a distinct random seed.
 
 ## v0.3.100 (01 June 2025)
