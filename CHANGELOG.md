@@ -4,7 +4,7 @@
 - Inspect View: Display sample id & epoch in sample dialog title bar.
 - Inspect View: Don't open sample dialog when simply navigating the sample list.
 - Bugfix: Ensure that dataset shuffle_choices=True always uses a distinct random seed.
-- Bugfix: Don't attempt to use OpenAI's web search preview against models that are know to not support it.
+- Bugfix: Don't attempt to use OpenAI's web search preview against models that are known to not support it.
 
 ## v0.3.100 (01 June 2025)
 
