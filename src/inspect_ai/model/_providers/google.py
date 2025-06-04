@@ -502,8 +502,7 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentReasoning):
         return Part.from_text(text=content.reasoning or NO_CONTENT)
     elif isinstance(content, ContentData):
-        # TODO ??
-        return Part.from_text(text=NO_CONTENT)
+        assert False, "Google provider should never encounter ContentData"
     else:
         return await chat_content_to_part(client, content)
 

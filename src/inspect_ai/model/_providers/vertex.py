@@ -340,8 +340,7 @@ async def content_part(content: Content | str) -> Part:
         if isinstance(content, ContentAudio):
             file = content.audio
         elif isinstance(content, ContentData):
-            # TODO: What here?
-            return Part.from_text(NO_CONTENT)
+            assert False, "Vertex provider should never encounter ContentData"
         else:
             # it's ContentVideo
             file = content.video
