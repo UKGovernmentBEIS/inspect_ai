@@ -60,17 +60,17 @@ from ._providers._openai_web_search import maybe_web_search_tool
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model: str, store: bool
+    messages: list[ChatMessage], model: str
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model, store)
+        for item in await _openai_input_item_from_chat_message(message, model)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model: str, store: bool
+    message: ChatMessage, model: str
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -88,7 +88,7 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message, store)
+        return _openai_input_items_from_chat_message_assistant(message)
     elif message.role == "tool":
         if message.internal:
             internal = _model_tool_call_for_internal(message.internal)
@@ -320,7 +320,7 @@ def _chat_message_assistant_from_openai_response(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant, store: bool
+    message: ChatMessageAssistant,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -353,10 +353,6 @@ def _openai_input_items_from_chat_message_assistant(
     )
     suppress_output_message = message.internal is not None and not has_content_with_ids
 
-    # if we are not storing messages on the server then blank these out
-    if not store:
-        tool_message_ids = {}
-
     # items to return
     items: list[ResponseInputItemParam] = []
     # group content by message ID
@@ -376,18 +372,15 @@ def _openai_input_items_from_chat_message_assistant(
                 assert content.signature is not None, (
                     "reasoning_id must be saved in signature"
                 )
-                # if items are not stored on the server then there is no
-                # sense appending the reasoning item as its just a pointer
-                if store:
-                    items.append(
-                        ResponseReasoningItemParam(
-                            type="reasoning",
-                            id=content.signature,
-                            summary=[Summary(type="summary_text", text=reasoning)]
-                            if reasoning
-                            else [],
-                        )
+                items.append(
+                    ResponseReasoningItemParam(
+                        type="reasoning",
+                        id=content.signature,
+                        summary=[Summary(type="summary_text", text=reasoning)]
+                        if reasoning
+                        else [],
                     )
+                )
             case ContentText(text=text, refusal=refusal):
                 if suppress_output_message:
                     continue
@@ -419,7 +412,7 @@ def _openai_input_items_from_chat_message_assistant(
             role="assistant",
             # this actually can be `None`, and it will in fact be `None` when the
             # assistant message is synthesized by the scaffold as opposed to being
-            # replayed from the model (or when store=False)
+            # replayed from the model
             id=msg_id,  # type: ignore[typeddict-item]
             content=content_list,
             status="completed",

@@ -254,9 +254,6 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
-                # TODO: Once things are stable, get rid of the param and make it
-                # constant within generate_responses
-                store=True,
             )
 
         # allocate request_id (so we can see it from ModelCall)
