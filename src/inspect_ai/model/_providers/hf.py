@@ -30,7 +30,6 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import (
     ContentAudio,
-    ContentData,
     ContentImage,
     ContentText,
     ContentVideo,
@@ -295,10 +294,7 @@ def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
     for message in messages:
         if isinstance(message.content, list):
             is_multimodal = any(
-                isinstance(
-                    item,
-                    ContentAudio | ContentImage | ContentVideo,
-                )
+                isinstance(item, ContentAudio | ContentImage | ContentVideo)
                 for item in message.content
             )
             if is_multimodal:
