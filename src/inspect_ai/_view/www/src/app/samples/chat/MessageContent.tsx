@@ -58,7 +58,6 @@ export const MessageContent: FC<MessageContentProps> = ({
             text: content,
             refusal: null,
             internal: null,
-            format: null,
             citations: null,
           },
           index === contents.length - 1,
@@ -87,7 +86,6 @@ export const MessageContent: FC<MessageContentProps> = ({
       text: normalized,
       refusal: null,
       internal: null,
-      format: null,
       citations: null,
     };
     return messageRenderers["text"].render(
@@ -310,7 +308,6 @@ const normalizeContent = (contents: Contents): Contents => {
         text: textWithCites,
         refusal: null,
         internal: null,
-        format: null,
         citations: filteredCitations,
       });
       collection.length = 0;
@@ -326,7 +323,6 @@ const normalizeContent = (contents: Contents): Contents => {
         text: content,
         refusal: null,
         internal: null,
-        format: null,
         citations: null,
       });
       continue;
