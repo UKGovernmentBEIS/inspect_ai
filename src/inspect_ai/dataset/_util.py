@@ -13,6 +13,7 @@ from inspect_ai.model import (
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._dataset import (
+    Dataset,
     DatasetRecord,
     FieldSpec,
     RecordToSample,
@@ -225,3 +226,24 @@ def read_files(files: Any | None) -> dict[str, str] | None:
         raise ValueError(f"Unexpected type for 'files' field: {type(files)}")
     else:
         return None
+
+
+def shuffle_choices_if_requested(
+    dataset: Dataset, shuffle_choices: bool | int | None
+) -> None:
+    """
+    Shuffle the choices in the dataset if requested.
+
+    The `shuffle_choices` parameter passed to `Dataset.shuffle_choices` can be
+    a boolean, an integer, or `None`. If it is a boolean, it will shuffle the choices
+    if the value is `True` and do nothing if it is `False`. If it is an integer, it will
+    shuffle the choices using the integer as the seed.
+    """
+    # Note that `isinstance(x, int)` returns True if x is True or False,
+    # so we need to check for both explicitly
+    if shuffle_choices is True:
+        dataset.shuffle_choices()
+    elif shuffle_choices is False:
+        pass
+    elif isinstance(shuffle_choices, int):
+        dataset.shuffle_choices(seed=shuffle_choices)
