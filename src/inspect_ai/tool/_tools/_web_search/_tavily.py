@@ -75,6 +75,7 @@ def tavily_search_provider(
     client = httpx.AsyncClient(timeout=30)
 
     async def search(query: str) -> str | None:
+        # See https://docs.tavily.com/documentation/api-reference/endpoint/search
         search_url = "https://api.tavily.com/search"
         headers = {
             "Authorization": f"Bearer {tavily_api_key}",
@@ -95,6 +96,15 @@ def tavily_search_provider(
             return response
 
         async with concurrency("tavily_web_search", max_connections):
-            return TavilySearchResponse.model_validate((await _search()).json()).answer
+            tavily_search_response = TavilySearchResponse.model_validate(
+                (await _search()).json()
+            )
+            results_str = "\n\n".join(
+                [
+                    f"[{result.title}]({result.url}):\n{result.content}"
+                    for result in tavily_search_response.results
+                ]
+            )
+            return f"Answer: {tavily_search_response.answer}\n\n{results_str}"
 
     return search

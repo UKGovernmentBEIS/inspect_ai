@@ -16,7 +16,7 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import data_to_samples, record_to_sample_fn
+from .._util import data_to_samples, record_to_sample_fn, shuffle_choices_if_requested
 
 
 def hf_dataset(
@@ -125,10 +125,6 @@ def hf_dataset(
         location=path,
     )
 
-    # maybe shuffle the choices
-    if isinstance(shuffle_choices, int):
-        memory_dataset.shuffle_choices(seed=shuffle_choices)
-    elif shuffle_choices is True:
-        memory_dataset.shuffle_choices()
+    shuffle_choices_if_requested(memory_dataset, shuffle_choices)
 
     return memory_dataset
