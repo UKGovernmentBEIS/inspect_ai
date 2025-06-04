@@ -105,6 +105,7 @@ def eval(
     log_images: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
+    log_header_only: bool | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -181,6 +182,8 @@ def eval(
         log_shared: Sync sample events to log directory so that users on other systems
             can see log updates in realtime (defaults to no syncing). Specify `True`
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
+        log_header_only: If `True`, the function should return only log headers rather
+            than full logs with samples (defaults to `False`).
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -234,6 +237,7 @@ def eval(
                 log_images=log_images,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
+                log_header_only=log_header_only,
                 score=score,
                 score_display=score_display,
                 **kwargs,
@@ -288,6 +292,7 @@ async def eval_async(
     log_images: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
+    log_header_only: bool | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -344,7 +349,9 @@ async def eval_async(
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
+        log_shared: Indicate that the log directory is shared, which results in additional
+        syncing of realtime log data for Inspect View.
+        log_header_only: If `True`, the function should return only log headers rather than full logs with samples (defaults to `False`).
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -432,6 +439,9 @@ async def eval_async(
         # resolve log_shared
         log_shared = DEFAULT_LOG_SHARED if log_shared is True else log_shared
 
+        # resolve header only
+        log_header_only = log_header_only is True
+
         # validate that --log-shared can't use used with 'json' format
         if log_shared and log_format == JSON_LOG_FORMAT:
             raise PrerequisiteError(
@@ -507,6 +517,7 @@ async def eval_async(
                         eval_config=eval_config,
                         eval_sandbox=sandbox,
                         recorder=recorder,
+                        header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
                         solver=solver,
                         tags=tags,
@@ -532,6 +543,7 @@ async def eval_async(
                 eval_config=eval_config,
                 eval_sandbox=sandbox,
                 recorder=recorder,
+                header_only=log_header_only,
                 epochs_reducer=epochs_reducer,
                 solver=solver,
                 tags=tags,
