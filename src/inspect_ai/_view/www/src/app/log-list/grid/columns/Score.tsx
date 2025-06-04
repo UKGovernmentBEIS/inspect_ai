@@ -47,7 +47,12 @@ export const scoreColumn = (logHeaders: Record<string, EvalLogHeader>) => {
       const metricB =
         headerB && headerB.results ? firstMetric(headerB.results) : undefined;
 
-      return (metricA?.value || -1) - (metricB?.value || -1);
+      // Sort files without scores before files with scores (empty values at top when ascending)
+      if (!metricA && metricB) return -1;
+      if (metricA && !metricB) return 1;
+      if (!metricA && !metricB) return 0;
+
+      return (metricA?.value || 0) - (metricB?.value || 0);
     },
     enableSorting: true,
     enableGlobalFilter: true,

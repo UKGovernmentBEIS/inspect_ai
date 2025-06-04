@@ -1,6 +1,7 @@
 import { EvalLogHeader } from "../../../../client/api/types";
 import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
+import { EmptyCell } from "./EmptyCell";
 
 import styles from "./Model.module.css";
 
@@ -14,6 +15,9 @@ export const modelColumn = (logHeaders: Record<string, EvalLogHeader>) => {
         item.type === "file"
           ? logHeaders[item?.logFile?.name || ""]
           : undefined;
+      if (!header?.eval.model) {
+        return <EmptyCell />;
+      }
       return <div className={styles.modelCell}>{header?.eval.model || ""}</div>;
     },
     sortingFn: (rowA, rowB) => {

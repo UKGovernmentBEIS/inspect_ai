@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
-import { parseLogFileName } from "../../../../utils/evallog";
 import { basename } from "../../../../utils/path";
 import { EmptyCell } from "./EmptyCell";
 import styles from "./FileName.module.css";
@@ -38,8 +37,14 @@ export const fileNameColumn = () => {
       const itemA = rowA.original as FileLogItem | FolderLogItem;
       const itemB = rowB.original as FileLogItem | FolderLogItem;
 
-      const valueA = parseLogFileName(itemA.name).name;
-      const valueB = parseLogFileName(itemB.name).name;
+      // Sort folders first, then files
+      if (itemA.type !== itemB.type) {
+        return itemA.type === "folder" ? -1 : 1;
+      }
+
+      // Within same type, sort by basename
+      const valueA = basename(itemA.name);
+      const valueB = basename(itemB.name);
 
       return valueA.localeCompare(valueB);
     },

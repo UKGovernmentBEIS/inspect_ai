@@ -3,6 +3,7 @@ import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
 import styles from "./CompletedDate.module.css";
+import { EmptyCell } from "./EmptyCell";
 
 export const completedDateColumn = (
   logHeaders: Record<string, EvalLogHeader>,
@@ -26,6 +27,10 @@ export const completedDateColumn = (
           minute: "2-digit",
         })}`
         : "";
+
+      if (!timeStr) {
+        return <EmptyCell />;
+      }
 
       return <div className={styles.dateCell}>{timeStr}</div>;
     },

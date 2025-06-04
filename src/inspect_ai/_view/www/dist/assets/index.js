@@ -50703,6 +50703,13 @@ categories: ${categories.join(" ")}`;
     const styles$1c = {
       dateCell
     };
+    const emptyCell = "_emptyCell_17jto_1";
+    const styles$1b = {
+      emptyCell
+    };
+    const EmptyCell = () => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.emptyCell, children: "-" });
+    };
     const completedDateColumn = (logHeaders) => {
       return columnHelper.accessor("name", {
         id: "completed",
@@ -50718,6 +50725,9 @@ categories: ${categories.join(" ")}`;
             hour: "2-digit",
             minute: "2-digit"
           })}` : "";
+          if (!timeStr) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+          }
           return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1c.dateCell, children: timeStr });
         },
         sortingFn: (rowA, rowB) => {
@@ -50737,31 +50747,6 @@ categories: ${categories.join(" ")}`;
         maxSize: 300,
         enableResizing: true
       });
-    };
-    const kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
-    const parseLogFileName = (logFileName) => {
-      const match = logFileName.match(kLogFilePattern);
-      if (!match) {
-        return {
-          timestamp: void 0,
-          name: filename(logFileName),
-          taskId: void 0,
-          extension: logFileName.endsWith(".eval") ? "eval" : "json"
-        };
-      }
-      return {
-        timestamp: new Date(Date.parse(match[1])),
-        name: match[2],
-        taskId: match[3],
-        extension: match[4]
-      };
-    };
-    const emptyCell = "_emptyCell_17jto_1";
-    const styles$1b = {
-      emptyCell
-    };
-    const EmptyCell = () => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.emptyCell, children: "-" });
     };
     const nameCell$1 = "_nameCell_arm8o_1";
     const fileLink = "_fileLink_arm8o_8";
@@ -50789,8 +50774,11 @@ categories: ${categories.join(" ")}`;
         sortingFn: (rowA, rowB) => {
           const itemA = rowA.original;
           const itemB = rowB.original;
-          const valueA = parseLogFileName(itemA.name).name;
-          const valueB = parseLogFileName(itemB.name).name;
+          if (itemA.type !== itemB.type) {
+            return itemA.type === "folder" ? -1 : 1;
+          }
+          const valueA = basename(itemA.name);
+          const valueB = basename(itemB.name);
           return valueA.localeCompare(valueB);
         }
       });
@@ -50836,6 +50824,9 @@ categories: ${categories.join(" ")}`;
           var _a2;
           const item2 = info.row.original;
           const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
+          if (!(header2 == null ? void 0 : header2.eval.model)) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+          }
           return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.modelCell, children: (header2 == null ? void 0 : header2.eval.model) || "" });
         },
         sortingFn: (rowA, rowB) => {
@@ -50940,7 +50931,10 @@ categories: ${categories.join(" ")}`;
           const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
           const metricA = headerA && headerA.results ? firstMetric(headerA.results) : void 0;
           const metricB = headerB && headerB.results ? firstMetric(headerB.results) : void 0;
-          return ((metricA == null ? void 0 : metricA.value) || -1) - ((metricB == null ? void 0 : metricB.value) || -1);
+          if (!metricA && metricB) return -1;
+          if (metricA && !metricB) return 1;
+          if (!metricA && !metricB) return 0;
+          return ((metricA == null ? void 0 : metricA.value) || 0) - ((metricB == null ? void 0 : metricB.value) || 0);
         },
         enableSorting: true,
         enableGlobalFilter: true,
@@ -50998,6 +50992,24 @@ categories: ${categories.join(" ")}`;
         maxSize: 120,
         enableResizing: true
       });
+    };
+    const kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
+    const parseLogFileName = (logFileName) => {
+      const match = logFileName.match(kLogFilePattern);
+      if (!match) {
+        return {
+          timestamp: void 0,
+          name: filename(logFileName),
+          taskId: void 0,
+          extension: logFileName.endsWith(".eval") ? "eval" : "json"
+        };
+      }
+      return {
+        timestamp: new Date(Date.parse(match[1])),
+        name: match[2],
+        taskId: match[3],
+        extension: match[4]
+      };
     };
     const nameCell = "_nameCell_cjd7p_1";
     const logLink = "_logLink_cjd7p_8";
