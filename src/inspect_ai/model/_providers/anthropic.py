@@ -671,15 +671,16 @@ def _web_search_tool_param(
     )
 
     if maybe_anthropic_options:
-        for key in [
-            "allowed_domains",
-            "blocked_domains",
-            "cache_control",
-            "max_uses",
-            "user_location",
-        ]:
-            if value := maybe_anthropic_options.get(key, None) is not None:
-                setattr(result, key, value)
+        if "allowed_domains" in maybe_anthropic_options:
+            result["allowed_domains"] = maybe_anthropic_options["allowed_domains"]
+        if "blocked_domains" in maybe_anthropic_options:
+            result["blocked_domains"] = maybe_anthropic_options["blocked_domains"]
+        if "cache_control" in maybe_anthropic_options:
+            result["cache_control"] = maybe_anthropic_options["cache_control"]
+        if "max_uses" in maybe_anthropic_options:
+            result["max_uses"] = maybe_anthropic_options["max_uses"]
+        if "user_location" in maybe_anthropic_options:
+            result["user_location"] = maybe_anthropic_options["user_location"]
 
     return result
 

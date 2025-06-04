@@ -21,15 +21,14 @@ class TestAnthropicWebSearch:
             _web_search_tool_param("not a dict")
 
     def test_web_search_tool_with_options(self):
-        options = {"key1": "value1", "key2": "value2"}
+        options = {"max_uses": 666}
 
         result = _web_search_tool_param(options)
 
         assert result == {
             "name": "web_search",
             "type": "web_search_20250305",
-            "key1": "value1",
-            "key2": "value2",
+            "max_uses": 666,
         }
 
     def test_web_search_tool_with_empty_options(self):
