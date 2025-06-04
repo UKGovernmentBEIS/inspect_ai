@@ -24,7 +24,7 @@ const rootName = (relativePath: string) => {
 };
 
 export const kLogsPaginationId = "logs-list-pagination";
-export const kDefaultPageSize = 40;
+export const kDefaultPageSize = 30;
 
 interface LogsPanelProps {}
 

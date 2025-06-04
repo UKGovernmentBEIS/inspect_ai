@@ -47678,7 +47678,7 @@ categories: ${categories.join(" ")}`;
         };
       }) : [];
       const segments = [
-        { text: baseLogDir },
+        { text: prettyDirUri(baseLogDir) },
         { text: baseLogName, url: logUrl("", logs.log_dir) },
         ...dirSegments
       ];
@@ -47703,6 +47703,13 @@ categories: ${categories.join(" ")}`;
           }) })
         }
       );
+    };
+    const prettyDirUri = (uri) => {
+      if (uri.startsWith("file://")) {
+        return uri.replace("file://", "");
+      } else {
+        return uri;
+      }
     };
     /**
        * table-core
@@ -51210,7 +51217,7 @@ categories: ${categories.join(" ")}`;
       return parts[0];
     };
     const kLogsPaginationId = "logs-list-pagination";
-    const kDefaultPageSize = 40;
+    const kDefaultPageSize = 30;
     const LogsPanel = () => {
       const loading = useStore((state) => state.app.status.loading);
       const { loadLogs } = useLogs();

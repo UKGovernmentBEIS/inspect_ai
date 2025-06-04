@@ -32,7 +32,7 @@ export const Navbar: FC<NavbarProps> = () => {
     : [];
 
   const segments: Array<{ text: string; url?: string }> = [
-    { text: baseLogDir },
+    { text: prettyDirUri(baseLogDir) },
     { text: baseLogName, url: logUrl("", logs.log_dir) },
     ...dirSegments,
   ];
@@ -66,4 +66,12 @@ export const Navbar: FC<NavbarProps> = () => {
       </ol>
     </nav>
   );
+};
+
+const prettyDirUri = (uri: string) => {
+  if (uri.startsWith("file://")) {
+    return uri.replace("file://", "");
+  } else {
+    return uri;
+  }
 };
