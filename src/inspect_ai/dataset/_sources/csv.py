@@ -14,7 +14,7 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import data_to_samples, record_to_sample_fn
+from .._util import data_to_samples, record_to_sample_fn, shuffle_choices_if_requested
 
 
 def csv_dataset(
@@ -88,11 +88,7 @@ def csv_dataset(
         if shuffle:
             dataset.shuffle(seed=seed)
 
-        # shuffle choices, if requested
-        if isinstance(shuffle_choices, int):
-            dataset.shuffle_choices(seed=shuffle_choices)
-        elif shuffle_choices is True:
-            dataset.shuffle_choices()
+        shuffle_choices_if_requested(dataset, shuffle_choices)
 
         # limit if requested
         if limit:
