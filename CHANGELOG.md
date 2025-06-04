@@ -2,6 +2,7 @@
 
 - Inspect View: Display sample id & epoch in sample dialog title bar.
 - Inspect View: Don't open sample dialog when simply navigating the sample list.
+- Bugfix: Ensure that dataset shuffle_choices=True always uses a distinct random seed.
 
 ## v0.3.100 (01 June 2025)
 
