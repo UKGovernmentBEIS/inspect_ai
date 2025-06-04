@@ -1,3 +1,8 @@
+import {
+  ColumnFiltersState,
+  ColumnResizeMode,
+  SortingState,
+} from "@tanstack/react-table";
 import { EvalLog } from "../@types/log";
 import { LogsState } from "../app/types";
 import { EvalLogHeader, LogFile, LogFiles } from "../client/api/types";
@@ -28,6 +33,12 @@ export interface LogsSlice {
     refreshLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
+
+    setSorting: (sorting: SortingState) => void;
+    setFiltering: (filtering: ColumnFiltersState) => void;
+    setGlobalFilter: (globalFilter: string) => void;
+    setColumnResizeMode: (mode: ColumnResizeMode) => void;
+    setColumnSize: (columnId: string, size: number) => void;
   };
 }
 
@@ -37,6 +48,7 @@ const initialState: LogsState = {
   headersLoading: false,
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
+  listing: {},
 };
 
 export const createLogsSlice = (
@@ -177,6 +189,34 @@ export const createLogsSlice = (
             idx !== undefined && idx > -1 ? idx : 0,
           );
         }
+      },
+      setSorting: (sorting: SortingState) => {
+        set((state) => {
+          state.logs.listing.sorting = sorting;
+        });
+      },
+      setFiltering: (filtering: ColumnFiltersState) => {
+        set((state) => {
+          state.logs.listing.filtering = filtering;
+        });
+      },
+      setGlobalFilter: (globalFilter: string) => {
+        set((state) => {
+          state.logs.listing.globalFilter = globalFilter;
+        });
+      },
+      setColumnResizeMode: (mode: ColumnResizeMode) => {
+        set((state) => {
+          state.logs.listing.columnResizeMode = mode;
+        });
+      },
+      setColumnSize: (columnId: string, size: number) => {
+        set((state) => {
+          if (!state.logs.listing.columnSizes) {
+            state.logs.listing.columnSizes = {};
+          }
+          state.logs.listing.columnSizes[columnId] = size;
+        });
       },
     },
   } as const;

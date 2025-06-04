@@ -14,7 +14,6 @@ import { kDefaultPageSize, kLogsPaginationId } from "./LogsPanel";
 export const LogListFooter: FC<LogListFooterProps> = ({
   itemCount,
   running,
-  logDir,
 }) => {
   const { page, itemsPerPage } = usePagination(
     kLogsPaginationId,

@@ -634,3 +634,39 @@ export const usePagination = (name: string, defaultPageSize: number) => {
     setPageSize,
   };
 };
+
+export const useLogsListing = () => {
+  const sorting = useStore((state) => state.logs.listing.sorting);
+  const setSorting = useStore((state) => state.logsActions.setSorting);
+
+  const filtering = useStore((state) => state.logs.listing.filtering);
+  const setFiltering = useStore((state) => state.logsActions.setFiltering);
+
+  const globalFilter = useStore((state) => state.logs.listing.globalFilter);
+  const setGlobalFilter = useStore(
+    (state) => state.logsActions.setGlobalFilter,
+  );
+
+  const columnResizeMode = useStore(
+    (state) => state.logs.listing.columnResizeMode,
+  );
+  const setColumnResizeMode = useStore(
+    (state) => state.logsActions.setColumnResizeMode,
+  );
+
+  const columnSizes = useStore((state) => state.logs.listing.columnSizes);
+  const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
+
+  return {
+    sorting,
+    setSorting,
+    filtering,
+    setFiltering,
+    globalFilter,
+    setGlobalFilter,
+    columnResizeMode,
+    setColumnResizeMode,
+    columnSizes,
+    setColumnSize,
+  };
+};

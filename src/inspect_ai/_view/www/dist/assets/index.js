@@ -23667,7 +23667,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       logHeaders: {},
       headersLoading: false,
       selectedLogIndex: -1,
-      selectedLogFile: void 0
+      selectedLogFile: void 0,
+      listing: {}
     };
     const createLogsSlice = (set2, get2, _store) => {
       const logsPolling = createLogsPolling(get2);
@@ -23776,6 +23777,34 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 idx !== void 0 && idx > -1 ? idx : 0
               );
             }
+          },
+          setSorting: (sorting) => {
+            set2((state) => {
+              state.logs.listing.sorting = sorting;
+            });
+          },
+          setFiltering: (filtering) => {
+            set2((state) => {
+              state.logs.listing.filtering = filtering;
+            });
+          },
+          setGlobalFilter: (globalFilter) => {
+            set2((state) => {
+              state.logs.listing.globalFilter = globalFilter;
+            });
+          },
+          setColumnResizeMode: (mode) => {
+            set2((state) => {
+              state.logs.listing.columnResizeMode = mode;
+            });
+          },
+          setColumnSize: (columnId, size) => {
+            set2((state) => {
+              if (!state.logs.listing.columnSizes) {
+                state.logs.listing.columnSizes = {};
+              }
+              state.logs.listing.columnSizes[columnId] = size;
+            });
           }
         }
       };
@@ -47621,6 +47650,36 @@ categories: ${categories.join(" ")}`;
         setPageSize
       };
     };
+    const useLogsListing = () => {
+      const sorting = useStore((state) => state.logs.listing.sorting);
+      const setSorting = useStore((state) => state.logsActions.setSorting);
+      const filtering = useStore((state) => state.logs.listing.filtering);
+      const setFiltering = useStore((state) => state.logsActions.setFiltering);
+      const globalFilter = useStore((state) => state.logs.listing.globalFilter);
+      const setGlobalFilter = useStore(
+        (state) => state.logsActions.setGlobalFilter
+      );
+      const columnResizeMode = useStore(
+        (state) => state.logs.listing.columnResizeMode
+      );
+      const setColumnResizeMode = useStore(
+        (state) => state.logsActions.setColumnResizeMode
+      );
+      const columnSizes = useStore((state) => state.logs.listing.columnSizes);
+      const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
+      return {
+        sorting,
+        setSorting,
+        filtering,
+        setFiltering,
+        globalFilter,
+        setGlobalFilter,
+        columnResizeMode,
+        setColumnResizeMode,
+        columnSizes,
+        setColumnSize
+      };
+    };
     const filename = (path) => {
       if (!path) {
         return "";
@@ -50809,17 +50868,31 @@ categories: ${categories.join(" ")}`;
     const columnHelper = createColumnHelper();
     const LogListGrid = ({ items }) => {
       var _a2;
-      const [sorting, setSorting] = reactExports.useState([
-        { id: "icon", desc: true }
-      ]);
-      const [filtering, setFiltering] = reactExports.useState([]);
-      const [globalFilter, setGlobalFilter] = reactExports.useState("");
-      const [columnResizeMode] = reactExports.useState("onChange");
+      const {
+        sorting,
+        setSorting,
+        filtering,
+        setFiltering,
+        globalFilter,
+        setGlobalFilter,
+        columnResizeMode
+      } = useLogsListing();
       const { page, itemsPerPage } = usePagination(
         kLogsPaginationId,
         kDefaultPageSize
       );
       const logHeaders = useStore((state) => state.logs.logHeaders);
+      reactExports.useEffect(() => {
+        setSorting([{ id: "icon", desc: true }]);
+      }, []);
+      reactExports.useEffect(() => {
+        const currentSort = sorting == null ? void 0 : sorting.find(
+          (sort) => sort.id === "task" || sort.id === "model" || sort.id === "score"
+        );
+        if (currentSort) {
+          setSorting([...sorting || []]);
+        }
+      }, [logHeaders, sorting]);
       const itemName = reactExports.useCallback((item2) => {
         var _a3, _b2, _c;
         let value2 = item2.name;
@@ -50975,8 +51048,16 @@ categories: ${categories.join(" ")}`;
           }
         },
         rowCount: items.length,
-        onSortingChange: setSorting,
-        onColumnFiltersChange: setFiltering,
+        onSortingChange: (updater) => {
+          setSorting(
+            typeof updater === "function" ? updater(sorting || []) : updater
+          );
+        },
+        onColumnFiltersChange: (updater) => {
+          setFiltering(
+            typeof updater === "function" ? updater(filtering || []) : updater
+          );
+        },
         onGlobalFilterChange: setGlobalFilter,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
@@ -51172,8 +51253,7 @@ categories: ${categories.join(" ")}`;
     };
     const LogListFooter = ({
       itemCount,
-      running: running2,
-      logDir
+      running: running2
     }) => {
       const { page, itemsPerPage } = usePagination(
         kLogsPaginationId,

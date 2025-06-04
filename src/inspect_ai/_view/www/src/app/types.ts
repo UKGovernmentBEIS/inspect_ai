@@ -1,3 +1,8 @@
+import {
+  ColumnFiltersState,
+  ColumnResizeMode,
+  SortingState,
+} from "@tanstack/react-table";
 import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
@@ -60,6 +65,15 @@ export interface LogsState {
   headersLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
+  listing: LogsListing;
+}
+
+export interface LogsListing {
+  sorting?: SortingState;
+  filtering?: ColumnFiltersState;
+  globalFilter?: string;
+  columnResizeMode?: ColumnResizeMode;
+  columnSizes?: Record<string, number>;
 }
 
 export interface LogState {

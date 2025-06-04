@@ -1,6 +1,5 @@
 import {
   ColumnFiltersState,
-  ColumnResizeMode,
   createColumnHelper,
   flexRender,
   getCoreRowModel,
@@ -8,14 +7,15 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   SortingState,
+  Updater,
   useReactTable,
 } from "@tanstack/react-table";
 import clsx from "clsx";
-import { FC, useCallback, useMemo, useState } from "react";
+import { FC, useCallback, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import { firstMetric } from "../../../scoring/metrics";
-import { usePagination } from "../../../state/hooks";
+import { useLogsListing, usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { parseLogFileName } from "../../../utils/evallog";
 import { formatPrettyDecimal } from "../../../utils/format";
@@ -31,13 +31,15 @@ interface LogListGridProps {
 const columnHelper = createColumnHelper<FileLogItem | FolderLogItem>();
 
 export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
-  // TODO: Convert to store state
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "icon", desc: true },
-  ]);
-  const [filtering, setFiltering] = useState<ColumnFiltersState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [columnResizeMode] = useState<ColumnResizeMode>("onChange");
+  const {
+    sorting,
+    setSorting,
+    filtering,
+    setFiltering,
+    globalFilter,
+    setGlobalFilter,
+    columnResizeMode,
+  } = useLogsListing();
 
   const { page, itemsPerPage } = usePagination(
     kLogsPaginationId,
@@ -45,6 +47,24 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   );
 
   const logHeaders = useStore((state) => state.logs.logHeaders);
+
+  // Initial sort
+  useEffect(() => {
+    setSorting([{ id: "icon", desc: true }]);
+  }, []);
+
+  // Force re-sort when logHeaders change (affects task column sorting)
+  useEffect(() => {
+    // Only re-sort if we're currently sorting by a column that depends on logHeaders
+    const currentSort = sorting?.find(
+      (sort) =>
+        sort.id === "task" || sort.id === "model" || sort.id === "score",
+    );
+    if (currentSort) {
+      // Trigger a re-sort by updating the sorting state
+      setSorting([...(sorting || [])]);
+    }
+  }, [logHeaders, sorting]);
 
   const itemName = useCallback((item: FileLogItem | FolderLogItem) => {
     let value = item.name;
@@ -260,8 +280,16 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       },
     },
     rowCount: items.length,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setFiltering,
+    onSortingChange: (updater: Updater<SortingState>) => {
+      setSorting(
+        typeof updater === "function" ? updater(sorting || []) : updater,
+      );
+    },
+    onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => {
+      setFiltering(
+        typeof updater === "function" ? updater(filtering || []) : updater,
+      );
+    },
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
