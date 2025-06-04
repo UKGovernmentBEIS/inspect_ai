@@ -616,6 +616,7 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # TODO: Update cost info based on the cache hit
                     return existing, event
             else:
                 cache_entry = None
@@ -1465,7 +1466,7 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
     record_model_usage(usage)
-    record_model_usage_cost(usage)
+    record_model_usage_cost(model_usage_context_var)
 
     # compute total tokens
     total_tokens = sample_total_tokens()

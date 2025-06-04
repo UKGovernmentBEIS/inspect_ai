@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-import json
 import logging
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
@@ -14,14 +13,14 @@ import anyio
 from typing_extensions import Self
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai.util._cost import _CostCalculator
 
 if TYPE_CHECKING:
     # These imports are used as type hints only - prevent circular imports.
     from inspect_ai.model._model_output import ModelUsage
     from inspect_ai.solver._task_state import TaskState
 
-
-getcontext().perc = 6
+getcontext().prec = 12
 logger = logging.getLogger(__name__)
 TNode = TypeVar("TNode", bound="_Node")
 
@@ -332,7 +331,8 @@ def record_model_usage_cost(usage: ModelUsage) -> None:
     node = cost_limit_tree.get()
     if node is None:
         return
-    node.record(usage)
+    cost = node.calculate_cost(usage)
+    node.record(cost)
 
 
 def check_cost_limit() -> None:
@@ -559,20 +559,16 @@ class _MessageLimit(Limit, _Node):
 
 class _CostLimit(Limit, _Node):
     def __init__(self, limit: Decimal | None, cost_file: Path | None) -> None:
-        from inspect_ai.model._model_output import ModelUsage
-
         super().__init__()
         if cost_file:
-            self._costs = self._load_cost_file(cost_file)
+            self._cost_calculator = _CostCalculator(cost_file)
         elif limit is not None:
             # If we have a limit, we *must* have a cost_file
             raise ValueError(
                 "Cost limit requires setting a cost file, but no file was specified"
             )
-        self._validate_cost_limit(limit)
+        self._cost = Decimal()
         self._limit = limit
-        self._cost_file = cost_file
-        self._usage = ModelUsage()
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
@@ -599,14 +595,39 @@ class _CostLimit(Limit, _Node):
         This does not trigger a check of the cost limit (which could now have been
         exceeded).
         """
-        self._validate_cost_limit(value)
-        self._limit = value
+        if cost_limit and (cost_limit <= 0 or not isinstance(value, Decimal)):
+            raise ValueError(
+                f"Cost limit value must be a non-negative Decimal value, got: {value}"
+            )
+        self._limit = cost_limit
 
-    def record(self, usage: ModelUsage) -> None:
-        """Record model usage for this node and its ancestor nodes."""
+    def calculate_cost(self, usage: ContextVar[dict[str, ModelUsage]]) -> None:
+        """Calculate cost of usage for this node."""
+        current_usage: dict[str, ModelUsage] = usage.get()
+        cost = 0
+        for m_name, m_usage in current_usage.items():
+            cost += self._cost_calculator.get_cost(m_name, m_usage)
+        return cost
+
+    def record(self, cost: Decimal):
+        """Record model cost for this node and its ancestor nodes."""
         if self.parent is not None:
-            self.parent.record(usage)
-        self._usage += usage
+            self.parent.record(cost)
+        self._cost = cost
+
+    def _check_self(self) -> None:
+        if self._limit is None:
+            return
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+        if self._cost > self._limit:
+            message = f"Cost limit exceeded. value: {self._cost:.02f}; limit: {self._limit:.02f}"
+            transcript()._event(
+                SampleLimitEvent(type="cost", limit=self.limit, message=message)
+            )
+            raise LimitExceededError(
+                "cost", value=self._cost, limit=self.limit, message=message, source=self
+            )
 
     def check(self) -> None:
         """Check if this cost limit or any ancestor limits have been exceeded.
@@ -618,62 +639,6 @@ class _CostLimit(Limit, _Node):
         if self.parent is not None:
             self.parent.check()
         self._check_self()
-
-    def _load_cost_file(self, cost_file: Path) -> dict:
-        with open(cost_file) as f:
-            costs = json.load(f)
-
-        # TODO: validate cost format is correct!
-        # TODO: Can we load this file elsewhere instead of in every sample?
-        # TODO: Do we know what the model is at this point? Could multiple models
-        #    be in play here or does a _Node only have one model? If only one model
-        #    we should avoid storing details of others
-
-        return costs
-
-    def _validate_cost_limit(self, value: Decimal | None) -> None:
-        if value is not None and value < 0:
-            raise ValueError(
-                f"Cost limit value must be a non-negative float or None: {value}"
-            )
-
-    def _check_self(self) -> None:
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
-        from inspect_ai.model import get_model
-
-        if self.limit is None:
-            return
-
-        model = get_model()
-        if model.name not in self._costs:
-            raise ValueError(
-                f"Model {model.name} is missing from cost file {self._cost_file}."
-            )
-
-        model_cost = self._costs[model.name]
-
-        # TODO: Some models have different pricing for reasoning vs regular
-        # output tokens. We should support both
-        cached_input_tokens = self._usage.input_tokens_cache_read or 0
-        uncached_input_tokens = self._usage.input_tokens - cached_input_tokens
-        output_tokens = self._usage.output_tokens
-
-        total = (
-            model_cost["input_cost_per_token"] * uncached_input_tokens
-            + model_cost["cache_read_input_token_cost"] * cached_input_tokens
-            + model_cost["output_cost_per_token"] * output_tokens
-        )
-
-        if total > self.limit:
-            message = (
-                f"Cost limit exceeded. value: {total:.02f}; limit: {self.limit:.02f}"
-            )
-            transcript()._event(
-                SampleLimitEvent(type="cost", limit=self.limit, message=message)
-            )
-            raise LimitExceededError(
-                "cost", value=total, limit=self.limit, message=message, source=self
-            )
 
 
 class _TimeLimit(Limit):
