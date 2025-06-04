@@ -42553,9 +42553,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             href: citation.url,
             target: "_blank",
             rel: "noopener noreferrer",
-            title: citation.url,
             className: clsx(styles$1k.citationLink),
-            children: decodeHtmlEntities(citation.cited_text || citation.title || "")
+            title: `${citation.cited_text || ""}
+${citation.url}`,
+            children: decodeHtmlEntities(citation.title || citation.cited_text || "")
           }
         )
       ] })) });
@@ -42628,7 +42629,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 text: content2,
                 refusal: null,
                 internal: null,
-                format: null,
                 citations: null
               },
               index2 === contents2.length - 1,
@@ -42656,7 +42656,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           text: normalized,
           refusal: null,
           internal: null,
-          format: null,
           citations: null
         };
         return messageRenderers["text"].render(
@@ -42815,7 +42814,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             text: textWithCites,
             refusal: null,
             internal: null,
-            format: null,
             citations: filteredCitations
           });
           collection.length = 0;
@@ -42828,7 +42826,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             text: content2,
             refusal: null,
             internal: null,
-            format: null,
             citations: null
           });
           continue;
@@ -43038,7 +43035,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 text: String(output2),
                 refusal: null,
                 internal: null,
-                format: null,
                 citations: null
               }
             ]
@@ -43124,7 +43120,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 text: content2,
                 refusal: null,
                 internal: null,
-                format: null,
                 citations: null
               }
             ]
@@ -43141,7 +43136,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   text: con,
                   refusal: null,
                   internal: null,
-                  format: null,
                   citations: null
                 }
               ]
@@ -43355,7 +43349,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           text: content2,
           refusal: null,
           internal: null,
-          format: null,
           citations: null
         };
       } else {
