@@ -28,7 +28,7 @@ def biology_qa() -> Task:
                 web_search(
                     providers={
                         "openai": openai_options,
-                        "anthropic": None,
+                        "anthropic": True,
                         "tavily": tavily_options,
                     },
                 )

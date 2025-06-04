@@ -383,13 +383,13 @@ from inspect_ai.tool import web_search
 web_search("tavily")
 
 # with internal provider and fallback
-web_search(["openai", "tavili"])
+web_search(["openai", "tavily"])
 
 # provider with specific options
 web_search({"tavily": {"max_results": 5}})
 
 # multiple providers with options
-web_search([{"openai": None}, {"google": {"num_results": 5}}])
+web_search([{"openai": True}, {"google": {"num_results": 5}}])
 ```
 
 ### OpenAI Options
