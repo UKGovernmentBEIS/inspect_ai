@@ -949,6 +949,7 @@ def eval_exec(
             log_images=log_images,
             log_buffer=log_buffer,
             log_shared=log_shared,
+            log_header_only=True,  # cli invocation doesn't need full log
             score=score,
             score_display=score_display,
         )
