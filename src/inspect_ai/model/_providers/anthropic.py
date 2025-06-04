@@ -78,7 +78,7 @@ ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
-COMPATIBLE_MODELS = [
+WEB_SEARCH_COMPATIBLE_MODELS = [
     "claude-opus-4-20250514",
     "claude-sonnet-4-20250514",
     "claude-3-7-sonnet-20250219",
@@ -661,7 +661,7 @@ class AnthropicAPI(ModelAPI):
             tool.name == "web_search"
             and tool.options
             and "anthropic" in tool.options
-            and self.model_name in COMPATIBLE_MODELS
+            and self.model_name in WEB_SEARCH_COMPATIBLE_MODELS
         ):
             return _web_search_tool_param(tool.options["anthropic"])
         else:
