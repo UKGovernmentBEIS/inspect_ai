@@ -168,7 +168,7 @@ def eval_set(
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to number of models being evaluated)
+            (defaults to the greater of 4 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -277,7 +277,7 @@ def eval_set(
     retry_connections = retry_connections or 0.5
     retry_cleanup = retry_cleanup is not False
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-    max_tasks = max_tasks if max_tasks is not None else len(models)
+    max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
 
     # prepare console/status
     console = rich.get_console()

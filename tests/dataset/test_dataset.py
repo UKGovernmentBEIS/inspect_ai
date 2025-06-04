@@ -30,6 +30,10 @@ dataset_md_params = [
     (param[0], param[1].replace(".", "-md.")) for param in dataset_params
 ]
 
+dataset_mcq_params = [
+    (param[0], param[1].replace(".", "-mcq.")) for param in dataset_params
+]
+
 
 # test reading a dataset using default configuration
 @pytest.mark.parametrize("type,file", dataset_params)
@@ -123,6 +127,26 @@ def test_dataset_metadata_pydantic(type: Type[T_ds], file: str) -> None:
         dataset = type.__call__(
             dataset_path(file), sample_fields=FieldSpec(metadata=MetadataNotFrozen)
         )
+
+
+# test shuffling choices
+@pytest.mark.parametrize("type,file", dataset_mcq_params)
+def test_dataset_shuffle_choices_true_uses_no_seed(type: Type[T_ds], file: str) -> None:
+    dataset_1, dataset_2 = [
+        type.__call__(dataset_path(file), shuffle_choices=True) for _ in range(2)
+    ]
+    assert dataset_1[0].choices != dataset_2[0].choices
+
+
+# test explicitly not shuffling choices
+@pytest.mark.parametrize("type,file", dataset_mcq_params)
+def test_dataset_shuffle_choices_false_does_not_shuffle(
+    type: Type[T_ds], file: str
+) -> None:
+    dataset_1, dataset_2 = [
+        type.__call__(dataset_path(file), shuffle_choices=False) for _ in range(2)
+    ]
+    assert dataset_1[0].choices == dataset_2[0].choices
 
 
 @skip_if_github_action
