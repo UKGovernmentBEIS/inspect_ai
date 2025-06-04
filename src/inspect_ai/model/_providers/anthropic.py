@@ -297,22 +297,7 @@ class AnthropicAPI(ModelAPI):
 
             head_content = _content_list(head_model_output.message.content)
             tail_content = _content_list(tail_model_output.message.content)
-            print(
-                f"Recursion joined content: {len(head_content)} + {(tail_content)}'s together"
-            )
             joined_content = head_content + tail_content
-            for c in joined_content:
-                if isinstance(c, ContentData):
-                    typ = c.data["type"]
-                    print(
-                        f"ContentData - id: {c.data.get('id', None) if typ == 'server_tool_use' else c.data.get('tool_use_id', None)}, type: {c.data.get('type', None)}"
-                    )
-                elif isinstance(c, ContentText):
-                    print(
-                        f"ContentText - {c.text} {len(c.citations) if c.citations else 0} citations"
-                    )
-                else:
-                    print(f"type: {type(c).__name__}")
             tail_model_output.message.content = joined_content
 
             # TODO:
@@ -915,12 +900,6 @@ async def model_output_from_message(
         elif isinstance(content_block, ServerToolUseBlock):
             # TODO
             # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
-            validatedServerToolUseBlock = ServerToolUseBlock.model_validate(
-                content_block.model_dump()
-            )
-            print(
-                f"Creating ServerToolUse({validatedServerToolUseBlock.id})({validatedServerToolUseBlock.input})"
-            )
             content.append(
                 ContentData(
                     data=ServerToolUseBlock.model_validate(
@@ -931,13 +910,13 @@ async def model_output_from_message(
         elif isinstance(content_block, WebSearchToolResultBlock):
             # TODO
             # validate it for now since I think I've seen anthropic sending invalid data. e.g. missing fields
-            validatedWebSearchResult = WebSearchToolResultBlock.model_validate(
-                content_block.model_dump()
+            content.append(
+                ContentData(
+                    data=WebSearchToolResultBlock.model_validate(
+                        content_block.model_dump()
+                    ).model_dump()
+                )
             )
-            print(
-                f"Creating WebSearchResult({validatedWebSearchResult.tool_use_id}) w/{len(validatedWebSearchResult.content) if isinstance(validatedWebSearchResult.content, list) else 666} results"
-            )
-            content.append(ContentData(data=validatedWebSearchResult.model_dump()))
         elif isinstance(content_block, RedactedThinkingBlock):
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
