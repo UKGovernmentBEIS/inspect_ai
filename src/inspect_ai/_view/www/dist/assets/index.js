@@ -42545,7 +42545,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (citations2.length === 0) {
         return void 0;
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "a",
@@ -42559,7 +42559,7 @@ ${citation.url}`,
             children: decodeHtmlEntities(citation.title || citation.cited_text || "")
           }
         )
-      ] })) });
+      ] }, index2)) });
     };
     const contentImage = "_contentImage_8rgix_1";
     const reasoning = "_reasoning_8rgix_6";

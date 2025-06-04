@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, Fragment } from "react";
 import { Citation } from "./types";
 
 import { decodeHtmlEntities } from "../../../utils/html";
@@ -17,7 +17,7 @@ export const MessageCitations: FC<MessageCitationProps> = ({ citations }) => {
   return (
     <div className={clsx(styles.citations, "text-size-smallest")}>
       {citations.map((citation, index) => (
-        <>
+        <Fragment key={index}>
           <span>{index + 1}</span>
           <a
             href={citation.url}
@@ -28,7 +28,7 @@ export const MessageCitations: FC<MessageCitationProps> = ({ citations }) => {
           >
             {decodeHtmlEntities(citation.title || citation.cited_text || "")}
           </a>
-        </>
+        </Fragment>
       ))}
     </div>
   );
