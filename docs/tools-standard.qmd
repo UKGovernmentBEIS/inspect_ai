@@ -406,7 +406,7 @@ The `web_search()` tool can use Anthropic's built-in search capability when runn
 
 For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
 
-Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily" or "google") if you are also running the evaluation with non-OpenAI model.
+Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily" or "google") if you are also running the evaluation with non-Anthropic model.
 
 ### Tavily Options
 
