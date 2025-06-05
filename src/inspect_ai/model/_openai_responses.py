@@ -31,9 +31,16 @@ from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoice,
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_output_text import (
+    Annotation,
+    AnnotationFileCitation,
+    AnnotationFilePath,
+    AnnotationURLCitation,
+)
 from openai.types.responses.response_reasoning_item_param import Summary
 from pydantic import JsonValue
 
+from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -258,7 +265,7 @@ def _chat_message_assistant_from_openai_response(
                             internal={"id": id},
                             citations=(
                                 [
-                                    annotation.model_dump()
+                                    _to_inspect_citation(annotation)
                                     for annotation in c.annotations
                                 ]
                                 if c.annotations
@@ -536,3 +543,20 @@ def _responses_tool_alias(name: str) -> str:
 
 def _from_responses_tool_alias(name: str) -> str:
     return next((k for k, v in _responses_tool_aliases.items() if v == name), name)
+
+
+def _to_inspect_citation(input: Annotation) -> Citation:
+    match input:
+        case AnnotationURLCitation(
+            end_index=end_index, start_index=start_index, title=title, url=url
+        ):
+            return UrlCitation(
+                cited_text=(start_index, end_index), title=title, url=url
+            )
+
+        case (
+            AnnotationFileCitation(file_id=file_id, index=index)
+            | AnnotationFilePath(file_id=file_id, index=index)
+        ):
+            return DocumentCitation(internal={"file_id": file_id, "index": index})
+    assert False, f"Unexpected citation type: {input.type}"

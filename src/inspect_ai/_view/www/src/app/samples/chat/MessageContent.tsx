@@ -228,19 +228,8 @@ const mimeTypeForFormat = (format: Format1 | Format2): string => {
   }
 };
 
-const citations = (contents: ContentText): Citation[] => {
-  const results: Citation[] = [];
-  for (const citation of contents.citations || []) {
-    if (
-      citation.url === undefined ||
-      (citation.cited_text === undefined && citation.title === undefined)
-    ) {
-      console.error("Invalid citation format", citation);
-    }
-    results.push(citation as Citation);
-  }
-  return results;
-};
+const citations = (contents: ContentText): Citation[] =>
+  contents.citations ?? [];
 
 // This collapses sequential runs of text content into a single text content,
 // adding citations as superscript counters at the end of the text for each block
@@ -270,25 +259,30 @@ const normalizeContent = (contents: Contents): Contents => {
         .map((c) => {
           // separate the cites into those with a position and those without
           // sort by end_index (to allow for numbering to not affect indexes)
-          const positionalCites =
-            c.citations
-              ?.filter((citation) => citation.end_index !== undefined)
-              .sort((a, b) => {
-                return (b.end_index as number) - (a.end_index as number);
-              }) || [];
+          const positionalCites = (c.citations ?? [])
+            .filter(({ cited_text }) => Array.isArray(cited_text))
+            .sort((a, b) => {
+              // We will only be sorting citations with ranges in here.
+              // Extra credit TODO: use a type guard properly so that we don't have to cast
+              const aRange = a.cited_text as [number, number];
+              const bRange = b.cited_text as [number, number];
+              return bRange[1] - aRange[1];
+            });
           const endCites = c.citations?.filter(
-            (citation) => citation.end_index === undefined,
+            ({ cited_text }) => !Array.isArray(cited_text),
           );
 
           // Process cites with positions
           let textWithCites = c.text;
           for (let i = 0; i < positionalCites.length; i++) {
-            const citation = positionalCites[i];
+            const end_index = (
+              positionalCites[i].cited_text as [number, number]
+            )[1];
 
             textWithCites =
-              textWithCites.slice(0, citation.end_index as number) +
+              textWithCites.slice(0, end_index) +
               `<sup>${positionalCites.length - i}</sup>` +
-              textWithCites.slice(citation.end_index as number);
+              textWithCites.slice(end_index);
           }
           citeCount = citeCount + positionalCites.length;
 

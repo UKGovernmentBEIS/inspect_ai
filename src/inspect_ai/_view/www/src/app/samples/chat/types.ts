@@ -1,8 +1,5 @@
+import { Citations } from "../../../@types/log";
+
 export type ChatViewToolCallStyle = "compact" | "complete" | "omit";
 
-export type Citation = {
-  cited_text?: string;
-  url: string;
-  title?: string;
-  type: string;
-};
+export type Citation = NonNullable<Citations>[number];

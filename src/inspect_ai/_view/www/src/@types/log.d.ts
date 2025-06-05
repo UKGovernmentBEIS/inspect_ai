@@ -200,25 +200,63 @@ export type Type3 = "text";
 export type Text = string;
 export type Refusal = boolean | null;
 export type Citations =
-  | {
-      [k: string]: JsonValue;
-    }[]
+  | (
+      | DocumentCharCitation
+      | DocumentPageCitation
+      | DocumentBlockCitation
+      | DocumentCitation
+      | UrlCitation
+    )[]
   | null;
+export type CitedText = string | [number, number] | null;
+export type Title = string | null;
+export type Internal = {
+  [k: string]: JsonValue;
+} | null;
 export type JsonValue = unknown;
-export type Type4 = "reasoning";
+export type Type4 = "document_char";
+export type CharRange = [unknown, unknown] | null;
+export type CitedText1 = string | [number, number] | null;
+export type Title1 = string | null;
+export type Internal1 = {
+  [k: string]: JsonValue;
+} | null;
+export type Type5 = "document_page";
+export type PageRange = [unknown, unknown] | null;
+export type CitedText2 = string | [number, number] | null;
+export type Title2 = string | null;
+export type Internal2 = {
+  [k: string]: JsonValue;
+} | null;
+export type Type6 = "document_block";
+export type BlockRange = [unknown, unknown] | null;
+export type CitedText3 = string | [number, number] | null;
+export type Title3 = string | null;
+export type Internal3 = {
+  [k: string]: JsonValue;
+} | null;
+export type Type7 = "document";
+export type CitedText4 = string | [number, number] | null;
+export type Title4 = string | null;
+export type Internal4 = {
+  [k: string]: JsonValue;
+} | null;
+export type Type8 = "url";
+export type Url = string;
+export type Type9 = "reasoning";
 export type Reasoning = string;
 export type Signature = string | null;
 export type Redacted = boolean;
-export type Type5 = "image";
+export type Type10 = "image";
 export type Image = string;
 export type Detail = "auto" | "low" | "high";
-export type Type6 = "audio";
+export type Type11 = "audio";
 export type Audio = string;
 export type Format1 = "wav" | "mp3";
-export type Type7 = "video";
+export type Type12 = "video";
 export type Video = string;
 export type Format2 = "mp4" | "mpeg" | "mov";
-export type Type8 = "data";
+export type Type13 = "data";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
 export type Id2 = string | null;
@@ -252,10 +290,10 @@ export type ToolCalls = ToolCall[] | null;
 export type Id4 = string;
 export type Function = string;
 export type ParseError = string | null;
-export type Title = string | null;
+export type Title5 = string | null;
 export type Format3 = "text" | "markdown";
 export type Content3 = string;
-export type Type9 = string | null;
+export type Type14 = string | null;
 export type Model2 = string | null;
 export type Id5 = string | null;
 export type Content4 =
@@ -272,7 +310,7 @@ export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
-export type Type10 =
+export type Type15 =
   | "parsing"
   | "timeout"
   | "unicode_decode"
@@ -360,7 +398,7 @@ export type Timestamp1 = string;
 export type WorkingStart1 = number;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type11 =
+export type Type16 =
   | "message"
   | "time"
   | "working"
@@ -414,7 +452,7 @@ export type Input3 = (
 )[];
 export type Name8 = string;
 export type Description2 = string;
-export type Type12 = "object";
+export type Type17 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
 export type Options3 = {
@@ -434,7 +472,7 @@ export type Timestamp6 = string;
 export type WorkingStart6 = number;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
-export type Type13 = "function";
+export type Type18 = "function";
 export type Id7 = string;
 export type Function2 = string;
 export type Result1 =
@@ -522,7 +560,7 @@ export type Pending13 = boolean | null;
 export type Event13 = "span_begin";
 export type Id8 = string;
 export type ParentId = string | null;
-export type Type14 = string | null;
+export type Type19 = string | null;
 export type Name11 = string;
 export type SpanId14 = string | null;
 export type Timestamp14 = string;
@@ -536,7 +574,7 @@ export type WorkingStart15 = number;
 export type Pending15 = boolean | null;
 export type Event15 = "step";
 export type Action1 = "begin" | "end";
-export type Type15 = string | null;
+export type Type20 = string | null;
 export type Name12 = string;
 export type SpanId16 = string | null;
 export type Timestamp16 = string;
@@ -544,7 +582,7 @@ export type WorkingStart16 = number;
 export type Pending16 = boolean | null;
 export type Event16 = "subtask";
 export type Name13 = string;
-export type Type16 = string | null;
+export type Type21 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -612,7 +650,7 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type Type17 =
+export type Type22 =
   | "context"
   | "time"
   | "working"
@@ -1028,6 +1066,40 @@ export interface ContentText {
   refusal: Refusal;
   citations: Citations;
 }
+export interface DocumentCharCitation {
+  cited_text: CitedText;
+  title: Title;
+  internal: Internal;
+  type: Type4;
+  char_range: CharRange;
+}
+export interface DocumentPageCitation {
+  cited_text: CitedText1;
+  title: Title1;
+  internal: Internal1;
+  type: Type5;
+  page_range: PageRange;
+}
+export interface DocumentBlockCitation {
+  cited_text: CitedText2;
+  title: Title2;
+  internal: Internal2;
+  type: Type6;
+  block_range: BlockRange;
+}
+export interface DocumentCitation {
+  cited_text: CitedText3;
+  title: Title3;
+  internal: Internal3;
+  type: Type7;
+}
+export interface UrlCitation {
+  cited_text: CitedText4;
+  title: Title4;
+  internal: Internal4;
+  type: Type8;
+  url: Url;
+}
 /**
  * Reasoning content.
  *
@@ -1035,7 +1107,7 @@ export interface ContentText {
  */
 export interface ContentReasoning {
   internal: unknown;
-  type: Type4;
+  type: Type9;
   reasoning: Reasoning;
   signature: Signature;
   redacted: Redacted;
@@ -1045,7 +1117,7 @@ export interface ContentReasoning {
  */
 export interface ContentImage {
   internal: unknown;
-  type: Type5;
+  type: Type10;
   image: Image;
   detail: Detail;
 }
@@ -1054,7 +1126,7 @@ export interface ContentImage {
  */
 export interface ContentAudio {
   internal: unknown;
-  type: Type6;
+  type: Type11;
   audio: Audio;
   format: Format1;
 }
@@ -1063,7 +1135,7 @@ export interface ContentAudio {
  */
 export interface ContentVideo {
   internal: unknown;
-  type: Type7;
+  type: Type12;
   video: Video;
   format: Format2;
 }
@@ -1072,7 +1144,7 @@ export interface ContentVideo {
  */
 export interface ContentData {
   internal: unknown;
-  type: Type8;
+  type: Type13;
   data: Data;
 }
 export interface Data {
@@ -1108,7 +1180,7 @@ export interface ToolCall {
   internal: unknown;
   parse_error: ParseError;
   view: ToolCallContent | null;
-  type: Type9;
+  type: Type14;
 }
 export interface Arguments {
   [k: string]: unknown;
@@ -1117,7 +1189,7 @@ export interface Arguments {
  * Content to include in tool call view.
  */
 export interface ToolCallContent {
-  title: Title;
+  title: Title5;
   format: Format3;
   content: Content3;
 }
@@ -1135,7 +1207,7 @@ export interface ChatMessageTool {
   error: ToolCallError | null;
 }
 export interface ToolCallError {
-  type: Type10;
+  type: Type15;
   message: Message1;
 }
 /**
@@ -1229,7 +1301,7 @@ export interface SampleLimitEvent {
   working_start: WorkingStart1;
   pending: Pending1;
   event: Event1;
-  type: Type11;
+  type: Type16;
   message: Message2;
   limit: Limit1;
 }
@@ -1346,7 +1418,7 @@ export interface ToolInfo {
  * Description of tool parameters object in JSON Schema format.
  */
 export interface ToolParams {
-  type: Type12;
+  type: Type17;
   properties: Properties1;
   required: Required1;
   additionalProperties: Additionalproperties1;
@@ -1380,7 +1452,7 @@ export interface ToolEvent {
   working_start: WorkingStart6;
   pending: Pending6;
   event: Event6;
-  type: Type13;
+  type: Type18;
   id: Id7;
   function: Function2;
   arguments: Arguments1;
@@ -1510,7 +1582,7 @@ export interface SpanBeginEvent {
   event: Event13;
   id: Id8;
   parent_id: ParentId;
-  type: Type14;
+  type: Type19;
   name: Name11;
 }
 /**
@@ -1534,7 +1606,7 @@ export interface StepEvent {
   pending: Pending15;
   event: Event15;
   action: Action1;
-  type: Type15;
+  type: Type20;
   name: Name12;
 }
 /**
@@ -1547,7 +1619,7 @@ export interface SubtaskEvent {
   pending: Pending16;
   event: Event16;
   name: Name13;
-  type: Type16;
+  type: Type21;
   input: Input5;
   result: Result2;
   events: Events2;
@@ -1570,7 +1642,7 @@ export interface Attachments {
  * Limit encountered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type17;
+  type: Type22;
   limit: Limit2;
 }
 /**

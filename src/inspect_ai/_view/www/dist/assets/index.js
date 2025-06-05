@@ -42547,20 +42547,31 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "a",
-          {
-            href: citation.url,
-            target: "_blank",
-            rel: "noopener noreferrer",
-            className: clsx(styles$1k.citationLink),
-            title: `${citation.cited_text || ""}
-${citation.url}`,
-            children: decodeHtmlEntities(citation.title || citation.cited_text || "")
-          }
-        )
+        /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitation, { citation })
       ] }, index2)) });
     };
+    const MessageCitation = ({ citation }) => {
+      const innards = decodeHtmlEntities(
+        citation.title ?? (typeof citation.cited_text === "string" ? citation.cited_text : "")
+      );
+      return citation.type === "url" ? /* @__PURE__ */ jsxRuntimeExports.jsx(UrlCitation, { citation, children: innards }) : /* @__PURE__ */ jsxRuntimeExports.jsx(OtherCitation, { children: innards });
+    };
+    const UrlCitation = ({
+      children: children2,
+      citation
+    }) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "a",
+      {
+        href: citation.url,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        className: clsx(styles$1k.citationLink),
+        title: `${citation.cited_text || ""}
+${citation.url}`,
+        children: children2
+      }
+    );
+    const OtherCitation = ({ children: children2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: children2 });
     const contentImage = "_contentImage_8rgix_1";
     const reasoning = "_reasoning_8rgix_6";
     const styles$1j = {
@@ -42765,16 +42776,7 @@ ${citation.url}`,
           return "video/mp4";
       }
     };
-    const citations = (contents2) => {
-      const results = [];
-      for (const citation of contents2.citations || []) {
-        if (citation.url === void 0 || citation.cited_text === void 0 && citation.title === void 0) {
-          console.error("Invalid citation format", citation);
-        }
-        results.push(citation);
-      }
-      return results;
-    };
+    const citations = (contents2) => contents2.citations ?? [];
     const normalizeContent$2 = (contents2) => {
       if (typeof contents2 === "string") {
         return contents2;
@@ -42789,17 +42791,19 @@ ${citation.url}`,
           const filteredCitations = collection.flatMap((c2) => c2.citations || []);
           let citeCount = 0;
           const textWithCites = collection.map((c2) => {
-            var _a2, _b2;
-            const positionalCites = ((_a2 = c2.citations) == null ? void 0 : _a2.filter((citation) => citation.end_index !== void 0).sort((a, b) => {
-              return b.end_index - a.end_index;
-            })) || [];
-            const endCites = (_b2 = c2.citations) == null ? void 0 : _b2.filter(
-              (citation) => citation.end_index === void 0
+            var _a2;
+            const positionalCites = (c2.citations ?? []).filter(({ cited_text }) => Array.isArray(cited_text)).sort((a, b) => {
+              const aRange = a.cited_text;
+              const bRange = b.cited_text;
+              return bRange[1] - aRange[1];
+            });
+            const endCites = (_a2 = c2.citations) == null ? void 0 : _a2.filter(
+              ({ cited_text }) => !Array.isArray(cited_text)
             );
             let textWithCites2 = c2.text;
             for (let i2 = 0; i2 < positionalCites.length; i2++) {
-              const citation = positionalCites[i2];
-              textWithCites2 = textWithCites2.slice(0, citation.end_index) + `<sup>${positionalCites.length - i2}</sup>` + textWithCites2.slice(citation.end_index);
+              const end_index = positionalCites[i2].cited_text[1];
+              textWithCites2 = textWithCites2.slice(0, end_index) + `<sup>${positionalCites.length - i2}</sup>` + textWithCites2.slice(end_index);
             }
             citeCount = citeCount + positionalCites.length;
             const citeText = endCites == null ? void 0 : endCites.map((_citation) => `${++citeCount}`);
@@ -56545,7 +56549,7 @@ self.onmessage = function (e) {
           case "custom":
             return "Custom Limit Exceeded";
           case "time":
-            return "Time Limit Execeeded";
+            return "Time Limit Exceeded";
           case "message":
             return "Message Limit Exceeded";
           case "token":

@@ -883,10 +883,33 @@
           "anyOf": [
             {
               "items": {
-                "additionalProperties": {
-                  "$ref": "#/$defs/JsonValue"
+                "discriminator": {
+                  "mapping": {
+                    "document": "#/$defs/DocumentCitation",
+                    "document_block": "#/$defs/DocumentBlockCitation",
+                    "document_char": "#/$defs/DocumentCharCitation",
+                    "document_page": "#/$defs/DocumentPageCitation",
+                    "url": "#/$defs/UrlCitation"
+                  },
+                  "propertyName": "type"
                 },
-                "type": "object"
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/DocumentCharCitation"
+                  },
+                  {
+                    "$ref": "#/$defs/DocumentPageCitation"
+                  },
+                  {
+                    "$ref": "#/$defs/DocumentBlockCitation"
+                  },
+                  {
+                    "$ref": "#/$defs/DocumentCitation"
+                  },
+                  {
+                    "$ref": "#/$defs/UrlCitation"
+                  }
+                ]
               },
               "type": "array"
             },
@@ -951,6 +974,363 @@
       ],
       "title": "ContentVideo",
       "type": "object",
+      "additionalProperties": false
+    },
+    "DocumentBlockCitation": {
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "document_block",
+          "default": "document_block",
+          "title": "Type",
+          "type": "string"
+        },
+        "block_range": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Block Range"
+        }
+      },
+      "title": "DocumentBlockCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type",
+        "block_range"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentCharCitation": {
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "document_char",
+          "default": "document_char",
+          "title": "Type",
+          "type": "string"
+        },
+        "char_range": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Char Range"
+        }
+      },
+      "title": "DocumentCharCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type",
+        "char_range"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentCitation": {
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "document",
+          "default": "document",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "DocumentCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentPageCitation": {
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "document_page",
+          "default": "document_page",
+          "title": "Type",
+          "type": "string"
+        },
+        "page_range": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Range"
+        }
+      },
+      "title": "DocumentPageCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type",
+        "page_range"
+      ],
       "additionalProperties": false
     },
     "ErrorEvent": {
@@ -5863,6 +6243,83 @@
         "bytes"
       ],
       "title": "TopLogprob",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "UrlCitation": {
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "url",
+          "default": "url",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type",
+        "url"
+      ],
+      "title": "UrlCitation",
       "type": "object",
       "additionalProperties": false
     }

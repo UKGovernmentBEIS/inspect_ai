@@ -2,6 +2,8 @@ from typing import Literal, Sequence, Union
 
 from pydantic import BaseModel, Field, JsonValue
 
+from inspect_ai._util.citation import Citation
+
 
 class ContentBase(BaseModel):
     internal: JsonValue | None = Field(default=None)
@@ -20,7 +22,7 @@ class ContentText(ContentBase):
     refusal: bool | None = Field(default=None)
     """Was this a refusal message?"""
 
-    citations: Sequence[dict[str, JsonValue]] | None = Field(default=None)
+    citations: Sequence[Citation] | None = Field(default=None)
     """Citations supporting the text block."""
 
 

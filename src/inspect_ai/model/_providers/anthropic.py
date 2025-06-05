@@ -17,6 +17,10 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
+    CitationCharLocation,
+    CitationContentBlockLocation,
+    CitationPageLocation,
+    CitationsWebSearchResultLocation,
     ImageBlockParam,
     Message,
     MessageParam,
@@ -47,6 +51,13 @@ from anthropic.types.beta import (
 from pydantic import JsonValue, TypeAdapter
 from typing_extensions import override
 
+from inspect_ai._util.citation import (
+    Citation,
+    DocumentBlockCitation,
+    DocumentCharCitation,
+    DocumentPageCitation,
+    UrlCitation,
+)
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
@@ -911,7 +922,7 @@ async def model_output_from_message(
                     text=content_text,
                     citations=(
                         [
-                            _sanitize_citation(citation).model_dump()
+                            _to_inspect_citation(citation)
                             for citation in content_block.citations
                         ]
                         if content_block.citations
@@ -1151,12 +1162,64 @@ def _content_list(input: str | list[Content]) -> list[Content]:
     return [ContentText(text=input)] if isinstance(input, str) else input
 
 
-def _sanitize_citation(input: TextCitation) -> TextCitation:
-    """Sanitize a citation to work around https://github.com/anthropics/anthropic-sdk-python/issues/965."""
-    if (
-        hasattr(input, "title")
-        and isinstance(input.title, str)
-        and len(input.title) > 255
-    ):
-        input.title = input.title[:254] + "…"
-    return input
+def _to_inspect_citation(input: TextCitation) -> Citation:
+    match input:
+        case CitationsWebSearchResultLocation(
+            cited_text=cited_text,
+            title=title,
+            url=url,
+            encrypted_index=encrypted_index,
+        ):
+            # Sanitize a citation to work around https://github.com/anthropics/anthropic-sdk-python/issues/965.
+            return UrlCitation(
+                cited_text=cited_text,
+                title=title
+                if title is None or len(title) <= 255
+                else title[:254] + "…",
+                url=url,
+                internal={"encrypted_index": encrypted_index},
+            )
+
+        case CitationCharLocation(
+            cited_text=cited_text,
+            document_index=document_index,
+            document_title=title,
+            end_char_index=end_char_index,
+            start_char_index=start_char_index,
+        ):
+            return DocumentCharCitation(
+                cited_text=cited_text,
+                title=title,
+                char_range=(start_char_index, end_char_index),
+                internal={"document_index": document_index},
+            )
+
+        case CitationPageLocation(
+            cited_text=cited_text,
+            document_index=document_index,
+            document_title=title,
+            end_page_number=end_page_number,
+            start_page_number=start_page_number,
+        ):
+            return DocumentPageCitation(
+                cited_text=cited_text,
+                title=title,
+                page_range=(start_page_number - 1, end_page_number - 1),
+                internal={"document_index": document_index},
+            )
+
+        case CitationContentBlockLocation(
+            cited_text=cited_text,
+            document_index=document_index,
+            document_title=title,
+            end_block_index=end_block_index,
+            start_block_index=start_block_index,
+        ):
+            return DocumentBlockCitation(
+                cited_text=cited_text,
+                title=title,
+                block_range=(start_block_index, end_block_index),
+                internal={"document_index": document_index},
+            )
+
+    assert False, f"Unexpected citation type: {input.type}"
