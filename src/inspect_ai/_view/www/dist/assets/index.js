@@ -42535,10 +42535,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const doc2 = parser2.parseFromString(text2, "text/html");
       return doc2.documentElement.textContent || text2;
     };
-    const citations$1 = "_citations_t2k1z_1";
+    const citations = "_citations_t2k1z_1";
     const citationLink = "_citationLink_t2k1z_9";
     const styles$1k = {
-      citations: citations$1,
+      citations,
       citationLink
     };
     const MessageCitations = ({ citations: citations2 }) => {
@@ -42681,7 +42681,7 @@ ${citation.url}`,
       text: {
         render: (key2, content2, isLast) => {
           const c2 = content2;
-          const cites = citations(c2);
+          const cites = c2.citations ?? [];
           if (!c2.text && !cites.length) {
             return void 0;
           }
@@ -42776,7 +42776,6 @@ ${citation.url}`,
           return "video/mp4";
       }
     };
-    const citations = (contents2) => contents2.citations ?? [];
     const normalizeContent$2 = (contents2) => {
       if (typeof contents2 === "string") {
         return contents2;
