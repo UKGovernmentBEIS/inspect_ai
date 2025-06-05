@@ -2,6 +2,7 @@
 
 - Eval set: Default `max_tasks` to the greater of 4 and the number of models being evaluated.
 - Eval set: Do not read full eval logs into memory at task completion.
+- pass_at_k: Treat threshold as the the minimum inclusive value for passing (rather than checking equality)
 - Web search: Include links specified by providers in the results.
 - Inspect View: Display sample id & epoch in sample dialog title bar.
 - Inspect View: Don't open sample dialog when simply navigating the sample list.
