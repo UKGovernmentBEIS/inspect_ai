@@ -2,7 +2,6 @@ import clsx from "clsx";
 import { FC, useEffect, useMemo } from "react";
 
 import { useParams } from "react-router-dom";
-import { EvalLogHeader } from "../../client/api/types";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs, usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
@@ -32,19 +31,10 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   // Get the logs from the store
   const loading = useStore((state) => state.app.status.loading);
 
-  const { loadLogs } = useLogs();
+  const { loadLogs, loadHeaders } = useLogs();
   const logs = useStore((state) => state.logs.logs);
-
-  const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
   const logHeaders = useStore((state) => state.logs.logHeaders);
-  const setHeadersLoading = useStore(
-    (state) => state.logsActions.setHeadersLoading,
-  );
   const headersLoading = useStore((state) => state.logs.headersLoading);
-
-  const updateLogHeaders = useStore(
-    (state) => state.logsActions.updateLogHeaders,
-  );
 
   // Items that are in the current page
   const { page, itemsPerPage } = usePagination(
@@ -136,34 +126,22 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
 
   // Load headers for any files that are not yet loaded
   useEffect(() => {
-    const fileItems = pageItems.filter((item) => item.type === "file");
-    const logFiles = fileItems
-      .map((item) => item.logFile)
-      .filter((file) => file !== undefined)
-      .filter((logFile) => {
-        // Filter out files that are already loaded
-        return logHeaders[logFile.name] === undefined;
-      });
-
     const exec = async () => {
-      setHeadersLoading(true);
-      try {
-        const headers = await loadHeaders(logFiles);
-        if (headers) {
-          const updatedHeaders: Record<string, EvalLogHeader> = {};
+      const fileItems = pageItems.filter((item) => item.type === "file");
+      const logFiles = fileItems
+        .map((item) => item.logFile)
+        .filter((file) => file !== undefined)
+        .filter((logFile) => {
+          // Filter out files that are already loaded
+          return logHeaders[logFile.name] === undefined;
+        });
 
-          headers.forEach((header, index) => {
-            const logFile = logFiles[index];
-            updatedHeaders[logFile.name] = header as EvalLogHeader;
-          });
-          updateLogHeaders(updatedHeaders);
-        }
-      } finally {
-        setHeadersLoading(false);
+      if (logFiles.length > 0) {
+        await loadHeaders(logFiles);
       }
     };
     exec();
-  }, [pageItems, setHeadersLoading, loadHeaders, updateLogHeaders, logItems]);
+  }, [pageItems, loadHeaders, logHeaders]);
 
   return (
     <div className={clsx(styles.panel)}>

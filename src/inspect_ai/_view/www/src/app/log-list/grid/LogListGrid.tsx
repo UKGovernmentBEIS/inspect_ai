@@ -12,7 +12,7 @@ import {
 import clsx from "clsx";
 import { FC, useEffect, useMemo, useRef } from "react";
 
-import { useLogsListing, usePagination } from "../../../state/hooks";
+import { useLogs, useLogsListing, usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { FileLogItem, FolderLogItem } from "../LogItem";
 import { kDefaultPageSize, kLogsPaginationId } from "../LogsPanel";
@@ -33,6 +33,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     setGlobalFilter,
     columnResizeMode,
   } = useLogsListing();
+
+  const { loadAllHeaders } = useLogs();
 
   const { page, itemsPerPage } = usePagination(
     kLogsPaginationId,
@@ -83,12 +85,14 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       },
     },
     rowCount: items.length,
-    onSortingChange: (updater: Updater<SortingState>) => {
+    onSortingChange: async (updater: Updater<SortingState>) => {
+      await loadAllHeaders();
       setSorting(
         typeof updater === "function" ? updater(sorting || []) : updater,
       );
     },
-    onColumnFiltersChange: (updater: Updater<ColumnFiltersState>) => {
+    onColumnFiltersChange: async (updater: Updater<ColumnFiltersState>) => {
+      await loadAllHeaders();
       setFiltering(
         typeof updater === "function" ? updater(filtering || []) : updater,
       );

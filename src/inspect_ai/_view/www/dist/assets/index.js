@@ -47505,13 +47505,18 @@ categories: ${categories.join(" ")}`;
           setStatus({ loading: false, error: e });
         });
       }, [load, setLogs, setStatus]);
-      const headers = useStore((state) => state.logsActions.loadHeaders);
+      const fetchHeaders = useStore((state) => state.logsActions.loadHeaders);
+      const existingHeaders = useStore((state) => state.logs.logHeaders);
       const setHeaders = useStore((state) => state.logsActions.setLogHeaders);
+      const setHeadersLoading = useStore(
+        (state) => state.logsActions.setHeadersLoading
+      );
       const allLogFiles = useStore((state) => state.logs.logs.files);
-      const loadHeaders = reactExports.useCallback(
-        async (logFiles = allLogFiles) => {
-          const exec2 = async () => {
-            const logHeaders = await headers(logFiles);
+      const loadHeadersWithErrorHandling = reactExports.useCallback(
+        async (logFiles) => {
+          setHeadersLoading(true);
+          try {
+            const logHeaders = await fetchHeaders(logFiles);
             const result2 = {};
             for (var i2 = 0; i2 < logFiles.length; i2++) {
               const logFile = logFiles[i2];
@@ -47520,16 +47525,32 @@ categories: ${categories.join(" ")}`;
                 result2[logFile.name] = logHeader;
               }
             }
-            setHeaders(result2);
-          };
-          exec2().catch((e) => {
+            setHeaders({ ...existingHeaders, ...result2 });
+          } catch (e) {
             log.error("Error loading log headers", e);
             setHeaders({});
-          });
+          } finally {
+            setHeadersLoading(false);
+          }
         },
-        [headers]
+        [fetchHeaders, existingHeaders, setHeaders, setHeadersLoading]
       );
-      return { loadLogs, loadHeaders };
+      const loadHeaders = reactExports.useCallback(
+        async (logFiles = allLogFiles) => {
+          await loadHeadersWithErrorHandling(logFiles);
+        },
+        [loadHeadersWithErrorHandling, allLogFiles]
+      );
+      const loadAllHeaders = reactExports.useCallback(async () => {
+        const logsToLoad = allLogFiles.filter((logFile) => {
+          const existingHeader = existingHeaders[logFile.name];
+          return !existingHeader || existingHeader.status === "started";
+        });
+        if (logsToLoad.length > 0) {
+          await loadHeadersWithErrorHandling(logsToLoad);
+        }
+      }, [loadHeadersWithErrorHandling, allLogFiles, existingHeaders]);
+      return { loadLogs, loadHeaders, loadAllHeaders };
     };
     const usePagination = (name2, defaultPageSize2) => {
       const page = useStore((state) => {
@@ -51075,6 +51096,7 @@ categories: ${categories.join(" ")}`;
         setGlobalFilter,
         columnResizeMode
       } = useLogsListing();
+      const { loadAllHeaders } = useLogs();
       const { page, itemsPerPage } = usePagination(
         kLogsPaginationId,
         kDefaultPageSize
@@ -51113,12 +51135,14 @@ categories: ${categories.join(" ")}`;
           }
         },
         rowCount: items.length,
-        onSortingChange: (updater) => {
+        onSortingChange: async (updater) => {
+          await loadAllHeaders();
           setSorting(
             typeof updater === "function" ? updater(sorting || []) : updater
           );
         },
-        onColumnFiltersChange: (updater) => {
+        onColumnFiltersChange: async (updater) => {
+          await loadAllHeaders();
           setFiltering(
             typeof updater === "function" ? updater(filtering || []) : updater
           );
@@ -51365,17 +51389,10 @@ categories: ${categories.join(" ")}`;
     const kDefaultPageSize = 30;
     const LogsPanel = () => {
       const loading = useStore((state) => state.app.status.loading);
-      const { loadLogs } = useLogs();
+      const { loadLogs, loadHeaders } = useLogs();
       const logs = useStore((state) => state.logs.logs);
-      const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
       const logHeaders = useStore((state) => state.logs.logHeaders);
-      const setHeadersLoading = useStore(
-        (state) => state.logsActions.setHeadersLoading
-      );
       const headersLoading = useStore((state) => state.logs.headersLoading);
-      const updateLogHeaders = useStore(
-        (state) => state.logsActions.updateLogHeaders
-      );
       const { page, itemsPerPage } = usePagination(
         kLogsPaginationId,
         kDefaultPageSize
@@ -51434,28 +51451,17 @@ categories: ${categories.join(" ")}`;
         return logItems.slice(start2, end2);
       }, [logItems, page, itemsPerPage]);
       reactExports.useEffect(() => {
-        const fileItems = pageItems.filter((item2) => item2.type === "file");
-        const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
-          return logHeaders[logFile.name] === void 0;
-        });
         const exec2 = async () => {
-          setHeadersLoading(true);
-          try {
-            const headers = await loadHeaders(logFiles);
-            if (headers) {
-              const updatedHeaders = {};
-              headers.forEach((header2, index2) => {
-                const logFile = logFiles[index2];
-                updatedHeaders[logFile.name] = header2;
-              });
-              updateLogHeaders(updatedHeaders);
-            }
-          } finally {
-            setHeadersLoading(false);
+          const fileItems = pageItems.filter((item2) => item2.type === "file");
+          const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
+            return logHeaders[logFile.name] === void 0;
+          });
+          if (logFiles.length > 0) {
+            await loadHeaders(logFiles);
           }
         };
         exec2();
-      }, [pageItems, setHeadersLoading, loadHeaders, updateLogHeaders, logItems]);
+      }, [pageItems, loadHeaders, logHeaders]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$12.panel), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading || headersLoading }),

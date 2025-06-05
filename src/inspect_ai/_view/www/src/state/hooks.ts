@@ -577,13 +577,20 @@ export const useLogs = () => {
   }, [load, setLogs, setStatus]);
 
   // Loading headers
-  const headers = useStore((state) => state.logsActions.loadHeaders);
+  const fetchHeaders = useStore((state) => state.logsActions.loadHeaders);
+  const existingHeaders = useStore((state) => state.logs.logHeaders);
   const setHeaders = useStore((state) => state.logsActions.setLogHeaders);
+  const setHeadersLoading = useStore(
+    (state) => state.logsActions.setHeadersLoading,
+  );
   const allLogFiles = useStore((state) => state.logs.logs.files);
-  const loadHeaders = useCallback(
-    async (logFiles: LogFile[] = allLogFiles) => {
-      const exec = async () => {
-        const logHeaders = await headers(logFiles);
+
+  // Shared function for loading headers with error handling
+  const loadHeadersWithErrorHandling = useCallback(
+    async (logFiles: LogFile[]) => {
+      setHeadersLoading(true);
+      try {
+        const logHeaders = await fetchHeaders(logFiles);
         const result: Record<string, EvalLogHeader> = {};
         for (var i = 0; i < logFiles.length; i++) {
           const logFile = logFiles[i];
@@ -592,18 +599,36 @@ export const useLogs = () => {
             result[logFile.name] = logHeader as EvalLogHeader;
           }
         }
-        setHeaders(result);
-      };
-      exec().catch((e) => {
+        setHeaders({ ...existingHeaders, ...result });
+      } catch (e) {
         log.error("Error loading log headers", e);
         setHeaders({});
-      });
+      } finally {
+        setHeadersLoading(false);
+      }
     },
-    [headers],
+    [fetchHeaders, existingHeaders, setHeaders, setHeadersLoading],
   );
 
-  // load a specific set of log headers (perhaps we an optional list of logs?)
-  return { loadLogs, loadHeaders };
+  const loadHeaders = useCallback(
+    async (logFiles: LogFile[] = allLogFiles) => {
+      await loadHeadersWithErrorHandling(logFiles);
+    },
+    [loadHeadersWithErrorHandling, allLogFiles],
+  );
+
+  const loadAllHeaders = useCallback(async () => {
+    const logsToLoad = allLogFiles.filter((logFile) => {
+      const existingHeader = existingHeaders[logFile.name];
+      return !existingHeader || existingHeader.status === "started";
+    });
+
+    if (logsToLoad.length > 0) {
+      await loadHeadersWithErrorHandling(logsToLoad);
+    }
+  }, [loadHeadersWithErrorHandling, allLogFiles, existingHeaders]);
+
+  return { loadLogs, loadHeaders, loadAllHeaders };
 };
 
 export const usePagination = (name: string, defaultPageSize: number) => {
