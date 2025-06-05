@@ -42792,13 +42792,9 @@ ${citation.url}`,
           let citeCount = 0;
           const textWithCites = collection.map((c2) => {
             var _a2;
-            const positionalCites = (c2.citations ?? []).filter(({ cited_text }) => Array.isArray(cited_text)).sort((a, b) => {
-              const aRange = a.cited_text;
-              const bRange = b.cited_text;
-              return bRange[1] - aRange[1];
-            });
+            const positionalCites = (c2.citations ?? []).filter(isCitationWithRange).sort((a, b) => b.cited_text[1] - a.cited_text[1]);
             const endCites = (_a2 = c2.citations) == null ? void 0 : _a2.filter(
-              ({ cited_text }) => !Array.isArray(cited_text)
+              (citation) => !isCitationWithRange(citation)
             );
             let textWithCites2 = c2.text;
             for (let i2 = 0; i2 < positionalCites.length; i2++) {
@@ -42845,6 +42841,7 @@ ${citation.url}`,
       collect();
       return result2;
     };
+    const isCitationWithRange = (citation) => Array.isArray(citation.cited_text);
     const resolveToolInput = (fn2, toolArgs) => {
       const toolName = fn2;
       const [inputKey, highlightLanguage] = extractInputMetadata(toolName);
@@ -47202,7 +47199,8 @@ categories: ${categories.join(" ")}`;
       const collapsed2 = useStore((state) => state.sample.collapsedEvents);
       const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
       return reactExports.useMemo(() => {
-        const isCollapsed = collapsed2 !== null && collapsed2[scope][id] === true;
+        var _a2;
+        const isCollapsed = collapsed2 !== null && ((_a2 = collapsed2[scope]) == null ? void 0 : _a2[id]) === true;
         const set2 = (value2) => {
           log.debug("Set collapsed", id, value2);
           collapseEvent(scope, id, value2);
@@ -49021,22 +49019,14 @@ categories: ${categories.join(" ")}`;
         (state) => state.appActions.setShowingSampleDialog
       );
       const showSample = reactExports.useCallback(
-        (index2, specifiedSampleTabId) => {
-          if (sampleSummaries && index2 >= 0 && index2 < sampleSummaries.length) {
-            const sample2 = sampleSummaries[index2];
-            const resolvedPath = resolveLogPath();
-            if (resolvedPath) {
-              selectSample(index2);
-              setShowingSampleDialog(true);
-              const currentSampleTabId = specifiedSampleTabId || sampleTabId;
-              const url = sampleUrl(
-                resolvedPath,
-                sample2.id,
-                sample2.epoch,
-                currentSampleTabId
-              );
-              navigate(url);
-            }
+        (index2, id, epoch, specifiedSampleTabId) => {
+          const resolvedPath = resolveLogPath();
+          if (resolvedPath) {
+            selectSample(index2);
+            setShowingSampleDialog(true);
+            const currentSampleTabId = specifiedSampleTabId || sampleTabId;
+            const url = sampleUrl(resolvedPath, id, epoch, currentSampleTabId);
+            navigate(url);
           }
         },
         [
@@ -86573,11 +86563,19 @@ Supported expressions:
               e.preventDefault();
               e.stopPropagation();
               break;
-            case "Enter":
-              sampleNavigation.showSample(selectedSampleIndex);
-              e.preventDefault();
-              e.stopPropagation();
+            case "Enter": {
+              const item2 = items[selectedSampleIndex];
+              if (item2.type === "sample") {
+                sampleNavigation.showSample(
+                  item2.index,
+                  item2.data.id,
+                  item2.data.epoch
+                );
+                e.preventDefault();
+                e.stopPropagation();
+              }
               break;
+            }
           }
         },
         [
@@ -86609,7 +86607,11 @@ Supported expressions:
                   item2.data.epoch
                 ),
                 showSample: () => {
-                  sampleNavigation.showSample(item2.index);
+                  sampleNavigation.showSample(
+                    item2.index,
+                    item2.data.id,
+                    item2.data.epoch
+                  );
                 }
               }
             );

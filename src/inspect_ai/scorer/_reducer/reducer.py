@@ -121,7 +121,7 @@ def pass_at(
     def reduce(scores: list[Score]) -> Score:
         def pass_at_k(values: list[float]) -> float:
             total = len(scores)
-            correct = sum(1 for v in values if v == value)
+            correct = sum(1 for v in values if v >= value)
             if total - correct < k:
                 return 1.0
             else:
