@@ -17,14 +17,6 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
-    CitationCharLocation,
-    CitationCharLocationParam,
-    CitationContentBlockLocation,
-    CitationContentBlockLocationParam,
-    CitationPageLocation,
-    CitationPageLocationParam,
-    CitationsWebSearchResultLocation,
-    CitationWebSearchResultLocationParam,
     ImageBlockParam,
     Message,
     MessageParam,
@@ -34,8 +26,6 @@ from anthropic.types import (
     ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
-    TextCitation,
-    TextCitationParam,
     ThinkingBlock,
     ThinkingBlockParam,
     ToolParam,
@@ -52,16 +42,9 @@ from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
 )
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.citation import (
-    Citation,
-    DocumentBlockCitation,
-    DocumentCharCitation,
-    DocumentPageCitation,
-    UrlCitation,
-)
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
@@ -84,6 +67,10 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
+from .._providers._anthropic_citations import (
+    to_anthropic_citation,
+    to_inspect_citation,
+)
 from .util import environment_prerequisite_error, model_base_url
 from .util.hooks import HttpxHooks
 
@@ -926,7 +913,7 @@ async def model_output_from_message(
                     text=content_text,
                     citations=(
                         [
-                            _to_inspect_citation(citation)
+                            to_inspect_citation(citation)
                             for citation in content_block.citations
                         ]
                         if content_block.citations
@@ -1071,7 +1058,7 @@ async def message_param_content(
 ):
     if isinstance(content, ContentText):
         citations = (
-            [_to_anthropic_citation(citation) for citation in content.citations]
+            [to_anthropic_citation(citation) for citation in content.citations]
             if content.citations
             else None
         )
@@ -1165,150 +1152,3 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 def _content_list(input: str | list[Content]) -> list[Content]:
     return [ContentText(text=input)] if isinstance(input, str) else input
-
-
-def _to_inspect_citation(input: TextCitation) -> Citation:
-    match input:
-        case CitationsWebSearchResultLocation(
-            cited_text=cited_text,
-            title=title,
-            url=url,
-            encrypted_index=encrypted_index,
-        ):
-            # Sanitize a citation to work around https://github.com/anthropics/anthropic-sdk-python/issues/965.
-            return UrlCitation(
-                cited_text=cited_text,
-                title=title
-                if title is None or len(title) <= 255
-                else title[:254] + "…",
-                url=url,
-                internal={"encrypted_index": encrypted_index},
-            )
-
-        case CitationCharLocation(
-            cited_text=cited_text,
-            document_index=document_index,
-            document_title=title,
-            end_char_index=end_char_index,
-            start_char_index=start_char_index,
-        ):
-            return DocumentCharCitation(
-                cited_text=cited_text,
-                title=title,
-                char_range=(start_char_index, end_char_index),
-                internal={"document_index": document_index},
-            )
-
-        case CitationPageLocation(
-            cited_text=cited_text,
-            document_index=document_index,
-            document_title=title,
-            end_page_number=end_page_number,
-            start_page_number=start_page_number,
-        ):
-            return DocumentPageCitation(
-                cited_text=cited_text,
-                title=title,
-                page_range=(start_page_number - 1, end_page_number - 1),
-                internal={"document_index": document_index},
-            )
-
-        case CitationContentBlockLocation(
-            cited_text=cited_text,
-            document_index=document_index,
-            document_title=title,
-            end_block_index=end_block_index,
-            start_block_index=start_block_index,
-        ):
-            return DocumentBlockCitation(
-                cited_text=cited_text,
-                title=title,
-                block_range=(start_block_index, end_block_index),
-                internal={"document_index": document_index},
-            )
-
-    assert False, f"Unexpected citation type: {input.type}"
-
-
-def _to_anthropic_citation(input: Citation) -> TextCitationParam:
-    cited_text = input.cited_text
-    assert isinstance(cited_text, str), (
-        "anthropic citations must have a string cited_text"
-    )
-
-    match input:
-        case UrlCitation(title=title, url=url, internal=internal):
-            assert internal, "UrlCitation must have internal field"
-            encrypted_index = internal.get("encrypted_index", None)
-            assert isinstance(encrypted_index, str), (
-                "URL citations require encrypted_index in internal field"
-            )
-
-            return CitationWebSearchResultLocationParam(
-                type="web_search_result_location",
-                cited_text=cited_text,
-                title=title,
-                url=url,
-                encrypted_index=encrypted_index,
-            )
-
-        case DocumentCharCitation(
-            title=title, char_range=char_range, internal=internal
-        ):
-            assert internal, "DocumentCharCitation must have internal field"
-            document_index = internal.get("document_index", None)
-            assert isinstance(document_index, int), (
-                "DocumentCharCitation require encrypted_index in internal field"
-            )
-
-            start_char_index, end_char_index = char_range
-            return CitationCharLocationParam(
-                type="char_location",
-                cited_text=cited_text,
-                document_title=title,
-                document_index=document_index,
-                start_char_index=start_char_index,
-                end_char_index=end_char_index,
-            )
-
-        case DocumentPageCitation(
-            title=title, page_range=page_range, internal=internal
-        ):
-            assert internal, "DocumentPageCitation must have internal field"
-            document_index = internal.get("document_index", None)
-            assert isinstance(document_index, int), (
-                "DocumentPageCitation require encrypted_index in internal field"
-            )
-
-            # Convert from 0-indexed to 1-indexed page numbers
-            start_page, end_page = page_range or (0, 0)
-            return CitationPageLocationParam(
-                type="page_location",
-                cited_text=cited_text,
-                document_title=title,
-                document_index=document_index,
-                start_page_number=start_page + 1,
-                end_page_number=end_page + 1,
-            )
-
-        case DocumentBlockCitation(
-            title=title, block_range=block_range, internal=internal
-        ):
-            assert internal, "DocumentPageCitation must have internal field"
-            document_index = internal.get("document_index", None)
-            assert isinstance(document_index, int), (
-                "DocumentPageCitation require encrypted_index in internal field"
-            )
-
-            start_block, end_block = block_range or (0, 0)
-            return CitationContentBlockLocationParam(
-                type="content_block_location",
-                cited_text=cited_text,
-                document_title=title,
-                document_index=document_index,
-                start_block_index=start_block,
-                end_block_index=end_block,
-            )
-
-    # If we can't handle this citation type, raise an error
-    raise ValueError(f"Unsupported citation type: {input.type}")
