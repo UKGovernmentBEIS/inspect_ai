@@ -1073,12 +1073,18 @@ export interface ContentText {
   refusal: Refusal;
   citations: Citations;
 }
+/**
+ * A generic citation.
+ */
 export interface GenericCitation {
   cited_text: CitedText;
   title: Title;
   internal: Internal;
   type: Type4;
 }
+/**
+ * A citation that refers to a character range in a document.
+ */
 export interface DocumentCharCitation {
   cited_text: CitedText1;
   title: Title1;
@@ -1086,6 +1092,9 @@ export interface DocumentCharCitation {
   type: Type5;
   char_range: CharRange;
 }
+/**
+ * A citation that refers to a page range in a document.
+ */
 export interface DocumentPageCitation {
   cited_text: CitedText2;
   title: Title2;
@@ -1093,6 +1102,11 @@ export interface DocumentPageCitation {
   type: Type6;
   page_range: PageRange;
 }
+/**
+ * A citation that refers to a block range in a document.
+ *
+ * A block is a model defined subset of a document
+ */
 export interface DocumentBlockCitation {
   cited_text: CitedText3;
   title: Title3;
@@ -1100,12 +1114,18 @@ export interface DocumentBlockCitation {
   type: Type7;
   block_range: BlockRange;
 }
+/**
+ * A citation that refers to a document.
+ */
 export interface DocumentCitation {
   cited_text: CitedText4;
   title: Title4;
   internal: Internal4;
   type: Type8;
 }
+/**
+ * A citation that refers to a URL.
+ */
 export interface UrlCitation {
   cited_text: CitedText5;
   title: Title5;

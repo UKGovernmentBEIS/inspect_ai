@@ -981,6 +981,7 @@
       "additionalProperties": false
     },
     "DocumentBlockCitation": {
+      "description": "A citation that refers to a block range in a document.\n\nA block is a model defined subset of a document",
       "properties": {
         "cited_text": {
           "anyOf": [
@@ -1076,6 +1077,7 @@
       "additionalProperties": false
     },
     "DocumentCharCitation": {
+      "description": "A citation that refers to a character range in a document.",
       "properties": {
         "cited_text": {
           "anyOf": [
@@ -1171,6 +1173,7 @@
       "additionalProperties": false
     },
     "DocumentCitation": {
+      "description": "A citation that refers to a document.",
       "properties": {
         "cited_text": {
           "anyOf": [
@@ -1243,6 +1246,7 @@
       "additionalProperties": false
     },
     "DocumentPageCitation": {
+      "description": "A citation that refers to a page range in a document.",
       "properties": {
         "cited_text": {
           "anyOf": [
@@ -3484,6 +3488,7 @@
       "additionalProperties": false
     },
     "GenericCitation": {
+      "description": "A generic citation.",
       "properties": {
         "cited_text": {
           "anyOf": [
@@ -6323,6 +6328,7 @@
       "additionalProperties": false
     },
     "UrlCitation": {
+      "description": "A citation that refers to a URL.",
       "properties": {
         "cited_text": {
           "anyOf": [
