@@ -112,8 +112,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
       // The context provides a way to share context between different
       // rendering. In this case, we'll use it to keep track of citations
       const c = content as ContentText;
-
-      const cites = citations(c);
+      const cites = c.citations ?? [];
 
       if (!c.text && !cites.length) {
         return undefined;
@@ -228,9 +227,6 @@ const mimeTypeForFormat = (format: Format1 | Format2): string => {
   }
 };
 
-const citations = (contents: ContentText): Citation[] =>
-  contents.citations ?? [];
-
 // This collapses sequential runs of text content into a single text content,
 // adding citations as superscript counters at the end of the text for each block
 // containing citations. The citations are then attached to the content where
@@ -335,8 +331,8 @@ const normalizeContent = (contents: Contents): Contents => {
 
 // This is a helper that makes Omit<> work with a union type by distributing
 // the omit over the union members.
-export type DistributiveOmit<T, K extends keyof any> = T extends any
-  ? Omit<T, K>
+export type DistributiveOmit<TObj, TKey extends PropertyKey> = TObj extends any
+  ? Omit<TObj, TKey>
   : never;
 
 /** Type guard that allows narrowing down to Citations whose `cited_text` is a range */
