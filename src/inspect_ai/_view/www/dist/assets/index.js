@@ -958,7 +958,7 @@ var require_assets = __commonJS({
       reactDom.exports = reactDom_production;
     }
     var reactDomExports = reactDom.exports;
-    const lo = /* @__PURE__ */ getDefaultExportFromCjs(reactDomExports);
+    const io = /* @__PURE__ */ getDefaultExportFromCjs(reactDomExports);
     /**
      * @license React
      * react-dom-client.production.js
@@ -2466,8 +2466,8 @@ var require_assets = __commonJS({
       if ("input" === domEventName || "change" === domEventName)
         return getInstIfValueChanged(targetInst);
     }
-    function is$1(x2, y2) {
-      return x2 === y2 && (0 !== x2 || 1 / x2 === 1 / y2) || x2 !== x2 && y2 !== y2;
+    function is$1(x2, y) {
+      return x2 === y && (0 !== x2 || 1 / x2 === 1 / y) || x2 !== x2 && y !== y;
     }
     var objectIs = "function" === typeof Object.is ? Object.is : is$1;
     function shallowEqual(objA, objB) {
@@ -12913,12 +12913,12 @@ var require_assets = __commonJS({
         replacerFunc = replacer;
       } else if (Array.isArray(replacer)) {
         propertyList = [];
-        for (const v of replacer) {
+        for (const v2 of replacer) {
           let item2;
-          if (typeof v === "string") {
-            item2 = v;
-          } else if (typeof v === "number" || v instanceof String || v instanceof Number) {
-            item2 = String(v);
+          if (typeof v2 === "string") {
+            item2 = v2;
+          } else if (typeof v2 === "number" || v2 instanceof String || v2 instanceof Number) {
+            item2 = String(v2);
           }
           if (item2 !== void 0 && propertyList.indexOf(item2) < 0) {
             propertyList.push(item2);
@@ -13129,7 +13129,7 @@ var require_assets = __commonJS({
         var lang = /(?:^|\s)lang(?:uage)?-([\w-]+)(?=\s|$)/i;
         var uniqueId = 0;
         var plainTextGrammar = {};
-        var _ = {
+        var _2 = {
           /**
            * By default, Prism will attempt to highlight all code elements (by calling {@link Prism.highlightAll}) on the
            * current page after the page finished loading. This might be a problem if e.g. you wanted to asynchronously load
@@ -13238,9 +13238,9 @@ var require_assets = __commonJS({
               visited = visited || {};
               var clone2;
               var id;
-              switch (_.util.type(o)) {
+              switch (_2.util.type(o)) {
                 case "Object":
-                  id = _.util.objId(o);
+                  id = _2.util.objId(o);
                   if (visited[id]) {
                     return visited[id];
                   }
@@ -13257,7 +13257,7 @@ var require_assets = __commonJS({
                     clone2
                   );
                 case "Array":
-                  id = _.util.objId(o);
+                  id = _2.util.objId(o);
                   if (visited[id]) {
                     return visited[id];
                   }
@@ -13265,8 +13265,8 @@ var require_assets = __commonJS({
                   visited[id] = clone2;
                   /** @type {Array} */
                   /** @type {any} */
-                  o.forEach(function(v, i2) {
-                    clone2[i2] = deepClone(v, visited);
+                  o.forEach(function(v2, i2) {
+                    clone2[i2] = deepClone(v2, visited);
                   });
                   return (
                     /** @type {any} */
@@ -13415,7 +13415,7 @@ var require_assets = __commonJS({
              * });
              */
             extend: function(id, redef) {
-              var lang2 = _.util.clone(_.languages[id]);
+              var lang2 = _2.util.clone(_2.languages[id]);
               for (var key2 in redef) {
                 lang2[key2] = redef[key2];
               }
@@ -13498,7 +13498,7 @@ var require_assets = __commonJS({
              */
             insertBefore: function(inside2, before, insert2, root2) {
               root2 = root2 || /** @type {any} */
-              _.languages;
+              _2.languages;
               var grammar = root2[inside2];
               var ret = {};
               for (var token2 in grammar) {
@@ -13517,7 +13517,7 @@ var require_assets = __commonJS({
               }
               var old = root2[inside2];
               root2[inside2] = ret;
-              _.languages.DFS(_.languages, function(key2, value2) {
+              _2.languages.DFS(_2.languages, function(key2, value2) {
                 if (value2 === old && key2 != inside2) {
                   this[key2] = ret;
                 }
@@ -13527,12 +13527,12 @@ var require_assets = __commonJS({
             // Traverse a language definition with Depth First Search
             DFS: function DFS(o, callback, type, visited) {
               visited = visited || {};
-              var objId = _.util.objId;
+              var objId = _2.util.objId;
               for (var i2 in o) {
                 if (o.hasOwnProperty(i2)) {
                   callback.call(o, i2, o[i2], type || i2);
                   var property = o[i2];
-                  var propertyType = _.util.type(property);
+                  var propertyType = _2.util.type(property);
                   if (propertyType === "Object" && !visited[objId(property)]) {
                     visited[objId(property)] = true;
                     DFS(property, callback, null, visited);
@@ -13558,7 +13558,7 @@ var require_assets = __commonJS({
            * @public
            */
           highlightAll: function(async, callback) {
-            _.highlightAllUnder(document, async, callback);
+            _2.highlightAllUnder(document, async, callback);
           },
           /**
            * Fetches all the descendants of `container` that have a `.language-xxxx` class and then calls
@@ -13581,11 +13581,11 @@ var require_assets = __commonJS({
               container: container2,
               selector: 'code[class*="language-"], [class*="language-"] code, code[class*="lang-"], [class*="lang-"] code'
             };
-            _.hooks.run("before-highlightall", env);
+            _2.hooks.run("before-highlightall", env);
             env.elements = Array.prototype.slice.apply(env.container.querySelectorAll(env.selector));
-            _.hooks.run("before-all-elements-highlight", env);
+            _2.hooks.run("before-all-elements-highlight", env);
             for (var i2 = 0, element; element = env.elements[i2++]; ) {
-              _.highlightElement(element, async === true, env.callback);
+              _2.highlightElement(element, async === true, env.callback);
             }
           },
           /**
@@ -13617,12 +13617,12 @@ var require_assets = __commonJS({
            * @public
            */
           highlightElement: function(element, async, callback) {
-            var language2 = _.util.getLanguage(element);
-            var grammar = _.languages[language2];
-            _.util.setLanguage(element, language2);
+            var language2 = _2.util.getLanguage(element);
+            var grammar = _2.languages[language2];
+            _2.util.setLanguage(element, language2);
             var parent = element.parentElement;
             if (parent && parent.nodeName.toLowerCase() === "pre") {
-              _.util.setLanguage(parent, language2);
+              _2.util.setLanguage(parent, language2);
             }
             var code2 = element.textContent;
             var env = {
@@ -13633,29 +13633,29 @@ var require_assets = __commonJS({
             };
             function insertHighlightedCode(highlightedCode) {
               env.highlightedCode = highlightedCode;
-              _.hooks.run("before-insert", env);
+              _2.hooks.run("before-insert", env);
               env.element.innerHTML = env.highlightedCode;
-              _.hooks.run("after-highlight", env);
-              _.hooks.run("complete", env);
+              _2.hooks.run("after-highlight", env);
+              _2.hooks.run("complete", env);
               callback && callback.call(env.element);
             }
-            _.hooks.run("before-sanity-check", env);
+            _2.hooks.run("before-sanity-check", env);
             parent = env.element.parentElement;
             if (parent && parent.nodeName.toLowerCase() === "pre" && !parent.hasAttribute("tabindex")) {
               parent.setAttribute("tabindex", "0");
             }
             if (!env.code) {
-              _.hooks.run("complete", env);
+              _2.hooks.run("complete", env);
               callback && callback.call(env.element);
               return;
             }
-            _.hooks.run("before-highlight", env);
+            _2.hooks.run("before-highlight", env);
             if (!env.grammar) {
-              insertHighlightedCode(_.util.encode(env.code));
+              insertHighlightedCode(_2.util.encode(env.code));
               return;
             }
             if (async && _self2.Worker) {
-              var worker = new Worker(_.filename);
+              var worker = new Worker(_2.filename);
               worker.onmessage = function(evt) {
                 insertHighlightedCode(evt.data);
               };
@@ -13665,7 +13665,7 @@ var require_assets = __commonJS({
                 immediateClose: true
               }));
             } else {
-              insertHighlightedCode(_.highlight(env.code, env.grammar, env.language));
+              insertHighlightedCode(_2.highlight(env.code, env.grammar, env.language));
             }
           },
           /**
@@ -13694,13 +13694,13 @@ var require_assets = __commonJS({
               grammar,
               language: language2
             };
-            _.hooks.run("before-tokenize", env);
+            _2.hooks.run("before-tokenize", env);
             if (!env.grammar) {
               throw new Error('The language "' + env.language + '" has no grammar.');
             }
-            env.tokens = _.tokenize(env.code, env.grammar);
-            _.hooks.run("after-tokenize", env);
-            return Token2.stringify(_.util.encode(env.tokens), env.language);
+            env.tokens = _2.tokenize(env.code, env.grammar);
+            _2.hooks.run("after-tokenize", env);
+            return Token2.stringify(_2.util.encode(env.tokens), env.language);
           },
           /**
            * This is the heart of Prism, and the most low-level function you can use. It accepts a string of text as input
@@ -13759,7 +13759,7 @@ var require_assets = __commonJS({
              * @public
              */
             add: function(name2, callback) {
-              var hooks = _.hooks.all;
+              var hooks = _2.hooks.all;
               hooks[name2] = hooks[name2] || [];
               hooks[name2].push(callback);
             },
@@ -13773,7 +13773,7 @@ var require_assets = __commonJS({
              * @public
              */
             run: function(name2, env) {
-              var callbacks = _.hooks.all[name2];
+              var callbacks = _2.hooks.all[name2];
               if (!callbacks || !callbacks.length) {
                 return;
               }
@@ -13784,7 +13784,7 @@ var require_assets = __commonJS({
           },
           Token: Token2
         };
-        _self2.Prism = _;
+        _self2.Prism = _2;
         function Token2(type, content2, alias, matchedStr) {
           this.type = type;
           this.content = content2;
@@ -13818,7 +13818,7 @@ var require_assets = __commonJS({
               env.classes.push(aliases2);
             }
           }
-          _.hooks.run("wrap", env);
+          _2.hooks.run("wrap", env);
           var attributes = "";
           for (var name2 in env.attributes) {
             attributes += " " + name2 + '="' + (env.attributes[name2] || "").replace(/"/g, "&quot;") + '"';
@@ -13914,7 +13914,7 @@ var require_assets = __commonJS({
                   pos2 += before.length;
                 }
                 removeRange(tokenList, removeFrom, removeCount);
-                var wrapped = new Token2(token2, inside2 ? _.tokenize(matchStr, inside2) : matchStr, alias, matchStr);
+                var wrapped = new Token2(token2, inside2 ? _2.tokenize(matchStr, inside2) : matchStr, alias, matchStr);
                 currentNode = addAfter(tokenList, removeFrom, wrapped);
                 if (after) {
                   addAfter(tokenList, currentNode, after);
@@ -13969,35 +13969,35 @@ var require_assets = __commonJS({
         }
         if (!_self2.document) {
           if (!_self2.addEventListener) {
-            return _;
+            return _2;
           }
-          if (!_.disableWorkerMessageHandler) {
+          if (!_2.disableWorkerMessageHandler) {
             _self2.addEventListener("message", function(evt) {
               var message2 = JSON.parse(evt.data);
               var lang2 = message2.language;
               var code2 = message2.code;
               var immediateClose = message2.immediateClose;
-              _self2.postMessage(_.highlight(code2, _.languages[lang2], lang2));
+              _self2.postMessage(_2.highlight(code2, _2.languages[lang2], lang2));
               if (immediateClose) {
                 _self2.close();
               }
             }, false);
           }
-          return _;
+          return _2;
         }
-        var script = _.util.currentScript();
+        var script = _2.util.currentScript();
         if (script) {
-          _.filename = script.src;
+          _2.filename = script.src;
           if (script.hasAttribute("data-manual")) {
-            _.manual = true;
+            _2.manual = true;
           }
         }
         function highlightAutomaticallyCallback() {
-          if (!_.manual) {
-            _.highlightAll();
+          if (!_2.manual) {
+            _2.highlightAll();
           }
         }
-        if (!_.manual) {
+        if (!_2.manual) {
           var readyState = document.readyState;
           if (readyState === "loading" || readyState === "interactive" && script && script.defer) {
             document.addEventListener("DOMContentLoaded", highlightAutomaticallyCallback);
@@ -14009,7 +14009,7 @@ var require_assets = __commonJS({
             }
           }
         }
-        return _;
+        return _2;
       }(_self);
       if (module2.exports) {
         module2.exports = Prism2;
@@ -15851,7 +15851,7 @@ var require_assets = __commonJS({
       return __toString.call(val) === "[object Date]";
     }
     /**
-     * react-router v7.5.3
+     * react-router v7.6.1
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -16034,14 +16034,7 @@ var require_assets = __commonJS({
         }
       }
       function createURL(to2) {
-        let base2 = window2.location.origin !== "null" ? window2.location.origin : window2.location.href;
-        let href2 = typeof to2 === "string" ? to2 : createPath(to2);
-        href2 = href2.replace(/ $/, "%20");
-        invariant(
-          base2,
-          `No window.location.(origin|href) available to create URL for href: ${href2}`
-        );
-        return new URL(href2, base2);
+        return createBrowserURLImpl(to2);
       }
       let history2 = {
         get action() {
@@ -16080,6 +16073,19 @@ var require_assets = __commonJS({
         }
       };
       return history2;
+    }
+    function createBrowserURLImpl(to2, isAbsolute = false) {
+      let base2 = "http://localhost";
+      if (typeof window !== "undefined") {
+        base2 = window.location.origin !== "null" ? window.location.origin : window.location.href;
+      }
+      invariant(base2, "No window.location.(origin|href) available to create URL");
+      let href2 = typeof to2 === "string" ? to2 : createPath(to2);
+      href2 = href2.replace(/ $/, "%20");
+      if (!isAbsolute && href2.startsWith("//")) {
+        href2 = base2 + href2;
+      }
+      return new URL(href2, base2);
     }
     var _map;
     var unstable_RouterContextProvider = class {
@@ -16408,7 +16414,7 @@ var require_assets = __commonJS({
       let params2 = [];
       let regexpSource = "^" + path.replace(/\/*\*?$/, "").replace(/^\/*/, "/").replace(/[\\.*+^${}|()[\]]/g, "\\$&").replace(
         /\/:([\w-]+)(\?)?/g,
-        (_, paramName, isOptional) => {
+        (_2, paramName, isOptional) => {
           params2.push({ paramName, isOptional: isOptional != null });
           return isOptional ? "/?([^\\/]+)?" : "/([^\\/]+)";
         }
@@ -16426,7 +16432,7 @@ var require_assets = __commonJS({
     }
     function decodePath(value2) {
       try {
-        return value2.split("/").map((v) => decodeURIComponent(v).replace(/\//g, "%2F")).join("/");
+        return value2.split("/").map((v2) => decodeURIComponent(v2).replace(/\//g, "%2F")).join("/");
       } catch (error2) {
         warning(
           false,
@@ -16632,53 +16638,57 @@ var require_assets = __commonJS({
       let initialMatches = matchRoutes(dataRoutes, init.history.location, basename);
       let initialMatchesIsFOW = false;
       let initialErrors = null;
+      let initialized;
       if (initialMatches == null && !init.patchRoutesOnNavigation) {
         let error2 = getInternalRouterError(404, {
           pathname: init.history.location.pathname
         });
         let { matches, route } = getShortCircuitMatches(dataRoutes);
+        initialized = true;
         initialMatches = matches;
         initialErrors = { [route.id]: error2 };
-      }
-      if (initialMatches && !init.hydrationData) {
-        let fogOfWar = checkFogOfWar(
-          initialMatches,
-          dataRoutes,
-          init.history.location.pathname
-        );
-        if (fogOfWar.active) {
-          initialMatches = null;
-        }
-      }
-      let initialized;
-      if (!initialMatches) {
-        initialized = false;
-        initialMatches = [];
-        let fogOfWar = checkFogOfWar(
-          null,
-          dataRoutes,
-          init.history.location.pathname
-        );
-        if (fogOfWar.active && fogOfWar.matches) {
-          initialMatchesIsFOW = true;
-          initialMatches = fogOfWar.matches;
-        }
-      } else if (initialMatches.some((m) => m.route.lazy)) {
-        initialized = false;
-      } else if (!initialMatches.some((m) => m.route.loader)) {
-        initialized = true;
       } else {
-        let loaderData = init.hydrationData ? init.hydrationData.loaderData : null;
-        let errors2 = init.hydrationData ? init.hydrationData.errors : null;
-        if (errors2) {
-          let idx = initialMatches.findIndex(
-            (m) => errors2[m.route.id] !== void 0
+        if (initialMatches && !init.hydrationData) {
+          let fogOfWar = checkFogOfWar(
+            initialMatches,
+            dataRoutes,
+            init.history.location.pathname
           );
-          initialized = initialMatches.slice(0, idx + 1).every((m) => !shouldLoadRouteOnHydration(m.route, loaderData, errors2));
+          if (fogOfWar.active) {
+            initialMatches = null;
+          }
+        }
+        if (!initialMatches) {
+          initialized = false;
+          initialMatches = [];
+          let fogOfWar = checkFogOfWar(
+            null,
+            dataRoutes,
+            init.history.location.pathname
+          );
+          if (fogOfWar.active && fogOfWar.matches) {
+            initialMatchesIsFOW = true;
+            initialMatches = fogOfWar.matches;
+          }
+        } else if (initialMatches.some((m) => m.route.lazy)) {
+          initialized = false;
+        } else if (!initialMatches.some((m) => m.route.loader)) {
+          initialized = true;
         } else {
-          initialized = initialMatches.every(
-            (m) => !shouldLoadRouteOnHydration(m.route, loaderData, errors2)
-          );
+          let loaderData = init.hydrationData ? init.hydrationData.loaderData : null;
+          let errors2 = init.hydrationData ? init.hydrationData.errors : null;
+          if (errors2) {
+            let idx = initialMatches.findIndex(
+              (m) => errors2[m.route.id] !== void 0
+            );
+            initialized = initialMatches.slice(0, idx + 1).every(
+              (m) => !shouldLoadRouteOnHydration(m.route, loaderData, errors2)
+            );
+          } else {
+            initialized = initialMatches.every(
+              (m) => !shouldLoadRouteOnHydration(m.route, loaderData, errors2)
+            );
+          }
         }
       }
       let router;
@@ -16785,8 +16795,8 @@ var require_assets = __commonJS({
         }
         subscribers.clear();
         pendingNavigationController && pendingNavigationController.abort();
-        state.fetchers.forEach((_, key2) => deleteFetcher(key2));
-        state.blockers.forEach((_, key2) => deleteBlocker(key2));
+        state.fetchers.forEach((_2, key2) => deleteFetcher(key2));
+        state.blockers.forEach((_2, key2) => deleteBlocker(key2));
       }
       function subscribe(fn2) {
         subscribers.add(fn2);
@@ -16847,7 +16857,7 @@ var require_assets = __commonJS({
         let blockers = state.blockers;
         if (blockers.size > 0) {
           blockers = new Map(blockers);
-          blockers.forEach((_, k) => blockers.set(k, IDLE_BLOCKER));
+          blockers.forEach((_2, k) => blockers.set(k, IDLE_BLOCKER));
         }
         let preventScrollReset = pendingPreventScrollReset === true || state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && ((_b2 = location2.state) == null ? void 0 : _b2._isRedirect) !== true;
         if (inFlightDataRoutes) {
@@ -17329,6 +17339,7 @@ var require_assets = __commonJS({
           fetchRedirectIds,
           routesToUse,
           basename,
+          init.patchRoutesOnNavigation != null,
           pendingActionResult
         );
         pendingNavigationLoadId = ++incrementingLoadId;
@@ -17658,6 +17669,7 @@ var require_assets = __commonJS({
           fetchRedirectIds,
           routesToUse,
           basename,
+          init.patchRoutesOnNavigation != null,
           [match.route.id, actionResult]
         );
         revalidatingFetchers.filter((rf) => rf.key !== key2).forEach((rf) => {
@@ -17695,6 +17707,10 @@ var require_assets = __commonJS({
         fetchReloadIds.delete(key2);
         fetchControllers.delete(key2);
         revalidatingFetchers.forEach((r2) => fetchControllers.delete(r2.key));
+        if (state.fetchers.has(key2)) {
+          let doneFetcher = getDoneFetcher(actionResult.data);
+          state.fetchers.set(key2, doneFetcher);
+        }
         let redirect2 = findRedirect(loaderResults);
         if (redirect2) {
           return startRedirectNavigation(
@@ -17722,10 +17738,6 @@ var require_assets = __commonJS({
           revalidatingFetchers,
           fetcherResults
         );
-        if (state.fetchers.has(key2)) {
-          let doneFetcher = getDoneFetcher(actionResult.data);
-          state.fetchers.set(key2, doneFetcher);
-        }
         abortStaleFetchLoads(loadId);
         if (state.navigation.state === "loading" && loadId > pendingNavigationLoadId) {
           invariant(pendingAction, "Expected pending action");
@@ -17861,7 +17873,7 @@ var require_assets = __commonJS({
           if (redirect2.response.headers.has("X-Remix-Reload-Document")) {
             isDocumentReload = true;
           } else if (ABSOLUTE_URL_REGEX.test(location2)) {
-            const url = init.history.createURL(location2);
+            const url = createBrowserURLImpl(location2, true);
             isDocumentReload = // Hard reload if it's an absolute URL to a new origin
             url.origin !== routerWindow.location.origin || // Hard reload if it's an absolute URL that does not match our basename
             stripBasename(url.pathname, basename) == null;
@@ -17928,6 +17940,9 @@ var require_assets = __commonJS({
           });
           return dataResults;
         }
+        if (request.signal.aborted) {
+          return dataResults;
+        }
         for (let [routeId, result2] of Object.entries(results)) {
           if (isRedirectDataStrategyResult(result2)) {
             let response = result2.result;
@@ -17991,7 +18006,7 @@ var require_assets = __commonJS({
       }
       function interruptActiveLoads() {
         isRevalidationRequired = true;
-        fetchLoadMatches.forEach((_, key2) => {
+        fetchLoadMatches.forEach((_2, key2) => {
           if (fetchControllers.has(key2)) {
             cancelledFetcherLoads.add(key2);
           }
@@ -18146,9 +18161,9 @@ var require_assets = __commonJS({
         getScrollRestorationKey2 = getKey || null;
         if (!initialScrollRestored && state.navigation === IDLE_NAVIGATION) {
           initialScrollRestored = true;
-          let y2 = getSavedScrollPosition(state.location, state.matches);
-          if (y2 != null) {
-            updateState({ restoreScrollPosition: y2 });
+          let y = getSavedScrollPosition(state.location, state.matches);
+          if (y != null) {
+            updateState({ restoreScrollPosition: y });
           }
         }
         return () => {
@@ -18176,9 +18191,9 @@ var require_assets = __commonJS({
       function getSavedScrollPosition(location2, matches) {
         if (savedScrollPositions2) {
           let key2 = getScrollKey(location2, matches);
-          let y2 = savedScrollPositions2[key2];
-          if (typeof y2 === "number") {
-            return y2;
+          let y = savedScrollPositions2[key2];
+          if (typeof y === "number") {
+            return y;
           }
         }
         return null;
@@ -18361,7 +18376,7 @@ var require_assets = __commonJS({
           let params2 = new URLSearchParams(path.search);
           let indexValues = params2.getAll("index");
           params2.delete("index");
-          indexValues.filter((v) => v).forEach((v) => params2.append("index", v));
+          indexValues.filter((v2) => v2).forEach((v2) => params2.append("index", v2));
           let qs = params2.toString();
           path.search = qs ? `?${qs}` : "";
         }
@@ -18478,7 +18493,7 @@ var require_assets = __commonJS({
       parsedPath.search = `?${searchParams}`;
       return { path: createPath(parsedPath), submission };
     }
-    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, pendingActionResult) {
+    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, hasPatchRoutesOnNavigation, pendingActionResult) {
       var _a2;
       let actionResult = pendingActionResult ? isErrorResult(pendingActionResult[1]) ? pendingActionResult[1].error : pendingActionResult[1].data : void 0;
       let currentUrl = history2.createURL(state.location);
@@ -18557,8 +18572,13 @@ var require_assets = __commonJS({
         if (initialHydration || !matches.some((m) => m.route.id === f.routeId) || fetchersQueuedForDeletion.has(key2)) {
           return;
         }
+        let fetcher = state.fetchers.get(key2);
+        let isMidInitialLoad = fetcher && fetcher.state !== "idle" && fetcher.data === void 0;
         let fetcherMatches = matchRoutes(routesToUse, f.path, basename);
         if (!fetcherMatches) {
+          if (hasPatchRoutesOnNavigation && isMidInitialLoad) {
+            return;
+          }
           revalidatingFetchers.push({
             key: key2,
             routeId: f.routeId,
@@ -18573,7 +18593,6 @@ var require_assets = __commonJS({
         if (fetchRedirectIds.has(key2)) {
           return;
         }
-        let fetcher = state.fetchers.get(key2);
         let fetcherMatch = getTargetMatch(fetcherMatches, f.path);
         let fetchController = new AbortController();
         let fetchRequest = createClientSideRequest(
@@ -18593,7 +18612,7 @@ var require_assets = __commonJS({
             lazyRoutePropertiesToSkip,
             scopedContext
           );
-        } else if (fetcher && fetcher.state !== "idle" && fetcher.data === void 0) {
+        } else if (isMidInitialLoad) {
           if (isRevalidationRequired) {
             fetcherDsMatches = getTargetedDataStrategyMatches(
               mapRouteProperties2,
@@ -18644,7 +18663,7 @@ var require_assets = __commonJS({
       if (!route.loader) {
         return false;
       }
-      let hasData = loaderData != null && loaderData[route.id] !== void 0;
+      let hasData = loaderData != null && route.id in loaderData;
       let hasError = errors2 != null && errors2[route.id] !== void 0;
       if (!hasData && hasError) {
         return false;
@@ -19147,7 +19166,7 @@ var require_assets = __commonJS({
       let type = isAction ? "action" : "loader";
       let runHandler = (handler) => {
         let reject;
-        let abortPromise = new Promise((_, r2) => reject = r2);
+        let abortPromise = new Promise((_2, r2) => reject = r2);
         onReject = () => reject();
         request.signal.addEventListener("abort", onReject);
         let actualHandler = (ctx) => {
@@ -19464,8 +19483,8 @@ var require_assets = __commonJS({
       return { loaderData, errors: errors2 };
     }
     function mergeLoaderData(loaderData, newLoaderData, matches, errors2) {
-      let mergedLoaderData = Object.entries(newLoaderData).filter(([, v]) => v !== ResetLoaderDataSymbol).reduce((merged, [k, v]) => {
-        merged[k] = v;
+      let mergedLoaderData = Object.entries(newLoaderData).filter(([, v2]) => v2 !== ResetLoaderDataSymbol).reduce((merged, [k, v2]) => {
+        merged[k] = v2;
         return merged;
       }, {});
       for (let match of matches) {
@@ -19597,7 +19616,7 @@ var require_assets = __commonJS({
       return validMutationMethods.has(method.toUpperCase());
     }
     function hasNakedIndexQuery(search) {
-      return new URLSearchParams(search).getAll("index").some((v) => v === "");
+      return new URLSearchParams(search).getAll("index").some((v2) => v2 === "");
     }
     function getTargetMatch(matches, location2) {
       let search = typeof location2 === "string" ? parsePath$1(location2).search : location2.search;
@@ -19741,9 +19760,9 @@ var require_assets = __commonJS({
         );
         if (sessionPositions) {
           let json = JSON.parse(sessionPositions);
-          for (let [k, v] of Object.entries(json || {})) {
-            if (v && Array.isArray(v)) {
-              transitions.set(k, new Set(v || []));
+          for (let [k, v2] of Object.entries(json || {})) {
+            if (v2 && Array.isArray(v2)) {
+              transitions.set(k, new Set(v2 || []));
             }
           }
         }
@@ -19753,8 +19772,8 @@ var require_assets = __commonJS({
     function persistAppliedTransitions(_window, transitions) {
       if (transitions.size > 0) {
         let json = {};
-        for (let [k, v] of transitions) {
-          json[k] = [...v];
+        for (let [k, v2] of transitions) {
+          json[k] = [...v2];
         }
         try {
           _window.sessionStorage.setItem(
@@ -19947,7 +19966,7 @@ var require_assets = __commonJS({
         // router loaded. We can help them understand how to avoid that.
         `useRoutes() may be used only in the context of a <Router> component.`
       );
-      let { navigator: navigator2, static: isStatic } = reactExports.useContext(NavigationContext);
+      let { navigator: navigator2 } = reactExports.useContext(NavigationContext);
       let { matches: parentMatches } = reactExports.useContext(RouteContext);
       let routeMatch = parentMatches[parentMatches.length - 1];
       let parentParams = routeMatch ? routeMatch.params : {};
@@ -19976,7 +19995,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         let segments = pathname.replace(/^\//, "").split("/");
         remainingPathname = "/" + segments.slice(parentSegments.length).join("/");
       }
-      let matches = !isStatic && dataRouterState && dataRouterState.matches && dataRouterState.matches.length > 0 ? dataRouterState.matches : matchRoutes(routes, { pathname: remainingPathname });
+      let matches = matchRoutes(routes, { pathname: remainingPathname });
       {
         warning(
           parentRoute || matches != null,
@@ -20652,7 +20671,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         typeof init === "string" || Array.isArray(init) || init instanceof URLSearchParams ? init : Object.keys(init).reduce((memo2, key2) => {
           let value2 = init[key2];
           return memo2.concat(
-            Array.isArray(value2) ? value2.map((v) => [key2, v]) : [[key2, value2]]
+            Array.isArray(value2) ? value2.map((v2) => [key2, v2]) : [[key2, value2]]
           );
         }, [])
       );
@@ -20660,7 +20679,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
       let searchParams = createSearchParams(locationSearch);
       if (defaultSearchParams) {
-        defaultSearchParams.forEach((_, key2) => {
+        defaultSearchParams.forEach((_2, key2) => {
           if (!searchParams.has(key2)) {
             defaultSearchParams.getAll(key2).forEach((value2) => {
               searchParams.append(key2, value2);
@@ -20900,6 +20919,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return deduped;
       }, []);
     }
+    Object.getOwnPropertyNames(Object.prototype).sort().join("\0");
     var NO_BODY_STATUS_CODES = /* @__PURE__ */ new Set([100, 101, 204, 205]);
     function singleFetchUrl(reqUrl, basename) {
       let url = typeof reqUrl === "string" ? new URL(
@@ -21138,7 +21158,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
     try {
       if (isBrowser) {
-        window.__reactRouterVersion = "7.5.3";
+        window.__reactRouterVersion = "7.6.1";
       }
     } catch (e) {
     }
@@ -21532,10 +21552,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         path.search = location2.search;
         let params2 = new URLSearchParams(path.search);
         let indexValues = params2.getAll("index");
-        let hasNakedIndexParam = indexValues.some((v) => v === "");
+        let hasNakedIndexParam = indexValues.some((v2) => v2 === "");
         if (hasNakedIndexParam) {
           params2.delete("index");
-          indexValues.filter((v) => v).forEach((v) => params2.append("index", v));
+          indexValues.filter((v2) => v2).forEach((v2) => params2.append("index", v2));
           let qs = params2.toString();
           path.search = qs ? `?${qs}` : "";
         }
@@ -21566,13 +21586,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let nextPath = stripBasename(vtContext.nextLocation.pathname, basename) || vtContext.nextLocation.pathname;
       return matchPath(path.pathname, nextPath) != null || matchPath(path.pathname, currentPath) != null;
     }
-    new TextEncoder();
     /* @__PURE__ */ new Set([
       ...NO_BODY_STATUS_CODES,
       304
     ]);
     /**
-     * react-router v7.5.3
+     * react-router v7.6.1
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -21640,11 +21659,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       } else
         thing[propOrOldValue] = value2;
     }
-    function is(x2, y2) {
-      if (x2 === y2) {
-        return x2 !== 0 || 1 / x2 === 1 / y2;
+    function is(x2, y) {
+      if (x2 === y) {
+        return x2 !== 0 || 1 / x2 === 1 / y;
       } else {
-        return x2 !== x2 && y2 !== y2;
+        return x2 !== x2 && y !== y;
       }
     }
     function isMap(target2) {
@@ -23191,7 +23210,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           removePropertyValue: (bagName, key2) => {
             set2((state) => {
               if (state.app.propertyBags[bagName]) {
-                const { [key2]: _, ...rest } = state.app.propertyBags[bagName];
+                const { [key2]: _2, ...rest } = state.app.propertyBags[bagName];
                 state.app.propertyBags[bagName] = rest;
               }
             });
@@ -23759,9 +23778,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       if (Array.isArray(value2)) {
         let hasChanged = false;
-        const resolvedArray = value2.map((v) => {
-          const resolved = resolveAttachments(v, attachments);
-          if (resolved !== v) hasChanged = true;
+        const resolvedArray = value2.map((v2) => {
+          const resolved = resolveAttachments(v2, attachments);
+          if (resolved !== v2) hasChanged = true;
           return resolved;
         });
         return hasChanged ? resolvedArray : value2;
@@ -23978,8 +23997,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     function processAttachments(sampleData, pollingState) {
       log$4.debug(`Processing ${sampleData.attachments.length} attachments`);
-      Object.values(sampleData.attachments).forEach((v) => {
-        pollingState.attachments[v.hash] = v.content;
+      Object.values(sampleData.attachments).forEach((v2) => {
+        pollingState.attachments[v2.hash] = v2.content;
       });
     }
     function processEvents(sampleData, pollingState) {
@@ -24838,8 +24857,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     (function(module2, exports2) {
       (function(factory) {
         {
-          var v = factory(commonjsRequire, exports2);
-          if (v !== void 0) module2.exports = v;
+          var v2 = factory(commonjsRequire, exports2);
+          if (v2 !== void 0) module2.exports = v2;
         }
       })(function(require2, exports3) {
         Object.defineProperty(exports3, "__esModule", { value: true });
@@ -25713,7 +25732,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
            * @returns
            */
           static equivalent(left2, right2) {
-            const setReplacer = (_, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
+            const setReplacer = (_2, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
             return left2 === right2 || JSON.stringify(left2, setReplacer) === JSON.stringify(right2, setReplacer);
           }
           //#endregion Public Methods
@@ -26248,7 +26267,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const resolveBase64 = (value2) => {
       const prefix2 = "data:image";
       if (Array.isArray(value2)) {
-        return value2.map((v) => resolveBase64(v));
+        return value2.map((v2) => resolveBase64(v2));
       }
       if (value2 && typeof value2 === "object") {
         const resolvedObject = {};
@@ -42539,8 +42558,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         min: Math.min,
         round: Math.round,
         sqrt: Math.sqrt,
-        exists: (v) => v !== void 0 && v !== null,
-        empty: (v) => v === void 0 || v === null || v === "" || Array.isArray(v) && v.length === 0
+        exists: (v2) => v2 !== void 0 && v2 !== null,
+        empty: (v2) => v2 === void 0 || v2 === null || v2 === "" || Array.isArray(v2) && v2.length === 0
       };
       if (extraFunctions) {
         for (const name2 of Object.keys(extraFunctions)) {
@@ -43218,7 +43237,8 @@ categories: ${categories.join(" ")}`;
       const collapsed2 = useStore((state) => state.sample.collapsedEvents);
       const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
       return reactExports.useMemo(() => {
-        const isCollapsed = collapsed2 !== null && collapsed2[scope][id] === true;
+        var _a2;
+        const isCollapsed = collapsed2 !== null && ((_a2 = collapsed2[scope]) == null ? void 0 : _a2[id]) === true;
         const set2 = (value2) => {
           log$1.debug("Set collapsed", id, value2);
           collapseEvent(scope, id, value2);
@@ -45449,7 +45469,7 @@ categories: ${categories.join(" ")}`;
     function ln(t2) {
       return () => t2;
     }
-    function co(t2) {
+    function lo(t2) {
       t2();
     }
     function ne(t2, e) {
@@ -45458,7 +45478,7 @@ categories: ${categories.join(" ")}`;
     function cn(t2, e) {
       return () => t2(e);
     }
-    function kn(t2, e) {
+    function co(t2, e) {
       return (n) => t2(e, n);
     }
     function Me(t2) {
@@ -45466,12 +45486,12 @@ categories: ${categories.join(" ")}`;
     }
     function uo(...t2) {
       return () => {
-        t2.map(co);
+        t2.map(lo);
       };
     }
     function Yt() {
     }
-    function ye(t2, e) {
+    function ve(t2, e) {
       return e(t2), t2;
     }
     function ao(t2, e) {
@@ -45489,13 +45509,13 @@ categories: ${categories.join(" ")}`;
     function We(t2) {
       t2(qt);
     }
-    function lt(t2) {
+    function st(t2) {
       return t2(En);
     }
-    function F(t2, e) {
-      return K(t2, kn(e, we));
+    function O(t2, e) {
+      return K(t2, co(e, we));
     }
-    function Rt(t2, e) {
+    function bt(t2, e) {
       const n = t2(zt, (o) => {
         n(), e(o);
       });
@@ -45526,7 +45546,7 @@ categories: ${categories.join(" ")}`;
     function E(t2) {
       return (e) => ne(e, t2);
     }
-    function vt$1(t2) {
+    function yt(t2) {
       return (e) => () => {
         e(t2);
       };
@@ -45543,7 +45563,7 @@ categories: ${categories.join(" ")}`;
         }
       };
     }
-    function bt(t2, e) {
+    function Rt(t2, e) {
       return (n) => (o) => {
         n(e = t2(e, o));
       };
@@ -45561,15 +45581,15 @@ categories: ${categories.join(" ")}`;
         }, t2));
       };
     }
-    function G(...t2) {
+    function _(...t2) {
       const e = new Array(t2.length);
       let n = 0, o = null;
       const r2 = Math.pow(2, t2.length) - 1;
       return t2.forEach((s, i2) => {
         const l = Math.pow(2, i2);
         K(s, (c2) => {
-          const u = n;
-          n = n | l, e[i2] = c2, u !== r2 && n === r2 && o && (o(), o = null);
+          const a = n;
+          n = n | l, e[i2] = c2, a !== r2 && n === r2 && o && (o(), o = null);
         });
       }), (s) => (i2) => {
         const l = () => {
@@ -45594,7 +45614,7 @@ categories: ${categories.join(" ")}`;
         }
       };
     }
-    function y(t2) {
+    function v(t2) {
       let e = t2;
       const n = $();
       return (o, r2) => {
@@ -45613,7 +45633,7 @@ categories: ${categories.join(" ")}`;
       };
     }
     function ct(t2, e) {
-      return ye(y(e), (n) => F(t2, n));
+      return ve(v(e), (n) => O(t2, n));
     }
     function $() {
       const t2 = [];
@@ -45635,8 +45655,8 @@ categories: ${categories.join(" ")}`;
         }
       };
     }
-    function pt(t2) {
-      return ye($(), (e) => F(t2, e));
+    function ht(t2) {
+      return ve($(), (e) => O(t2, e));
     }
     function U(t2, e = [], { singleton: n } = { singleton: true }) {
       return {
@@ -45689,7 +45709,7 @@ categories: ${categories.join(" ")}`;
         }
       };
     }
-    var ht = /* @__PURE__ */ ((t2) => (t2[t2.DEBUG = 0] = "DEBUG", t2[t2.INFO = 1] = "INFO", t2[t2.WARN = 2] = "WARN", t2[t2.ERROR = 3] = "ERROR", t2))(ht || {});
+    var mt = /* @__PURE__ */ ((t2) => (t2[t2.DEBUG = 0] = "DEBUG", t2[t2.INFO = 1] = "INFO", t2[t2.WARN = 2] = "WARN", t2[t2.ERROR = 3] = "ERROR", t2))(mt || {});
     const go = {
       0: "debug",
       3: "error",
@@ -45697,14 +45717,14 @@ categories: ${categories.join(" ")}`;
       2: "warn"
     }, Io = () => typeof globalThis > "u" ? window : globalThis, Vt$1 = U(
       () => {
-        const t2 = y(
+        const t2 = v(
           3
           /* ERROR */
         );
         return {
-          log: y((n, o, r2 = 1) => {
+          log: v((n, o, r2 = 1) => {
             var i2;
-            const s = (i2 = Io().VIRTUOSO_LOG_LEVEL) != null ? i2 : lt(t2);
+            const s = (i2 = Io().VIRTUOSO_LOG_LEVEL) != null ? i2 : st(t2);
             r2 >= s && console[go[r2]](
               "%creact-virtuoso: %c%s %o",
               "color: #0253b3; font-weight: bold",
@@ -45720,48 +45740,45 @@ categories: ${categories.join(" ")}`;
       { singleton: true }
     );
     function Ht(t2, e, n) {
-      return _e(t2, e, n).callbackRef;
+      return Ge(t2, e, n).callbackRef;
     }
-    function _e(t2, e, n) {
+    function Ge(t2, e, n) {
       const o = H.useRef(null);
-      let r2 = (s) => {
+      let r2 = (i2) => {
       };
-      if (typeof ResizeObserver < "u") {
-        const s = H.useMemo(() => new ResizeObserver((i2) => {
-          const l = () => {
-            const c2 = i2[0].target;
-            c2.offsetParent !== null && t2(c2);
-          };
-          n ? l() : requestAnimationFrame(l);
-        }), [t2]);
-        r2 = (i2) => {
-          i2 && e ? (s.observe(i2), o.current = i2) : (o.current && s.unobserve(o.current), o.current = null);
+      const s = H.useMemo(() => typeof ResizeObserver < "u" ? new ResizeObserver((i2) => {
+        const l = () => {
+          const c2 = i2[0].target;
+          c2.offsetParent !== null && t2(c2);
         };
-      }
-      return { callbackRef: r2, ref: o };
+        n ? l() : requestAnimationFrame(l);
+      }) : null, [t2, n]);
+      return r2 = (i2) => {
+        i2 && e ? (s == null || s.observe(i2), o.current = i2) : (o.current && (s == null || s.unobserve(o.current)), o.current = null);
+      }, { callbackRef: r2, ref: o };
     }
-    function On(t2, e, n, o, r2, s, i2, l, c2) {
-      const u = H.useCallback(
-        (f) => {
-          const S2 = So(f.children, e, l ? "offsetWidth" : "offsetHeight", r2);
-          let p = f.parentElement;
-          for (; !p.dataset.virtuosoScroller; )
-            p = p.parentElement;
-          const m = p.lastElementChild.dataset.viewportType === "window";
-          let w;
-          m && (w = p.ownerDocument.defaultView);
-          const I = i2 ? l ? i2.scrollLeft : i2.scrollTop : m ? l ? w.scrollX || w.document.documentElement.scrollLeft : w.scrollY || w.document.documentElement.scrollTop : l ? p.scrollLeft : p.scrollTop, C2 = i2 ? l ? i2.scrollWidth : i2.scrollHeight : m ? l ? w.document.documentElement.scrollWidth : w.document.documentElement.scrollHeight : l ? p.scrollWidth : p.scrollHeight, g = i2 ? l ? i2.offsetWidth : i2.offsetHeight : m ? l ? w.innerWidth : w.innerHeight : l ? p.offsetWidth : p.offsetHeight;
+    function kn(t2, e, n, o, r2, s, i2, l, c2) {
+      const a = H.useCallback(
+        (p) => {
+          const I = So(p.children, e, l ? "offsetWidth" : "offsetHeight", r2);
+          let h = p.parentElement;
+          for (; !h.dataset.virtuosoScroller; )
+            h = h.parentElement;
+          const f = h.lastElementChild.dataset.viewportType === "window";
+          let C2;
+          f && (C2 = h.ownerDocument.defaultView);
+          const w = i2 ? l ? i2.scrollLeft : i2.scrollTop : f ? l ? C2.scrollX || C2.document.documentElement.scrollLeft : C2.scrollY || C2.document.documentElement.scrollTop : l ? h.scrollLeft : h.scrollTop, S2 = i2 ? l ? i2.scrollWidth : i2.scrollHeight : f ? l ? C2.document.documentElement.scrollWidth : C2.document.documentElement.scrollHeight : l ? h.scrollWidth : h.scrollHeight, m = i2 ? l ? i2.offsetWidth : i2.offsetHeight : f ? l ? C2.innerWidth : C2.innerHeight : l ? h.offsetWidth : h.offsetHeight;
           o({
-            scrollHeight: C2,
-            scrollTop: Math.max(I, 0),
-            viewportHeight: g
+            scrollHeight: S2,
+            scrollTop: Math.max(w, 0),
+            viewportHeight: m
           }), s == null || s(
-            l ? dn("column-gap", getComputedStyle(f).columnGap, r2) : dn("row-gap", getComputedStyle(f).rowGap, r2)
-          ), S2 !== null && t2(S2);
+            l ? dn("column-gap", getComputedStyle(p).columnGap, r2) : dn("row-gap", getComputedStyle(p).rowGap, r2)
+          ), I !== null && t2(I);
         },
-        [t2, e, r2, s, i2, o]
+        [t2, e, r2, s, i2, o, l]
       );
-      return _e(u, n, c2);
+      return Ge(a, n, c2);
     }
     function So(t2, e, n, o) {
       const r2 = t2.length;
@@ -45772,90 +45789,91 @@ categories: ${categories.join(" ")}`;
         const l = t2.item(i2);
         if (l.dataset.index === void 0)
           continue;
-        const c2 = parseInt(l.dataset.index), u = parseFloat(l.dataset.knownSize), f = e(l, n);
-        if (f === 0 && o("Zero-sized element, this should not happen", { child: l }, ht.ERROR), f === u)
+        const c2 = parseInt(l.dataset.index), a = parseFloat(l.dataset.knownSize), p = e(l, n);
+        if (p === 0 && o("Zero-sized element, this should not happen", { child: l }, mt.ERROR), p === a)
           continue;
-        const S2 = s[s.length - 1];
-        s.length === 0 || S2.size !== f || S2.endIndex !== c2 - 1 ? s.push({ endIndex: c2, size: f, startIndex: c2 }) : s[s.length - 1].endIndex++;
+        const I = s[s.length - 1];
+        s.length === 0 || I.size !== p || I.endIndex !== c2 - 1 ? s.push({ endIndex: c2, size: p, startIndex: c2 }) : s[s.length - 1].endIndex++;
       }
       return s;
     }
     function dn(t2, e, n) {
-      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
+      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, mt.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
-    function Ge(t2, e, n) {
+    function _e(t2, e, n) {
       const o = H.useRef(null), r2 = H.useCallback(
         (c2) => {
           if (!(c2 != null && c2.offsetParent))
             return;
-          const u = c2.getBoundingClientRect(), f = u.width;
-          let S2, p;
+          const a = c2.getBoundingClientRect(), p = a.width;
+          let I, h;
           if (e) {
-            const m = e.getBoundingClientRect(), w = u.top - m.top;
-            p = m.height - Math.max(0, w), S2 = w + e.scrollTop;
+            const f = e.getBoundingClientRect(), C2 = a.top - f.top;
+            h = f.height - Math.max(0, C2), I = C2 + e.scrollTop;
           } else {
-            const m = i2.current.ownerDocument.defaultView;
-            p = m.innerHeight - Math.max(0, u.top), S2 = u.top + m.scrollY;
+            const f = i2.current.ownerDocument.defaultView;
+            h = f.innerHeight - Math.max(0, a.top), I = a.top + f.scrollY;
           }
           o.current = {
-            offsetTop: S2,
-            visibleHeight: p,
-            visibleWidth: f
+            offsetTop: I,
+            visibleHeight: h,
+            visibleWidth: p
           }, t2(o.current);
         },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [t2, e]
-      ), { callbackRef: s, ref: i2 } = _e(r2, true, n), l = H.useCallback(() => {
+      ), { callbackRef: s, ref: i2 } = Ge(r2, true, n), l = H.useCallback(() => {
         r2(i2.current);
       }, [r2, i2]);
       return H.useEffect(() => {
         var c2;
         if (e) {
           e.addEventListener("scroll", l);
-          const u = new ResizeObserver(() => {
+          const a = new ResizeObserver(() => {
             requestAnimationFrame(l);
           });
-          return u.observe(e), () => {
-            e.removeEventListener("scroll", l), u.unobserve(e);
+          return a.observe(e), () => {
+            e.removeEventListener("scroll", l), a.unobserve(e);
           };
         } else {
-          const u = (c2 = i2.current) == null ? void 0 : c2.ownerDocument.defaultView;
-          return u == null || u.addEventListener("scroll", l), u == null || u.addEventListener("resize", l), () => {
-            u == null || u.removeEventListener("scroll", l), u == null || u.removeEventListener("resize", l);
+          const a = (c2 = i2.current) == null ? void 0 : c2.ownerDocument.defaultView;
+          return a == null || a.addEventListener("scroll", l), a == null || a.addEventListener("resize", l), () => {
+            a == null || a.removeEventListener("scroll", l), a == null || a.removeEventListener("resize", l);
           };
         }
-      }, [l, e]), s;
+      }, [l, e, i2]), s;
     }
     const at = U(
       () => {
-        const t2 = $(), e = $(), n = y(0), o = $(), r2 = y(0), s = $(), i2 = $(), l = y(0), c2 = y(0), u = y(0), f = y(0), S2 = $(), p = $(), m = y(false), w = y(false), I = y(false);
-        return F(
+        const t2 = $(), e = $(), n = v(0), o = $(), r2 = v(0), s = $(), i2 = $(), l = v(0), c2 = v(0), a = v(0), p = v(0), I = $(), h = $(), f = v(false), C2 = v(false), w = v(false);
+        return O(
           x$1(
             t2,
-            E(({ scrollTop: C2 }) => C2)
+            E(({ scrollTop: S2 }) => S2)
           ),
           e
-        ), F(
+        ), O(
           x$1(
             t2,
-            E(({ scrollHeight: C2 }) => C2)
+            E(({ scrollHeight: S2 }) => S2)
           ),
           i2
-        ), F(e, r2), {
+        ), O(e, r2), {
           deviation: n,
-          fixedFooterHeight: u,
+          fixedFooterHeight: a,
           fixedHeaderHeight: c2,
-          footerHeight: f,
+          footerHeight: p,
           headerHeight: l,
-          horizontalDirection: w,
-          scrollBy: p,
+          horizontalDirection: C2,
+          scrollBy: h,
           // input
           scrollContainerState: t2,
           scrollHeight: i2,
-          scrollingInProgress: m,
+          scrollingInProgress: f,
           // signals
-          scrollTo: S2,
+          scrollTo: I,
           scrollTop: e,
-          skipAnimationFrameInResizeObserver: I,
+          skipAnimationFrameInResizeObserver: w,
           smoothScrollTargetReached: o,
           // state
           statefulScrollTop: r2,
@@ -45895,13 +45913,13 @@ categories: ${categories.join(" ")}`;
       }
       return Ct(t2.l, e, n);
     }
-    function mt(t2, e, n) {
-      return j(t2) ? Vn(e, n, 1) : e === t2.k ? ot(t2, { k: e, v: n }) : e < t2.k ? fn(ot(t2, { l: mt(t2.l, e, n) })) : fn(ot(t2, { r: mt(t2.r, e, n) }));
+    function pt(t2, e, n) {
+      return j(t2) ? zn(e, n, 1) : e === t2.k ? ot(t2, { k: e, v: n }) : e < t2.k ? fn(ot(t2, { l: pt(t2.l, e, n) })) : fn(ot(t2, { r: pt(t2.r, e, n) }));
     }
     function Ut() {
       return oe;
     }
-    function ve(t2, e, n) {
+    function ye(t2, e, n) {
       if (j(t2))
         return [];
       const o = Ct(t2, e)[0];
@@ -45916,13 +45934,13 @@ categories: ${categories.join(" ")}`;
         if (j(r2))
           return o;
         {
-          const [s, i2] = zn(o);
-          return ge(ot(t2, { k: s, l: Ln(o), v: i2 }));
+          const [s, i2] = Ln(o);
+          return ge(ot(t2, { k: s, l: On(o), v: i2 }));
         }
       } else return e < n ? ge(ot(t2, { l: Le(o, e) })) : ge(ot(t2, { r: Le(r2, e) }));
     }
-    function _t(t2) {
-      return j(t2) ? [] : [..._t(t2.l), { k: t2.k, v: t2.v }, ..._t(t2.r)];
+    function Gt(t2) {
+      return j(t2) ? [] : [...Gt(t2.l), { k: t2.k, v: t2.v }, ...Gt(t2.r)];
     }
     function ze(t2, e, n) {
       if (j(t2))
@@ -45937,7 +45955,7 @@ categories: ${categories.join(" ")}`;
         return t2;
       if (n > o.lvl + 1) {
         if (Ee(e))
-          return Pn(ot(t2, { lvl: n - 1 }));
+          return Vn(ot(t2, { lvl: n - 1 }));
         if (!j(e) && !j(e.r))
           return ot(e.r, {
             l: ot(e, { r: e.r.l }),
@@ -45966,7 +45984,7 @@ categories: ${categories.join(" ")}`;
       }
     }
     function ot(t2, e) {
-      return Vn(
+      return zn(
         e.k !== void 0 ? e.k : t2.k,
         e.v !== void 0 ? e.v : t2.v,
         e.lvl !== void 0 ? e.lvl : t2.lvl,
@@ -45974,22 +45992,22 @@ categories: ${categories.join(" ")}`;
         e.r !== void 0 ? e.r : t2.r
       );
     }
-    function Ln(t2) {
-      return j(t2.r) ? t2.l : ge(ot(t2, { r: Ln(t2.r) }));
+    function On(t2) {
+      return j(t2.r) ? t2.l : ge(ot(t2, { r: On(t2.r) }));
     }
     function Ee(t2) {
       return j(t2) || t2.lvl > t2.r.lvl;
     }
-    function zn(t2) {
-      return j(t2.r) ? [t2.k, t2.v] : zn(t2.r);
+    function Ln(t2) {
+      return j(t2.r) ? [t2.k, t2.v] : Ln(t2.r);
     }
-    function Vn(t2, e, n, o = oe, r2 = oe) {
+    function zn(t2, e, n, o = oe, r2 = oe) {
       return { k: t2, l: o, lvl: n, r: r2, v: e };
     }
     function fn(t2) {
-      return Ve(Pn(t2));
+      return Ve(Vn(t2));
     }
-    function Pn(t2) {
+    function Vn(t2) {
       const { l: e } = t2;
       return !j(e) && e.lvl === t2.lvl ? ot(e, { r: ot(t2, { l: e.r }) }) : t2;
     }
@@ -46000,18 +46018,18 @@ categories: ${categories.join(" ")}`;
     function xo(t2) {
       return Fn(t2, ({ k: e, v: n }) => ({ index: e, value: n }));
     }
-    function An(t2, e) {
+    function Pn(t2, e) {
       return !!(t2 && t2.startIndex === e.startIndex && t2.endIndex === e.endIndex);
     }
     function se(t2, e) {
       return !!(t2 && t2[0] === e[0] && t2[1] === e[1]);
     }
     const Ne = U(
-      () => ({ recalcInProgress: y(false) }),
+      () => ({ recalcInProgress: v(false) }),
       [],
       { singleton: true }
     );
-    function Mn(t2, e, n) {
+    function An(t2, e, n) {
       return t2[Se(t2, e, n)];
     }
     function Se(t2, e, n, o = 0) {
@@ -46039,7 +46057,7 @@ categories: ${categories.join(" ")}`;
     function wt(t2, e) {
       return Math.round(t2.getBoundingClientRect()[e]);
     }
-    function be(t2) {
+    function Re(t2) {
       return !j(t2.groupOffsetTree);
     }
     function De({ index: t2 }, e) {
@@ -46061,75 +46079,75 @@ categories: ${categories.join(" ")}`;
       for (const o of e) {
         const { endIndex: r2, size: s, startIndex: i2 } = o;
         if (n = Math.min(n, i2), j(t2)) {
-          t2 = mt(t2, 0, s);
+          t2 = pt(t2, 0, s);
           continue;
         }
-        const l = ve(t2, i2 - 1, r2 + 1);
-        if (l.some(ko(o)))
+        const l = ye(t2, i2 - 1, r2 + 1);
+        if (l.some(Bo(o)))
           continue;
-        let c2 = false, u = false;
-        for (const { end: f, start: S2, value: p } of l)
-          c2 ? (r2 >= S2 || s === p) && (t2 = Le(t2, S2)) : (u = p !== s, c2 = true), f > r2 && r2 >= S2 && p !== s && (t2 = mt(t2, r2 + 1, p));
-        u && (t2 = mt(t2, i2, s));
+        let c2 = false, a = false;
+        for (const { end: p, start: I, value: h } of l)
+          c2 ? (r2 >= I || s === h) && (t2 = Le(t2, I)) : (a = h !== s, c2 = true), p > r2 && r2 >= I && h !== s && (t2 = pt(t2, r2 + 1, h));
+        a && (t2 = pt(t2, i2, s));
       }
       return [t2, n];
     }
-    function yo(t2) {
+    function vo(t2) {
       return typeof t2.groupIndex < "u";
     }
-    function vo({ offset: t2 }, e) {
+    function yo({ offset: t2 }, e) {
       return e === t2 ? 0 : e < t2 ? -1 : 1;
     }
     function ie$2(t2, e, n) {
       if (e.length === 0)
         return 0;
-      const { index: o, offset: r2, size: s } = Mn(e, t2, De), i2 = t2 - o, l = s * i2 + (i2 - 1) * n + r2;
+      const { index: o, offset: r2, size: s } = An(e, t2, De), i2 = t2 - o, l = s * i2 + (i2 - 1) * n + r2;
       return l > 0 ? l + n : l;
     }
-    function Wn(t2, e) {
-      if (!be(e))
+    function Mn(t2, e) {
+      if (!Re(e))
         return t2;
       let n = 0;
       for (; e.groupIndices[n] <= t2 + n; )
         n++;
       return t2 + n;
     }
-    function _n(t2, e, n) {
-      if (yo(t2))
+    function Wn(t2, e, n) {
+      if (vo(t2))
         return e.groupIndices[t2.groupIndex] + 1;
       {
         const o = t2.index === "LAST" ? n : t2.index;
-        let r2 = Wn(o, e);
+        let r2 = Mn(o, e);
         return r2 = Math.max(0, r2, Math.min(n, r2)), r2;
       }
     }
-    function bo(t2, e, n, o = 0) {
-      return o > 0 && (e = Math.max(e, Mn(t2, o, De).offset)), Fn(To(t2, e, n, vo), Eo);
+    function Ro(t2, e, n, o = 0) {
+      return o > 0 && (e = Math.max(e, An(t2, o, De).offset)), Fn(To(t2, e, n, yo), Eo);
     }
-    function Ro(t2, [e, n, o, r2]) {
-      e.length > 0 && o("received item sizes", e, ht.DEBUG);
+    function bo(t2, [e, n, o, r2]) {
+      e.length > 0 && o("received item sizes", e, mt.DEBUG);
       const s = t2.sizeTree;
       let i2 = s, l = 0;
       if (n.length > 0 && j(s) && e.length === 2) {
-        const p = e[0].size, m = e[1].size;
-        i2 = n.reduce((w, I) => mt(mt(w, I, p), I + 1, m), i2);
+        const h = e[0].size, f = e[1].size;
+        i2 = n.reduce((C2, w) => pt(pt(C2, w, h), w + 1, f), i2);
       } else
         [i2, l] = wo(i2, e);
       if (i2 === s)
         return t2;
-      const { lastIndex: c2, lastOffset: u, lastSize: f, offsetTree: S2 } = Pe(t2.offsetTree, l, i2, r2);
+      const { lastIndex: c2, lastOffset: a, lastSize: p, offsetTree: I } = Pe(t2.offsetTree, l, i2, r2);
       return {
         groupIndices: n,
-        groupOffsetTree: n.reduce((p, m) => mt(p, m, ie$2(m, S2, r2)), Ut()),
+        groupOffsetTree: n.reduce((h, f) => pt(h, f, ie$2(f, I, r2)), Ut()),
         lastIndex: c2,
-        lastOffset: u,
-        lastSize: f,
-        offsetTree: S2,
+        lastOffset: a,
+        lastSize: p,
+        offsetTree: I,
         sizeTree: i2
       };
     }
     function Ho(t2) {
-      return _t(t2).map(({ k: e, v: n }, o, r2) => {
+      return Gt(t2).map(({ k: e, v: n }, o, r2) => {
         const s = r2[o + 1];
         return { endIndex: s ? s.k - 1 : 1 / 0, size: n, startIndex: e };
       });
@@ -46144,17 +46162,17 @@ categories: ${categories.join(" ")}`;
       let r2 = t2, s = 0, i2 = 0, l = 0, c2 = 0;
       if (e !== 0) {
         c2 = Se(r2, e - 1, De), l = r2[c2].offset;
-        const f = Ct(n, e - 1);
-        s = f[0], i2 = f[1], r2.length && r2[c2].size === Ct(n, e)[1] && (c2 -= 1), r2 = r2.slice(0, c2 + 1);
+        const p = Ct(n, e - 1);
+        s = p[0], i2 = p[1], r2.length && r2[c2].size === Ct(n, e)[1] && (c2 -= 1), r2 = r2.slice(0, c2 + 1);
       } else
         r2 = [];
-      for (const { start: u, value: f } of ve(n, e, 1 / 0)) {
-        const S2 = u - s, p = S2 * i2 + l + S2 * o;
+      for (const { start: a, value: p } of ye(n, e, 1 / 0)) {
+        const I = a - s, h = I * i2 + l + I * o;
         r2.push({
-          index: u,
-          offset: p,
-          size: f
-        }), s = u, l = p, i2 = f;
+          index: a,
+          offset: h,
+          size: p
+        }), s = a, l = h, i2 = p;
       }
       return {
         lastIndex: s,
@@ -46166,169 +46184,169 @@ categories: ${categories.join(" ")}`;
     function Eo(t2) {
       return { index: t2.index, value: t2 };
     }
-    function ko(t2) {
+    function Bo(t2) {
       const { endIndex: e, size: n, startIndex: o } = t2;
       return (r2) => r2.start === o && (r2.end === e || r2.end === 1 / 0) && r2.value === n;
     }
-    const Bo = {
+    const ko = {
       offsetHeight: "height",
       offsetWidth: "width"
     }, Et = U(
       ([{ log: t2 }, { recalcInProgress: e }]) => {
-        const n = $(), o = $(), r2 = ct(o, 0), s = $(), i2 = $(), l = y(0), c2 = y([]), u = y(void 0), f = y(void 0), S2 = y((h, d) => wt(h, Bo[d])), p = y(void 0), m = y(0), w = Co(), I = ct(
-          x$1(n, G(c2, t2, m), bt(Ro, w), Y()),
-          w
-        ), C2 = ct(
+        const n = $(), o = $(), r2 = ct(o, 0), s = $(), i2 = $(), l = v(0), c2 = v([]), a = v(void 0), p = v(void 0), I = v((g, d) => wt(g, ko[d])), h = v(void 0), f = v(0), C2 = Co(), w = ct(
+          x$1(n, _(c2, t2, f), Rt(bo, C2), Y()),
+          C2
+        ), S2 = ct(
           x$1(
             c2,
             Y(),
-            bt((h, d) => ({ current: d, prev: h.current }), {
+            Rt((g, d) => ({ current: d, prev: g.current }), {
               current: [],
               prev: []
             }),
-            E(({ prev: h }) => h)
+            E(({ prev: g }) => g)
           ),
           []
         );
-        F(
+        O(
           x$1(
             c2,
-            P((h) => h.length > 0),
-            G(I, m),
-            E(([h, d, R]) => {
-              const B = h.reduce((O, L, V) => mt(O, L, ie$2(L, d.offsetTree, R) || V), Ut());
+            P((g) => g.length > 0),
+            _(w, f),
+            E(([g, d, b]) => {
+              const k = g.reduce((F, L, V) => pt(F, L, ie$2(L, d.offsetTree, b) || V), Ut());
               return {
                 ...d,
-                groupIndices: h,
-                groupOffsetTree: B
+                groupIndices: g,
+                groupOffsetTree: k
               };
             })
           ),
-          I
-        ), F(
+          w
+        ), O(
           x$1(
             o,
-            G(I),
-            P(([h, { lastIndex: d }]) => h < d),
-            E(([h, { lastIndex: d, lastSize: R }]) => [
+            _(w),
+            P(([g, { lastIndex: d }]) => g < d),
+            E(([g, { lastIndex: d, lastSize: b }]) => [
               {
                 endIndex: d,
-                size: R,
-                startIndex: h
+                size: b,
+                startIndex: g
               }
             ])
           ),
           n
-        ), F(u, f);
-        const g = ct(
+        ), O(a, p);
+        const m = ct(
           x$1(
-            u,
-            E((h) => h === void 0)
+            a,
+            E((g) => g === void 0)
           ),
           true
         );
-        F(
+        O(
           x$1(
-            f,
-            P((h) => h !== void 0 && j(lt(I).sizeTree)),
-            E((h) => [{ endIndex: 0, size: h, startIndex: 0 }])
+            p,
+            P((g) => g !== void 0 && j(st(w).sizeTree)),
+            E((g) => [{ endIndex: 0, size: g, startIndex: 0 }])
           ),
           n
         );
-        const a = pt(
+        const u = ht(
           x$1(
             n,
-            G(I),
-            bt(
-              ({ sizes: h }, [d, R]) => ({
-                changed: R !== h,
-                sizes: R
+            _(w),
+            Rt(
+              ({ sizes: g }, [d, b]) => ({
+                changed: b !== g,
+                sizes: b
               }),
-              { changed: false, sizes: w }
+              { changed: false, sizes: C2 }
             ),
-            E((h) => h.changed)
+            E((g) => g.changed)
           )
         );
         K(
           x$1(
             l,
-            bt(
-              (h, d) => ({ diff: h.prev - d, prev: d }),
+            Rt(
+              (g, d) => ({ diff: g.prev - d, prev: d }),
               { diff: 0, prev: 0 }
             ),
-            E((h) => h.diff)
+            E((g) => g.diff)
           ),
-          (h) => {
-            const { groupIndices: d } = lt(I);
-            if (h > 0)
-              W(e, true), W(s, h + mn(h, d));
-            else if (h < 0) {
-              const R = lt(C2);
-              R.length > 0 && (h -= mn(-h, R)), W(i2, h);
+          (g) => {
+            const { groupIndices: d } = st(w);
+            if (g > 0)
+              W(e, true), W(s, g + mn(g, d));
+            else if (g < 0) {
+              const b = st(S2);
+              b.length > 0 && (g -= mn(-g, b)), W(i2, g);
             }
           }
-        ), K(x$1(l, G(t2)), ([h, d]) => {
-          h < 0 && d(
+        ), K(x$1(l, _(t2)), ([g, d]) => {
+          g < 0 && d(
             "`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value",
             { firstItemIndex: l },
-            ht.ERROR
+            mt.ERROR
           );
         });
-        const T2 = pt(s);
-        F(
+        const T2 = ht(s);
+        O(
           x$1(
             s,
-            G(I),
-            E(([h, d]) => {
-              const R = d.groupIndices.length > 0, B = [], O = d.lastSize;
-              if (R) {
+            _(w),
+            E(([g, d]) => {
+              const b = d.groupIndices.length > 0, k = [], F = d.lastSize;
+              if (b) {
                 const L = re(d.sizeTree, 0);
                 let V = 0, D2 = 0;
-                for (; V < h; ) {
-                  const k = d.groupIndices[D2], q = d.groupIndices.length === D2 + 1 ? 1 / 0 : d.groupIndices[D2 + 1] - k - 1;
-                  B.push({
-                    endIndex: k,
+                for (; V < g; ) {
+                  const B = d.groupIndices[D2], q = d.groupIndices.length === D2 + 1 ? 1 / 0 : d.groupIndices[D2 + 1] - B - 1;
+                  k.push({
+                    endIndex: B,
                     size: L,
-                    startIndex: k
-                  }), B.push({
-                    endIndex: k + 1 + q - 1,
-                    size: O,
-                    startIndex: k + 1
+                    startIndex: B
+                  }), k.push({
+                    endIndex: B + 1 + q - 1,
+                    size: F,
+                    startIndex: B + 1
                   }), D2++, V += q + 1;
                 }
-                const J = _t(d.sizeTree);
-                return V !== h && J.shift(), J.reduce(
-                  (k, { k: q, v: st }) => {
-                    let dt = k.ranges;
-                    return k.prevSize !== 0 && (dt = [
-                      ...k.ranges,
+                const J = Gt(d.sizeTree);
+                return V !== g && J.shift(), J.reduce(
+                  (B, { k: q, v: it }) => {
+                    let dt = B.ranges;
+                    return B.prevSize !== 0 && (dt = [
+                      ...B.ranges,
                       {
-                        endIndex: q + h - 1,
-                        size: k.prevSize,
-                        startIndex: k.prevIndex
+                        endIndex: q + g - 1,
+                        size: B.prevSize,
+                        startIndex: B.prevIndex
                       }
                     ]), {
-                      prevIndex: q + h,
-                      prevSize: st,
+                      prevIndex: q + g,
+                      prevSize: it,
                       ranges: dt
                     };
                   },
                   {
-                    prevIndex: h,
+                    prevIndex: g,
                     prevSize: 0,
-                    ranges: B
+                    ranges: k
                   }
                 ).ranges;
               }
-              return _t(d.sizeTree).reduce(
+              return Gt(d.sizeTree).reduce(
                 (L, { k: V, v: D2 }) => ({
-                  prevIndex: V + h,
+                  prevIndex: V + g,
                   prevSize: D2,
-                  ranges: [...L.ranges, { endIndex: V + h - 1, size: L.prevSize, startIndex: L.prevIndex }]
+                  ranges: [...L.ranges, { endIndex: V + g - 1, size: L.prevSize, startIndex: L.prevIndex }]
                 }),
                 {
                   prevIndex: 0,
-                  prevSize: O,
+                  prevSize: F,
                   ranges: []
                 }
               ).ranges;
@@ -46336,80 +46354,80 @@ categories: ${categories.join(" ")}`;
           ),
           n
         );
-        const b = pt(
+        const R = ht(
           x$1(
             i2,
-            G(I, m),
-            E(([h, { offsetTree: d }, R]) => {
-              const B = -h;
-              return ie$2(B, d, R);
+            _(w, f),
+            E(([g, { offsetTree: d }, b]) => {
+              const k = -g;
+              return ie$2(k, d, b);
             })
           )
         );
-        return F(
+        return O(
           x$1(
             i2,
-            G(I, m),
-            E(([h, d, R]) => {
+            _(w, f),
+            E(([g, d, b]) => {
               if (d.groupIndices.length > 0) {
                 if (j(d.sizeTree))
                   return d;
-                let O = Ut();
-                const L = lt(C2);
+                let F = Ut();
+                const L = st(S2);
                 let V = 0, D2 = 0, J = 0;
-                for (; V < -h; ) {
+                for (; V < -g; ) {
                   J = L[D2];
-                  const k = L[D2 + 1] - J - 1;
-                  D2++, V += k + 1;
+                  const B = L[D2 + 1] - J - 1;
+                  D2++, V += B + 1;
                 }
-                if (O = _t(d.sizeTree).reduce((k, { k: q, v: st }) => mt(k, Math.max(0, q + h), st), O), V !== -h) {
-                  const k = re(d.sizeTree, J);
-                  O = mt(O, 0, k);
-                  const q = Ct(d.sizeTree, -h + 1)[1];
-                  O = mt(O, 1, q);
+                if (F = Gt(d.sizeTree).reduce((B, { k: q, v: it }) => pt(B, Math.max(0, q + g), it), F), V !== -g) {
+                  const B = re(d.sizeTree, J);
+                  F = pt(F, 0, B);
+                  const q = Ct(d.sizeTree, -g + 1)[1];
+                  F = pt(F, 1, q);
                 }
                 return {
                   ...d,
-                  sizeTree: O,
-                  ...Pe(d.offsetTree, 0, O, R)
+                  sizeTree: F,
+                  ...Pe(d.offsetTree, 0, F, b)
                 };
               } else {
-                const O = _t(d.sizeTree).reduce((L, { k: V, v: D2 }) => mt(L, Math.max(0, V + h), D2), Ut());
+                const F = Gt(d.sizeTree).reduce((L, { k: V, v: D2 }) => pt(L, Math.max(0, V + g), D2), Ut());
                 return {
                   ...d,
-                  sizeTree: O,
-                  ...Pe(d.offsetTree, 0, O, R)
+                  sizeTree: F,
+                  ...Pe(d.offsetTree, 0, F, b)
                 };
               }
             })
           ),
-          I
+          w
         ), {
           beforeUnshiftWith: T2,
           // input
-          data: p,
-          defaultItemSize: f,
+          data: h,
+          defaultItemSize: p,
           firstItemIndex: l,
-          fixedItemSize: u,
-          gap: m,
+          fixedItemSize: a,
+          gap: f,
           groupIndices: c2,
-          itemSize: S2,
-          listRefresh: a,
+          itemSize: I,
+          listRefresh: u,
           shiftWith: i2,
-          shiftWithOffset: b,
+          shiftWithOffset: R,
           sizeRanges: n,
           // output
-          sizes: I,
+          sizes: w,
           statefulTotalCount: r2,
           totalCount: o,
-          trackItemSizes: g,
+          trackItemSizes: m,
           unshiftWith: s
         };
       },
       X(Vt$1, Ne),
       { singleton: true }
     );
-    function Oo(t2) {
+    function Fo(t2) {
       return t2.reduce(
         (e, n) => (e.groupIndices.push(e.totalCount), e.totalCount += n + 1, e),
         {
@@ -46420,24 +46438,24 @@ categories: ${categories.join(" ")}`;
     }
     const Gn = U(
       ([{ groupIndices: t2, sizes: e, totalCount: n }, { headerHeight: o, scrollTop: r2 }]) => {
-        const s = $(), i2 = $(), l = pt(x$1(s, E(Oo)));
-        return F(
+        const s = $(), i2 = $(), l = ht(x$1(s, E(Fo)));
+        return O(
           x$1(
             l,
             E((c2) => c2.totalCount)
           ),
           n
-        ), F(
+        ), O(
           x$1(
             l,
             E((c2) => c2.groupIndices)
           ),
           t2
-        ), F(
+        ), O(
           x$1(
             rt(r2, e, o),
-            P(([c2, u]) => be(u)),
-            E(([c2, u, f]) => Ct(u.groupOffsetTree, Math.max(c2 - f, 0), "v")[0]),
+            P(([c2, a]) => Re(a)),
+            E(([c2, a, p]) => Ct(a.groupOffsetTree, Math.max(c2 - p, 0), "v")[0]),
             Y(),
             E((c2) => [c2])
           ),
@@ -46447,7 +46465,7 @@ categories: ${categories.join(" ")}`;
       X(Et, at)
     ), Pt = U(
       ([{ log: t2 }]) => {
-        const e = y(false), n = pt(
+        const e = v(false), n = ht(
           x$1(
             e,
             P((o) => o),
@@ -46455,15 +46473,15 @@ categories: ${categories.join(" ")}`;
           )
         );
         return K(e, (o) => {
-          o && lt(t2)("props updated", {}, ht.DEBUG);
+          o && st(t2)("props updated", {}, mt.DEBUG);
         }), { didMount: n, propsReady: e };
       },
       X(Vt$1),
       { singleton: true }
-    ), Fo = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
-    function Nn(t2) {
+    ), Oo = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
+    function _n(t2) {
       const e = typeof t2 == "number" ? { index: t2 } : t2;
-      return e.align || (e.align = "start"), (!e.behavior || !Fo) && (e.behavior = "auto"), e.offset || (e.offset = 0), e;
+      return e.align || (e.align = "start"), (!e.behavior || !Oo) && (e.behavior = "auto"), e.offset || (e.offset = 0), e;
     }
     const ce = U(
       ([
@@ -46474,55 +46492,55 @@ categories: ${categories.join(" ")}`;
           footerHeight: i2,
           headerHeight: l,
           scrollingInProgress: c2,
-          scrollTo: u,
-          smoothScrollTargetReached: f,
-          viewportHeight: S2
+          scrollTo: a,
+          smoothScrollTargetReached: p,
+          viewportHeight: I
         },
-        { log: p }
+        { log: h }
       ]) => {
-        const m = $(), w = $(), I = y(0);
-        let C2 = null, g = null, a = null;
+        const f = $(), C2 = $(), w = v(0);
+        let S2 = null, m = null, u = null;
         function T2() {
-          C2 && (C2(), C2 = null), a && (a(), a = null), g && (clearTimeout(g), g = null), W(c2, false);
+          S2 && (S2(), S2 = null), u && (u(), u = null), m && (clearTimeout(m), m = null), W(c2, false);
         }
-        return F(
+        return O(
           x$1(
-            m,
-            G(n, S2, o, I, l, i2, p),
-            G(t2, s, r2),
+            f,
+            _(n, I, o, w, l, i2, h),
+            _(t2, s, r2),
             E(
               ([
-                [b, h, d, R, B, O, L, V],
+                [R, g, d, b, k, F, L, V],
                 D2,
                 J,
                 nt
               ]) => {
-                const k = Nn(b), { align: q, behavior: st, offset: dt } = k, St = R - 1, ft = _n(k, h, St);
-                let ut = ie$2(ft, h.offsetTree, D2) + O;
-                q === "end" ? (ut += J + Ct(h.sizeTree, ft)[1] - d + nt, ft === St && (ut += L)) : q === "center" ? ut += (J + Ct(h.sizeTree, ft)[1] - d + nt) / 2 : ut -= B, dt && (ut += dt);
+                const B = _n(R), { align: q, behavior: it, offset: dt } = B, St = b - 1, ft = Wn(B, g, St);
+                let ut = ie$2(ft, g.offsetTree, D2) + F;
+                q === "end" ? (ut += J + Ct(g.sizeTree, ft)[1] - d + nt, ft === St && (ut += L)) : q === "center" ? ut += (J + Ct(g.sizeTree, ft)[1] - d + nt) / 2 : ut -= k, dt && (ut += dt);
                 const At = (xt) => {
-                  T2(), xt ? (V("retrying to scroll to", { location: b }, ht.DEBUG), W(m, b)) : (W(w, true), V("list did not change, scroll successful", {}, ht.DEBUG));
+                  T2(), xt ? (V("retrying to scroll to", { location: R }, mt.DEBUG), W(f, R)) : (W(C2, true), V("list did not change, scroll successful", {}, mt.DEBUG));
                 };
-                if (T2(), st === "smooth") {
+                if (T2(), it === "smooth") {
                   let xt = false;
-                  a = K(e, (Xt) => {
+                  u = K(e, (Xt) => {
                     xt = xt || Xt;
-                  }), C2 = Rt(f, () => {
+                  }), S2 = bt(p, () => {
                     At(xt);
                   });
                 } else
-                  C2 = Rt(x$1(e, Lo(150)), At);
-                return g = setTimeout(() => {
+                  S2 = bt(x$1(e, Lo(150)), At);
+                return m = setTimeout(() => {
                   T2();
-                }, 1200), W(c2, true), V("scrolling from index to", { behavior: st, index: ft, top: ut }, ht.DEBUG), { behavior: st, top: ut };
+                }, 1200), W(c2, true), V("scrolling from index to", { behavior: it, index: ft, top: ut }, mt.DEBUG), { behavior: it, top: ut };
               }
             )
           ),
-          u
+          a
         ), {
-          scrollTargetReached: w,
-          scrollToIndex: m,
-          topListHeight: I
+          scrollTargetReached: C2,
+          scrollToIndex: f,
+          topListHeight: w
         };
       },
       X(Et, at, Vt$1),
@@ -46549,41 +46567,41 @@ categories: ${categories.join(" ")}`;
     }
     const ue = U(
       ([{ defaultItemSize: t2, listRefresh: e, sizes: n }, { scrollTop: o }, { scrollTargetReached: r2, scrollToIndex: s }, { didMount: i2 }]) => {
-        const l = y(true), c2 = y(0), u = y(true);
-        return F(
+        const l = v(true), c2 = v(0), a = v(true);
+        return O(
           x$1(
             i2,
-            G(c2),
-            P(([f, S2]) => !!S2),
-            vt$1(false)
+            _(c2),
+            P(([p, I]) => !!I),
+            yt(false)
           ),
           l
-        ), F(
+        ), O(
           x$1(
             i2,
-            G(c2),
-            P(([f, S2]) => !!S2),
-            vt$1(false)
+            _(c2),
+            P(([p, I]) => !!I),
+            yt(false)
           ),
-          u
+          a
         ), K(
           x$1(
             rt(e, i2),
-            G(l, n, t2, u),
-            P(([[, f], S2, { sizeTree: p }, m, w]) => f && (!j(p) || Me(m)) && !S2 && !w),
-            G(c2)
+            _(l, n, t2, a),
+            P(([[, p], I, { sizeTree: h }, f, C2]) => p && (!j(h) || Me(f)) && !I && !C2),
+            _(c2)
           ),
-          ([, f]) => {
-            Rt(r2, () => {
-              W(u, true);
+          ([, p]) => {
+            bt(r2, () => {
+              W(a, true);
             }), $e(4, () => {
-              Rt(o, () => {
+              bt(o, () => {
                 W(l, true);
-              }), W(s, f);
+              }), W(s, p);
             });
           }
         ), {
-          initialItemFinalLocationReached: u,
+          initialItemFinalLocationReached: a,
           initialTopMostItemIndex: c2,
           scrolledToInitialItem: l
         };
@@ -46591,7 +46609,7 @@ categories: ${categories.join(" ")}`;
       X(Et, at, ce, Pt),
       { singleton: true }
     );
-    function Dn(t2, e) {
+    function Nn(t2, e) {
       return Math.abs(t2 - e) < 1.01;
     }
     const le = "up", te = "down", zo = "none", Vo = {
@@ -46604,36 +46622,36 @@ categories: ${categories.join(" ")}`;
         viewportHeight: 0
       }
     }, Po = 0, ae = U(([{ footerHeight: t2, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r2, viewportHeight: s }]) => {
-      const i2 = y(false), l = y(true), c2 = $(), u = $(), f = y(4), S2 = y(Po), p = ct(
+      const i2 = v(false), l = v(true), c2 = $(), a = $(), p = v(4), I = v(Po), h = ct(
         x$1(
-          an(x$1(A(r2), jt(1), vt$1(true)), x$1(A(r2), jt(1), vt$1(false), un(100))),
+          an(x$1(A(r2), jt(1), yt(true)), x$1(A(r2), jt(1), yt(false), un(100))),
           Y()
         ),
         false
-      ), m = ct(
-        x$1(an(x$1(n, vt$1(true)), x$1(n, vt$1(false), un(200))), Y()),
+      ), f = ct(
+        x$1(an(x$1(n, yt(true)), x$1(n, yt(false), un(200))), Y()),
         false
       );
-      F(
+      O(
         x$1(
-          rt(A(r2), A(S2)),
-          E(([a, T2]) => a <= T2),
+          rt(A(r2), A(I)),
+          E(([u, T2]) => u <= T2),
           Y()
         ),
         l
-      ), F(x$1(l, Lt(50)), u);
-      const w = pt(
+      ), O(x$1(l, Lt(50)), a);
+      const C2 = ht(
         x$1(
-          rt(o, A(s), A(e), A(t2), A(f)),
-          bt((a, [{ scrollHeight: T2, scrollTop: b }, h, d, R, B]) => {
-            const O = b + h - T2 > -B, L = {
+          rt(o, A(s), A(e), A(t2), A(p)),
+          Rt((u, [{ scrollHeight: T2, scrollTop: R }, g, d, b, k]) => {
+            const F = R + g - T2 > -k, L = {
               scrollHeight: T2,
-              scrollTop: b,
-              viewportHeight: h
+              scrollTop: R,
+              viewportHeight: g
             };
-            if (O) {
+            if (F) {
               let D2, J;
-              return b > a.state.scrollTop ? (D2 = "SCROLLED_DOWN", J = a.state.scrollTop - b) : (D2 = "SIZE_DECREASED", J = a.state.scrollTop - b || a.scrollTopDelta), {
+              return R > u.state.scrollTop ? (D2 = "SCROLLED_DOWN", J = u.state.scrollTop - R) : (D2 = "SIZE_DECREASED", J = u.state.scrollTop - R || u.scrollTopDelta), {
                 atBottom: true,
                 atBottomBecause: D2,
                 scrollTopDelta: J,
@@ -46641,99 +46659,99 @@ categories: ${categories.join(" ")}`;
               };
             }
             let V;
-            return L.scrollHeight > a.state.scrollHeight ? V = "SIZE_INCREASED" : h < a.state.viewportHeight ? V = "VIEWPORT_HEIGHT_DECREASING" : b < a.state.scrollTop ? V = "SCROLLING_UPWARDS" : V = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
+            return L.scrollHeight > u.state.scrollHeight ? V = "SIZE_INCREASED" : g < u.state.viewportHeight ? V = "VIEWPORT_HEIGHT_DECREASING" : R < u.state.scrollTop ? V = "SCROLLING_UPWARDS" : V = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
               atBottom: false,
               notAtBottomBecause: V,
               state: L
             };
           }, Vo),
-          Y((a, T2) => a && a.atBottom === T2.atBottom)
+          Y((u, T2) => u && u.atBottom === T2.atBottom)
         )
-      ), I = ct(
+      ), w = ct(
         x$1(
           o,
-          bt(
-            (a, { scrollHeight: T2, scrollTop: b, viewportHeight: h }) => {
-              if (Dn(a.scrollHeight, T2))
+          Rt(
+            (u, { scrollHeight: T2, scrollTop: R, viewportHeight: g }) => {
+              if (Nn(u.scrollHeight, T2))
                 return {
                   changed: false,
                   jump: 0,
                   scrollHeight: T2,
-                  scrollTop: b
+                  scrollTop: R
                 };
               {
-                const d = T2 - (b + h) < 1;
-                return a.scrollTop !== b && d ? {
+                const d = T2 - (R + g) < 1;
+                return u.scrollTop !== R && d ? {
                   changed: true,
-                  jump: a.scrollTop - b,
+                  jump: u.scrollTop - R,
                   scrollHeight: T2,
-                  scrollTop: b
+                  scrollTop: R
                 } : {
                   changed: true,
                   jump: 0,
                   scrollHeight: T2,
-                  scrollTop: b
+                  scrollTop: R
                 };
               }
             },
             { changed: false, jump: 0, scrollHeight: 0, scrollTop: 0 }
           ),
-          P((a) => a.changed),
-          E((a) => a.jump)
+          P((u) => u.changed),
+          E((u) => u.jump)
         ),
         0
       );
-      F(
+      O(
         x$1(
-          w,
-          E((a) => a.atBottom)
+          C2,
+          E((u) => u.atBottom)
         ),
         i2
-      ), F(x$1(i2, Lt(50)), c2);
-      const C2 = y(te);
-      F(
+      ), O(x$1(i2, Lt(50)), c2);
+      const S2 = v(te);
+      O(
         x$1(
           o,
-          E(({ scrollTop: a }) => a),
+          E(({ scrollTop: u }) => u),
           Y(),
-          bt(
-            (a, T2) => lt(m) ? { direction: a.direction, prevScrollTop: T2 } : { direction: T2 < a.prevScrollTop ? le : te, prevScrollTop: T2 },
+          Rt(
+            (u, T2) => st(f) ? { direction: u.direction, prevScrollTop: T2 } : { direction: T2 < u.prevScrollTop ? le : te, prevScrollTop: T2 },
             { direction: te, prevScrollTop: 0 }
           ),
-          E((a) => a.direction)
+          E((u) => u.direction)
         ),
-        C2
-      ), F(x$1(o, Lt(50), vt$1(zo)), C2);
-      const g = y(0);
-      return F(
+        S2
+      ), O(x$1(o, Lt(50), yt(zo)), S2);
+      const m = v(0);
+      return O(
         x$1(
-          p,
-          P((a) => !a),
-          vt$1(0)
+          h,
+          P((u) => !u),
+          yt(0)
         ),
-        g
-      ), F(
+        m
+      ), O(
         x$1(
           r2,
           Lt(100),
-          G(p),
-          P(([a, T2]) => !!T2),
-          bt(([a, T2], [b]) => [T2, b], [0, 0]),
-          E(([a, T2]) => T2 - a)
+          _(h),
+          P(([u, T2]) => !!T2),
+          Rt(([u, T2], [R]) => [T2, R], [0, 0]),
+          E(([u, T2]) => T2 - u)
         ),
-        g
+        m
       ), {
-        atBottomState: w,
+        atBottomState: C2,
         atBottomStateChange: c2,
-        atBottomThreshold: f,
-        atTopStateChange: u,
-        atTopThreshold: S2,
+        atBottomThreshold: p,
+        atTopStateChange: a,
+        atTopThreshold: I,
         isAtBottom: i2,
         isAtTop: l,
-        isScrolling: p,
-        lastJumpDueToItemResize: I,
-        scrollDirection: C2,
-        scrollVelocity: g
+        isScrolling: h,
+        lastJumpDueToItemResize: w,
+        scrollDirection: S2,
+        scrollVelocity: m
       };
     }, X(at)), xe = "top", Te = "bottom", pn = "none";
     function hn(t2, e, n) {
@@ -46745,7 +46763,7 @@ categories: ${categories.join(" ")}`;
     }
     const Ke = U(
       ([{ deviation: t2, fixedHeaderHeight: e, headerHeight: n, scrollTop: o, viewportHeight: r2 }]) => {
-        const s = $(), i2 = y(0), l = y(0), c2 = y(0), u = ct(
+        const s = $(), i2 = v(0), l = v(0), c2 = v(0), a = ct(
           x$1(
             rt(
               A(o),
@@ -46760,26 +46778,26 @@ categories: ${categories.join(" ")}`;
             ),
             E(
               ([
-                f,
-                S2,
                 p,
-                [m, w],
                 I,
-                C2,
-                g,
-                a,
+                h,
+                [f, C2],
+                w,
+                S2,
+                m,
+                u,
                 T2
               ]) => {
-                const b = f - a, h = C2 + g, d = Math.max(p - b, 0);
-                let R = pn;
-                const B = gn(T2, xe), O = gn(T2, Te);
-                return m -= a, m += p + g, w += p + g, w -= a, m > f + h - B && (R = le), w < f - d + S2 + O && (R = te), R !== pn ? [
-                  Math.max(b - p - hn(I, xe, R) - B, 0),
-                  b - d - g + S2 + hn(I, Te, R) + O
+                const R = p - u, g = S2 + m, d = Math.max(h - R, 0);
+                let b = pn;
+                const k = gn(T2, xe), F = gn(T2, Te);
+                return f -= u, f += h + m, C2 += h + m, C2 -= u, f > p + g - k && (b = le), C2 < p - d + I + F && (b = te), b !== pn ? [
+                  Math.max(R - h - hn(w, xe, b) - k, 0),
+                  R - d - m + I + hn(w, Te, b) + F
                 ] : null;
               }
             ),
-            P((f) => f != null),
+            P((p) => p != null),
             Y(se)
           ),
           [0, 0]
@@ -46791,15 +46809,15 @@ categories: ${categories.join(" ")}`;
           overscan: c2,
           topListHeight: i2,
           // output
-          visibleRange: u
+          visibleRange: a
         };
       },
       X(at),
       { singleton: true }
     );
     function Ao(t2, e, n) {
-      if (be(e)) {
-        const o = Wn(t2, e);
+      if (Re(e)) {
+        const o = Mn(t2, e);
         return [
           { index: Ct(e.groupOffsetTree, o)[0], offset: 0, size: 0 },
           { data: n == null ? void 0 : n[0], index: o, offset: 0, size: 0 }
@@ -46807,7 +46825,7 @@ categories: ${categories.join(" ")}`;
       }
       return [{ data: n == null ? void 0 : n[0], index: t2, offset: 0, size: 0 }];
     }
-    const ke = {
+    const Be = {
       bottom: 0,
       firstItemIndex: 0,
       items: [],
@@ -46820,230 +46838,230 @@ categories: ${categories.join(" ")}`;
     };
     function Ie(t2, e, n, o, r2, s) {
       const { lastIndex: i2, lastOffset: l, lastSize: c2 } = r2;
-      let u = 0, f = 0;
+      let a = 0, p = 0;
       if (t2.length > 0) {
-        u = t2[0].offset;
-        const I = t2[t2.length - 1];
-        f = I.offset + I.size;
+        a = t2[0].offset;
+        const w = t2[t2.length - 1];
+        p = w.offset + w.size;
       }
-      const S2 = n - i2, p = l + S2 * c2 + (S2 - 1) * o, m = u, w = p - f;
+      const I = n - i2, h = l + I * c2 + (I - 1) * o, f = a, C2 = h - p;
       return {
-        bottom: f,
+        bottom: p,
         firstItemIndex: s,
         items: In(t2, r2, s),
-        offsetBottom: w,
-        offsetTop: u,
-        top: m,
+        offsetBottom: C2,
+        offsetTop: a,
+        top: f,
         topItems: In(e, r2, s),
-        topListHeight: e.reduce((I, C2) => C2.size + I, 0),
+        topListHeight: e.reduce((w, S2) => S2.size + w, 0),
         totalCount: n
       };
     }
-    function $n(t2, e, n, o, r2, s) {
+    function Dn(t2, e, n, o, r2, s) {
       let i2 = 0;
       if (n.groupIndices.length > 0)
-        for (const f of n.groupIndices) {
-          if (f - i2 >= t2)
+        for (const p of n.groupIndices) {
+          if (p - i2 >= t2)
             break;
           i2++;
         }
-      const l = t2 + i2, c2 = Ue(e, l), u = Array.from({ length: l }).map((f, S2) => ({
-        data: s[S2 + c2],
-        index: S2 + c2,
+      const l = t2 + i2, c2 = Ue(e, l), a = Array.from({ length: l }).map((p, I) => ({
+        data: s[I + c2],
+        index: I + c2,
         offset: 0,
         size: 0
       }));
-      return Ie(u, [], l, r2, n, o);
+      return Ie(a, [], l, r2, n, o);
     }
     function In(t2, e, n) {
       if (t2.length === 0)
         return [];
-      if (!be(e))
-        return t2.map((u) => ({ ...u, index: u.index + n, originalIndex: u.index }));
-      const o = t2[0].index, r2 = t2[t2.length - 1].index, s = [], i2 = ve(e.groupOffsetTree, o, r2);
+      if (!Re(e))
+        return t2.map((a) => ({ ...a, index: a.index + n, originalIndex: a.index }));
+      const o = t2[0].index, r2 = t2[t2.length - 1].index, s = [], i2 = ye(e.groupOffsetTree, o, r2);
       let l, c2 = 0;
-      for (const u of t2) {
-        (!l || l.end < u.index) && (l = i2.shift(), c2 = e.groupIndices.indexOf(l.start));
-        let f;
-        u.index === l.start ? f = {
+      for (const a of t2) {
+        (!l || l.end < a.index) && (l = i2.shift(), c2 = e.groupIndices.indexOf(l.start));
+        let p;
+        a.index === l.start ? p = {
           index: c2,
           type: "group"
-        } : f = {
+        } : p = {
           groupIndex: c2,
-          index: u.index - (c2 + 1) + n
+          index: a.index - (c2 + 1) + n
         }, s.push({
-          ...f,
-          data: u.data,
-          offset: u.offset,
-          originalIndex: u.index,
-          size: u.size
+          ...p,
+          data: a.data,
+          offset: a.offset,
+          originalIndex: a.index,
+          size: a.size
         });
       }
       return s;
     }
-    const Gt = U(
+    const _t = U(
       ([
         { data: t2, firstItemIndex: e, gap: n, sizes: o, totalCount: r2 },
         s,
         { listBoundary: i2, topListHeight: l, visibleRange: c2 },
-        { initialTopMostItemIndex: u, scrolledToInitialItem: f },
-        { topListHeight: S2 },
-        p,
-        { didMount: m },
-        { recalcInProgress: w }
+        { initialTopMostItemIndex: a, scrolledToInitialItem: p },
+        { topListHeight: I },
+        h,
+        { didMount: f },
+        { recalcInProgress: C2 }
       ]) => {
-        const I = y([]), C2 = y(0), g = $();
-        F(s.topItemsIndexes, I);
-        const a = ct(
+        const w = v([]), S2 = v(0), m = $();
+        O(s.topItemsIndexes, w);
+        const u = ct(
           x$1(
             rt(
-              m,
-              w,
+              f,
+              C2,
               A(c2, se),
               A(r2),
               A(o),
-              A(u),
-              f,
-              A(I),
+              A(a),
+              p,
+              A(w),
               A(e),
               A(n),
               t2
             ),
-            P(([d, R, , B, , , , , , , O]) => {
-              const L = O && O.length !== B;
-              return d && !R && !L;
+            P(([d, b, , k, , , , , , , F]) => {
+              const L = F && F.length !== k;
+              return d && !b && !L;
             }),
             E(
               ([
                 ,
                 ,
-                [d, R],
-                B,
-                O,
+                [d, b],
+                k,
+                F,
                 L,
                 V,
                 D2,
                 J,
                 nt,
-                k
+                B
               ]) => {
-                const q = O, { offsetTree: st, sizeTree: dt } = q, St = lt(C2);
-                if (B === 0)
-                  return { ...ke, totalCount: B };
-                if (d === 0 && R === 0)
-                  return St === 0 ? { ...ke, totalCount: B } : $n(St, L, O, J, nt, k || []);
+                const q = F, { offsetTree: it, sizeTree: dt } = q, St = st(S2);
+                if (k === 0)
+                  return { ...Be, totalCount: k };
+                if (d === 0 && b === 0)
+                  return St === 0 ? { ...Be, totalCount: k } : Dn(St, L, F, J, nt, B || []);
                 if (j(dt))
                   return St > 0 ? null : Ie(
-                    Ao(Ue(L, B), q, k),
+                    Ao(Ue(L, k), q, B),
                     [],
-                    B,
+                    k,
                     nt,
                     q,
                     J
                   );
                 const ft = [];
                 if (D2.length > 0) {
-                  const Mt = D2[0], yt = D2[D2.length - 1];
-                  let kt = 0;
-                  for (const v of ve(dt, Mt, yt)) {
-                    const N = v.value, Q = Math.max(v.start, Mt), it = Math.min(v.end, yt);
-                    for (let tt = Q; tt <= it; tt++)
-                      ft.push({ data: k == null ? void 0 : k[tt], index: tt, offset: kt, size: N }), kt += N;
+                  const Mt = D2[0], vt2 = D2[D2.length - 1];
+                  let Bt = 0;
+                  for (const y of ye(dt, Mt, vt2)) {
+                    const N = y.value, Q = Math.max(y.start, Mt), lt = Math.min(y.end, vt2);
+                    for (let tt = Q; tt <= lt; tt++)
+                      ft.push({ data: B == null ? void 0 : B[tt], index: tt, offset: Bt, size: N }), Bt += N;
                   }
                 }
                 if (!V)
-                  return Ie([], ft, B, nt, q, J);
-                const ut = D2.length > 0 ? D2[D2.length - 1] + 1 : 0, At = bo(st, d, R, ut);
+                  return Ie([], ft, k, nt, q, J);
+                const ut = D2.length > 0 ? D2[D2.length - 1] + 1 : 0, At = Ro(it, d, b, ut);
                 if (At.length === 0)
                   return null;
-                const xt = B - 1, Xt = ye([], (Mt) => {
-                  for (const yt of At) {
-                    const kt = yt.value;
-                    let v = kt.offset, N = yt.start;
-                    const Q = kt.size;
-                    if (kt.offset < d) {
-                      N += Math.floor((d - kt.offset + nt) / (Q + nt));
-                      const tt = N - yt.start;
-                      v += tt * Q + tt * nt;
+                const xt = k - 1, Xt = ve([], (Mt) => {
+                  for (const vt2 of At) {
+                    const Bt = vt2.value;
+                    let y = Bt.offset, N = vt2.start;
+                    const Q = Bt.size;
+                    if (Bt.offset < d) {
+                      N += Math.floor((d - Bt.offset + nt) / (Q + nt));
+                      const tt = N - vt2.start;
+                      y += tt * Q + tt * nt;
                     }
-                    N < ut && (v += (ut - N) * Q, N = ut);
-                    const it = Math.min(yt.end, xt);
-                    for (let tt = N; tt <= it && !(v >= R); tt++)
-                      Mt.push({ data: k == null ? void 0 : k[tt], index: tt, offset: v, size: Q }), v += Q + nt;
+                    N < ut && (y += (ut - N) * Q, N = ut);
+                    const lt = Math.min(vt2.end, xt);
+                    for (let tt = N; tt <= lt && !(y >= b); tt++)
+                      Mt.push({ data: B == null ? void 0 : B[tt], index: tt, offset: y, size: Q }), y += Q + nt;
                   }
                 });
-                return Ie(Xt, ft, B, nt, q, J);
+                return Ie(Xt, ft, k, nt, q, J);
               }
             ),
             //@ts-expect-error filter needs to be fixed
             P((d) => d !== null),
             Y()
           ),
-          ke
+          Be
         );
-        F(
+        O(
           x$1(
             t2,
             P(Me),
             E((d) => d == null ? void 0 : d.length)
           ),
           r2
-        ), F(
+        ), O(
           x$1(
-            a,
+            u,
             E((d) => d.topListHeight)
           ),
-          S2
-        ), F(S2, l), F(
+          I
+        ), O(I, l), O(
           x$1(
-            a,
+            u,
             E((d) => [d.top, d.bottom])
           ),
           i2
-        ), F(
+        ), O(
           x$1(
-            a,
+            u,
             E((d) => d.items)
           ),
-          g
+          m
         );
-        const T2 = pt(
+        const T2 = ht(
           x$1(
-            a,
+            u,
             P(({ items: d }) => d.length > 0),
-            G(r2, t2),
-            P(([{ items: d }, R]) => d[d.length - 1].originalIndex === R - 1),
-            E(([, d, R]) => [d - 1, R]),
+            _(r2, t2),
+            P(([{ items: d }, b]) => d[d.length - 1].originalIndex === b - 1),
+            E(([, d, b]) => [d - 1, b]),
             Y(se),
             E(([d]) => d)
           )
-        ), b = pt(
+        ), R = ht(
           x$1(
-            a,
+            u,
             Lt(200),
-            P(({ items: d, topItems: R }) => d.length > 0 && d[0].originalIndex === R.length),
+            P(({ items: d, topItems: b }) => d.length > 0 && d[0].originalIndex === b.length),
             E(({ items: d }) => d[0].index),
             Y()
           )
-        ), h = pt(
+        ), g = ht(
           x$1(
-            a,
+            u,
             P(({ items: d }) => d.length > 0),
             E(({ items: d }) => {
-              let R = 0, B = d.length - 1;
-              for (; d[R].type === "group" && R < B; )
-                R++;
-              for (; d[B].type === "group" && B > R; )
-                B--;
+              let b = 0, k = d.length - 1;
+              for (; d[b].type === "group" && b < k; )
+                b++;
+              for (; d[k].type === "group" && k > b; )
+                k--;
               return {
-                endIndex: d[B].index,
-                startIndex: d[R].index
+                endIndex: d[k].index,
+                startIndex: d[b].index
               };
             }),
-            Y(An)
+            Y(Pn)
           )
         );
-        return { endReached: T2, initialItemCount: C2, itemsRendered: g, listState: a, rangeChanged: h, startReached: b, topItemsIndexes: I, ...p };
+        return { endReached: T2, initialItemCount: S2, itemsRendered: m, listState: u, rangeChanged: g, startReached: R, topItemsIndexes: w, ...h };
       },
       X(
         Et,
@@ -47056,22 +47074,22 @@ categories: ${categories.join(" ")}`;
         Ne
       ),
       { singleton: true }
-    ), Un = U(
+    ), $n = U(
       ([{ fixedFooterHeight: t2, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r2 }]) => {
         const s = $(), i2 = ct(
           x$1(
             rt(n, t2, o, e, r2),
-            E(([l, c2, u, f, S2]) => l + c2 + u + f + S2.offsetBottom + S2.bottom)
+            E(([l, c2, a, p, I]) => l + c2 + a + p + I.offsetBottom + I.bottom)
           ),
           0
         );
-        return F(A(i2), s), { totalListHeight: i2, totalListHeightChanged: s };
+        return O(A(i2), s), { totalListHeight: i2, totalListHeightChanged: s };
       },
-      X(at, Gt),
+      X(at, _t),
       { singleton: true }
     ), Mo = U(
       ([{ viewportHeight: t2 }, { totalListHeight: e }]) => {
-        const n = y(false), o = ct(
+        const n = v(false), o = ct(
           x$1(
             rt(n, t2, e),
             P(([r2]) => r2),
@@ -47083,99 +47101,101 @@ categories: ${categories.join(" ")}`;
         );
         return { alignToBottom: n, paddingTopAddition: o };
       },
-      X(at, Un),
+      X(at, $n),
       { singleton: true }
     );
     function Sn(t2) {
       return t2 ? t2 === "smooth" ? "smooth" : "auto" : false;
     }
-    const Wo = (t2, e) => typeof t2 == "function" ? Sn(t2(e)) : e && Sn(t2), _o = U(
+    const Wo = (t2, e) => typeof t2 == "function" ? Sn(t2(e)) : e && Sn(t2), Go = U(
       ([
-        { listRefresh: t2, totalCount: e },
-        { atBottomState: n, isAtBottom: o },
-        { scrollToIndex: r2 },
-        { scrolledToInitialItem: s },
-        { didMount: i2, propsReady: l },
-        { log: c2 },
-        { scrollingInProgress: u }
+        { listRefresh: t2, totalCount: e, fixedItemSize: n },
+        { atBottomState: o, isAtBottom: r2 },
+        { scrollToIndex: s },
+        { scrolledToInitialItem: i2 },
+        { didMount: l, propsReady: c2 },
+        { log: a },
+        { scrollingInProgress: p }
       ]) => {
-        const f = y(false), S2 = $();
-        let p = null;
-        function m(I) {
-          W(r2, {
+        const I = v(false), h = $();
+        let f = null;
+        function C2(S2) {
+          W(s, {
             align: "end",
-            behavior: I,
+            behavior: S2,
             index: "LAST"
           });
         }
         K(
           x$1(
-            rt(x$1(A(e), jt(1)), i2),
-            G(A(f), o, s, u),
-            E(([[I, C2], g, a, T2, b]) => {
-              let h = C2 && T2, d = "auto";
-              return h && (d = Wo(g, a || b), h = h && !!d), { followOutputBehavior: d, shouldFollow: h, totalCount: I };
+            rt(x$1(A(e), jt(1)), l),
+            _(A(I), r2, i2, p),
+            E(([[S2, m], u, T2, R, g]) => {
+              let d = m && R, b = "auto";
+              return d && (b = Wo(u, T2 || g), d = d && !!b), { followOutputBehavior: b, shouldFollow: d, totalCount: S2 };
             }),
-            P(({ shouldFollow: I }) => I)
+            P(({ shouldFollow: S2 }) => S2)
           ),
-          ({ followOutputBehavior: I, totalCount: C2 }) => {
-            p && (p(), p = null), p = Rt(t2, () => {
-              lt(c2)("following output to ", { totalCount: C2 }, ht.DEBUG), m(I), p = null;
+          ({ followOutputBehavior: S2, totalCount: m }) => {
+            f && (f(), f = null), st(n) ? requestAnimationFrame(() => {
+              st(a)("following output to ", { totalCount: m }, mt.DEBUG), C2(S2);
+            }) : f = bt(t2, () => {
+              st(a)("following output to ", { totalCount: m }, mt.DEBUG), C2(S2), f = null;
             });
           }
         );
-        function w(I) {
-          const C2 = Rt(n, (g) => {
-            I && !g.atBottom && g.notAtBottomBecause === "SIZE_INCREASED" && !p && (lt(c2)("scrolling to bottom due to increased size", {}, ht.DEBUG), m("auto"));
+        function w(S2) {
+          const m = bt(o, (u) => {
+            S2 && !u.atBottom && u.notAtBottomBecause === "SIZE_INCREASED" && !f && (st(a)("scrolling to bottom due to increased size", {}, mt.DEBUG), C2("auto"));
           });
-          setTimeout(C2, 100);
+          setTimeout(m, 100);
         }
         return K(
           x$1(
-            rt(A(f), e, l),
-            P(([I, , C2]) => I && C2),
-            bt(
-              ({ value: I }, [, C2]) => ({ refreshed: I === C2, value: C2 }),
+            rt(A(I), e, c2),
+            P(([S2, , m]) => S2 && m),
+            Rt(
+              ({ value: S2 }, [, m]) => ({ refreshed: S2 === m, value: m }),
               { refreshed: false, value: 0 }
             ),
-            P(({ refreshed: I }) => I),
-            G(f, e)
+            P(({ refreshed: S2 }) => S2),
+            _(I, e)
           ),
-          ([, I]) => {
-            lt(s) && w(I !== false);
+          ([, S2]) => {
+            st(i2) && w(S2 !== false);
           }
-        ), K(S2, () => {
-          w(lt(f) !== false);
-        }), K(rt(A(f), n), ([I, C2]) => {
-          I && !C2.atBottom && C2.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && m("auto");
-        }), { autoscrollToBottom: S2, followOutput: f };
+        ), K(h, () => {
+          w(st(I) !== false);
+        }), K(rt(A(I), o), ([S2, m]) => {
+          S2 && !m.atBottom && m.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && C2("auto");
+        }), { autoscrollToBottom: h, followOutput: I };
       },
       X(Et, ae, ce, ue, Pt, Vt$1, at)
-    ), Go = U(
-      ([{ data: t2, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r2 }, { initialItemCount: s, listState: i2 }, { didMount: l }]) => (F(
+    ), _o = U(
+      ([{ data: t2, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r2 }, { initialItemCount: s, listState: i2 }, { didMount: l }]) => (O(
         x$1(
           l,
-          G(s),
+          _(s),
           P(([, c2]) => c2 !== 0),
-          G(r2, o, e, n, t2),
-          E(([[, c2], u, f, S2, p, m = []]) => $n(c2, u, f, S2, p, m))
+          _(r2, o, e, n, t2),
+          E(([[, c2], a, p, I, h, f = []]) => Dn(c2, a, p, I, h, f))
         ),
         i2
       ), {}),
-      X(Et, ue, Gt, Pt),
+      X(Et, ue, _t, Pt),
       { singleton: true }
     ), No = U(
       ([{ didMount: t2 }, { scrollTo: e }, { listState: n }]) => {
-        const o = y(0);
+        const o = v(0);
         return K(
           x$1(
             t2,
-            G(o),
+            _(o),
             P(([, r2]) => r2 !== 0),
             E(([, r2]) => ({ top: r2 }))
           ),
           (r2) => {
-            Rt(
+            bt(
               x$1(
                 n,
                 jt(1),
@@ -47192,7 +47212,7 @@ categories: ${categories.join(" ")}`;
           initialScrollTop: o
         };
       },
-      X(Pt, at, Gt),
+      X(Pt, at, _t),
       { singleton: true }
     ), Do = ({
       itemBottom: t2,
@@ -47204,54 +47224,54 @@ categories: ${categories.join(" ")}`;
       ([
         { gap: t2, sizes: e, totalCount: n },
         { fixedFooterHeight: o, fixedHeaderHeight: r2, headerHeight: s, scrollingInProgress: i2, scrollTop: l, viewportHeight: c2 },
-        { scrollToIndex: u }
+        { scrollToIndex: a }
       ]) => {
-        const f = $();
-        return F(
+        const p = $();
+        return O(
           x$1(
-            f,
-            G(e, c2, n, s, r2, o, l),
-            G(t2),
-            E(([[S2, p, m, w, I, C2, g, a], T2]) => {
-              const { align: b, behavior: h, calculateViewLocation: d = Do, done: R, ...B } = S2, O = _n(S2, p, w - 1), L = ie$2(O, p.offsetTree, T2) + I + C2, V = L + Ct(p.sizeTree, O)[1], D2 = a + C2, J = a + m - g, nt = d({
+            p,
+            _(e, c2, n, s, r2, o, l),
+            _(t2),
+            E(([[I, h, f, C2, w, S2, m, u], T2]) => {
+              const { align: R, behavior: g, calculateViewLocation: d = Do, done: b, ...k } = I, F = Wn(I, h, C2 - 1), L = ie$2(F, h.offsetTree, T2) + w + S2, V = L + Ct(h.sizeTree, F)[1], D2 = u + S2, J = u + f - m, nt = d({
                 itemBottom: V,
                 itemTop: L,
-                locationParams: { align: b, behavior: h, ...B },
+                locationParams: { align: R, behavior: g, ...k },
                 viewportBottom: J,
                 viewportTop: D2
               });
-              return nt ? R && Rt(
+              return nt ? b && bt(
                 x$1(
                   i2,
-                  P((k) => !k),
+                  P((B) => !B),
                   // skips the initial publish of false, and the cleanup call.
                   // but if scrollingInProgress is true, we skip the initial publish.
-                  jt(lt(i2) ? 1 : 2)
+                  jt(st(i2) ? 1 : 2)
                 ),
-                R
-              ) : R && R(), nt;
+                b
+              ) : b && b(), nt;
             }),
-            P((S2) => S2 !== null)
+            P((I) => I !== null)
           ),
-          u
+          a
         ), {
-          scrollIntoView: f
+          scrollIntoView: p
         };
       },
-      X(Et, at, ce, Gt, Vt$1),
+      X(Et, at, ce, _t, Vt$1),
       { singleton: true }
-    ), Kn = U(
+    ), Un = U(
       ([{ scrollVelocity: t2 }]) => {
-        const e = y(false), n = $(), o = y(false);
-        return F(
+        const e = v(false), n = $(), o = v(false);
+        return O(
           x$1(
             t2,
-            G(o, e, n),
+            _(o, e, n),
             P(([r2, s]) => !!s),
             E(([r2, s, i2, l]) => {
-              const { enter: c2, exit: u } = s;
+              const { enter: c2, exit: a } = s;
               if (i2) {
-                if (u(r2, l))
+                if (a(r2, l))
                   return false;
               } else if (c2(r2, l))
                 return true;
@@ -47261,7 +47281,7 @@ categories: ${categories.join(" ")}`;
           ),
           e
         ), K(
-          x$1(rt(e, t2, n), G(o)),
+          x$1(rt(e, t2, n), _(o)),
           ([[r2, s, i2], l]) => {
             r2 && l && l.change && l.change(s, i2);
           }
@@ -47270,21 +47290,21 @@ categories: ${categories.join(" ")}`;
       X(ae),
       { singleton: true }
     ), je = U(([{ scrollContainerState: t2, scrollTo: e }]) => {
-      const n = $(), o = $(), r2 = $(), s = y(false), i2 = y(void 0);
-      return F(
+      const n = $(), o = $(), r2 = $(), s = v(false), i2 = v(void 0);
+      return O(
         x$1(
           rt(n, o),
-          E(([{ scrollHeight: l, scrollTop: c2, viewportHeight: u }, { offsetTop: f }]) => ({
+          E(([{ scrollHeight: l, scrollTop: c2, viewportHeight: a }, { offsetTop: p }]) => ({
             scrollHeight: l,
-            scrollTop: Math.max(0, c2 - f),
-            viewportHeight: u
+            scrollTop: Math.max(0, c2 - p),
+            viewportHeight: a
           }))
         ),
         t2
-      ), F(
+      ), O(
         x$1(
           e,
-          G(o),
+          _(o),
           E(([l, { offsetTop: c2 }]) => ({
             ...l,
             top: l.top + c2
@@ -47309,28 +47329,28 @@ categories: ${categories.join(" ")}`;
         { didMount: s },
         { useWindowScroll: i2, windowScrollContainerState: l, windowViewportRect: c2 }
       ]) => {
-        const u = $(), f = y(void 0), S2 = y(null), p = y(null);
-        return F(l, S2), F(c2, p), K(
+        const a = $(), p = v(void 0), I = v(null), h = v(null);
+        return O(l, I), O(c2, h), K(
           x$1(
-            u,
-            G(e, o, i2, S2, p, n)
+            a,
+            _(e, o, i2, I, h, n)
           ),
-          ([m, w, I, C2, g, a, T2]) => {
-            const b = Ho(w.sizeTree);
-            C2 && g !== null && a !== null && (I = g.scrollTop - a.offsetTop), I -= T2, m({ ranges: b, scrollTop: I });
+          ([f, C2, w, S2, m, u, T2]) => {
+            const R = Ho(C2.sizeTree);
+            S2 && m !== null && u !== null && (w = m.scrollTop - u.offsetTop), w -= T2, f({ ranges: R, scrollTop: w });
           }
-        ), F(x$1(f, P(Me), E(Ko)), r2), F(
+        ), O(x$1(p, P(Me), E(Ko)), r2), O(
           x$1(
             s,
-            G(f),
-            P(([, m]) => m !== void 0),
+            _(p),
+            P(([, f]) => f !== void 0),
             Y(),
-            E(([, m]) => m.ranges)
+            E(([, f]) => f.ranges)
           ),
           t2
         ), {
-          getState: u,
-          restoreStateFrom: f
+          getState: a,
+          restoreStateFrom: p
         };
       },
       X(Et, at, ue, Pt, je)
@@ -47339,8 +47359,8 @@ categories: ${categories.join(" ")}`;
       return { align: "start", index: 0, offset: t2.scrollTop };
     }
     const jo = U(([{ topItemsIndexes: t2 }]) => {
-      const e = y(0);
-      return F(
+      const e = v(0);
+      return O(
         x$1(
           e,
           P((n) => n >= 0),
@@ -47348,90 +47368,90 @@ categories: ${categories.join(" ")}`;
         ),
         t2
       ), { topItemCount: e };
-    }, X(Gt));
-    function jn(t2) {
+    }, X(_t));
+    function Kn(t2) {
       let e = false, n;
       return () => (e || (e = true, n = t2()), n);
     }
-    const qo = jn(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent)), Yo = U(
+    const qo = Kn(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent)), Yo = U(
       ([
         { deviation: t2, scrollBy: e, scrollingInProgress: n, scrollTop: o },
         { isAtBottom: r2, isScrolling: s, lastJumpDueToItemResize: i2, scrollDirection: l },
         { listState: c2 },
-        { beforeUnshiftWith: u, gap: f, shiftWithOffset: S2, sizes: p },
-        { log: m },
-        { recalcInProgress: w }
+        { beforeUnshiftWith: a, gap: p, shiftWithOffset: I, sizes: h },
+        { log: f },
+        { recalcInProgress: C2 }
       ]) => {
-        const I = pt(
+        const w = ht(
           x$1(
             c2,
-            G(i2),
-            bt(
-              ([, g, a, T2], [{ bottom: b, items: h, offsetBottom: d, totalCount: R }, B]) => {
-                const O = b + d;
+            _(i2),
+            Rt(
+              ([, m, u, T2], [{ bottom: R, items: g, offsetBottom: d, totalCount: b }, k]) => {
+                const F = R + d;
                 let L = 0;
-                return a === R && g.length > 0 && h.length > 0 && (h[0].originalIndex === 0 && g[0].originalIndex === 0 || (L = O - T2, L !== 0 && (L += B))), [L, h, R, O];
+                return u === b && m.length > 0 && g.length > 0 && (g[0].originalIndex === 0 && m[0].originalIndex === 0 || (L = F - T2, L !== 0 && (L += k))), [L, g, b, F];
               },
               [0, [], 0, 0]
             ),
-            P(([g]) => g !== 0),
-            G(o, l, n, r2, m, w),
-            P(([, g, a, T2, , , b]) => !b && !T2 && g !== 0 && a === le),
-            E(([[g], , , , , a]) => (a("Upward scrolling compensation", { amount: g }, ht.DEBUG), g))
+            P(([m]) => m !== 0),
+            _(o, l, n, r2, f, C2),
+            P(([, m, u, T2, , , R]) => !R && !T2 && m !== 0 && u === le),
+            E(([[m], , , , , u]) => (u("Upward scrolling compensation", { amount: m }, mt.DEBUG), m))
           )
         );
-        function C2(g) {
-          g > 0 ? (W(e, { behavior: "auto", top: -g }), W(t2, 0)) : (W(t2, 0), W(e, { behavior: "auto", top: -g }));
+        function S2(m) {
+          m > 0 ? (W(e, { behavior: "auto", top: -m }), W(t2, 0)) : (W(t2, 0), W(e, { behavior: "auto", top: -m }));
         }
-        return K(x$1(I, G(t2, s)), ([g, a, T2]) => {
-          T2 && qo() ? W(t2, a - g) : C2(-g);
+        return K(x$1(w, _(t2, s)), ([m, u, T2]) => {
+          T2 && qo() ? W(t2, u - m) : S2(-m);
         }), K(
           x$1(
-            rt(ct(s, false), t2, w),
-            P(([g, a, T2]) => !g && !T2 && a !== 0),
-            E(([g, a]) => a),
+            rt(ct(s, false), t2, C2),
+            P(([m, u, T2]) => !m && !T2 && u !== 0),
+            E(([m, u]) => u),
             Lt(1)
           ),
-          C2
-        ), F(
+          S2
+        ), O(
           x$1(
-            S2,
-            E((g) => ({ top: -g }))
+            I,
+            E((m) => ({ top: -m }))
           ),
           e
         ), K(
           x$1(
-            u,
-            G(p, f),
-            E(([g, { groupIndices: a, lastSize: T2, sizeTree: b }, h]) => {
-              function d(R) {
-                return R * (T2 + h);
+            a,
+            _(h, p),
+            E(([m, { groupIndices: u, lastSize: T2, sizeTree: R }, g]) => {
+              function d(b) {
+                return b * (T2 + g);
               }
-              if (a.length === 0)
-                return d(g);
+              if (u.length === 0)
+                return d(m);
               {
-                let R = 0;
-                const B = re(b, 0);
-                let O = 0, L = 0;
-                for (; O < g; ) {
-                  O++, R += B;
-                  let V = a.length === L + 1 ? 1 / 0 : a[L + 1] - a[L] - 1;
-                  O + V > g && (R -= B, V = g - O + 1), O += V, R += d(V), L++;
+                let b = 0;
+                const k = re(R, 0);
+                let F = 0, L = 0;
+                for (; F < m; ) {
+                  F++, b += k;
+                  let V = u.length === L + 1 ? 1 / 0 : u[L + 1] - u[L] - 1;
+                  F + V > m && (b -= k, V = m - F + 1), F += V, b += d(V), L++;
                 }
-                return R;
+                return b;
               }
             })
           ),
-          (g) => {
-            W(t2, g), requestAnimationFrame(() => {
-              W(e, { top: g }), requestAnimationFrame(() => {
-                W(t2, 0), W(w, false);
+          (m) => {
+            W(t2, m), requestAnimationFrame(() => {
+              W(e, { top: m }), requestAnimationFrame(() => {
+                W(t2, 0), W(C2, false);
               });
             });
           }
         ), { deviation: t2 };
       },
-      X(at, ae, Gt, Et, Vt$1, Ne)
+      X(at, ae, _t, Et, Vt$1, Ne)
     ), Zo = U(
       ([
         t2,
@@ -47443,7 +47463,7 @@ categories: ${categories.join(" ")}`;
         i2,
         l,
         c2,
-        u
+        a
       ]) => ({
         ...t2,
         ...e,
@@ -47454,21 +47474,21 @@ categories: ${categories.join(" ")}`;
         ...i2,
         ...l,
         ...c2,
-        ...u
+        ...a
       }),
       X(
         Ke,
-        Go,
+        _o,
         Pt,
-        Kn,
         Un,
+        $n,
         No,
         Mo,
         je,
         $o,
         Vt$1
       )
-    ), qn = U(
+    ), jn = U(
       ([
         {
           data: t2,
@@ -47480,64 +47500,64 @@ categories: ${categories.join(" ")}`;
           itemSize: i2,
           sizeRanges: l,
           sizes: c2,
-          statefulTotalCount: u,
-          totalCount: f,
-          trackItemSizes: S2
+          statefulTotalCount: a,
+          totalCount: p,
+          trackItemSizes: I
         },
-        { initialItemFinalLocationReached: p, initialTopMostItemIndex: m, scrolledToInitialItem: w },
-        I,
-        C2,
-        g,
-        { listState: a, topItemsIndexes: T2, ...b },
-        { scrollToIndex: h },
+        { initialItemFinalLocationReached: h, initialTopMostItemIndex: f, scrolledToInitialItem: C2 },
+        w,
+        S2,
+        m,
+        { listState: u, topItemsIndexes: T2, ...R },
+        { scrollToIndex: g },
         d,
-        { topItemCount: R },
-        { groupCounts: B },
-        O
-      ]) => (F(b.rangeChanged, O.scrollSeekRangeChanged), F(
+        { topItemCount: b },
+        { groupCounts: k },
+        F
+      ]) => (O(R.rangeChanged, F.scrollSeekRangeChanged), O(
         x$1(
-          O.windowViewportRect,
+          F.windowViewportRect,
           E((L) => L.visibleHeight)
         ),
-        I.viewportHeight
+        w.viewportHeight
       ), {
         data: t2,
         defaultItemHeight: e,
         firstItemIndex: n,
         fixedItemHeight: o,
         gap: r2,
-        groupCounts: B,
-        initialItemFinalLocationReached: p,
-        initialTopMostItemIndex: m,
-        scrolledToInitialItem: w,
+        groupCounts: k,
+        initialItemFinalLocationReached: h,
+        initialTopMostItemIndex: f,
+        scrolledToInitialItem: C2,
         sizeRanges: l,
-        topItemCount: R,
+        topItemCount: b,
         topItemsIndexes: T2,
         // input
-        totalCount: f,
-        ...g,
+        totalCount: p,
+        ...m,
         groupIndices: s,
         itemSize: i2,
-        listState: a,
-        scrollToIndex: h,
+        listState: u,
+        scrollToIndex: g,
         // output
-        statefulTotalCount: u,
-        trackItemSizes: S2,
+        statefulTotalCount: a,
+        trackItemSizes: I,
         // exported from stateFlagsSystem
-        ...b,
+        ...R,
         // the bag of IO from featureGroup1System
-        ...O,
-        ...I,
+        ...F,
+        ...w,
         sizes: c2,
-        ...C2
+        ...S2
       }),
       X(
         Et,
         ue,
         at,
         Uo,
-        _o,
-        Gt,
+        Go,
+        _t,
         ce,
         Yo,
         jo,
@@ -47558,147 +47578,155 @@ categories: ${categories.join(" ")}`;
     const pe = typeof document < "u" ? H.useLayoutEffect : H.useEffect;
     function qe(t2, e, n) {
       const o = Object.keys(e.required || {}), r2 = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i2 = Object.keys(e.events || {}), l = H.createContext({});
-      function c2(g, a) {
-        g.propsReady && W(g.propsReady, false);
+      function c2(m, u) {
+        m.propsReady && W(m.propsReady, false);
         for (const T2 of o) {
-          const b = g[e.required[T2]];
-          W(b, a[T2]);
+          const R = m[e.required[T2]];
+          W(R, u[T2]);
         }
         for (const T2 of r2)
-          if (T2 in a) {
-            const b = g[e.optional[T2]];
-            W(b, a[T2]);
+          if (T2 in u) {
+            const R = m[e.optional[T2]];
+            W(R, u[T2]);
           }
-        g.propsReady && W(g.propsReady, true);
+        m.propsReady && W(m.propsReady, true);
       }
-      function u(g) {
-        return s.reduce((a, T2) => (a[T2] = (b) => {
-          const h = g[e.methods[T2]];
-          W(h, b);
-        }, a), {});
+      function a(m) {
+        return s.reduce((u, T2) => (u[T2] = (R) => {
+          const g = m[e.methods[T2]];
+          W(g, R);
+        }, u), {});
       }
-      function f(g) {
-        return i2.reduce((a, T2) => (a[T2] = mo(g[e.events[T2]]), a), {});
+      function p(m) {
+        return i2.reduce((u, T2) => (u[T2] = mo(m[e.events[T2]]), u), {});
       }
-      const S2 = H.forwardRef((g, a) => {
-        const { children: T2, ...b } = g, [h] = H.useState(() => ye(ho(t2), (B) => {
-          c2(B, b);
-        })), [d] = H.useState(cn(f, h));
+      const I = H.forwardRef((m, u) => {
+        const { children: T2, ...R } = m, [g] = H.useState(() => ve(ho(t2), (k) => {
+          c2(k, R);
+        })), [d] = H.useState(cn(p, g));
         pe(() => {
-          for (const B of i2)
-            B in b && K(d[B], b[B]);
+          for (const k of i2)
+            k in R && K(d[k], R[k]);
           return () => {
             Object.values(d).map(We);
           };
-        }, [b, d, h]), pe(() => {
-          c2(h, b);
-        }), H.useImperativeHandle(a, ln(u(h)));
-        const R = n;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(l.Provider, { value: h, children: n ? /* @__PURE__ */ jsxRuntimeExports.jsx(R, { ...Xo([...o, ...r2, ...i2], b), children: T2 }) : T2 });
-      }), p = (g) => H.useCallback(kn(W, H.useContext(l)[g]), [g]), m = (g) => {
-        const T2 = H.useContext(l)[g], b = H.useCallback(
-          (h) => K(T2, h),
+        }, [R, d, g]), pe(() => {
+          c2(g, R);
+        }), H.useImperativeHandle(u, ln(a(g)));
+        const b = n;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(l.Provider, { value: g, children: n ? /* @__PURE__ */ jsxRuntimeExports.jsx(b, { ...Xo([...o, ...r2, ...i2], R), children: T2 }) : T2 });
+      }), h = (m) => {
+        const u = H.useContext(l);
+        return H.useCallback(
+          (T2) => {
+            W(u[m], T2);
+          },
+          [u, m]
+        );
+      }, f = (m) => {
+        const T2 = H.useContext(l)[m], R = H.useCallback(
+          (g) => K(T2, g),
           [T2]
         );
         return H.useSyncExternalStore(
-          b,
-          () => lt(T2),
-          () => lt(T2)
+          R,
+          () => st(T2),
+          () => st(T2)
         );
-      }, w = (g) => {
-        const T2 = H.useContext(l)[g], [b, h] = H.useState(cn(lt, T2));
+      }, C2 = (m) => {
+        const T2 = H.useContext(l)[m], [R, g] = H.useState(cn(st, T2));
         return pe(
           () => K(T2, (d) => {
-            d !== b && h(ln(d));
+            d !== R && g(ln(d));
           }),
-          [T2, b]
-        ), b;
-      }, I = H.version.startsWith("18") ? m : w;
+          [T2, R]
+        ), R;
+      }, w = H.version.startsWith("18") ? f : C2;
       return {
-        Component: S2,
-        useEmitter: (g, a) => {
-          const b = H.useContext(l)[g];
-          pe(() => K(b, a), [a, b]);
+        Component: I,
+        useEmitter: (m, u) => {
+          const R = H.useContext(l)[m];
+          pe(() => K(R, u), [u, R]);
         },
-        useEmitterValue: I,
-        usePublisher: p
+        useEmitterValue: w,
+        usePublisher: h
       };
     }
-    const Re = H.createContext(void 0), Yn = H.createContext(void 0), Zn = typeof document < "u" ? H.useLayoutEffect : H.useEffect;
-    function Be(t2) {
+    const be = H.createContext(void 0), qn = H.createContext(void 0), Yn = typeof document < "u" ? H.useLayoutEffect : H.useEffect;
+    function ke(t2) {
       return "self" in t2;
     }
     function Jo(t2) {
       return "body" in t2;
     }
-    function Xn(t2, e, n, o = Yt, r2, s) {
-      const i2 = H.useRef(null), l = H.useRef(null), c2 = H.useRef(null), u = H.useCallback(
-        (p) => {
-          let m, w, I;
-          const C2 = p.target;
-          if (Jo(C2) || Be(C2)) {
-            const a = Be(C2) ? C2 : C2.defaultView;
-            I = s ? a.scrollX : a.scrollY, m = s ? a.document.documentElement.scrollWidth : a.document.documentElement.scrollHeight, w = s ? a.innerWidth : a.innerHeight;
+    function Zn(t2, e, n, o = Yt, r2, s) {
+      const i2 = H.useRef(null), l = H.useRef(null), c2 = H.useRef(null), a = H.useCallback(
+        (h) => {
+          let f, C2, w;
+          const S2 = h.target;
+          if (Jo(S2) || ke(S2)) {
+            const u = ke(S2) ? S2 : S2.defaultView;
+            w = s ? u.scrollX : u.scrollY, f = s ? u.document.documentElement.scrollWidth : u.document.documentElement.scrollHeight, C2 = s ? u.innerWidth : u.innerHeight;
           } else
-            I = s ? C2.scrollLeft : C2.scrollTop, m = s ? C2.scrollWidth : C2.scrollHeight, w = s ? C2.offsetWidth : C2.offsetHeight;
-          const g = () => {
+            w = s ? S2.scrollLeft : S2.scrollTop, f = s ? S2.scrollWidth : S2.scrollHeight, C2 = s ? S2.offsetWidth : S2.offsetHeight;
+          const m = () => {
             t2({
-              scrollHeight: m,
-              scrollTop: Math.max(I, 0),
-              viewportHeight: w
+              scrollHeight: f,
+              scrollTop: Math.max(w, 0),
+              viewportHeight: C2
             });
           };
-          p.suppressFlushSync ? g() : lo.flushSync(g), l.current !== null && (I === l.current || I <= 0 || I === m - w) && (l.current = null, e(true), c2.current && (clearTimeout(c2.current), c2.current = null));
+          h.suppressFlushSync ? m() : io.flushSync(m), l.current !== null && (w === l.current || w <= 0 || w === f - C2) && (l.current = null, e(true), c2.current && (clearTimeout(c2.current), c2.current = null));
         },
-        [t2, e]
+        [t2, e, s]
       );
       H.useEffect(() => {
-        const p = r2 || i2.current;
-        return o(r2 || i2.current), u({ suppressFlushSync: true, target: p }), p.addEventListener("scroll", u, { passive: true }), () => {
-          o(null), p.removeEventListener("scroll", u);
+        const h = r2 || i2.current;
+        return o(r2 || i2.current), a({ suppressFlushSync: true, target: h }), h.addEventListener("scroll", a, { passive: true }), () => {
+          o(null), h.removeEventListener("scroll", a);
         };
-      }, [i2, u, n, o, r2]);
-      function f(p) {
-        const m = i2.current;
-        if (!m || (s ? "offsetWidth" in m && m.offsetWidth === 0 : "offsetHeight" in m && m.offsetHeight === 0))
+      }, [i2, a, n, o, r2]);
+      function p(h) {
+        const f = i2.current;
+        if (!f || (s ? "offsetWidth" in f && f.offsetWidth === 0 : "offsetHeight" in f && f.offsetHeight === 0))
           return;
-        const w = p.behavior === "smooth";
-        let I, C2, g;
-        Be(m) ? (C2 = Math.max(
-          wt(m.document.documentElement, s ? "width" : "height"),
-          s ? m.document.documentElement.scrollWidth : m.document.documentElement.scrollHeight
-        ), I = s ? m.innerWidth : m.innerHeight, g = s ? window.scrollX : window.scrollY) : (C2 = m[s ? "scrollWidth" : "scrollHeight"], I = wt(m, s ? "width" : "height"), g = m[s ? "scrollLeft" : "scrollTop"]);
-        const a = C2 - I;
-        if (p.top = Math.ceil(Math.max(Math.min(a, p.top), 0)), Dn(I, C2) || p.top === g) {
-          t2({ scrollHeight: C2, scrollTop: g, viewportHeight: I }), w && e(true);
+        const C2 = h.behavior === "smooth";
+        let w, S2, m;
+        ke(f) ? (S2 = Math.max(
+          wt(f.document.documentElement, s ? "width" : "height"),
+          s ? f.document.documentElement.scrollWidth : f.document.documentElement.scrollHeight
+        ), w = s ? f.innerWidth : f.innerHeight, m = s ? window.scrollX : window.scrollY) : (S2 = f[s ? "scrollWidth" : "scrollHeight"], w = wt(f, s ? "width" : "height"), m = f[s ? "scrollLeft" : "scrollTop"]);
+        const u = S2 - w;
+        if (h.top = Math.ceil(Math.max(Math.min(u, h.top), 0)), Nn(w, S2) || h.top === m) {
+          t2({ scrollHeight: S2, scrollTop: m, viewportHeight: w }), C2 && e(true);
           return;
         }
-        w ? (l.current = p.top, c2.current && clearTimeout(c2.current), c2.current = setTimeout(() => {
+        C2 ? (l.current = h.top, c2.current && clearTimeout(c2.current), c2.current = setTimeout(() => {
           c2.current = null, l.current = null, e(true);
-        }, 1e3)) : l.current = null, s && (p = { behavior: p.behavior, left: p.top }), m.scrollTo(p);
+        }, 1e3)) : l.current = null, s && (h = { behavior: h.behavior, left: h.top }), f.scrollTo(h);
       }
-      function S2(p) {
-        s && (p = { behavior: p.behavior, left: p.top }), i2.current.scrollBy(p);
+      function I(h) {
+        s && (h = { behavior: h.behavior, left: h.top }), i2.current.scrollBy(h);
       }
-      return { scrollByCallback: S2, scrollerRef: i2, scrollToCallback: f };
+      return { scrollByCallback: I, scrollerRef: i2, scrollToCallback: p };
     }
-    const Oe = "-webkit-sticky", xn = "sticky", Jn = jn(() => {
+    const Fe = "-webkit-sticky", xn = "sticky", Xn = Kn(() => {
       if (typeof document > "u")
         return xn;
       const t2 = document.createElement("div");
-      return t2.style.position = Oe, t2.style.position === Oe ? Oe : xn;
+      return t2.style.position = Fe, t2.style.position === Fe ? Fe : xn;
     });
     function Ye(t2) {
       return t2;
     }
     const Qo = /* @__PURE__ */ U(() => {
-      const t2 = y((c2) => `Item ${c2}`), e = y(null), n = y((c2) => `Group ${c2}`), o = y({}), r2 = y(Ye), s = y("div"), i2 = y(Yt), l = (c2, u = null) => ct(
+      const t2 = v((c2) => `Item ${c2}`), e = v(null), n = v((c2) => `Group ${c2}`), o = v({}), r2 = v(Ye), s = v("div"), i2 = v(Yt), l = (c2, a = null) => ct(
         x$1(
           o,
-          E((f) => f[c2]),
+          E((p) => p[c2]),
           Y()
         ),
-        u
+        a
       );
       return {
         components: o,
@@ -47720,81 +47748,81 @@ categories: ${categories.join(" ")}`;
       };
     }), tr = /* @__PURE__ */ U(
       ([t2, e]) => ({ ...t2, ...e }),
-      X(qn, Qo)
-    ), er = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), nr = { overflowAnchor: "none", position: Jn(), zIndex: 1 }, Qn = { overflowAnchor: "none" }, or = { ...Qn, display: "inline-block", height: "100%" }, Tn = /* @__PURE__ */ H.memo(function({ showTopList: e = false }) {
-      const n = M("listState"), o = gt("sizeRanges"), r2 = M("useWindowScroll"), s = M("customScrollParent"), i2 = gt("windowScrollContainerState"), l = gt("scrollContainerState"), c2 = s || r2 ? i2 : l, u = M("itemContent"), f = M("context"), S2 = M("groupContent"), p = M("trackItemSizes"), m = M("itemSize"), w = M("log"), I = gt("gap"), C2 = M("horizontalDirection"), { callbackRef: g } = On(
+      X(jn, Qo)
+    ), er = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), nr = { overflowAnchor: "none", position: Xn(), zIndex: 1 }, Jn = { overflowAnchor: "none" }, or = { ...Jn, display: "inline-block", height: "100%" }, Tn = /* @__PURE__ */ H.memo(function({ showTopList: e = false }) {
+      const n = M("listState"), o = gt("sizeRanges"), r2 = M("useWindowScroll"), s = M("customScrollParent"), i2 = gt("windowScrollContainerState"), l = gt("scrollContainerState"), c2 = s || r2 ? i2 : l, a = M("itemContent"), p = M("context"), I = M("groupContent"), h = M("trackItemSizes"), f = M("itemSize"), C2 = M("log"), w = gt("gap"), S2 = M("horizontalDirection"), { callbackRef: m } = kn(
         o,
-        m,
-        p,
+        f,
+        h,
         e ? Yt : c2,
-        w,
-        I,
-        s,
         C2,
+        w,
+        s,
+        S2,
         M("skipAnimationFrameInResizeObserver")
-      ), [a, T2] = H.useState(0);
-      Je("deviation", (k) => {
-        a !== k && T2(k);
+      ), [u, T2] = H.useState(0);
+      Je("deviation", (B) => {
+        u !== B && T2(B);
       });
-      const b = M("EmptyPlaceholder"), h = M("ScrollSeekPlaceholder") || er, d = M("ListComponent"), R = M("ItemComponent"), B = M("GroupComponent"), O = M("computeItemKey"), L = M("isSeeking"), V = M("groupIndices").length > 0, D2 = M("alignToBottom"), J = M("initialItemFinalLocationReached"), nt = e ? {} : {
+      const R = M("EmptyPlaceholder"), g = M("ScrollSeekPlaceholder") || er, d = M("ListComponent"), b = M("ItemComponent"), k = M("GroupComponent"), F = M("computeItemKey"), L = M("isSeeking"), V = M("groupIndices").length > 0, D2 = M("alignToBottom"), J = M("initialItemFinalLocationReached"), nt = e ? {} : {
         boxSizing: "border-box",
-        ...C2 ? {
+        ...S2 ? {
           display: "inline-block",
           height: "100%",
-          marginLeft: a !== 0 ? a : D2 ? "auto" : 0,
+          marginLeft: u !== 0 ? u : D2 ? "auto" : 0,
           paddingLeft: n.offsetTop,
           paddingRight: n.offsetBottom,
           whiteSpace: "nowrap"
         } : {
-          marginTop: a !== 0 ? a : D2 ? "auto" : 0,
+          marginTop: u !== 0 ? u : D2 ? "auto" : 0,
           paddingBottom: n.offsetBottom,
           paddingTop: n.offsetTop
         },
         ...J ? {} : { visibility: "hidden" }
       };
-      return !e && n.totalCount === 0 && b ? /* @__PURE__ */ jsxRuntimeExports.jsx(b, { ...Z(b, f) }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return !e && n.totalCount === 0 && R ? /* @__PURE__ */ jsxRuntimeExports.jsx(R, { ...Z(R, p) }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
         d,
         {
-          ...Z(d, f),
+          ...Z(d, p),
           "data-testid": e ? "virtuoso-top-item-list" : "virtuoso-item-list",
-          ref: g,
+          ref: m,
           style: nt,
-          children: (e ? n.topItems : n.items).map((k) => {
-            const q = k.originalIndex, st = O(q + n.firstItemIndex, k.data, f);
+          children: (e ? n.topItems : n.items).map((B) => {
+            const q = B.originalIndex, it = F(q + n.firstItemIndex, B.data, p);
             return L ? /* @__PURE__ */ reactExports.createElement(
-              h,
+              g,
               {
-                ...Z(h, f),
-                height: k.size,
-                index: k.index,
-                key: st,
-                type: k.type || "item",
-                ...k.type === "group" ? {} : { groupIndex: k.groupIndex }
+                ...Z(g, p),
+                height: B.size,
+                index: B.index,
+                key: it,
+                type: B.type || "item",
+                ...B.type === "group" ? {} : { groupIndex: B.groupIndex }
               }
-            ) : k.type === "group" ? /* @__PURE__ */ reactExports.createElement(
-              B,
+            ) : B.type === "group" ? /* @__PURE__ */ reactExports.createElement(
+              k,
               {
-                ...Z(B, f),
+                ...Z(k, p),
                 "data-index": q,
-                "data-item-index": k.index,
-                "data-known-size": k.size,
-                key: st,
+                "data-item-index": B.index,
+                "data-known-size": B.size,
+                key: it,
                 style: nr
               },
-              S2(k.index, f)
+              I(B.index, p)
             ) : /* @__PURE__ */ reactExports.createElement(
-              R,
+              b,
               {
-                ...Z(R, f),
-                ...to(R, k.data),
+                ...Z(b, p),
+                ...Qn(b, B.data),
                 "data-index": q,
-                "data-item-group-index": k.groupIndex,
-                "data-item-index": k.index,
-                "data-known-size": k.size,
-                key: st,
-                style: C2 ? or : Qn
+                "data-item-group-index": B.groupIndex,
+                "data-item-index": B.index,
+                "data-known-size": B.size,
+                key: it,
+                style: S2 ? or : Jn
               },
-              V ? u(k.index, k.groupIndex, k.data, f) : u(k.index, k.data, f)
+              V ? a(B.index, B.groupIndex, B.data, p) : a(B.index, B.data, p)
             );
           })
         }
@@ -47816,7 +47844,7 @@ categories: ${categories.join(" ")}`;
       width: "100%",
       ...t2 ? { display: "flex", flexDirection: "column" } : {}
     }), ir = {
-      position: Jn(),
+      position: Xn(),
       top: 0,
       width: "100%",
       zIndex: 1
@@ -47825,7 +47853,7 @@ categories: ${categories.join(" ")}`;
       if (typeof t2 != "string")
         return { context: e };
     }
-    function to(t2, e) {
+    function Qn(t2, e) {
       return { item: typeof t2 == "string" ? void 0 : e };
     }
     const lr = /* @__PURE__ */ H.memo(function() {
@@ -47855,24 +47883,24 @@ categories: ${categories.join(" ")}`;
     });
     function Ze({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
       return H.memo(function({ children: s, style: i2, ...l }) {
-        const c2 = n("scrollContainerState"), u = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S2 = e("scrollerRef"), p = e("context"), m = e("horizontalDirection") || false, { scrollByCallback: w, scrollerRef: I, scrollToCallback: C2 } = Xn(
+        const c2 = n("scrollContainerState"), a = e("ScrollerComponent"), p = n("smoothScrollTargetReached"), I = e("scrollerRef"), h = e("context"), f = e("horizontalDirection") || false, { scrollByCallback: C2, scrollerRef: w, scrollToCallback: S2 } = Zn(
           c2,
-          f,
-          u,
-          S2,
+          p,
+          a,
+          I,
           void 0,
-          m
+          f
         );
-        return t2("scrollTo", C2), t2("scrollBy", w), /* @__PURE__ */ jsxRuntimeExports.jsx(
-          u,
+        return t2("scrollTo", S2), t2("scrollBy", C2), /* @__PURE__ */ jsxRuntimeExports.jsx(
+          a,
           {
             "data-testid": "virtuoso-scroller",
             "data-virtuoso-scroller": true,
-            ref: I,
-            style: { ...m ? sr : rr, ...i2 },
+            ref: w,
+            style: { ...f ? sr : rr, ...i2 },
             tabIndex: 0,
             ...l,
-            ...Z(u, p),
+            ...Z(a, h),
             children: s
           }
         );
@@ -47880,33 +47908,33 @@ categories: ${categories.join(" ")}`;
     }
     function Xe({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
       return H.memo(function({ children: s, style: i2, ...l }) {
-        const c2 = n("windowScrollContainerState"), u = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S2 = e("totalListHeight"), p = e("deviation"), m = e("customScrollParent"), w = e("context"), I = H.useRef(null), C2 = e("scrollerRef"), { scrollByCallback: g, scrollerRef: a, scrollToCallback: T2 } = Xn(
+        const c2 = n("windowScrollContainerState"), a = e("ScrollerComponent"), p = n("smoothScrollTargetReached"), I = e("totalListHeight"), h = e("deviation"), f = e("customScrollParent"), C2 = e("context"), w = H.useRef(null), S2 = e("scrollerRef"), { scrollByCallback: m, scrollerRef: u, scrollToCallback: T2 } = Zn(
           c2,
-          f,
-          u,
-          C2,
-          m
+          p,
+          a,
+          S2,
+          f
         );
-        return Zn(() => {
-          var b;
-          return a.current = m || ((b = I.current) == null ? void 0 : b.ownerDocument.defaultView), () => {
-            a.current = null;
+        return Yn(() => {
+          var R;
+          return u.current = f || ((R = w.current) == null ? void 0 : R.ownerDocument.defaultView), () => {
+            u.current = null;
           };
-        }, [a, m]), t2("windowScrollTo", T2), t2("scrollBy", g), /* @__PURE__ */ jsxRuntimeExports.jsx(
-          u,
+        }, [u, f]), t2("windowScrollTo", T2), t2("scrollBy", m), /* @__PURE__ */ jsxRuntimeExports.jsx(
+          a,
           {
-            ref: I,
+            ref: w,
             "data-virtuoso-scroller": true,
-            style: { position: "relative", ...i2, ...S2 !== 0 ? { height: S2 + p } : {} },
+            style: { position: "relative", ...i2, ...I !== 0 ? { height: I + h } : {} },
             ...l,
-            ...Z(u, w),
+            ...Z(a, C2),
             children: s
           }
         );
       });
     }
     const ur = ({ children: t2 }) => {
-      const e = H.useContext(Re), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = M("alignToBottom"), s = M("horizontalDirection"), i2 = H.useMemo(
+      const e = H.useContext(be), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = M("alignToBottom"), s = M("horizontalDirection"), i2 = H.useMemo(
         () => ne(n, (c2) => wt(c2, s ? "width" : "height")),
         [n, s]
       ), l = Ht(i2, true, M("skipAnimationFrameInResizeObserver"));
@@ -47914,7 +47942,7 @@ categories: ${categories.join(" ")}`;
         e && (n(e.viewportHeight), o(e.itemHeight));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "element", ref: l, style: Zt(r2), children: t2 });
     }, ar = ({ children: t2 }) => {
-      const e = H.useContext(Re), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = M("customScrollParent"), s = Ge(
+      const e = H.useContext(be), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = M("customScrollParent"), s = _e(
         n,
         r2,
         M("skipAnimationFrameInResizeObserver")
@@ -47936,79 +47964,79 @@ categories: ${categories.join(" ")}`;
         ] })
       ] });
     }), {
-      Component: eo,
+      Component: to,
       useEmitter: Je,
       useEmitterValue: M,
       usePublisher: gt
     } = /* @__PURE__ */ qe(
       tr,
       {
-        events: {
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          endReached: "endReached",
-          groupIndices: "groupIndices",
-          isScrolling: "isScrolling",
-          itemsRendered: "itemsRendered",
-          rangeChanged: "rangeChanged",
-          startReached: "startReached",
-          totalListHeightChanged: "totalListHeightChanged"
-        },
-        methods: {
-          autoscrollToBottom: "autoscrollToBottom",
-          getState: "getState",
-          scrollBy: "scrollBy",
-          scrollIntoView: "scrollIntoView",
-          scrollTo: "scrollTo",
-          scrollToIndex: "scrollToIndex"
-        },
+        required: {},
         optional: {
-          alignToBottom: "alignToBottom",
+          restoreStateFrom: "restoreStateFrom",
+          context: "context",
+          followOutput: "followOutput",
+          itemContent: "itemContent",
+          groupContent: "groupContent",
+          overscan: "overscan",
+          increaseViewportBy: "increaseViewportBy",
+          totalCount: "totalCount",
+          groupCounts: "groupCounts",
+          topItemCount: "topItemCount",
+          firstItemIndex: "firstItemIndex",
+          initialTopMostItemIndex: "initialTopMostItemIndex",
+          components: "components",
           atBottomThreshold: "atBottomThreshold",
           atTopThreshold: "atTopThreshold",
-          components: "components",
           computeItemKey: "computeItemKey",
-          context: "context",
-          customScrollParent: "customScrollParent",
-          data: "data",
           defaultItemHeight: "defaultItemHeight",
-          firstItemIndex: "firstItemIndex",
           fixedItemHeight: "fixedItemHeight",
-          followOutput: "followOutput",
-          groupContent: "groupContent",
-          groupCounts: "groupCounts",
+          itemSize: "itemSize",
+          scrollSeekConfiguration: "scrollSeekConfiguration",
           headerFooterTag: "HeaderFooterTag",
-          horizontalDirection: "horizontalDirection",
-          increaseViewportBy: "increaseViewportBy",
+          data: "data",
           initialItemCount: "initialItemCount",
           initialScrollTop: "initialScrollTop",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          itemContent: "itemContent",
-          itemSize: "itemSize",
-          logLevel: "logLevel",
-          overscan: "overscan",
-          restoreStateFrom: "restoreStateFrom",
+          alignToBottom: "alignToBottom",
+          useWindowScroll: "useWindowScroll",
+          customScrollParent: "customScrollParent",
           scrollerRef: "scrollerRef",
-          scrollSeekConfiguration: "scrollSeekConfiguration",
-          skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver",
-          topItemCount: "topItemCount",
-          totalCount: "totalCount",
-          useWindowScroll: "useWindowScroll"
+          logLevel: "logLevel",
+          horizontalDirection: "horizontalDirection",
+          skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver"
         },
-        required: {}
+        methods: {
+          scrollToIndex: "scrollToIndex",
+          scrollIntoView: "scrollIntoView",
+          scrollTo: "scrollTo",
+          scrollBy: "scrollBy",
+          autoscrollToBottom: "autoscrollToBottom",
+          getState: "getState"
+        },
+        events: {
+          isScrolling: "isScrolling",
+          endReached: "endReached",
+          startReached: "startReached",
+          rangeChanged: "rangeChanged",
+          atBottomStateChange: "atBottomStateChange",
+          atTopStateChange: "atTopStateChange",
+          totalListHeightChanged: "totalListHeightChanged",
+          itemsRendered: "itemsRendered",
+          groupIndices: "groupIndices"
+        }
       },
       fr
-    ), mr = /* @__PURE__ */ Ze({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), pr = /* @__PURE__ */ Xe({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), Kr = eo, hr = /* @__PURE__ */ U(() => {
-      const t2 = y((c2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("td", { children: [
+    ), mr = /* @__PURE__ */ Ze({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), pr = /* @__PURE__ */ Xe({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), Kr = to, hr = /* @__PURE__ */ U(() => {
+      const t2 = v((c2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("td", { children: [
         "Item $",
         c2
-      ] })), e = y(null), n = y(null), o = y(null), r2 = y({}), s = y(Ye), i2 = y(Yt), l = (c2, u = null) => ct(
+      ] })), e = v(null), n = v(null), o = v(null), r2 = v({}), s = v(Ye), i2 = v(Yt), l = (c2, a = null) => ct(
         x$1(
           r2,
-          E((f) => f[c2]),
+          E((p) => p[c2]),
           Y()
         ),
-        u
+        a
       );
       return {
         components: r2,
@@ -48031,7 +48059,7 @@ categories: ${categories.join(" ")}`;
     });
     /* @__PURE__ */ U(
       ([t2, e]) => ({ ...t2, ...e }),
-      X(qn, hr)
+      X(jn, hr)
     );
     const wn = {
       bottom: 0,
@@ -48049,8 +48077,8 @@ categories: ${categories.join(" ")}`;
       offsetBottom: 0,
       offsetTop: 0,
       top: 0
-    }, { ceil: yn, floor: Ce, max: ee, min: Fe, round: vn } = Math;
-    function bn(t2, e, n) {
+    }, { ceil: vn, floor: Ce, max: ee, min: Oe, round: yn } = Math;
+    function Rn(t2, e, n) {
       return Array.from({ length: e - t2 + 1 }).map((o, r2) => ({ data: n === null ? null : n[r2 + t2], index: r2 + t2 }));
     }
     function Er(t2) {
@@ -48062,260 +48090,260 @@ categories: ${categories.join(" ")}`;
     function he(t2, e) {
       return t2 && t2.width === e.width && t2.height === e.height;
     }
-    function kr(t2, e) {
+    function Br(t2, e) {
       return t2 && t2.column === e.column && t2.row === e.row;
     }
-    const Br = /* @__PURE__ */ U(
+    const kr = /* @__PURE__ */ U(
       ([
         { increaseViewportBy: t2, listBoundary: e, overscan: n, visibleRange: o },
-        { footerHeight: r2, headerHeight: s, scrollBy: i2, scrollContainerState: l, scrollTo: c2, scrollTop: u, smoothScrollTargetReached: f, viewportHeight: S2 },
-        p,
-        m,
-        { didMount: w, propsReady: I },
-        { customScrollParent: C2, useWindowScroll: g, windowScrollContainerState: a, windowScrollTo: T2, windowViewportRect: b },
-        h
+        { footerHeight: r2, headerHeight: s, scrollBy: i2, scrollContainerState: l, scrollTo: c2, scrollTop: a, smoothScrollTargetReached: p, viewportHeight: I },
+        h,
+        f,
+        { didMount: C2, propsReady: w },
+        { customScrollParent: S2, useWindowScroll: m, windowScrollContainerState: u, windowScrollTo: T2, windowViewportRect: R },
+        g
       ]) => {
-        const d = y(0), R = y(0), B = y(wn), O = y({ height: 0, width: 0 }), L = y({ height: 0, width: 0 }), V = $(), D2 = $(), J = y(0), nt = y(null), k = y({ column: 0, row: 0 }), q = $(), st = $(), dt = y(false), St = y(0), ft = y(true), ut = y(false), At = y(false);
+        const d = v(0), b = v(0), k = v(wn), F = v({ height: 0, width: 0 }), L = v({ height: 0, width: 0 }), V = $(), D2 = $(), J = v(0), nt = v(null), B = v({ column: 0, row: 0 }), q = $(), it = $(), dt = v(false), St = v(0), ft = v(true), ut = v(false), At = v(false);
         K(
           x$1(
-            w,
-            G(St),
-            P(([v, N]) => !!N)
+            C2,
+            _(St),
+            P(([y, N]) => !!N)
           ),
           () => {
             W(ft, false);
           }
         ), K(
           x$1(
-            rt(w, ft, L, O, St, ut),
-            P(([v, N, Q, it, , tt]) => v && !N && Q.height !== 0 && it.height !== 0 && !tt)
+            rt(C2, ft, L, F, St, ut),
+            P(([y, N, Q, lt, , tt]) => y && !N && Q.height !== 0 && lt.height !== 0 && !tt)
           ),
-          ([, , , , v]) => {
+          ([, , , , y]) => {
             W(ut, true), $e(1, () => {
-              W(V, v);
-            }), Rt(x$1(u), () => {
+              W(V, y);
+            }), bt(x$1(a), () => {
               W(e, [0, 0]), W(ft, true);
             });
           }
-        ), F(
+        ), O(
           x$1(
-            st,
-            P((v) => v != null && v.scrollTop > 0),
-            vt$1(0)
+            it,
+            P((y) => y != null && y.scrollTop > 0),
+            yt(0)
           ),
-          R
+          b
         ), K(
           x$1(
-            w,
-            G(st),
-            P(([, v]) => v != null)
+            C2,
+            _(it),
+            P(([, y]) => y != null)
           ),
-          ([, v]) => {
-            v && (W(O, v.viewport), W(L, v.item), W(k, v.gap), v.scrollTop > 0 && (W(dt, true), Rt(x$1(u, jt(1)), (N) => {
+          ([, y]) => {
+            y && (W(F, y.viewport), W(L, y.item), W(B, y.gap), y.scrollTop > 0 && (W(dt, true), bt(x$1(a, jt(1)), (N) => {
               W(dt, false);
-            }), W(c2, { top: v.scrollTop })));
+            }), W(c2, { top: y.scrollTop })));
           }
-        ), F(
+        ), O(
           x$1(
-            O,
-            E(({ height: v }) => v)
+            F,
+            E(({ height: y }) => y)
           ),
-          S2
-        ), F(
+          I
+        ), O(
           x$1(
             rt(
-              A(O, he),
+              A(F, he),
               A(L, he),
-              A(k, (v, N) => v && v.column === N.column && v.row === N.row),
-              A(u)
+              A(B, (y, N) => y && y.column === N.column && y.row === N.row),
+              A(a)
             ),
-            E(([v, N, Q, it]) => ({
+            E(([y, N, Q, lt]) => ({
               gap: Q,
               item: N,
-              scrollTop: it,
-              viewport: v
+              scrollTop: lt,
+              viewport: y
             }))
           ),
           q
-        ), F(
+        ), O(
           x$1(
             rt(
               A(d),
               o,
-              A(k, kr),
+              A(B, Br),
               A(L, he),
-              A(O, he),
+              A(F, he),
               A(nt),
-              A(R),
+              A(b),
               A(dt),
               A(ft),
               A(St)
             ),
-            P(([, , , , , , , v]) => !v),
+            P(([, , , , , , , y]) => !y),
             E(
               ([
-                v,
+                y,
                 [N, Q],
-                it,
+                lt,
                 tt,
-                Bt,
+                kt,
                 Jt,
                 Nt,
                 ,
                 de,
-                Ot
+                Ft
               ]) => {
-                const { column: Ft, row: Qt } = it, { height: fe, width: He } = tt, { width: tn } = Bt;
-                if (Nt === 0 && (v === 0 || tn === 0))
+                const { column: Ot, row: Qt } = lt, { height: fe, width: He } = tt, { width: tn } = kt;
+                if (Nt === 0 && (y === 0 || tn === 0))
                   return wn;
                 if (He === 0) {
-                  const sn = Ue(Ot, v), so = sn + Math.max(Nt - 1, 0);
-                  return Er(bn(sn, so, Jt));
+                  const sn = Ue(Ft, y), ro = sn + Math.max(Nt - 1, 0);
+                  return Er(Rn(sn, ro, Jt));
                 }
-                const me = no(tn, He, Ft);
+                const me = eo(tn, He, Ot);
                 let Dt, Wt;
-                de ? N === 0 && Q === 0 && Nt > 0 ? (Dt = 0, Wt = Nt - 1) : (Dt = me * Ce((N + Qt) / (fe + Qt)), Wt = me * yn((Q + Qt) / (fe + Qt)) - 1, Wt = Fe(v - 1, ee(Wt, me - 1)), Dt = Fe(Wt, ee(0, Dt))) : (Dt = 0, Wt = -1);
-                const en = bn(Dt, Wt, Jt), { bottom: nn, top: on } = Rn(Bt, it, tt, en), rn = yn(v / me), ro = rn * fe + (rn - 1) * Qt - nn;
-                return { bottom: nn, itemHeight: fe, items: en, itemWidth: He, offsetBottom: ro, offsetTop: on, top: on };
+                de ? N === 0 && Q === 0 && Nt > 0 ? (Dt = 0, Wt = Nt - 1) : (Dt = me * Ce((N + Qt) / (fe + Qt)), Wt = me * vn((Q + Qt) / (fe + Qt)) - 1, Wt = Oe(y - 1, ee(Wt, me - 1)), Dt = Oe(Wt, ee(0, Dt))) : (Dt = 0, Wt = -1);
+                const en = Rn(Dt, Wt, Jt), { bottom: nn, top: on } = bn(kt, lt, tt, en), rn = vn(y / me), oo = rn * fe + (rn - 1) * Qt - nn;
+                return { bottom: nn, itemHeight: fe, items: en, itemWidth: He, offsetBottom: oo, offsetTop: on, top: on };
               }
             )
           ),
-          B
-        ), F(
+          k
+        ), O(
           x$1(
             nt,
-            P((v) => v !== null),
-            E((v) => v.length)
+            P((y) => y !== null),
+            E((y) => y.length)
           ),
           d
-        ), F(
+        ), O(
           x$1(
-            rt(O, L, B, k),
-            P(([v, N, { items: Q }]) => Q.length > 0 && N.height !== 0 && v.height !== 0),
-            E(([v, N, { items: Q }, it]) => {
-              const { bottom: tt, top: Bt } = Rn(v, it, N, Q);
-              return [Bt, tt];
+            rt(F, L, k, B),
+            P(([y, N, { items: Q }]) => Q.length > 0 && N.height !== 0 && y.height !== 0),
+            E(([y, N, { items: Q }, lt]) => {
+              const { bottom: tt, top: kt } = bn(y, lt, N, Q);
+              return [kt, tt];
             }),
             Y(se)
           ),
           e
         );
-        const xt = y(false);
-        F(
+        const xt = v(false);
+        O(
           x$1(
-            u,
-            G(xt),
-            E(([v, N]) => N || v !== 0)
+            a,
+            _(xt),
+            E(([y, N]) => N || y !== 0)
           ),
           xt
         );
-        const Xt = pt(
+        const Xt = ht(
           x$1(
-            rt(B, d),
-            P(([{ items: v }]) => v.length > 0),
-            G(xt),
-            P(([[v, N], Q]) => {
-              const tt = v.items[v.items.length - 1].index === N - 1;
-              return (Q || v.bottom > 0 && v.itemHeight > 0 && v.offsetBottom === 0 && v.items.length === N) && tt;
+            rt(k, d),
+            P(([{ items: y }]) => y.length > 0),
+            _(xt),
+            P(([[y, N], Q]) => {
+              const tt = y.items[y.items.length - 1].index === N - 1;
+              return (Q || y.bottom > 0 && y.itemHeight > 0 && y.offsetBottom === 0 && y.items.length === N) && tt;
             }),
-            E(([[, v]]) => v - 1),
+            E(([[, y]]) => y - 1),
             Y()
           )
-        ), Mt = pt(
+        ), Mt = ht(
           x$1(
-            A(B),
-            P(({ items: v }) => v.length > 0 && v[0].index === 0),
-            vt$1(0),
+            A(k),
+            P(({ items: y }) => y.length > 0 && y[0].index === 0),
+            yt(0),
             Y()
           )
-        ), yt = pt(
+        ), vt2 = ht(
           x$1(
-            A(B),
-            G(dt),
-            P(([{ items: v }, N]) => v.length > 0 && !N),
-            E(([{ items: v }]) => ({
-              endIndex: v[v.length - 1].index,
-              startIndex: v[0].index
+            A(k),
+            _(dt),
+            P(([{ items: y }, N]) => y.length > 0 && !N),
+            E(([{ items: y }]) => ({
+              endIndex: y[y.length - 1].index,
+              startIndex: y[0].index
             })),
-            Y(An),
+            Y(Pn),
             Lt(0)
           )
         );
-        F(yt, m.scrollSeekRangeChanged), F(
+        O(vt2, f.scrollSeekRangeChanged), O(
           x$1(
             V,
-            G(O, L, d, k),
-            E(([v, N, Q, it, tt]) => {
-              const Bt = Nn(v), { align: Jt, behavior: Nt, offset: de } = Bt;
-              let Ot = Bt.index;
-              Ot === "LAST" && (Ot = it - 1), Ot = ee(0, Ot, Fe(it - 1, Ot));
-              let Ft = Ae(N, tt, Q, Ot);
-              return Jt === "end" ? Ft = vn(Ft - N.height + Q.height) : Jt === "center" && (Ft = vn(Ft - N.height / 2 + Q.height / 2)), de && (Ft += de), { behavior: Nt, top: Ft };
+            _(F, L, d, B),
+            E(([y, N, Q, lt, tt]) => {
+              const kt = _n(y), { align: Jt, behavior: Nt, offset: de } = kt;
+              let Ft = kt.index;
+              Ft === "LAST" && (Ft = lt - 1), Ft = ee(0, Ft, Oe(lt - 1, Ft));
+              let Ot = Ae(N, tt, Q, Ft);
+              return Jt === "end" ? Ot = yn(Ot - N.height + Q.height) : Jt === "center" && (Ot = yn(Ot - N.height / 2 + Q.height / 2)), de && (Ot += de), { behavior: Nt, top: Ot };
             })
           ),
           c2
         );
-        const kt = ct(
+        const Bt = ct(
           x$1(
-            B,
-            E((v) => v.offsetBottom + v.bottom)
+            k,
+            E((y) => y.offsetBottom + y.bottom)
           ),
           0
         );
-        return F(
+        return O(
           x$1(
-            b,
-            E((v) => ({ height: v.visibleHeight, width: v.visibleWidth }))
+            R,
+            E((y) => ({ height: y.visibleHeight, width: y.visibleWidth }))
           ),
-          O
+          F
         ), {
-          customScrollParent: C2,
+          customScrollParent: S2,
           // input
           data: nt,
           deviation: J,
           footerHeight: r2,
-          gap: k,
+          gap: B,
           headerHeight: s,
           increaseViewportBy: t2,
-          initialItemCount: R,
+          initialItemCount: b,
           itemDimensions: L,
           overscan: n,
-          restoreStateFrom: st,
+          restoreStateFrom: it,
           scrollBy: i2,
           scrollContainerState: l,
           scrollHeight: D2,
           scrollTo: c2,
           scrollToIndex: V,
-          scrollTop: u,
-          smoothScrollTargetReached: f,
+          scrollTop: a,
+          smoothScrollTargetReached: p,
           totalCount: d,
-          useWindowScroll: g,
-          viewportDimensions: O,
-          windowScrollContainerState: a,
+          useWindowScroll: m,
+          viewportDimensions: F,
+          windowScrollContainerState: u,
           windowScrollTo: T2,
-          windowViewportRect: b,
-          ...m,
+          windowViewportRect: R,
+          ...f,
           // output
-          gridState: B,
+          gridState: k,
           horizontalDirection: At,
           initialTopMostItemIndex: St,
-          totalListHeight: kt,
-          ...p,
+          totalListHeight: Bt,
+          ...h,
           endReached: Xt,
-          propsReady: I,
-          rangeChanged: yt,
+          propsReady: w,
+          rangeChanged: vt2,
           startReached: Mt,
           stateChanged: q,
           stateRestoreInProgress: dt,
-          ...h
+          ...g
         };
       },
-      X(Ke, at, ae, Kn, Pt, je, Vt$1)
+      X(Ke, at, ae, Un, Pt, je, Vt$1)
     );
-    function no(t2, e, n) {
+    function eo(t2, e, n) {
       return ee(1, Ce((t2 + n) / (Ce(e) + n)));
     }
-    function Rn(t2, e, n, o) {
+    function bn(t2, e, n, o) {
       const { height: r2 } = n;
       if (r2 === void 0 || o.length === 0)
         return { bottom: 0, top: 0 };
@@ -48323,19 +48351,19 @@ categories: ${categories.join(" ")}`;
       return { bottom: Ae(t2, e, n, o[o.length - 1].index) + r2, top: s };
     }
     function Ae(t2, e, n, o) {
-      const r2 = no(t2.width, n.width, e.column), s = Ce(o / r2), i2 = s * n.height + ee(0, s - 1) * e.row;
+      const r2 = eo(t2.width, n.width, e.column), s = Ce(o / r2), i2 = s * n.height + ee(0, s - 1) * e.row;
       return i2 > 0 ? i2 + e.row : i2;
     }
-    const Or = /* @__PURE__ */ U(() => {
-      const t2 = y((S2) => `Item ${S2}`), e = y({}), n = y(null), o = y("virtuoso-grid-item"), r2 = y("virtuoso-grid-list"), s = y(Ye), i2 = y("div"), l = y(Yt), c2 = (S2, p = null) => ct(
+    const Fr = /* @__PURE__ */ U(() => {
+      const t2 = v((I) => `Item ${I}`), e = v({}), n = v(null), o = v("virtuoso-grid-item"), r2 = v("virtuoso-grid-list"), s = v(Ye), i2 = v("div"), l = v(Yt), c2 = (I, h = null) => ct(
         x$1(
           e,
-          E((m) => m[S2]),
+          E((f) => f[I]),
           Y()
         ),
-        p
-      ), u = y(false), f = y(false);
-      return F(A(f), u), {
+        h
+      ), a = v(false), p = v(false);
+      return O(A(p), a), {
         components: e,
         computeItemKey: s,
         context: n,
@@ -48347,66 +48375,66 @@ categories: ${categories.join(" ")}`;
         itemContent: t2,
         listClassName: r2,
         ListComponent: c2("List", "div"),
-        readyStateChanged: u,
-        reportReadyState: f,
+        readyStateChanged: a,
+        reportReadyState: p,
         ScrollerComponent: c2("Scroller", "div"),
         scrollerRef: l,
         ScrollSeekPlaceholder: c2("ScrollSeekPlaceholder", "div")
       };
-    }), Fr = /* @__PURE__ */ U(
+    }), Or = /* @__PURE__ */ U(
       ([t2, e]) => ({ ...t2, ...e }),
-      X(Br, Or)
+      X(kr, Fr)
     ), Lr = /* @__PURE__ */ H.memo(function() {
-      const e = et$1("gridState"), n = et$1("listClassName"), o = et$1("itemClassName"), r2 = et$1("itemContent"), s = et$1("computeItemKey"), i2 = et$1("isSeeking"), l = It("scrollHeight"), c2 = et$1("ItemComponent"), u = et$1("ListComponent"), f = et$1("ScrollSeekPlaceholder"), S2 = et$1("context"), p = It("itemDimensions"), m = It("gap"), w = et$1("log"), I = et$1("stateRestoreInProgress"), C2 = It("reportReadyState"), g = Ht(
+      const e = et$1("gridState"), n = et$1("listClassName"), o = et$1("itemClassName"), r2 = et$1("itemContent"), s = et$1("computeItemKey"), i2 = et$1("isSeeking"), l = It("scrollHeight"), c2 = et$1("ItemComponent"), a = et$1("ListComponent"), p = et$1("ScrollSeekPlaceholder"), I = et$1("context"), h = It("itemDimensions"), f = It("gap"), C2 = et$1("log"), w = et$1("stateRestoreInProgress"), S2 = It("reportReadyState"), m = Ht(
         H.useMemo(
-          () => (a) => {
-            const T2 = a.parentElement.parentElement.scrollHeight;
+          () => (u) => {
+            const T2 = u.parentElement.parentElement.scrollHeight;
             l(T2);
-            const b = a.firstChild;
-            if (b) {
-              const { height: h, width: d } = b.getBoundingClientRect();
-              p({ height: h, width: d });
+            const R = u.firstChild;
+            if (R) {
+              const { height: g, width: d } = R.getBoundingClientRect();
+              h({ height: g, width: d });
             }
-            m({
-              column: Hn("column-gap", getComputedStyle(a).columnGap, w),
-              row: Hn("row-gap", getComputedStyle(a).rowGap, w)
+            f({
+              column: Hn("column-gap", getComputedStyle(u).columnGap, C2),
+              row: Hn("row-gap", getComputedStyle(u).rowGap, C2)
             });
           },
-          [l, p, m, w]
+          [l, h, f, C2]
         ),
         true,
         false
       );
-      return Zn(() => {
-        e.itemHeight > 0 && e.itemWidth > 0 && C2(true);
-      }, [e]), I ? null : /* @__PURE__ */ jsxRuntimeExports.jsx(
-        u,
+      return Yn(() => {
+        e.itemHeight > 0 && e.itemWidth > 0 && S2(true);
+      }, [e]), w ? null : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        a,
         {
           className: n,
-          ref: g,
-          ...Z(u, S2),
+          ref: m,
+          ...Z(a, I),
           "data-testid": "virtuoso-item-list",
           style: { paddingBottom: e.offsetBottom, paddingTop: e.offsetTop },
-          children: e.items.map((a) => {
-            const T2 = s(a.index, a.data, S2);
+          children: e.items.map((u) => {
+            const T2 = s(u.index, u.data, I);
             return i2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-              f,
+              p,
               {
-                ...Z(f, S2),
+                ...Z(p, I),
                 height: e.itemHeight,
-                index: a.index,
+                index: u.index,
                 width: e.itemWidth
               },
               T2
             ) : /* @__PURE__ */ reactExports.createElement(
               c2,
               {
-                ...Z(c2, S2),
+                ...Z(c2, I),
                 className: o,
-                "data-index": a.index,
+                "data-index": u.index,
                 key: T2
               },
-              r2(a.index, a.data, S2)
+              r2(u.index, u.data, I)
             );
           })
         }
@@ -48436,7 +48464,7 @@ categories: ${categories.join(" ")}`;
       ), s = et$1("context");
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
     }), Pr = ({ children: t2 }) => {
-      const e = H.useContext(Yn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Ht(
+      const e = H.useContext(qn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Ht(
         H.useMemo(
           () => (s) => {
             o(s.getBoundingClientRect());
@@ -48450,65 +48478,65 @@ categories: ${categories.join(" ")}`;
         e && (o({ height: e.viewportHeight, width: e.viewportWidth }), n({ height: e.itemHeight, width: e.itemWidth }));
       }, [e, o, n]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: r2, style: Zt(false), children: t2 });
     }, Ar = ({ children: t2 }) => {
-      const e = H.useContext(Yn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et$1("customScrollParent"), s = Ge(n, r2, false);
+      const e = H.useContext(qn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et$1("customScrollParent"), s = _e(n, r2, false);
       return H.useEffect(() => {
         e && (o({ height: e.itemHeight, width: e.itemWidth }), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: e.viewportWidth }));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: s, style: Zt(false), children: t2 });
     }, Mr = /* @__PURE__ */ H.memo(function({ ...e }) {
-      const n = et$1("useWindowScroll"), o = et$1("customScrollParent"), r2 = o || n ? Gr : _r, s = o || n ? Ar : Pr, i2 = et$1("context");
+      const n = et$1("useWindowScroll"), o = et$1("customScrollParent"), r2 = o || n ? _r : Gr, s = o || n ? Ar : Pr, i2 = et$1("context");
       return /* @__PURE__ */ jsxRuntimeExports.jsx(r2, { ...e, ...Z(r2, i2), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(s, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(zr, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(Lr, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(Vr, {})
       ] }) });
     }), {
-      useEmitter: oo,
+      useEmitter: no,
       useEmitterValue: et$1,
       usePublisher: It
     } = /* @__PURE__ */ qe(
-      Fr,
+      Or,
       {
-        events: {
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          endReached: "endReached",
-          isScrolling: "isScrolling",
-          rangeChanged: "rangeChanged",
-          readyStateChanged: "readyStateChanged",
-          startReached: "startReached",
-          stateChanged: "stateChanged"
-        },
-        methods: {
-          scrollBy: "scrollBy",
-          scrollTo: "scrollTo",
-          scrollToIndex: "scrollToIndex"
-        },
         optional: {
+          context: "context",
+          totalCount: "totalCount",
+          overscan: "overscan",
+          itemContent: "itemContent",
           components: "components",
           computeItemKey: "computeItemKey",
-          context: "context",
-          customScrollParent: "customScrollParent",
           data: "data",
-          headerFooterTag: "headerFooterTag",
-          increaseViewportBy: "increaseViewportBy",
           initialItemCount: "initialItemCount",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          itemClassName: "itemClassName",
-          itemContent: "itemContent",
-          listClassName: "listClassName",
-          logLevel: "logLevel",
-          overscan: "overscan",
-          restoreStateFrom: "restoreStateFrom",
-          scrollerRef: "scrollerRef",
           scrollSeekConfiguration: "scrollSeekConfiguration",
-          totalCount: "totalCount",
-          useWindowScroll: "useWindowScroll"
+          headerFooterTag: "headerFooterTag",
+          listClassName: "listClassName",
+          itemClassName: "itemClassName",
+          useWindowScroll: "useWindowScroll",
+          customScrollParent: "customScrollParent",
+          scrollerRef: "scrollerRef",
+          logLevel: "logLevel",
+          restoreStateFrom: "restoreStateFrom",
+          initialTopMostItemIndex: "initialTopMostItemIndex",
+          increaseViewportBy: "increaseViewportBy"
+        },
+        methods: {
+          scrollTo: "scrollTo",
+          scrollBy: "scrollBy",
+          scrollToIndex: "scrollToIndex"
+        },
+        events: {
+          isScrolling: "isScrolling",
+          endReached: "endReached",
+          startReached: "startReached",
+          rangeChanged: "rangeChanged",
+          atBottomStateChange: "atBottomStateChange",
+          atTopStateChange: "atTopStateChange",
+          stateChanged: "stateChanged",
+          readyStateChanged: "readyStateChanged"
         }
       },
       Mr
-    ), _r = /* @__PURE__ */ Ze({ useEmitter: oo, useEmitterValue: et$1, usePublisher: It }), Gr = /* @__PURE__ */ Xe({ useEmitter: oo, useEmitterValue: et$1, usePublisher: It });
+    ), Gr = /* @__PURE__ */ Ze({ useEmitter: no, useEmitterValue: et$1, usePublisher: It }), _r = /* @__PURE__ */ Xe({ useEmitter: no, useEmitterValue: et$1, usePublisher: It });
     function Hn(t2, e, n) {
-      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
+      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, mt.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
     const keyPairContainer = "_keyPairContainer_1ltuo_1";
     const key = "_key_1ltuo_1";
@@ -49729,9 +49757,9 @@ self.onmessage = function (e) {
           if (cd[i2]) {
             var sv = i2 << 4 | cd[i2];
             var r_1 = mb - cd[i2];
-            var v = le2[cd[i2] - 1]++ << r_1;
-            for (var m = v | (1 << r_1) - 1; v <= m; ++v) {
-              co2[rev[v] >> rvb] = sv;
+            var v2 = le2[cd[i2] - 1]++ << r_1;
+            for (var m = v2 | (1 << r_1) - 1; v2 <= m; ++v2) {
+              co2[rev[v2] >> rvb] = sv;
             }
           }
         }
@@ -49778,12 +49806,12 @@ self.onmessage = function (e) {
     var shft = function(p) {
       return (p + 7) / 8 | 0;
     };
-    var slc = function(v, s, e) {
+    var slc = function(v2, s, e) {
       if (s == null || s < 0)
         s = 0;
-      if (e == null || e > v.length)
-        e = v.length;
-      return new u8(v.subarray(s, e));
+      if (e == null || e > v2.length)
+        e = v2.length;
+      return new u8(v2.subarray(s, e));
     };
     var ec = [
       "unexpected EOF",
@@ -49811,13 +49839,13 @@ self.onmessage = function (e) {
         throw e;
       return e;
     };
-    var inflt = function(dat, st, buf, dict) {
+    var inflt = function(dat, st2, buf, dict) {
       var sl = dat.length, dl = dict ? dict.length : 0;
-      if (!sl || st.f && !st.l)
+      if (!sl || st2.f && !st2.l)
         return buf || new u8(0);
       var noBuf = !buf;
-      var resize = noBuf || st.i != 2;
-      var noSt = st.i;
+      var resize = noBuf || st2.i != 2;
+      var noSt = st2.i;
       if (noBuf)
         buf = new u8(sl * 3);
       var cbuf = function(l2) {
@@ -49828,7 +49856,7 @@ self.onmessage = function (e) {
           buf = nbuf;
         }
       };
-      var final = st.f || 0, pos2 = st.p || 0, bt2 = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+      var final = st2.f || 0, pos2 = st2.p || 0, bt2 = st2.b || 0, lm = st2.l, dm = st2.d, lbt = st2.m, dbt = st2.n;
       var tbts = sl * 8;
       do {
         if (!lm) {
@@ -49845,7 +49873,7 @@ self.onmessage = function (e) {
             if (resize)
               cbuf(bt2 + l);
             buf.set(dat.subarray(s, t2), bt2);
-            st.b = bt2 += l, st.p = pos2 = t2 * 8, st.f = final;
+            st2.b = bt2 += l, st2.p = pos2 = t2 * 8, st2.f = final;
             continue;
           } else if (type == 1)
             lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
@@ -49879,10 +49907,10 @@ self.onmessage = function (e) {
                   ldt[i2++] = c2;
               }
             }
-            var lt2 = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
-            lbt = max$2(lt2);
+            var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+            lbt = max$2(lt);
             dbt = max$2(dt);
-            lm = hMap(lt2, lbt, 1);
+            lm = hMap(lt, lbt, 1);
             dm = hMap(dt, dbt, 1);
           } else
             err(1);
@@ -49946,9 +49974,9 @@ self.onmessage = function (e) {
               buf[bt2] = buf[bt2 - dt];
           }
         }
-        st.l = lm, st.p = lpos, st.b = bt2, st.f = final;
+        st2.l = lm, st2.p = lpos, st2.b = bt2, st2.f = final;
         if (lm)
-          final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+          final = 1, st2.m = lbt, st2.d = dm, st2.n = dbt;
       } while (!final);
       return bt2 != buf.length && noBuf ? slc(buf, 0, bt2) : buf.subarray(0, bt2);
     };
@@ -49963,35 +49991,35 @@ self.onmessage = function (e) {
     };
     var wcln = function(fn2, fnStr, td2) {
       var dt = fn2();
-      var st = fn2.toString();
-      var ks = st.slice(st.indexOf("[") + 1, st.lastIndexOf("]")).replace(/\s+/g, "").split(",");
+      var st2 = fn2.toString();
+      var ks = st2.slice(st2.indexOf("[") + 1, st2.lastIndexOf("]")).replace(/\s+/g, "").split(",");
       for (var i2 = 0; i2 < dt.length; ++i2) {
-        var v = dt[i2], k = ks[i2];
-        if (typeof v == "function") {
+        var v2 = dt[i2], k = ks[i2];
+        if (typeof v2 == "function") {
           fnStr += ";" + k + "=";
-          var st_1 = v.toString();
-          if (v.prototype) {
+          var st_1 = v2.toString();
+          if (v2.prototype) {
             if (st_1.indexOf("[native code]") != -1) {
               var spInd = st_1.indexOf(" ", 8) + 1;
               fnStr += st_1.slice(spInd, st_1.indexOf("(", spInd));
             } else {
               fnStr += st_1;
-              for (var t2 in v.prototype)
-                fnStr += ";" + k + ".prototype." + t2 + "=" + v.prototype[t2].toString();
+              for (var t2 in v2.prototype)
+                fnStr += ";" + k + ".prototype." + t2 + "=" + v2.prototype[t2].toString();
             }
           } else
             fnStr += st_1;
         } else
-          td2[k] = v;
+          td2[k] = v2;
       }
       return fnStr;
     };
     var ch = [];
-    var cbfs = function(v) {
+    var cbfs = function(v2) {
       var tl = [];
-      for (var k in v) {
-        if (v[k].buffer) {
-          tl.push((v[k] = new v[k].constructor(v[k])).buffer);
+      for (var k in v2) {
+        if (v2[k].buffer) {
+          tl.push((v2[k] = new v2[k].constructor(v2[k])).buffer);
         }
       }
       return tl;
@@ -50038,12 +50066,12 @@ self.onmessage = function (e) {
       if (d[0] != 31 || d[1] != 139 || d[2] != 8)
         err(6, "invalid gzip data");
       var flg = d[3];
-      var st = 10;
+      var st2 = 10;
       if (flg & 4)
-        st += (d[10] | d[11] << 8) + 2;
-      for (var zs = (flg >> 3 & 1) + (flg >> 4 & 1); zs > 0; zs -= !d[st++])
+        st2 += (d[10] | d[11] << 8) + 2;
+      for (var zs = (flg >> 3 & 1) + (flg >> 4 & 1); zs > 0; zs -= !d[st2++])
         ;
-      return st + (flg & 2);
+      return st2 + (flg & 2);
     };
     var gzl = function(d) {
       var l = d.length;
@@ -50086,10 +50114,10 @@ self.onmessage = function (e) {
       }, 3, cb);
     }
     function gunzipSync(data, opts) {
-      var st = gzs(data);
-      if (st + 8 > data.length)
+      var st2 = gzs(data);
+      if (st2 + 8 > data.length)
         err(6, "invalid gzip data");
-      return inflt(data.subarray(st, -8), { i: 2 }, opts && opts.out || new u8(gzl(data)), opts && opts.dictionary);
+      return inflt(data.subarray(st2, -8), { i: 2 }, opts && opts.out || new u8(gzl(data)), opts && opts.dictionary);
     }
     function unzlib(data, opts, cb) {
       if (!cb)
@@ -51714,7 +51742,7 @@ self.onmessage = function (e) {
           ),
           role: "status",
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.dotsContainer, children: [...Array(dotsCount)].map((_, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.dotsContainer, children: [...Array(dotsCount)].map((_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx(
@@ -52786,7 +52814,7 @@ self.onmessage = function (e) {
         return null;
       }
       const targetNode = { ...node2.children[targetIndex] };
-      const remainingChildren = node2.children.filter((_, i2) => i2 !== targetIndex);
+      const remainingChildren = node2.children.filter((_2, i2) => i2 !== targetIndex);
       targetNode.depth = node2.depth;
       targetNode.children = setDepth(remainingChildren, node2.depth + 1);
       return targetNode;
@@ -53165,18 +53193,18 @@ self.onmessage = function (e) {
       var _ref = isElement(element) ? getWindow(element) : window, visualViewport = _ref.visualViewport;
       var addVisualOffsets = !isLayoutViewport() && isFixedStrategy;
       var x2 = (clientRect.left + (addVisualOffsets && visualViewport ? visualViewport.offsetLeft : 0)) / scaleX;
-      var y2 = (clientRect.top + (addVisualOffsets && visualViewport ? visualViewport.offsetTop : 0)) / scaleY;
+      var y = (clientRect.top + (addVisualOffsets && visualViewport ? visualViewport.offsetTop : 0)) / scaleY;
       var width = clientRect.width / scaleX;
       var height = clientRect.height / scaleY;
       return {
         width,
         height,
-        top: y2,
+        top: y,
         right: x2 + width,
-        bottom: y2 + height,
+        bottom: y + height,
         left: x2,
         x: x2,
-        y: y2
+        y
       };
     }
     function getLayoutRect(element) {
@@ -53286,8 +53314,8 @@ self.onmessage = function (e) {
       return max$1(min2, min$1(value2, max2));
     }
     function withinMaxClamp(min2, value2, max2) {
-      var v = within(min2, value2, max2);
-      return v > max2 ? max2 : v;
+      var v2 = within(min2, value2, max2);
+      return v2 > max2 ? max2 : v2;
     }
     function getFreshSideObject() {
       return {
@@ -53376,26 +53404,26 @@ self.onmessage = function (e) {
       left: "auto"
     };
     function roundOffsetsByDPR(_ref, win) {
-      var x2 = _ref.x, y2 = _ref.y;
+      var x2 = _ref.x, y = _ref.y;
       var dpr = win.devicePixelRatio || 1;
       return {
         x: round(x2 * dpr) / dpr || 0,
-        y: round(y2 * dpr) / dpr || 0
+        y: round(y * dpr) / dpr || 0
       };
     }
     function mapToStyles(_ref2) {
       var _Object$assign2;
       var popper2 = _ref2.popper, popperRect = _ref2.popperRect, placement = _ref2.placement, variation = _ref2.variation, offsets = _ref2.offsets, position = _ref2.position, gpuAcceleration = _ref2.gpuAcceleration, adaptive = _ref2.adaptive, roundOffsets = _ref2.roundOffsets, isFixed = _ref2.isFixed;
-      var _offsets$x = offsets.x, x2 = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y2 = _offsets$y === void 0 ? 0 : _offsets$y;
+      var _offsets$x = offsets.x, x2 = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y = _offsets$y === void 0 ? 0 : _offsets$y;
       var _ref3 = typeof roundOffsets === "function" ? roundOffsets({
         x: x2,
-        y: y2
+        y
       }) : {
         x: x2,
-        y: y2
+        y
       };
       x2 = _ref3.x;
-      y2 = _ref3.y;
+      y = _ref3.y;
       var hasX = offsets.hasOwnProperty("x");
       var hasY = offsets.hasOwnProperty("y");
       var sideX = left;
@@ -53419,8 +53447,8 @@ self.onmessage = function (e) {
             // $FlowFixMe[prop-missing]
             offsetParent[heightProp]
           );
-          y2 -= offsetY - popperRect.height;
-          y2 *= gpuAcceleration ? 1 : -1;
+          y -= offsetY - popperRect.height;
+          y *= gpuAcceleration ? 1 : -1;
         }
         if (placement === left || (placement === top$1 || placement === bottom) && variation === end) {
           sideX = right;
@@ -53437,18 +53465,18 @@ self.onmessage = function (e) {
       }, adaptive && unsetSides);
       var _ref4 = roundOffsets === true ? roundOffsetsByDPR({
         x: x2,
-        y: y2
+        y
       }, getWindow(popper2)) : {
         x: x2,
-        y: y2
+        y
       };
       x2 = _ref4.x;
-      y2 = _ref4.y;
+      y = _ref4.y;
       if (gpuAcceleration) {
         var _Object$assign;
-        return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x2 + "px, " + y2 + "px)" : "translate3d(" + x2 + "px, " + y2 + "px, 0)", _Object$assign));
+        return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x2 + "px, " + y + "px)" : "translate3d(" + x2 + "px, " + y + "px, 0)", _Object$assign));
       }
-      return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y2 + "px" : "", _Object$assign2[sideX] = hasX ? x2 + "px" : "", _Object$assign2.transform = "", _Object$assign2));
+      return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y + "px" : "", _Object$assign2[sideX] = hasX ? x2 + "px" : "", _Object$assign2.transform = "", _Object$assign2));
     }
     function computeStyles(_ref5) {
       var state = _ref5.state, options2 = _ref5.options;
@@ -53563,21 +53591,21 @@ self.onmessage = function (e) {
       var width = html.clientWidth;
       var height = html.clientHeight;
       var x2 = 0;
-      var y2 = 0;
+      var y = 0;
       if (visualViewport) {
         width = visualViewport.width;
         height = visualViewport.height;
         var layoutViewport = isLayoutViewport();
         if (layoutViewport || !layoutViewport && strategy === "fixed") {
           x2 = visualViewport.offsetLeft;
-          y2 = visualViewport.offsetTop;
+          y = visualViewport.offsetTop;
         }
       }
       return {
         width,
         height,
         x: x2 + getWindowScrollBarX(element),
-        y: y2
+        y
       };
     }
     function getDocumentRect(element) {
@@ -53588,7 +53616,7 @@ self.onmessage = function (e) {
       var width = max$1(html.scrollWidth, html.clientWidth, body2 ? body2.scrollWidth : 0, body2 ? body2.clientWidth : 0);
       var height = max$1(html.scrollHeight, html.clientHeight, body2 ? body2.scrollHeight : 0, body2 ? body2.clientHeight : 0);
       var x2 = -winScroll.scrollLeft + getWindowScrollBarX(element);
-      var y2 = -winScroll.scrollTop;
+      var y = -winScroll.scrollTop;
       if (getComputedStyle$1(body2 || html).direction === "rtl") {
         x2 += max$1(html.clientWidth, body2 ? body2.clientWidth : 0) - width;
       }
@@ -53596,7 +53624,7 @@ self.onmessage = function (e) {
         width,
         height,
         x: x2,
-        y: y2
+        y
       };
     }
     function isScrollParent(element) {
@@ -53972,10 +54000,10 @@ self.onmessage = function (e) {
         acc[placement] = distanceAndSkiddingToXY(placement, state.rects, offset2);
         return acc;
       }, {});
-      var _data$state$placement = data[state.placement], x2 = _data$state$placement.x, y2 = _data$state$placement.y;
+      var _data$state$placement = data[state.placement], x2 = _data$state$placement.x, y = _data$state$placement.y;
       if (state.modifiersData.popperOffsets != null) {
         state.modifiersData.popperOffsets.x += x2;
-        state.modifiersData.popperOffsets.y += y2;
+        state.modifiersData.popperOffsets.y += y;
       }
       state.modifiersData[name2] = data;
     }
@@ -56705,12 +56733,12 @@ self.onmessage = function (e) {
       const len1 = array1.length;
       const len2 = array2.length;
       let x2;
-      let y2;
+      let y;
       const matrix = new Array(len1 + 1);
       for (x2 = 0; x2 < len1 + 1; x2++) {
         const matrixNewRow = new Array(len2 + 1);
-        for (y2 = 0; y2 < len2 + 1; y2++) {
-          matrixNewRow[y2] = 0;
+        for (y = 0; y < len2 + 1; y++) {
+          matrixNewRow[y] = 0;
         }
         matrix[x2] = matrixNewRow;
       }
@@ -56724,11 +56752,11 @@ self.onmessage = function (e) {
         if (matrixRowBeforeX === void 0) {
           throw new Error("LCS matrix row is undefined");
         }
-        for (y2 = 1; y2 < len2 + 1; y2++) {
-          if (match(array1, array2, x2 - 1, y2 - 1, context)) {
-            matrixRowX[y2] = ((_a2 = matrixRowBeforeX[y2 - 1]) !== null && _a2 !== void 0 ? _a2 : 0) + 1;
+        for (y = 1; y < len2 + 1; y++) {
+          if (match(array1, array2, x2 - 1, y - 1, context)) {
+            matrixRowX[y] = ((_a2 = matrixRowBeforeX[y - 1]) !== null && _a2 !== void 0 ? _a2 : 0) + 1;
           } else {
-            matrixRowX[y2] = Math.max((_b2 = matrixRowBeforeX[y2]) !== null && _b2 !== void 0 ? _b2 : 0, (_c = matrixRowX[y2 - 1]) !== null && _c !== void 0 ? _c : 0);
+            matrixRowX[y] = Math.max((_b2 = matrixRowBeforeX[y]) !== null && _b2 !== void 0 ? _b2 : 0, (_c = matrixRowX[y - 1]) !== null && _c !== void 0 ? _c : 0);
           }
         }
       }
@@ -58233,7 +58261,7 @@ self.onmessage = function (e) {
       if (className2 == "Object") {
         try {
           return "Object(" + JSON.stringify(val) + ")";
-        } catch (_) {
+        } catch (_2) {
           return "Object";
         }
       }
@@ -58605,15 +58633,15 @@ ${val.stack}`;
         return Array.from(this);
       }
       [Symbol.iterator]() {
-        let v = 0;
+        let v2 = 0;
         let values = [];
         let flushed = false;
         const xf = compose(this.xfs, (val) => values.push(val));
         return {
           next: () => {
-            if (v === values.length) {
+            if (v2 === values.length) {
               values = [];
-              v = 0;
+              v2 = 0;
             }
             while (values.length === 0) {
               const next = this.input.next();
@@ -58630,7 +58658,7 @@ ${val.stack}`;
             if (values.length > 0) {
               return {
                 done: false,
-                value: values[v++]
+                value: values[v2++]
               };
             } else {
               return {
@@ -59450,7 +59478,7 @@ ${events}
             return [time, text2];
           });
           const duration = data[data.length - 1][0];
-          for (const [_, text2] of data) {
+          for (const [_2, text2] of data) {
             byteCount += new Blob([text2]).size;
           }
           return {
@@ -59462,7 +59490,7 @@ ${events}
         play() {
           const startTime = now2();
           for (let i2 = 0; i2 < iterations; i2++) {
-            for (const [_, text2] of data) {
+            for (const [_2, text2] of data) {
               feed(text2);
             }
             feed("\x1Bc");
@@ -61296,29 +61324,29 @@ ${events}
       return true;
     }
     const propTraps = {
-      get(_, property, receiver) {
+      get(_2, property, receiver) {
         if (property === $PROXY) return receiver;
-        return _.get(property);
+        return _2.get(property);
       },
-      has(_, property) {
+      has(_2, property) {
         if (property === $PROXY) return true;
-        return _.has(property);
+        return _2.has(property);
       },
       set: trueFn,
       deleteProperty: trueFn,
-      getOwnPropertyDescriptor(_, property) {
+      getOwnPropertyDescriptor(_2, property) {
         return {
           configurable: true,
           enumerable: true,
           get() {
-            return _.get(property);
+            return _2.get(property);
           },
           set: trueFn,
           deleteProperty: trueFn
         };
       },
-      ownKeys(_) {
-        return _.keys();
+      ownKeys(_2) {
+        return _2.keys();
       }
     };
     function resolveSource(s) {
@@ -61335,8 +61363,8 @@ ${events}
         return new Proxy({
           get(property) {
             for (let i2 = sources.length - 1; i2 >= 0; i2--) {
-              const v = resolveSource(sources[i2])[property];
-              if (v !== void 0) return v;
+              const v2 = resolveSource(sources[i2])[property];
+              if (v2 !== void 0) return v2;
             }
           },
           has(property) {
@@ -61362,8 +61390,8 @@ ${events}
               enumerable: true,
               get() {
                 for (let i3 = sources.length - 1; i3 >= 0; i3--) {
-                  const v = (sources[i3] || {})[key2];
-                  if (v !== void 0) return v;
+                  const v2 = (sources[i3] || {})[key2];
+                  if (v2 !== void 0) return v2;
                 }
               }
             });
@@ -61529,16 +61557,16 @@ ${events}
       typeof prev === "string" && (nodeStyle.cssText = prev = void 0);
       prev || (prev = {});
       value2 || (value2 = {});
-      let v, s;
+      let v2, s;
       for (s in prev) {
         value2[s] == null && nodeStyle.removeProperty(s);
         delete prev[s];
       }
       for (s in value2) {
-        v = value2[s];
-        if (v !== prev[s]) {
-          nodeStyle.setProperty(s, v);
-          prev[s] = v;
+        v2 = value2[s];
+        if (v2 !== prev[s]) {
+          nodeStyle.setProperty(s, v2);
+          prev[s] = v2;
         }
       }
       return prev;
@@ -61612,9 +61640,9 @@ ${events}
         current2 = cleanChildren(parent, current2, marker);
       } else if (t2 === "function") {
         createRenderEffect(() => {
-          let v = value2();
-          while (typeof v === "function") v = v();
-          current2 = insertExpression(parent, v, current2, marker);
+          let v2 = value2();
+          while (typeof v2 === "function") v2 = v2();
+          current2 = insertExpression(parent, v2, current2, marker);
         });
         return () => current2;
       } else if (Array.isArray(value2)) {
@@ -61726,15 +61754,15 @@ ${events}
       return obj != null && typeof obj === "object" && (obj[$PROXY] || !(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype || Array.isArray(obj));
     }
     function unwrap(item2, set2 = /* @__PURE__ */ new Set()) {
-      let result2, unwrapped, v, prop;
+      let result2, unwrapped, v2, prop;
       if (result2 = item2 != null && item2[$RAW]) return result2;
       if (!isWrappable(item2) || set2.has(item2)) return item2;
       if (Array.isArray(item2)) {
         if (Object.isFrozen(item2)) item2 = item2.slice(0);
         else set2.add(item2);
         for (let i2 = 0, l = item2.length; i2 < l; i2++) {
-          v = item2[i2];
-          if ((unwrapped = unwrap(v, set2)) !== v) item2[i2] = unwrapped;
+          v2 = item2[i2];
+          if ((unwrapped = unwrap(v2, set2)) !== v2) item2[i2] = unwrapped;
         }
       } else {
         if (Object.isFrozen(item2)) item2 = Object.assign({}, item2);
@@ -61743,8 +61771,8 @@ ${events}
         for (let i2 = 0, l = keys.length; i2 < l; i2++) {
           prop = keys[i2];
           if (desc[prop].get) continue;
-          v = item2[prop];
-          if ((unwrapped = unwrap(v, set2)) !== v) item2[prop] = unwrapped;
+          v2 = item2[prop];
+          if ((unwrapped = unwrap(v2, set2)) !== v2) item2[prop] = unwrapped;
         }
       }
       return item2;
@@ -61976,10 +62004,10 @@ ${events}
       const {
         merge,
         key: key2 = "id"
-      } = options2, v = unwrap(value2);
+      } = options2, v2 = unwrap(value2);
       return (state) => {
-        if (!isWrappable(state) || !isWrappable(v)) return v;
-        const res = applyState(v, {
+        if (!isWrappable(state) || !isWrappable(v2)) return v2;
+        const res = applyState(v2, {
           [$ROOT]: state
         }, $ROOT, merge, key2);
         return res === void 0 ? state : res;
@@ -63524,7 +63552,7 @@ ${events}
         if (toolIndexes.length === 0) {
           toolsInfo["Tools"] = /* @__PURE__ */ jsxRuntimeExports.jsx(Tools, { toolDefinitions: resolvedState.tools });
         } else {
-          const filtered = tools2.filter((_, index2) => {
+          const filtered = tools2.filter((_2, index2) => {
             return toolIndexes.includes(index2.toString());
           });
           toolsInfo["Tools"] = /* @__PURE__ */ jsxRuntimeExports.jsx(Tools, { toolDefinitions: filtered });
@@ -67271,7 +67299,7 @@ ${events}
     }
     const languageData = /* @__PURE__ */ Facet.define();
     const allowMultipleSelections = /* @__PURE__ */ Facet.define({
-      combine: (values) => values.some((v) => v),
+      combine: (values) => values.some((v2) => v2),
       static: true
     });
     const lineSeparator = /* @__PURE__ */ Facet.define({
@@ -67353,7 +67381,7 @@ ${events}
       removed.
       */
       static define(spec = {}) {
-        return new StateEffectType(spec.map || ((v) => v));
+        return new StateEffectType(spec.map || ((v2) => v2));
       }
       /**
       Map an array of effects through a change set.
@@ -67586,7 +67614,7 @@ ${events}
     let wordChar;
     try {
       wordChar = /* @__PURE__ */ new RegExp("[\\p{Alphabetic}\\p{Number}_]", "u");
-    } catch (_) {
+    } catch (_2) {
     }
     function hasWordChar(str2) {
       if (wordChar)
@@ -69000,7 +69028,7 @@ ${events}
         return false;
       try {
         return contains(dom, selection.anchorNode);
-      } catch (_) {
+      } catch (_2) {
         return false;
       }
     }
@@ -69079,7 +69107,7 @@ ${events}
         scaleY = 1;
       return { scaleX, scaleY };
     }
-    function scrollRectIntoView(dom, rect, side, x2, y2, xMargin, yMargin, ltr) {
+    function scrollRectIntoView(dom, rect, side, x2, y, xMargin, yMargin, ltr) {
       let doc2 = dom.ownerDocument, win = doc2.defaultView || window;
       for (let cur2 = dom, stop = false; cur2 && !stop; ) {
         if (cur2.nodeType == 1) {
@@ -69104,7 +69132,7 @@ ${events}
             };
           }
           let moveX = 0, moveY = 0;
-          if (y2 == "nearest") {
+          if (y == "nearest") {
             if (rect.top < bounding.top) {
               moveY = rect.top - (bounding.top + yMargin);
               if (side > 0 && rect.bottom > bounding.bottom + moveY)
@@ -69116,7 +69144,7 @@ ${events}
             }
           } else {
             let rectHeight = rect.bottom - rect.top, boundingHeight = bounding.bottom - bounding.top;
-            let targetTop = y2 == "center" && rectHeight <= boundingHeight ? rect.top + rectHeight / 2 - boundingHeight / 2 : y2 == "start" || y2 == "center" && side < 0 ? rect.top - yMargin : rect.bottom - boundingHeight + yMargin;
+            let targetTop = y == "center" && rectHeight <= boundingHeight ? rect.top + rectHeight / 2 - boundingHeight / 2 : y == "start" || y == "center" && side < 0 ? rect.top - yMargin : rect.bottom - boundingHeight + yMargin;
             moveY = targetTop - bounding.top;
           }
           if (x2 == "nearest") {
@@ -69157,7 +69185,7 @@ ${events}
               if (movedX && Math.abs(movedX - moveX) < 1)
                 x2 = "nearest";
               if (movedY && Math.abs(movedY - moveY) < 1)
-                y2 = "nearest";
+                y = "nearest";
             }
           }
           if (top2)
@@ -69178,13 +69206,13 @@ ${events}
       }
     }
     function scrollableParents(dom) {
-      let doc2 = dom.ownerDocument, x2, y2;
+      let doc2 = dom.ownerDocument, x2, y;
       for (let cur2 = dom.parentNode; cur2; ) {
-        if (cur2 == doc2.body || x2 && y2) {
+        if (cur2 == doc2.body || x2 && y) {
           break;
         } else if (cur2.nodeType == 1) {
-          if (!y2 && cur2.scrollHeight > cur2.clientHeight)
-            y2 = cur2;
+          if (!y && cur2.scrollHeight > cur2.clientHeight)
+            y = cur2;
           if (!x2 && cur2.scrollWidth > cur2.clientWidth)
             x2 = cur2;
           cur2 = cur2.assignedSlot || cur2.parentNode;
@@ -69194,7 +69222,7 @@ ${events}
           break;
         }
       }
-      return { x: x2, y: y2 };
+      return { x: x2, y };
     }
     class DOMSelectionState {
       constructor() {
@@ -69510,11 +69538,11 @@ ${events}
         dom.cmView = this;
       }
       get rootView() {
-        for (let v = this; ; ) {
-          let parent = v.parent;
+        for (let v2 = this; ; ) {
+          let parent = v2.parent;
           if (!parent)
-            return v;
-          v = parent;
+            return v2;
+          v2 = parent;
         }
       }
       replaceChildren(from, to2, children2 = noChildren) {
@@ -71194,9 +71222,9 @@ ${events}
     });
     const scrollHandler = /* @__PURE__ */ Facet.define();
     class ScrollTarget {
-      constructor(range, y2 = "nearest", x2 = "nearest", yMargin = 5, xMargin = 5, isSnapshot = false) {
+      constructor(range, y = "nearest", x2 = "nearest", yMargin = 5, xMargin = 5, isSnapshot = false) {
         this.range = range;
-        this.y = y2;
+        this.y = y;
         this.x = x2;
         this.yMargin = yMargin;
         this.xMargin = xMargin;
@@ -71286,7 +71314,7 @@ ${events}
               if (this.value.destroy)
                 try {
                   this.value.destroy();
-                } catch (_) {
+                } catch (_2) {
                 }
               this.deactivate();
             }
@@ -71701,7 +71729,7 @@ ${events}
               rawSel.collapse(anchor.node, anchor.offset);
               try {
                 rawSel.extend(head.node, head.offset);
-              } catch (_) {
+              } catch (_2) {
               }
             } else {
               let range = document.createRange();
@@ -72118,8 +72146,8 @@ ${events}
     function getdx(x2, rect) {
       return rect.left > x2 ? rect.left - x2 : Math.max(0, x2 - rect.right);
     }
-    function getdy(y2, rect) {
-      return rect.top > y2 ? rect.top - y2 : Math.max(0, y2 - rect.bottom);
+    function getdy(y, rect) {
+      return rect.top > y ? rect.top - y : Math.max(0, y - rect.bottom);
     }
     function yOverlap(a, b) {
       return a.top < b.bottom - 1 && a.bottom > b.top + 1;
@@ -72130,7 +72158,7 @@ ${events}
     function upBot(rect, bottom2) {
       return bottom2 > rect.bottom ? { top: rect.top, left: rect.left, right: rect.right, bottom: bottom2 } : rect;
     }
-    function domPosAtCoords(parent, x2, y2) {
+    function domPosAtCoords(parent, x2, y) {
       let closest, closestRect, closestX, closestY, closestOverlap = false;
       let above, below, aboveRect, belowRect;
       for (let child = parent.firstChild; child; child = child.nextSibling) {
@@ -72139,22 +72167,22 @@ ${events}
           let rect = rects[i2];
           if (closestRect && yOverlap(closestRect, rect))
             rect = upTop(upBot(rect, closestRect.bottom), closestRect.top);
-          let dx = getdx(x2, rect), dy = getdy(y2, rect);
+          let dx = getdx(x2, rect), dy = getdy(y, rect);
           if (dx == 0 && dy == 0)
-            return child.nodeType == 3 ? domPosInText(child, x2, y2) : domPosAtCoords(child, x2, y2);
+            return child.nodeType == 3 ? domPosInText(child, x2, y) : domPosAtCoords(child, x2, y);
           if (!closest || closestY > dy || closestY == dy && closestX > dx) {
             closest = child;
             closestRect = rect;
             closestX = dx;
             closestY = dy;
-            let side = dy ? y2 < rect.top ? -1 : 1 : dx ? x2 < rect.left ? -1 : 1 : 0;
+            let side = dy ? y < rect.top ? -1 : 1 : dx ? x2 < rect.left ? -1 : 1 : 0;
             closestOverlap = !side || (side > 0 ? i2 < rects.length - 1 : i2 > 0);
           }
           if (dx == 0) {
-            if (y2 > rect.bottom && (!aboveRect || aboveRect.bottom < rect.bottom)) {
+            if (y > rect.bottom && (!aboveRect || aboveRect.bottom < rect.bottom)) {
               above = child;
               aboveRect = rect;
-            } else if (y2 < rect.top && (!belowRect || belowRect.top > rect.top)) {
+            } else if (y < rect.top && (!belowRect || belowRect.top > rect.top)) {
               below = child;
               belowRect = rect;
             }
@@ -72165,10 +72193,10 @@ ${events}
           }
         }
       }
-      if (aboveRect && aboveRect.bottom >= y2) {
+      if (aboveRect && aboveRect.bottom >= y) {
         closest = above;
         closestRect = aboveRect;
-      } else if (belowRect && belowRect.top <= y2) {
+      } else if (belowRect && belowRect.top <= y) {
         closest = below;
         closestRect = belowRect;
       }
@@ -72176,13 +72204,13 @@ ${events}
         return { node: parent, offset: 0 };
       let clipX = Math.max(closestRect.left, Math.min(closestRect.right, x2));
       if (closest.nodeType == 3)
-        return domPosInText(closest, clipX, y2);
+        return domPosInText(closest, clipX, y);
       if (closestOverlap && closest.contentEditable != "false")
-        return domPosAtCoords(closest, clipX, y2);
+        return domPosAtCoords(closest, clipX, y);
       let offset2 = Array.prototype.indexOf.call(parent.childNodes, closest) + (x2 >= (closestRect.left + closestRect.right) / 2 ? 1 : 0);
       return { node: parent, offset: offset2 };
     }
-    function domPosInText(node2, x2, y2) {
+    function domPosInText(node2, x2, y) {
       let len = node2.nodeValue.length;
       let closestOffset = -1, closestDY = 1e9, generalSide = 0;
       for (let i2 = 0; i2 < len; i2++) {
@@ -72193,7 +72221,7 @@ ${events}
             continue;
           if (!generalSide)
             generalSide = x2 - rect.left;
-          let dy = (rect.top > y2 ? rect.top - y2 : y2 - rect.bottom) - 1;
+          let dy = (rect.top > y ? rect.top - y : y - rect.bottom) - 1;
           if (rect.left - 1 <= x2 && rect.right + 1 >= x2 && dy < closestDY) {
             let right2 = x2 >= (rect.left + rect.right) / 2, after = right2;
             if (browser.chrome || browser.gecko) {
@@ -72214,7 +72242,7 @@ ${events}
       var _a2, _b2;
       let content2 = view.contentDOM.getBoundingClientRect(), docTop = content2.top + view.viewState.paddingTop;
       let block2, { docHeight } = view.viewState;
-      let { x: x2, y: y2 } = coords, yOffset = y2 - docTop;
+      let { x: x2, y } = coords, yOffset = y - docTop;
       if (yOffset < 0)
         return 0;
       if (yOffset > docHeight)
@@ -72233,31 +72261,31 @@ ${events}
           bias = -bias;
         }
       }
-      y2 = docTop + yOffset;
+      y = docTop + yOffset;
       let lineStart = block2.from;
       if (lineStart < view.viewport.from)
-        return view.viewport.from == 0 ? 0 : precise ? null : posAtCoordsImprecise(view, content2, block2, x2, y2);
+        return view.viewport.from == 0 ? 0 : precise ? null : posAtCoordsImprecise(view, content2, block2, x2, y);
       if (lineStart > view.viewport.to)
-        return view.viewport.to == view.state.doc.length ? view.state.doc.length : precise ? null : posAtCoordsImprecise(view, content2, block2, x2, y2);
+        return view.viewport.to == view.state.doc.length ? view.state.doc.length : precise ? null : posAtCoordsImprecise(view, content2, block2, x2, y);
       let doc2 = view.dom.ownerDocument;
       let root2 = view.root.elementFromPoint ? view.root : doc2;
-      let element = root2.elementFromPoint(x2, y2);
+      let element = root2.elementFromPoint(x2, y);
       if (element && !view.contentDOM.contains(element))
         element = null;
       if (!element) {
         x2 = Math.max(content2.left + 1, Math.min(content2.right - 1, x2));
-        element = root2.elementFromPoint(x2, y2);
+        element = root2.elementFromPoint(x2, y);
         if (element && !view.contentDOM.contains(element))
           element = null;
       }
       let node2, offset2 = -1;
       if (element && ((_a2 = view.docView.nearest(element)) === null || _a2 === void 0 ? void 0 : _a2.isEditable) != false) {
         if (doc2.caretPositionFromPoint) {
-          let pos2 = doc2.caretPositionFromPoint(x2, y2);
+          let pos2 = doc2.caretPositionFromPoint(x2, y);
           if (pos2)
             ({ offsetNode: node2, offset: offset2 } = pos2);
         } else if (doc2.caretRangeFromPoint) {
-          let range = doc2.caretRangeFromPoint(x2, y2);
+          let range = doc2.caretRangeFromPoint(x2, y);
           if (range) {
             ({ startContainer: node2, startOffset: offset2 } = range);
             if (!view.contentDOM.contains(node2) || browser.safari && isSuspiciousSafariCaretResult(node2, offset2, x2) || browser.chrome && isSuspiciousChromeCaretResult(node2, offset2, x2))
@@ -72271,7 +72299,7 @@ ${events}
         let line2 = LineView.find(view.docView, lineStart);
         if (!line2)
           return yOffset > block2.top + block2.height / 2 ? block2.to : block2.from;
-        ({ node: node2, offset: offset2 } = domPosAtCoords(line2.dom, x2, y2));
+        ({ node: node2, offset: offset2 } = domPosAtCoords(line2.dom, x2, y));
       }
       let nearest = view.docView.nearest(node2);
       if (!nearest)
@@ -72283,11 +72311,11 @@ ${events}
         return nearest.localPosFromDOM(node2, offset2) + nearest.posAtStart;
       }
     }
-    function posAtCoordsImprecise(view, contentRect, block2, x2, y2) {
+    function posAtCoordsImprecise(view, contentRect, block2, x2, y) {
       let into = Math.round((x2 - contentRect.left) * view.defaultCharacterWidth);
       if (view.lineWrapping && block2.height > view.defaultLineHeight * 1.5) {
         let textHeight = view.viewState.heightOracle.textHeight;
-        let line2 = Math.floor((y2 - block2.top - (view.defaultLineHeight - textHeight) * 0.5) / textHeight);
+        let line2 = Math.floor((y - block2.top - (view.defaultLineHeight - textHeight) * 0.5) / textHeight);
         into += line2 * view.viewState.heightOracle.lineLength;
       }
       let content2 = view.state.sliceDoc(block2.from, block2.to);
@@ -72994,17 +73022,17 @@ ${events}
         }
       }
       scroll() {
-        let { x: x2, y: y2 } = this.scrollSpeed;
+        let { x: x2, y } = this.scrollSpeed;
         if (x2 && this.scrollParents.x) {
           this.scrollParents.x.scrollLeft += x2;
           x2 = 0;
         }
-        if (y2 && this.scrollParents.y) {
-          this.scrollParents.y.scrollTop += y2;
-          y2 = 0;
+        if (y && this.scrollParents.y) {
+          this.scrollParents.y.scrollTop += y;
+          y = 0;
         }
-        if (x2 || y2)
-          this.view.win.scrollBy(x2, y2);
+        if (x2 || y)
+          this.view.win.scrollBy(x2, y);
         if (this.dragging === false)
           this.select(this.lastEvent);
       }
@@ -73194,8 +73222,8 @@ ${events}
         return EditorSelection.range(from, to2);
       }
     }
-    let inside = (x2, y2, rect) => y2 >= rect.top && y2 <= rect.bottom && x2 >= rect.left && x2 <= rect.right;
-    function findPositionSide(view, pos2, x2, y2) {
+    let inside = (x2, y, rect) => y >= rect.top && y <= rect.bottom && x2 >= rect.left && x2 <= rect.right;
+    function findPositionSide(view, pos2, x2, y) {
       let line2 = LineView.find(view.docView, pos2);
       if (!line2)
         return 1;
@@ -73205,12 +73233,12 @@ ${events}
       if (off == line2.length)
         return -1;
       let before = line2.coordsAt(off, -1);
-      if (before && inside(x2, y2, before))
+      if (before && inside(x2, y, before))
         return -1;
       let after = line2.coordsAt(off, 1);
-      if (after && inside(x2, y2, after))
+      if (after && inside(x2, y, after))
         return 1;
-      return before && before.bottom >= y2 ? -1 : 1;
+      return before && before.bottom >= y ? -1 : 1;
     }
     function queryPos(view, event) {
       let pos2 = view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
@@ -74322,7 +74350,7 @@ ${events}
         this.defaultTextDirection = Direction.LTR;
         this.visibleRanges = [];
         this.mustEnforceCursorAssoc = false;
-        let guessWrapping = state.facet(contentAttributes).some((v) => typeof v != "function" && v.class == "cm-lineWrapping");
+        let guessWrapping = state.facet(contentAttributes).some((v2) => typeof v2 != "function" && v2.class == "cm-lineWrapping");
         this.heightOracle = new HeightOracle(guessWrapping);
         this.stateDeco = state.facet(decorations).filter((d) => typeof d != "function");
         this.heightMap = HeightMap.empty().applyChanges(this.stateDeco, Text.empty, this.heightOracle.setDoc(state.doc), [new ChangedRange(0, 0, 0, state.doc.length)]);
@@ -76954,9 +76982,9 @@ ${events}
       if (!coords)
         return inside2;
       let editorRect = view.dom.getBoundingClientRect();
-      let y2 = (coords.top + coords.bottom) / 2;
-      let left2 = view.posAtCoords({ x: editorRect.left + 1, y: y2 });
-      let right2 = view.posAtCoords({ x: editorRect.right - 1, y: y2 });
+      let y = (coords.top + coords.bottom) / 2;
+      let left2 = view.posAtCoords({ x: editorRect.left + 1, y });
+      let right2 = view.posAtCoords({ x: editorRect.right - 1, y });
       if (left2 == null || right2 == null)
         return inside2;
       return { from: Math.max(inside2.from, Math.min(left2, right2)), to: Math.min(inside2.to, Math.max(left2, right2)) };
@@ -77034,8 +77062,8 @@ ${events}
         return { top: top2, bottom: bottom2, horizontal };
       }
       function drawForWidget(block2, top2) {
-        let y2 = contentRect.top + (top2 ? block2.top : block2.bottom);
-        return { top: y2, bottom: y2, horizontal: [] };
+        let y = contentRect.top + (top2 ? block2.top : block2.bottom);
+        return { top: y, bottom: y, horizontal: [] };
       }
     }
     function sameMarker(a, b) {
@@ -77119,7 +77147,7 @@ ${events}
     const layerOrder = /* @__PURE__ */ Facet.define();
     function layer(config2) {
       return [
-        ViewPlugin.define((v) => new LayerView(v, config2)),
+        ViewPlugin.define((v2) => new LayerView(v2, config2)),
         layerOrder.of(config2)
       ];
     }
@@ -77404,7 +77432,7 @@ ${events}
           }
         }
       }, {
-        decorations: (v) => v.decorations
+        decorations: (v2) => v2.decorations
       }));
     }
     const DefaultPlaceholder = "•";
@@ -78050,12 +78078,12 @@ ${events}
       }
       return event.clientX >= left2 - tooltipMargin && event.clientX <= right2 + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom2 + tooltipMargin;
     }
-    function isOverRange(view, from, to2, x2, y2, margin) {
+    function isOverRange(view, from, to2, x2, y, margin) {
       let rect = view.scrollDOM.getBoundingClientRect();
       let docBottom = view.documentTop + view.documentPadding.top + view.contentHeight;
-      if (rect.left > x2 || rect.right < x2 || rect.top > y2 || Math.min(rect.bottom, docBottom) < y2)
+      if (rect.left > x2 || rect.right < x2 || rect.top > y || Math.min(rect.bottom, docBottom) < y)
         return false;
-      let pos2 = view.posAtCoords({ x: x2, y: y2 }, false);
+      let pos2 = view.posAtCoords({ x: x2, y }, false);
       return pos2 >= from && pos2 <= to2;
     }
     function hoverTooltip(source2, options2 = {}) {
@@ -78069,7 +78097,7 @@ ${events}
             if (options2.hideOnChange && (tr2.docChanged || tr2.selection))
               value2 = [];
             else if (options2.hideOn)
-              value2 = value2.filter((v) => !options2.hideOn(tr2, v));
+              value2 = value2.filter((v2) => !options2.hideOn(tr2, v2));
             if (tr2.docChanged) {
               let mapped = [];
               for (let tooltip of value2) {
@@ -81437,7 +81465,7 @@ ${events}
       }
     }
     const treeHighlighter = /* @__PURE__ */ Prec.high(/* @__PURE__ */ ViewPlugin.fromClass(TreeHighlighter, {
-      decorations: (v) => v.decorations
+      decorations: (v2) => v2.decorations
     }));
     const defaultHighlightStyle = /* @__PURE__ */ HighlightStyle.define([
       {
