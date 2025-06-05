@@ -21,6 +21,7 @@ from inspect_ai.scorer import (
     value_to_float,
 )
 from inspect_ai.scorer._reducer import create_reducers
+from inspect_ai.scorer._reducer.reducer import pass_at
 
 avg_reducer = mean_score()
 median_reducer = median_score()
@@ -29,6 +30,10 @@ max_reducer = max_score()
 at_least_3_reducer = at_least(3)
 at_least_4_reducer = at_least(4)
 at_least_5_reducer = at_least(5, 3)
+pass_at_2_no_threshhold = pass_at(2)
+pass_at_3_threshhold = pass_at(3, 2)
+pass_at_5_no_threshhold = pass_at(5)
+pass_at_5_threshhold = pass_at(5, 2)
 
 
 def test_simple_reducers() -> None:
@@ -46,6 +51,10 @@ def test_simple_reducers() -> None:
     assert max_reducer(simple_scores).value == 8
     assert at_least_3_reducer(simple_scores).value == 1
     assert at_least_4_reducer(simple_scores).value == 0
+    assert pass_at_2_no_threshhold(simple_scores).value == 0.8
+    assert pass_at_3_threshhold(simple_scores).value == 0.95
+    assert pass_at_5_no_threshhold(simple_scores).value == 1.0
+    assert pass_at_5_threshhold(simple_scores).value == 1.0
 
 
 def test_list_reducers() -> None:
@@ -62,6 +71,7 @@ def test_list_reducers() -> None:
     assert max_reducer(list_scores).value == [4, 3]
     assert at_least_3_reducer(list_scores).value == [1, 1]
     assert at_least_4_reducer(list_scores).value == [1, 1]
+    assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
 
 
 def test_dict_reducers() -> None:
@@ -79,6 +89,7 @@ def test_dict_reducers() -> None:
     assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
+    assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
 
 
 def test_reducer_preserve_metadata() -> None:
@@ -114,6 +125,7 @@ def test_reducer_preserve_metadata() -> None:
         mode_reducer,
         max_reducer,
         at_least_3_reducer,
+        pass_at_2_no_threshhold,
     ]
 
     # verify that other fields are set only if equal across all samples
