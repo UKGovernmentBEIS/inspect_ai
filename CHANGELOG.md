@@ -7,6 +7,7 @@
 - Inspect View: Display sample id & epoch in sample dialog title bar.
 - Inspect View: Don't open sample dialog when simply navigating the sample list.
 - Inspect View: Fix error that could occur when determine transcript outline collapse state.
+- Inspect View: Show the correct sample when opening a sample from a sorted list.
 - Bugfix: Ensure that dataset shuffle_choices=True always uses a distinct random seed.
 - Bugfix: Don't attempt to use OpenAI's web search preview against models that are known to not support it.
 
