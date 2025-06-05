@@ -1,3 +1,13 @@
+from inspect_ai._util.citation import (
+    Citation,
+    CitationBase,
+    DocumentBlockCitation,
+    DocumentCharCitation,
+    DocumentCitation,
+    DocumentPageCitation,
+    GenericCitation,
+    UrlCitation,
+)
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -79,6 +89,14 @@ __all__ = [
     "ToolInfo",
     "ToolParam",
     "ToolParams",
+    "Citation",
+    "CitationBase",
+    "DocumentBlockCitation",
+    "DocumentCharCitation",
+    "DocumentCitation",
+    "DocumentPageCitation",
+    "GenericCitation",
+    "UrlCitation",
 ]
 
 _UTIL_MODULE_VERSION = "0.3.19"
