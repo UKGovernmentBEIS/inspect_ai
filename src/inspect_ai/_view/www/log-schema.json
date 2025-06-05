@@ -1043,30 +1043,20 @@
           "type": "string"
         },
         "block_range": {
-          "anyOf": [
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
             {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "type": "array"
+              "type": "integer"
             },
             {
-              "type": "null"
+              "type": "integer"
             }
           ],
-          "default": null,
-          "title": "Block Range"
+          "title": "Block Range",
+          "type": "array"
         }
       },
-      "title": "DocumentBlockCitation",
-      "type": "object",
       "required": [
         "cited_text",
         "title",
@@ -1074,6 +1064,8 @@
         "type",
         "block_range"
       ],
+      "title": "DocumentBlockCitation",
+      "type": "object",
       "additionalProperties": false
     },
     "DocumentCharCitation": {
@@ -1139,30 +1131,20 @@
           "type": "string"
         },
         "char_range": {
-          "anyOf": [
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
             {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "type": "array"
+              "type": "integer"
             },
             {
-              "type": "null"
+              "type": "integer"
             }
           ],
-          "default": null,
-          "title": "Char Range"
+          "title": "Char Range",
+          "type": "array"
         }
       },
-      "title": "DocumentCharCitation",
-      "type": "object",
       "required": [
         "cited_text",
         "title",
@@ -1170,6 +1152,8 @@
         "type",
         "char_range"
       ],
+      "title": "DocumentCharCitation",
+      "type": "object",
       "additionalProperties": false
     },
     "DocumentCitation": {
@@ -1308,30 +1292,20 @@
           "type": "string"
         },
         "page_range": {
-          "anyOf": [
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
             {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "type": "array"
+              "type": "integer"
             },
             {
-              "type": "null"
+              "type": "integer"
             }
           ],
-          "default": null,
-          "title": "Page Range"
+          "title": "Page Range",
+          "type": "array"
         }
       },
-      "title": "DocumentPageCitation",
-      "type": "object",
       "required": [
         "cited_text",
         "title",
@@ -1339,6 +1313,8 @@
         "type",
         "page_range"
       ],
+      "title": "DocumentPageCitation",
+      "type": "object",
       "additionalProperties": false
     },
     "ErrorEvent": {

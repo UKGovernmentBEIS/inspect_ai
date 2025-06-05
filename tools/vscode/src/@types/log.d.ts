@@ -222,21 +222,33 @@ export type Internal1 = {
   [k: string]: JsonValue;
 } | null;
 export type Type5 = "document_char";
-export type CharRange = [unknown, unknown] | null;
+/**
+ * @minItems 2
+ * @maxItems 2
+ */
+export type CharRange = [unknown, unknown];
 export type CitedText2 = string | [number, number] | null;
 export type Title2 = string | null;
 export type Internal2 = {
   [k: string]: JsonValue;
 } | null;
 export type Type6 = "document_page";
-export type PageRange = [unknown, unknown] | null;
+/**
+ * @minItems 2
+ * @maxItems 2
+ */
+export type PageRange = [unknown, unknown];
 export type CitedText3 = string | [number, number] | null;
 export type Title3 = string | null;
 export type Internal3 = {
   [k: string]: JsonValue;
 } | null;
 export type Type7 = "document_block";
-export type BlockRange = [unknown, unknown] | null;
+/**
+ * @minItems 2
+ * @maxItems 2
+ */
+export type BlockRange = [unknown, unknown];
 export type CitedText4 = string | [number, number] | null;
 export type Title4 = string | null;
 export type Internal4 = {
