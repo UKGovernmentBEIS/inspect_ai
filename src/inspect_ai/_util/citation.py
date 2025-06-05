@@ -27,6 +27,10 @@ class BaseCitation(BaseModel):
     """Model provider specific payload - typically used to aid transformation back to model types."""
 
 
+class GenericCitation(BaseCitation):
+    type: Literal["generic"] = Field(default="generic")
+
+
 class DocumentCitation(BaseCitation):
     type: Literal["document"] = Field(default="document")
 
@@ -53,6 +57,7 @@ class UrlCitation(BaseCitation):
 
 Citation: TypeAlias = Annotated[
     Union[
+        GenericCitation,
         DocumentCharCitation,
         DocumentPageCitation,
         DocumentBlockCitation,

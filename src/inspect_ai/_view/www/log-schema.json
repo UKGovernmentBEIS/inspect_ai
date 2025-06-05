@@ -889,11 +889,15 @@
                     "document_block": "#/$defs/DocumentBlockCitation",
                     "document_char": "#/$defs/DocumentCharCitation",
                     "document_page": "#/$defs/DocumentPageCitation",
+                    "generic": "#/$defs/GenericCitation",
                     "url": "#/$defs/UrlCitation"
                   },
                   "propertyName": "type"
                 },
                 "oneOf": [
+                  {
+                    "$ref": "#/$defs/GenericCitation"
+                  },
                   {
                     "$ref": "#/$defs/DocumentCharCitation"
                   },
@@ -3476,6 +3480,78 @@
         "reasoning_history",
         "response_schema",
         "extra_body"
+      ],
+      "additionalProperties": false
+    },
+    "GenericCitation": {
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "generic",
+          "default": "generic",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "GenericCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type"
       ],
       "additionalProperties": false
     },
