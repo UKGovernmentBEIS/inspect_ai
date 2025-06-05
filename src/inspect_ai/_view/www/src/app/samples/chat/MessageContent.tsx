@@ -10,6 +10,7 @@ import {
   ContentVideo,
   Format1,
   Format2,
+  CitedText,
 } from "../../../@types/log";
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
@@ -259,25 +260,19 @@ const normalizeContent = (contents: Contents): Contents => {
         .map((c) => {
           // separate the cites into those with a position and those without
           // sort by end_index (to allow for numbering to not affect indexes)
+          // Type guard function to check if cited_text is a range
           const positionalCites = (c.citations ?? [])
-            .filter(({ cited_text }) => Array.isArray(cited_text))
-            .sort((a, b) => {
-              // We will only be sorting citations with ranges in here.
-              // Extra credit TODO: use a type guard properly so that we don't have to cast
-              const aRange = a.cited_text as [number, number];
-              const bRange = b.cited_text as [number, number];
-              return bRange[1] - aRange[1];
-            });
+            .filter(isCitationWithRange)
+            .sort((a, b) => b.cited_text[1] - a.cited_text[1]);
+
           const endCites = c.citations?.filter(
-            ({ cited_text }) => !Array.isArray(cited_text),
+            (citation) => !isCitationWithRange(citation),
           );
 
           // Process cites with positions
           let textWithCites = c.text;
           for (let i = 0; i < positionalCites.length; i++) {
-            const end_index = (
-              positionalCites[i].cited_text as [number, number]
-            )[1];
+            const end_index = positionalCites[i].cited_text[1];
 
             textWithCites =
               textWithCites.slice(0, end_index) +
@@ -338,3 +333,16 @@ const normalizeContent = (contents: Contents): Contents => {
 
   return result;
 };
+
+// This is a helper that makes Omit<> work with a union type by distributing
+// the omit over the union members.
+export type DistributiveOmit<T, K extends keyof any> = T extends any
+  ? Omit<T, K>
+  : never;
+
+/** Type guard that allows narrowing down to Citations whose `cited_text` is a range */
+const isCitationWithRange = (
+  citation: Citation,
+): citation is DistributiveOmit<Citation, "cited_text"> & {
+  cited_text: [number, number];
+} => Array.isArray(citation.cited_text);
