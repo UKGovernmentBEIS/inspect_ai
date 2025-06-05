@@ -51218,12 +51218,12 @@ categories: ${categories.join(" ")}`;
         )) })
       ] }) });
     };
-    const footer$1 = "_footer_r5aa3_1";
-    const spinnerContainer$1 = "_spinnerContainer_r5aa3_11";
-    const spinner$2 = "_spinner_r5aa3_11";
-    const label$8 = "_label_r5aa3_25";
-    const right$1 = "_right_r5aa3_30";
-    const left$1 = "_left_r5aa3_38";
+    const footer$1 = "_footer_mypf9_1";
+    const spinnerContainer$1 = "_spinnerContainer_mypf9_11";
+    const spinner$2 = "_spinner_mypf9_11";
+    const label$8 = "_label_mypf9_25";
+    const right$1 = "_right_mypf9_30";
+    const left$1 = "_left_mypf9_39";
     const styles$14 = {
       footer: footer$1,
       spinnerContainer: spinnerContainer$1,
@@ -51315,7 +51315,7 @@ categories: ${categories.join(" ")}`;
     };
     const LogListFooter = ({
       itemCount,
-      running
+      progressText
     }) => {
       const { page, itemsPerPage } = usePagination(
         kLogsPaginationId,
@@ -51328,20 +51328,23 @@ categories: ${categories.join(" ")}`;
       const startItem = (page || 0) * itemsPerPage + 1;
       const endItem = startItem + pageItemCount - 1;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$14.footer), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$14.left), children: [
-          running ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$14.spinnerContainer), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx("spinner-border", styles$14.spinner),
-                role: "status",
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$14.label), children: "running..." })
-          ] }) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` })
-        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.left), children: progressText ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$14.spinnerContainer), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx("spinner-border", styles$14.spinner),
+              role: "status",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("visually-hidden"), children: [
+                progressText,
+                "..."
+              ] })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-style-secondary", styles$14.label), children: [
+            progressText,
+            "..."
+          ] })
+        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) })
       ] });
     };
@@ -51366,6 +51369,10 @@ categories: ${categories.join(" ")}`;
       const logs = useStore((state) => state.logs.logs);
       const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
       const logHeaders = useStore((state) => state.logs.logHeaders);
+      const setHeadersLoading = useStore(
+        (state) => state.logsActions.setHeadersLoading
+      );
+      const headersLoading = useStore((state) => state.logs.headersLoading);
       const updateLogHeaders = useStore(
         (state) => state.logsActions.updateLogHeaders
       );
@@ -51432,28 +51439,33 @@ categories: ${categories.join(" ")}`;
           return logHeaders[logFile.name] === void 0;
         });
         const exec2 = async () => {
-          const headers = await loadHeaders(logFiles);
-          if (headers) {
-            const updatedHeaders = {};
-            headers.forEach((header2, index2) => {
-              const logFile = logFiles[index2];
-              updatedHeaders[logFile.name] = header2;
-            });
-            updateLogHeaders(updatedHeaders);
+          setHeadersLoading(true);
+          try {
+            const headers = await loadHeaders(logFiles);
+            if (headers) {
+              const updatedHeaders = {};
+              headers.forEach((header2, index2) => {
+                const logFile = logFiles[index2];
+                updatedHeaders[logFile.name] = header2;
+              });
+              updateLogHeaders(updatedHeaders);
+            }
+          } finally {
+            setHeadersLoading(false);
           }
         };
         exec2();
-      }, [pageItems]);
+      }, [pageItems, setHeadersLoading, loadHeaders, updateLogHeaders, logItems]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$12.panel), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading || headersLoading }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.list, "text-size-smaller"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListGrid, { items: logItems }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           LogListFooter,
           {
             logDir: currentDir,
             itemCount: logItems.length,
-            running: loading
+            progressText: loading ? "Loading logs" : headersLoading ? "Loading data" : void 0
           }
         )
       ] });

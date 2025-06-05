@@ -1,7 +1,7 @@
 interface LogListFooterProps {
   logDir: string;
   itemCount: number;
-  running: boolean;
+  progressText?: string;
 }
 
 import clsx from "clsx";
@@ -13,7 +13,7 @@ import { kDefaultPageSize, kLogsPaginationId } from "./LogsPanel";
 
 export const LogListFooter: FC<LogListFooterProps> = ({
   itemCount,
-  running,
+  progressText,
 }) => {
   const { page, itemsPerPage } = usePagination(
     kLogsPaginationId,
@@ -30,20 +30,21 @@ export const LogListFooter: FC<LogListFooterProps> = ({
   return (
     <div className={clsx("text-size-smaller", styles.footer)}>
       <div className={clsx(styles.left)}>
-        {running ? (
+        {progressText ? (
           <div className={clsx(styles.spinnerContainer)}>
             <div
               className={clsx("spinner-border", styles.spinner)}
               role="status"
             >
-              <span className={clsx("visually-hidden")}>Running...</span>
+              <span className={clsx("visually-hidden")}>{progressText}...</span>
             </div>
             <div className={clsx("text-style-secondary", styles.label)}>
-              running...
+              {progressText}...
             </div>
           </div>
-        ) : undefined}
-        <div>{`${startItem} - ${endItem} / ${itemCount}`}</div>
+        ) : (
+          <div>{`${startItem} - ${endItem} / ${itemCount}`}</div>
+        )}
       </div>
       <div className={clsx(styles.right)}>
         <LogPager itemCount={itemCount} />

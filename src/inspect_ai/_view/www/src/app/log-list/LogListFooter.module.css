@@ -29,7 +29,8 @@
 
 .right {
   display: grid;
-  grid-template-columns: repeat(auto-fit, max-content);
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
   justify-content: end;
   align-items: center;
   column-gap: 0.5em;
@@ -37,8 +38,9 @@
 
 .left {
   display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
   justify-content: start;
   align-items: center;
-  grid-template-columns: repeat(auto-fit, max-content);
   column-gap: 0.5em;
 }

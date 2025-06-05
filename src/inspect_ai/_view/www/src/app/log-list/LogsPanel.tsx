@@ -37,6 +37,11 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
 
   const loadHeaders = useStore((state) => state.logsActions.loadHeaders);
   const logHeaders = useStore((state) => state.logs.logHeaders);
+  const setHeadersLoading = useStore(
+    (state) => state.logsActions.setHeadersLoading,
+  );
+  const headersLoading = useStore((state) => state.logs.headersLoading);
+
   const updateLogHeaders = useStore(
     (state) => state.logsActions.updateLogHeaders,
   );
@@ -141,31 +146,38 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
       });
 
     const exec = async () => {
-      const headers = await loadHeaders(logFiles);
-      if (headers) {
-        const updatedHeaders: Record<string, EvalLogHeader> = {};
+      setHeadersLoading(true);
+      try {
+        const headers = await loadHeaders(logFiles);
+        if (headers) {
+          const updatedHeaders: Record<string, EvalLogHeader> = {};
 
-        headers.forEach((header, index) => {
-          const logFile = logFiles[index];
-          updatedHeaders[logFile.name] = header as EvalLogHeader;
-        });
-        updateLogHeaders(updatedHeaders);
+          headers.forEach((header, index) => {
+            const logFile = logFiles[index];
+            updatedHeaders[logFile.name] = header as EvalLogHeader;
+          });
+          updateLogHeaders(updatedHeaders);
+        }
+      } finally {
+        setHeadersLoading(false);
       }
     };
     exec();
-  }, [pageItems]);
+  }, [pageItems, setHeadersLoading, loadHeaders, updateLogHeaders, logItems]);
 
   return (
     <div className={clsx(styles.panel)}>
       <Navbar />
-      <ProgressBar animating={loading} />
+      <ProgressBar animating={loading || headersLoading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
         <LogListGrid items={logItems} />
       </div>
       <LogListFooter
         logDir={currentDir}
         itemCount={logItems.length}
-        running={loading}
+        progressText={
+          loading ? "Loading logs" : headersLoading ? "Loading data" : undefined
+        }
       />
     </div>
   );
