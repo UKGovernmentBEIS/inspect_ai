@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Use OpenAI responses API for codex models.
+- OpenAI: Use responses API for codex models.
 
 ## v0.3.101 (05 June 2025)
 
