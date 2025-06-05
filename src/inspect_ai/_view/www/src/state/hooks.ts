@@ -277,7 +277,7 @@ export const useCollapseSampleEvent = (
   const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
 
   return useMemo(() => {
-    const isCollapsed = collapsed !== null && collapsed[scope][id] === true;
+    const isCollapsed = collapsed !== null && collapsed[scope]?.[id] === true;
     const set = (value: boolean) => {
       log.debug("Set collapsed", id, value);
       collapseEvent(scope, id, value);
