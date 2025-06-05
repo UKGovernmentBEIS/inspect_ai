@@ -27,6 +27,7 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    is_codex,
     is_computer_use_preview,
     is_gpt,
     is_o1,
@@ -88,8 +89,10 @@ class OpenAIAPI(ModelAPI):
 
         # is this a model we use responses api by default for?
         responses_model = (
-            self.is_o_series() and not self.is_o1_early()
-        ) or self.is_computer_use_preview()
+            (self.is_o_series() and not self.is_o1_early())
+            or self.is_computer_use_preview()
+            or self.is_codex()
+        )
 
         # resolve whether we are forcing the responses api
         self.responses_api = responses_api or responses_model
@@ -192,6 +195,9 @@ class OpenAIAPI(ModelAPI):
 
     def is_computer_use_preview(self) -> bool:
         return is_computer_use_preview(self.service_model_name())
+
+    def is_codex(self) -> bool:
+        return is_codex(self.service_model_name())
 
     def is_gpt(self) -> bool:
         return is_gpt(self.service_model_name())
