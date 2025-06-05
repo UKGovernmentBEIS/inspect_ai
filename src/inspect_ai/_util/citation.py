@@ -56,7 +56,8 @@ class DocumentPageCitation(CitationBase):
 
     type: Literal["document_page"] = Field(default="document_page")
     """Type."""
-    page_range: tuple[int, int] | None = Field(default=None)
+
+    page_range: tuple[int, int]
     """Page range in the document that this citation refers to."""
 
 
@@ -65,7 +66,8 @@ class DocumentCharCitation(CitationBase):
 
     type: Literal["document_char"] = Field(default="document_char")
     """Type."""
-    char_range: tuple[int, int] | None = Field(default=None)
+
+    char_range: tuple[int, int]
     """Character range in the document that this citation refers to."""
 
 
@@ -78,7 +80,9 @@ class DocumentBlockCitation(CitationBase):
 
     type: Literal["document_block"] = Field(default="document_block")
     """Type."""
-    block_range: tuple[int, int] | None = Field(default=None)
+
+    block_range: tuple[int, int]
+    """Block range in the document that this citation refers to."""
 
 
 class UrlCitation(CitationBase):
