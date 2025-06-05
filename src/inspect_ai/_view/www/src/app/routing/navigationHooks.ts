@@ -130,29 +130,26 @@ export const useSampleNavigation = () => {
 
   // Navigate to a specific sample with index
   const showSample = useCallback(
-    (index: number, specifiedSampleTabId?: string) => {
-      if (sampleSummaries && index >= 0 && index < sampleSummaries.length) {
-        const sample = sampleSummaries[index];
-        const resolvedPath = resolveLogPath();
+    (
+      index: number,
+      id: string | number,
+      epoch: number,
+      specifiedSampleTabId?: string,
+    ) => {
+      const resolvedPath = resolveLogPath();
 
-        if (resolvedPath) {
-          // Update internal state
-          selectSample(index);
-          setShowingSampleDialog(true);
+      if (resolvedPath) {
+        // Update internal state
+        selectSample(index);
+        setShowingSampleDialog(true);
 
-          // Use specified sampleTabId if provided, otherwise use current sampleTabId from URL params
-          const currentSampleTabId = specifiedSampleTabId || sampleTabId;
+        // Use specified sampleTabId if provided, otherwise use current sampleTabId from URL params
+        const currentSampleTabId = specifiedSampleTabId || sampleTabId;
 
-          const url = sampleUrl(
-            resolvedPath,
-            sample.id,
-            sample.epoch,
-            currentSampleTabId,
-          );
+        const url = sampleUrl(resolvedPath, id, epoch, currentSampleTabId);
 
-          // Navigate to the sample URL
-          navigate(url);
-        }
+        // Navigate to the sample URL
+        navigate(url);
       }
     },
     [

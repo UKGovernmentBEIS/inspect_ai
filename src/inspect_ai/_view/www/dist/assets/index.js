@@ -45298,22 +45298,14 @@ categories: ${categories.join(" ")}`;
         (state) => state.appActions.setShowingSampleDialog
       );
       const showSample = reactExports.useCallback(
-        (index2, specifiedSampleTabId) => {
-          if (sampleSummaries && index2 >= 0 && index2 < sampleSummaries.length) {
-            const sample2 = sampleSummaries[index2];
-            const resolvedPath = resolveLogPath();
-            if (resolvedPath) {
-              selectSample(index2);
-              setShowingSampleDialog(true);
-              const currentSampleTabId = specifiedSampleTabId || sampleTabId;
-              const url = sampleUrl(
-                resolvedPath,
-                sample2.id,
-                sample2.epoch,
-                currentSampleTabId
-              );
-              navigate(url);
-            }
+        (index2, id, epoch, specifiedSampleTabId) => {
+          const resolvedPath = resolveLogPath();
+          if (resolvedPath) {
+            selectSample(index2);
+            setShowingSampleDialog(true);
+            const currentSampleTabId = specifiedSampleTabId || sampleTabId;
+            const url = sampleUrl(resolvedPath, id, epoch, currentSampleTabId);
+            navigate(url);
           }
         },
         [
@@ -86282,11 +86274,19 @@ Supported expressions:
               e.preventDefault();
               e.stopPropagation();
               break;
-            case "Enter":
-              sampleNavigation.showSample(selectedSampleIndex);
-              e.preventDefault();
-              e.stopPropagation();
+            case "Enter": {
+              const item2 = items[selectedSampleIndex];
+              if (item2.type === "sample") {
+                sampleNavigation.showSample(
+                  item2.index,
+                  item2.data.id,
+                  item2.data.epoch
+                );
+                e.preventDefault();
+                e.stopPropagation();
+              }
               break;
+            }
           }
         },
         [
@@ -86318,7 +86318,11 @@ Supported expressions:
                   item2.data.epoch
                 ),
                 showSample: () => {
-                  sampleNavigation.showSample(item2.index);
+                  sampleNavigation.showSample(
+                    item2.index,
+                    item2.data.id,
+                    item2.data.epoch
+                  );
                 }
               }
             );

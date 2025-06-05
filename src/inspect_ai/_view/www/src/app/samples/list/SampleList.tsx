@@ -113,11 +113,19 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           e.preventDefault();
           e.stopPropagation();
           break;
-        case "Enter":
-          sampleNavigation.showSample(selectedSampleIndex);
-          e.preventDefault();
-          e.stopPropagation();
+        case "Enter": {
+          const item = items[selectedSampleIndex];
+          if (item.type === "sample") {
+            sampleNavigation.showSample(
+              item.index,
+              item.data.id,
+              item.data.epoch,
+            );
+            e.preventDefault();
+            e.stopPropagation();
+          }
           break;
+        }
       }
     },
     [
@@ -150,7 +158,11 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
               item.data.epoch,
             )}
             showSample={() => {
-              sampleNavigation.showSample(item.index);
+              sampleNavigation.showSample(
+                item.index,
+                item.data.id,
+                item.data.epoch,
+              );
             }}
           />
         );
