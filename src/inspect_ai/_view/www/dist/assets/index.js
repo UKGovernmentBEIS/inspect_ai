@@ -47636,8 +47636,8 @@ categories: ${categories.join(" ")}`;
       }
       return path.endsWith("/") ? path : path + "/";
     };
-    const header$3 = "_header_fev74_1";
-    const breadcrumbs = "_breadcrumbs_fev74_11";
+    const header$3 = "_header_1iy71_1";
+    const breadcrumbs = "_breadcrumbs_1iy71_11";
     const styles$1e = {
       header: header$3,
       breadcrumbs
@@ -50673,18 +50673,17 @@ categories: ${categories.join(" ")}`;
       }));
       return tableRef.current;
     }
-    const gridContainer = "_gridContainer_lf79m_1";
-    const grid$7 = "_grid_lf79m_1";
-    const headerRow = "_headerRow_lf79m_15";
-    const headerCell = "_headerCell_lf79m_27";
-    const sortable = "_sortable_lf79m_44";
-    const sortIndicator = "_sortIndicator_lf79m_53";
-    const resizer = "_resizer_lf79m_60";
-    const isResizing = "_isResizing_lf79m_75";
-    const resizing = "_resizing_lf79m_83";
-    const bodyContainer$1 = "_bodyContainer_lf79m_88";
-    const bodyRow = "_bodyRow_lf79m_93";
-    const bodyCell = "_bodyCell_lf79m_110";
+    const gridContainer = "_gridContainer_jc8ap_1";
+    const grid$7 = "_grid_jc8ap_1";
+    const headerRow = "_headerRow_jc8ap_15";
+    const headerCell = "_headerCell_jc8ap_26";
+    const sortable = "_sortable_jc8ap_42";
+    const sortIndicator = "_sortIndicator_jc8ap_51";
+    const resizer = "_resizer_jc8ap_58";
+    const isResizing = "_isResizing_jc8ap_73";
+    const bodyContainer$1 = "_bodyContainer_jc8ap_82";
+    const bodyRow = "_bodyRow_jc8ap_87";
+    const bodyCell = "_bodyCell_jc8ap_95";
     const styles$1d = {
       gridContainer,
       grid: grid$7,
@@ -50694,7 +50693,6 @@ categories: ${categories.join(" ")}`;
       sortIndicator,
       resizer,
       isResizing,
-      resizing,
       bodyContainer: bodyContainer$1,
       bodyRow,
       bodyCell
@@ -50944,10 +50942,10 @@ categories: ${categories.join(" ")}`;
         enableResizing: true
       });
     };
-    const error$1 = "_error_yg8d9_1";
-    const started = "_started_yg8d9_5";
-    const success = "_success_yg8d9_9";
-    const cancelled = "_cancelled_yg8d9_13";
+    const error$1 = "_error_14ftq_1";
+    const started = "_started_14ftq_5";
+    const success = "_success_14ftq_9";
+    const cancelled = "_cancelled_14ftq_13";
     const styles$16 = {
       error: error$1,
       started,
@@ -51104,7 +51102,7 @@ categories: ${categories.join(" ")}`;
       const table2 = useReactTable({
         data: items,
         columns,
-        columnResizeMode,
+        columnResizeMode: columnResizeMode || "onChange",
         state: {
           sorting,
           columnFilters: filtering,

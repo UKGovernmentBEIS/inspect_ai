@@ -14,8 +14,7 @@
 /* Header Styles */
 .headerRow {
   display: grid;
-  column-gap: 0.5em;
-  background: var(--bs-gray-100);
+  background: var(--bs-light);
   border-bottom: 1px solid var(--bs-border-color);
   position: sticky;
   top: 0;
@@ -25,10 +24,9 @@
 }
 
 .headerCell {
-  padding: 0.1em 0.1em;
+  padding: 0.1em 0.1em 0.1em 0.6em;
   font-weight: 600;
   font-size: 0.875rem;
-  color: var(--bs-gray-700);
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -47,7 +45,7 @@
 }
 
 .sortable:hover {
-  background: var(--bs-gray-200);
+  background-color: var(--bs-secondary-bg-subtle);
 }
 
 .sortIndicator {
@@ -80,10 +78,6 @@
   opacity: 0.3;
 }
 
-.resizing {
-  background: var(--bs-gray-200);
-}
-
 /* Body Styles */
 .bodyContainer {
   overflow-y: auto;
@@ -92,23 +86,14 @@
 
 .bodyRow {
   display: grid;
-  column-gap: 0.5em;
   transition: background-color 0.15s ease-in-out;
   width: fit-content;
   min-width: 100%;
 }
 
-.bodyRow:hover {
-  background: var(--bs-gray-50);
-}
-
-.bodyRow:last-child {
-  border-bottom: none;
-}
-
 /* Cell Styles */
 .bodyCell {
-  padding: 0.1em 0.1em;
+  padding: 0.1em 0.1em 0.1em 0.6em;
   display: flex;
   align-items: center;
   box-sizing: border-box;

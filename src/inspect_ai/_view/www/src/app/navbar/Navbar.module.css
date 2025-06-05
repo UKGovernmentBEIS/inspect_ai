@@ -1,6 +1,6 @@
 .header {
   border-bottom: solid var(--bs-border-color) 1px;
-  background: var(--bs-secondary-bg);
+  background: var(--bs-light);
   display: grid;
   grid-template-columns: max-content max-content;
   justify-content: space-between;

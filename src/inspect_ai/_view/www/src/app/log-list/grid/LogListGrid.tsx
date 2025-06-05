@@ -72,7 +72,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const table = useReactTable({
     data: items,
     columns,
-    columnResizeMode,
+    columnResizeMode: columnResizeMode || "onChange",
     state: {
       sorting,
       columnFilters: filtering,

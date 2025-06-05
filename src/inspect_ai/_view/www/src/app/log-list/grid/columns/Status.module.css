@@ -11,5 +11,5 @@
 }
 
 .cancelled {
-  color: var(--bs-warning);
+  color: var(--bs-secondary);
 }
