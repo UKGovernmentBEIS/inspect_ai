@@ -11,24 +11,40 @@ if TYPE_CHECKING:
 getcontext().prec = 12
 logger = logging.getLogger(__name__)
 
-
-@lru_cache
-def _load_cost_file(cost_file: Path) -> dict:
-    """
-    Read a JSON file of price info.
-
-    Memoized to avoid re-reads of the same file.
-    """
-    with open(cost_file) as f:
-        results = json.load(f)
-    # TODO: validate cost format is correct!
-    return results
+REQUIRED_FIELDS = [
+    "input_cost_per_token",
+    "cache_read_input_token_cost",
+    "output_cost_per_token",
+]
 
 
 class _CostCalculator:
     def __init__(self, cost_file: Path):
-        self._costs = _load_cost_file(cost_file)
+        self._costs = self._load_cost_file(cost_file)
         self._cost_file = cost_file
+
+    @staticmethod
+    @lru_cache
+    def _load_cost_file(cost_file: Path) -> dict:
+        """
+        Read a JSON file of price info.
+
+        Memoized to avoid re-reads of the same file.
+        """
+        with open(cost_file) as f:
+            results = json.load(f)
+
+        # Validate by ensuring at least one model name
+        # contains all the required fields. This allows us to
+        # be compatible with litellm format
+        for model_name, data in results.items():
+            if _CostCalculator._model_data_valid(data):
+                return results
+        raise ValueError(f"Unexpected data format in {cost_file}")
+
+    @staticmethod
+    def _model_data_valid(data):
+        return all([x in data for x in REQUIRED_FIELDS])
 
     def get_cost(self, model_name, usage):
         if model_name not in self._costs:
@@ -41,6 +57,10 @@ class _CostCalculator:
                 )
 
         model_cost = self._costs[model_name]
+        if not self._model_data_valid(model_cost):
+            raise ValueError(
+                f"Invalid pricing data for {model_name} in {self._cost_file}"
+            )
 
         cached_input_tokens = usage.input_tokens_cache_read or 0
         uncached_input_tokens = usage.input_tokens - cached_input_tokens
