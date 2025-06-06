@@ -235,6 +235,7 @@ def eval_set(
             log_images=log_images,
             log_buffer=log_buffer,
             log_shared=log_shared,
+            log_header_only=True,
             score=score,
             **kwargs,
         )
