@@ -7,7 +7,7 @@ import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
-import { logUrl, useDecodedParams } from "../routing/url";
+import { logUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
@@ -41,12 +41,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
     kDefaultPageSize,
   );
 
-  const { logPath } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
+  const { logPath } = useLogRouteParams();
 
   const currentDir = join(logPath || "", logs.log_dir);
 

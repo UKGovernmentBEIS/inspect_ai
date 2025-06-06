@@ -1,6 +1,11 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { kSampleMessagesTabId, kSampleTranscriptTabId } from "../../constants";
+import {
+  kSampleMessagesTabId,
+  kSampleTabIds,
+  kSampleTranscriptTabId,
+  kWorkspaceTabs,
+} from "../../constants";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl, encodePathParts } from "../../utils/uri";
 
@@ -8,7 +13,9 @@ import { directoryRelativeUrl, encodePathParts } from "../../utils/uri";
  * Decodes a URL parameter that may be URL-encoded.
  * Safely handles already decoded strings.
  */
-export const decodeUrlParam = (param: string | undefined): string | undefined => {
+export const decodeUrlParam = (
+  param: string | undefined,
+): string | undefined => {
   if (!param) return param;
   try {
     return decodeURIComponent(param);
@@ -22,9 +29,11 @@ export const decodeUrlParam = (param: string | undefined): string | undefined =>
  * Hook that provides URL parameters with automatic decoding.
  * Use this instead of useParams when you need the actual unencoded values.
  */
-export const useDecodedParams = <T extends Record<string, string | undefined>>() => {
+export const useDecodedParams = <
+  T extends Record<string, string | undefined>,
+>() => {
   const params = useParams<T>();
-  
+
   const decodedParams = useMemo(() => {
     const decoded = {} as T;
     Object.entries(params).forEach(([key, value]) => {
@@ -32,14 +41,145 @@ export const useDecodedParams = <T extends Record<string, string | undefined>>()
     });
     return decoded;
   }, [params]);
-  
+
   return decodedParams;
 };
 
+/**
+ * Hook that parses log route parameters from the splat route.
+ * Handles nested paths properly by parsing the full path after /logs/
+ */
+export const useLogRouteParams = () => {
+  const params = useParams<{
+    "*": string;
+    sampleId?: string;
+    epoch?: string;
+    sampleTabId?: string;
+  }>();
+
+  return useMemo(() => {
+    const splatPath = params["*"] || "";
+
+    // Check for full sample route pattern in splat path (when route params aren't populated)
+    // Pattern: logPath/samples/sample/sampleId/epoch/sampleTabId (with optional trailing slash)
+    const fullSampleUrlMatch = splatPath.match(
+      /^(.+?)\/samples\/sample\/([^/]+)(?:\/([^/]+)(?:\/(.+?))?)?\/?\s*$/,
+    );
+    if (fullSampleUrlMatch) {
+      const [, logPath, sampleId, epoch, sampleTabId] = fullSampleUrlMatch;
+      return {
+        logPath: decodeUrlParam(logPath),
+        tabId: undefined,
+        sampleTabId: decodeUrlParam(sampleTabId),
+        sampleId: decodeUrlParam(sampleId),
+        epoch: epoch ? decodeUrlParam(epoch) : undefined,
+      };
+    }
+
+    // Check for sample URLs that might not match the formal route pattern
+    // (this is the single sample case, where is there is now sampleid/epoch, just sampletabid)
+    // Pattern: /logs/*/samples/sampleId/epoch or /logs/*/samples/sampleId or /logs/*/samples/sampleTabId
+    const sampleUrlMatch = splatPath.match(
+      /^(.+?)\/samples(?:\/([^/]+)(?:\/([^/]+))?)?$/,
+    );
+    if (sampleUrlMatch) {
+      const [, logPath, firstSegment, secondSegment] = sampleUrlMatch;
+
+      if (firstSegment) {
+        // Define known sample tab IDs
+        const validSampleTabIds = new Set(kSampleTabIds);
+
+        if (validSampleTabIds.has(firstSegment) && !secondSegment) {
+          // This is /logs/*/samples/sampleTabId
+          return {
+            logPath: decodeUrlParam(logPath),
+            tabId: "samples",
+            sampleTabId: decodeUrlParam(firstSegment),
+            sampleId: undefined,
+            epoch: undefined,
+          };
+        } else {
+          // This is a sample URL with sampleId (and possibly epoch)
+          return {
+            logPath: decodeUrlParam(logPath),
+            tabId: undefined,
+            sampleTabId: undefined,
+            sampleId: decodeUrlParam(firstSegment),
+            epoch: secondSegment ? decodeUrlParam(secondSegment) : undefined,
+          };
+        }
+      } else {
+        // This is just /logs/*/samples (samples listing)
+        return {
+          logPath: decodeUrlParam(logPath),
+          tabId: "samples",
+          sampleTabId: undefined,
+          sampleId: undefined,
+          epoch: undefined,
+        };
+      }
+    }
+
+    // Regular log route pattern: /logs/path/to/file.eval/tabId?
+    // Split the path and check if the last segment might be a tabId
+    const pathSegments = splatPath.split("/").filter(Boolean);
+
+    if (pathSegments.length === 0) {
+      return {
+        logPath: undefined,
+        tabId: undefined,
+        sampleTabId: undefined,
+        sampleId: undefined,
+        epoch: undefined,
+      };
+    }
+
+    // Define valid tab IDs for log view
+    const validTabIds = new Set(kWorkspaceTabs);
+
+    // Look for the first valid tab ID from right to left
+    let tabIdIndex = -1;
+    let foundTabId: string | undefined = undefined;
+
+    for (let i = pathSegments.length - 1; i >= 0; i--) {
+      const segment = pathSegments[i];
+      const decodedSegment = decodeUrlParam(segment) || segment;
+
+      if (validTabIds.has(decodedSegment)) {
+        tabIdIndex = i;
+        foundTabId = decodedSegment;
+        break;
+      }
+    }
+
+    if (foundTabId && tabIdIndex > 0) {
+      // Found a valid tab ID, split the path there
+      const logPath = pathSegments.slice(0, tabIdIndex).join("/");
+
+      return {
+        logPath: decodeUrlParam(logPath),
+        tabId: foundTabId,
+        sampleTabId: undefined,
+        sampleId: undefined,
+        epoch: undefined,
+      };
+    } else {
+      // No valid tab ID found, the entire path is the logPath
+      return {
+        logPath: decodeUrlParam(splatPath),
+        tabId: undefined,
+        sampleTabId: undefined,
+        sampleId: undefined,
+        epoch: undefined,
+      };
+    }
+  }, [params]);
+};
+
 export const kLogsRoutUrlPattern = "/logs";
-export const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
+export const kLogRouteUrlPattern = "/logs/*";
 export const kSampleRouteUrlPattern =
-  "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+  "/logs/*/samples/sample/:sampleId/:epoch?/:sampleTabId?";
 
 export const baseUrl = (
   logPath: string,
@@ -61,13 +201,15 @@ export const sampleUrl = (
 ) => {
   // Ensure logPath is decoded before encoding for URL construction
   const decodedLogPath = decodeUrlParam(logPath) || logPath;
-  
+
   if (sampleId !== undefined && sampleEpoch !== undefined) {
     return encodePathParts(
       `/logs/${decodedLogPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`,
     );
   } else {
-    return encodePathParts(`/logs/${decodedLogPath}/samples/${sampleTabId || ""}`);
+    return encodePathParts(
+      `/logs/${decodedLogPath}/samples/${sampleTabId || ""}`,
+    );
   }
 };
 
@@ -96,12 +238,7 @@ export const useSampleMessageUrl = (
     logPath: urlLogPath,
     sampleId: urlSampleId,
     epoch: urlEpoch,
-  } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
+  } = useLogRouteParams();
 
   const log_file = useStore((state) => state.logs.selectedLogFile);
   const log_dir = useStore((state) => state.logs.logs.log_dir);
@@ -133,12 +270,7 @@ export const useSampleEventUrl = (
     logPath: urlLogPath,
     sampleId: urlSampleId,
     epoch: urlEpoch,
-  } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
+  } = useLogRouteParams();
 
   const log_file = useStore((state) => state.logs.selectedLogFile);
   const log_dir = useStore((state) => state.logs.logs.log_dir);
@@ -189,7 +321,7 @@ export const makeLogPath = (log_file: string, log_dir?: string) => {
 export const logUrlRaw = (log_segment: string, tabId?: string) => {
   // Ensure log_segment is decoded before encoding for URL construction
   const decodedLogSegment = decodeUrlParam(log_segment) || log_segment;
-  
+
   if (tabId) {
     return encodePathParts(`/logs/${decodedLogSegment}/${tabId}`);
   } else {

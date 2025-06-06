@@ -3,11 +3,11 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
-import { logUrl, logUrlRaw, sampleUrl, useDecodedParams } from "./url";
+import { logUrl, logUrlRaw, sampleUrl, useLogRouteParams } from "./url";
 
 export const useLogNavigation = () => {
   const navigate = useNavigate();
-  const { logPath } = useDecodedParams<{ logPath: string }>();
+  const { logPath } = useLogRouteParams();
   const logs = useStore((state) => state.logs.logs);
   const loadedLog = useStore((state) => state.log.loadedLog);
 
@@ -33,11 +33,7 @@ export const useLogNavigation = () => {
 };
 
 export const useSampleUrl = () => {
-  const { logPath, tabId, sampleTabId } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleTabId?: string;
-  }>();
+  const { logPath, tabId, sampleTabId } = useLogRouteParams();
 
   const logDirectory = useStore((state) => state.logs.logs.log_dir);
 
@@ -93,11 +89,7 @@ export const useSampleNavigation = () => {
   const logDirectory = useStore((state) => state.logs.logs.log_dir);
 
   // The log
-  const { logPath, tabId, sampleTabId } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleTabId?: string;
-  }>();
+  const { logPath, tabId, sampleTabId } = useLogRouteParams();
 
   // Get the store access values directly in the hook
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);

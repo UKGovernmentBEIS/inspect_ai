@@ -4,7 +4,7 @@ import { Events } from "../../../@types/log";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
 import { ApplicationIcons } from "../../appearance/icons";
-import { useDecodedParams } from "../../routing/url";
+import { useLogRouteParams } from "../../routing/url";
 import { TranscriptOutline } from "./outline/TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
@@ -29,7 +29,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     events,
     running === true,
   );
-  const { logPath } = useDecodedParams<{ logPath: string }>();
+  const { logPath } = useLogRouteParams();
 
   const [collapsed, setCollapsed] = useCollapsedState(
     `transcript-panel-${logPath || "na"}`,

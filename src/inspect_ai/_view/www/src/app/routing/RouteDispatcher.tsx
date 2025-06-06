@@ -1,7 +1,7 @@
 import { FC } from "react";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
-import { useDecodedParams } from "./url";
+import { useLogRouteParams } from "./url";
 
 /**
  * RouteDispatcher component that determines whether to show LogsView or LogViewContainer
@@ -9,7 +9,7 @@ import { useDecodedParams } from "./url";
  * individual log view. Otherwise, it shows the logs directory view.
  */
 export const RouteDispatcher: FC = () => {
-  const { logPath } = useDecodedParams<{ logPath?: string }>();
+  const { logPath } = useLogRouteParams();
 
   // If no logPath is provided, show the logs directory view
   if (!logPath) {
@@ -17,8 +17,7 @@ export const RouteDispatcher: FC = () => {
   }
 
   // Check if the path ends with .eval or .json (indicating it's a log file)
-  const isLogFile =
-    logPath.endsWith(".eval") || logPath.endsWith(".json");
+  const isLogFile = logPath.endsWith(".eval") || logPath.endsWith(".json");
 
   // Route to the appropriate component
   if (isLogFile) {

@@ -23014,12 +23014,29 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const kLogViewInfoTabId = "info";
     const kLogViewModelsTabId = "models";
     const kLogViewTaskTabId = "task";
+    const kWorkspaceTabs = [
+      kLogViewSamplesTabId,
+      kLogViewJsonTabId,
+      kLogViewInfoTabId,
+      kLogViewModelsTabId,
+      kLogViewTaskTabId
+    ];
     const kSampleMessagesTabId = `messages`;
     const kSampleTranscriptTabId = `transcript`;
     const kSampleScoringTabId = `scoring`;
     const kSampleMetdataTabId = `metadata`;
     const kSampleErrorTabId = `error`;
+    const kSampleErrorRetriesTabId = `retry-errors`;
     const kSampleJsonTabId = `json`;
+    const kSampleTabIds = [
+      kSampleMessagesTabId,
+      kSampleTranscriptTabId,
+      kSampleScoringTabId,
+      kSampleMetdataTabId,
+      kSampleErrorTabId,
+      kSampleErrorRetriesTabId,
+      kSampleJsonTabId
+    ];
     const kScoreTypePassFail = "passfail";
     const kScoreTypeCategorical = "categorical";
     const kScoreTypeNumeric = "numeric";
@@ -42344,20 +42361,102 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return param;
       }
     };
-    const useDecodedParams = () => {
+    const useLogRouteParams = () => {
       const params = useParams();
-      const decodedParams = reactExports.useMemo(() => {
-        const decoded = {};
-        Object.entries(params).forEach(([key2, value2]) => {
-          decoded[key2] = decodeUrlParam(value2);
-        });
-        return decoded;
+      return reactExports.useMemo(() => {
+        const splatPath = params["*"] || "";
+        const fullSampleUrlMatch = splatPath.match(
+          /^(.+?)\/samples\/sample\/([^/]+)(?:\/([^/]+)(?:\/(.+?))?)?\/?\s*$/
+        );
+        if (fullSampleUrlMatch) {
+          const [, logPath, sampleId, epoch, sampleTabId] = fullSampleUrlMatch;
+          return {
+            logPath: decodeUrlParam(logPath),
+            tabId: void 0,
+            sampleTabId: decodeUrlParam(sampleTabId),
+            sampleId: decodeUrlParam(sampleId),
+            epoch: epoch ? decodeUrlParam(epoch) : void 0
+          };
+        }
+        const sampleUrlMatch = splatPath.match(
+          /^(.+?)\/samples(?:\/([^/]+)(?:\/([^/]+))?)?$/
+        );
+        if (sampleUrlMatch) {
+          const [, logPath, firstSegment, secondSegment] = sampleUrlMatch;
+          if (firstSegment) {
+            const validSampleTabIds = new Set(kSampleTabIds);
+            if (validSampleTabIds.has(firstSegment) && !secondSegment) {
+              return {
+                logPath: decodeUrlParam(logPath),
+                tabId: "samples",
+                sampleTabId: decodeUrlParam(firstSegment),
+                sampleId: void 0,
+                epoch: void 0
+              };
+            } else {
+              return {
+                logPath: decodeUrlParam(logPath),
+                tabId: void 0,
+                sampleTabId: void 0,
+                sampleId: decodeUrlParam(firstSegment),
+                epoch: secondSegment ? decodeUrlParam(secondSegment) : void 0
+              };
+            }
+          } else {
+            return {
+              logPath: decodeUrlParam(logPath),
+              tabId: "samples",
+              sampleTabId: void 0,
+              sampleId: void 0,
+              epoch: void 0
+            };
+          }
+        }
+        const pathSegments = splatPath.split("/").filter(Boolean);
+        if (pathSegments.length === 0) {
+          return {
+            logPath: void 0,
+            tabId: void 0,
+            sampleTabId: void 0,
+            sampleId: void 0,
+            epoch: void 0
+          };
+        }
+        const validTabIds = new Set(kWorkspaceTabs);
+        let tabIdIndex = -1;
+        let foundTabId = void 0;
+        for (let i2 = pathSegments.length - 1; i2 >= 0; i2--) {
+          const segment = pathSegments[i2];
+          const decodedSegment = decodeUrlParam(segment) || segment;
+          if (validTabIds.has(decodedSegment)) {
+            tabIdIndex = i2;
+            foundTabId = decodedSegment;
+            break;
+          }
+        }
+        if (foundTabId && tabIdIndex > 0) {
+          const logPath = pathSegments.slice(0, tabIdIndex).join("/");
+          return {
+            logPath: decodeUrlParam(logPath),
+            tabId: foundTabId,
+            sampleTabId: void 0,
+            sampleId: void 0,
+            epoch: void 0
+          };
+        } else {
+          return {
+            logPath: decodeUrlParam(splatPath),
+            tabId: void 0,
+            sampleTabId: void 0,
+            sampleId: void 0,
+            epoch: void 0
+          };
+        }
       }, [params]);
-      return decodedParams;
     };
     const kLogsRoutUrlPattern = "/logs";
-    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
-    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+    const kLogRouteUrlPattern = "/logs/*";
+    const kSampleRouteUrlPattern = "/logs/*/samples/sample/:sampleId/:epoch?/:sampleTabId?";
     const baseUrl = (logPath, sampleId, sampleEpoch) => {
       if (sampleId !== void 0 && sampleEpoch !== void 0) {
         return sampleUrl(logPath, sampleId, sampleEpoch);
@@ -42372,7 +42471,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           `/logs/${decodedLogPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`
         );
       } else {
-        return encodePathParts(`/logs/${decodedLogPath}/samples/${sampleTabId || ""}`);
+        return encodePathParts(
+          `/logs/${decodedLogPath}/samples/${sampleTabId || ""}`
+        );
       }
     };
     const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
@@ -42389,7 +42490,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         logPath: urlLogPath,
         sampleId: urlSampleId,
         epoch: urlEpoch
-      } = useDecodedParams();
+      } = useLogRouteParams();
       const log_file = useStore((state) => state.logs.selectedLogFile);
       const log_dir = useStore((state) => state.logs.logs.log_dir);
       let targetLogPath = urlLogPath;
@@ -42411,7 +42512,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         logPath: urlLogPath,
         sampleId: urlSampleId,
         epoch: urlEpoch
-      } = useDecodedParams();
+      } = useLogRouteParams();
       const log_file = useStore((state) => state.logs.selectedLogFile);
       const log_dir = useStore((state) => state.logs.logs.log_dir);
       let targetLogPath = urlLogPath;
@@ -47554,7 +47655,9 @@ categories: ${categories.join(" ")}`;
         async (logFiles) => {
           setHeadersLoading(true);
           try {
+            console.log("fetching headers for", logFiles);
             const logHeaders = await fetchHeaders(logFiles);
+            console.log("fetching complete for", logFiles);
             const result2 = {};
             for (var i2 = 0; i2 < logFiles.length; i2++) {
               const logFile = logFiles[i2];
@@ -47563,7 +47666,9 @@ categories: ${categories.join(" ")}`;
                 result2[logFile.name] = logHeader;
               }
             }
+            console.log("setting headers for", logFiles);
             setHeaders({ ...existingHeaders, ...result2 });
+            console.log("done fetching headers for", logFiles);
           } catch (e) {
             log.error("Error loading log headers", e);
             setHeaders({});
@@ -47706,7 +47811,7 @@ categories: ${categories.join(" ")}`;
       toolbarButton
     };
     const Navbar = () => {
-      const { logPath } = useDecodedParams();
+      const { logPath } = useLogRouteParams();
       const logs = useStore((state) => state.logs.logs);
       const baseLogDir = dirname(logs.log_dir || "");
       const baseLogName = basename(logs.log_dir || "");
@@ -51454,7 +51559,7 @@ categories: ${categories.join(" ")}`;
         kLogsPaginationId,
         kDefaultPageSize
       );
-      const { logPath } = useDecodedParams();
+      const { logPath } = useLogRouteParams();
       const currentDir = join(logPath || "", logs.log_dir);
       const logItems = reactExports.useMemo(() => {
         const logItems2 = [];
@@ -54735,7 +54840,7 @@ self.onmessage = function (e) {
     const useSampleNavigation = () => {
       const navigate = useNavigate();
       const logDirectory = useStore((state) => state.logs.logs.log_dir);
-      const { logPath, tabId, sampleTabId } = useDecodedParams();
+      const { logPath, tabId, sampleTabId } = useLogRouteParams();
       const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       const resolveLogPath = reactExports.useCallback(() => {
         if (logPath) {
@@ -67940,7 +68045,7 @@ ${events}
         events,
         running === true
       );
-      const { logPath } = useDecodedParams();
+      const { logPath } = useLogRouteParams();
       const [collapsed2, setCollapsed] = useCollapsedState(
         `transcript-panel-${logPath || "na"}`,
         false
@@ -68012,7 +68117,7 @@ ${events}
       const runningSampleData = sampleData.running;
       const selectedTab = useStore((state) => state.app.tabs.sample);
       const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
-      const { sampleTabId } = useDecodedParams();
+      const { sampleTabId } = useParams();
       const effectiveSelectedTab = sampleTabId || selectedTab;
       const navigate = useNavigate();
       const tabsRef = reactExports.useRef(null);
@@ -68038,10 +68143,9 @@ ${events}
       }, [sample2 == null ? void 0 : sample2.messages, runningSampleData]);
       const {
         logPath: urlLogPath,
-        tabId: urlTabId,
         sampleId: urlSampleId,
         epoch: urlEpoch
-      } = useDecodedParams();
+      } = useLogRouteParams();
       const onSelectedTab = reactExports.useCallback(
         (e) => {
           const el = e.currentTarget;
@@ -68052,15 +68156,7 @@ ${events}
             navigate(url);
           }
         },
-        [
-          sampleTabId,
-          urlLogPath,
-          urlTabId,
-          urlSampleId,
-          urlEpoch,
-          navigate,
-          setSelectedTab
-        ]
+        [sampleTabId, urlLogPath, urlSampleId, urlEpoch, navigate, setSelectedTab]
       );
       const sampleMetadatas = metadataViewsForSample(
         `${baseId}-${id}`,
@@ -91408,7 +91504,7 @@ Supported expressions:
       ) });
     };
     const LogViewContainer = () => {
-      const { logPath, tabId, sampleId, epoch, sampleTabId } = useDecodedParams();
+      const { logPath, tabId, sampleId, epoch, sampleTabId } = useLogRouteParams();
       const initialState2 = useStore((state) => state.app.initialState);
       const clearInitialState = useStore(
         (state) => state.appActions.clearInitialState
@@ -91520,7 +91616,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
     const RouteDispatcher = () => {
-      const { logPath } = useDecodedParams();
+      const { logPath } = useLogRouteParams();
       if (!logPath) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(LogsPanel, {});
       }

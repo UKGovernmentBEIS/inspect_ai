@@ -6,22 +6,15 @@ import { Link } from "react-router-dom";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
 import { ApplicationIcons } from "../appearance/icons";
-import { logUrl, useDecodedParams } from "../routing/url";
+import { logUrl, useLogRouteParams } from "../routing/url";
 import styles from "./Navbar.module.css";
 
 export const Navbar: FC<NavbarProps> = () => {
-  const { logPath } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
+  const { logPath } = useLogRouteParams();
   const logs = useStore((state) => state.logs.logs);
   const baseLogDir = dirname(logs.log_dir || "");
   const baseLogName = basename(logs.log_dir || "");
-  const pathSegments = logPath
-    ? logPath.split("/")
-    : undefined;
+  const pathSegments = logPath ? logPath.split("/") : undefined;
 
   const backUrl = logUrl(
     ensureTrailingSlash(dirname(logPath || "")),

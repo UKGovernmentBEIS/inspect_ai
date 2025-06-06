@@ -7,20 +7,14 @@ import {
   useTotalSampleCount,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { baseUrl, useDecodedParams } from "../routing/url";
+import { baseUrl, useLogRouteParams } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
 
 /**
  * LogContainer component that handles routing to specific logs, tabs, and samples
  */
 export const LogViewContainer: FC = () => {
-  const { logPath, tabId, sampleId, epoch, sampleTabId } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-    sampleTabId?: string;
-  }>();
+  const { logPath, tabId, sampleId, epoch, sampleTabId } = useLogRouteParams();
 
   const initialState = useStore((state) => state.app.initialState);
   const clearInitialState = useStore(

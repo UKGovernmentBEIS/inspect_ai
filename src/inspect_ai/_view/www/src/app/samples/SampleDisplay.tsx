@@ -17,7 +17,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
 import { Card, CardBody, CardHeader } from "../../components/Card";
@@ -38,7 +38,7 @@ import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
-import { sampleUrl, useDecodedParams } from "../routing/url";
+import { sampleUrl, useLogRouteParams } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
@@ -75,7 +75,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
 
   // Get sample tab from URL if available
-  const { sampleTabId } = useDecodedParams<{ sampleTabId?: string }>();
+  const { sampleTabId } = useParams<{ sampleTabId?: string }>();
 
   // Use sampleTabId from URL if available, otherwise use the one from state
   const effectiveSelectedTab = sampleTabId || selectedTab;
@@ -113,15 +113,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Get all URL parameters at component level
   const {
     logPath: urlLogPath,
-    tabId: urlTabId,
     sampleId: urlSampleId,
     epoch: urlEpoch,
-  } = useDecodedParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
+  } = useLogRouteParams();
 
   // Tab selection
   const onSelectedTab = useCallback(
@@ -136,15 +130,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         navigate(url);
       }
     },
-    [
-      sampleTabId,
-      urlLogPath,
-      urlTabId,
-      urlSampleId,
-      urlEpoch,
-      navigate,
-      setSelectedTab,
-    ],
+    [sampleTabId, urlLogPath, urlSampleId, urlEpoch, navigate, setSelectedTab],
   );
 
   const sampleMetadatas = metadataViewsForSample(
