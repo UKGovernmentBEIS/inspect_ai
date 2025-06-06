@@ -11,7 +11,7 @@ from typing_extensions import override
 
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.transcript import transcript_code_theme
-from inspect_ai.util._display import display_type
+from inspect_ai.util._display import display_type, display_type_plain
 
 
 def is_vscode_notebook(console: Console) -> bool:
@@ -20,15 +20,13 @@ def is_vscode_notebook(console: Console) -> bool:
 
 def rich_no_color() -> bool:
     return (
-        display_type() == "plain"
-        or not is_running_in_vscode()
-        or is_running_in_jupyterlab()
+        display_type_plain() or not is_running_in_vscode() or is_running_in_jupyterlab()
     )
 
 
 def rich_initialise() -> None:
     # reflect ansi prefs
-    if display_type() == "plain":
+    if display_type_plain():
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
     elif rich_no_color():
         rich.reconfigure(no_color=True)
