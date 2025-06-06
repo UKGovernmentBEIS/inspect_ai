@@ -42322,6 +42322,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
       return dirWithSlash + normalizedFile;
     };
+    function encodePathParts(url) {
+      if (!url) return url;
+      try {
+        const fullUrl = new URL(url);
+        fullUrl.pathname = fullUrl.pathname.split("/").map(
+          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+        ).join("/");
+        return fullUrl.toString();
+      } catch {
+        return url.split("/").map(
+          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+        ).join("/");
+      }
+    }
     const kLogsRoutUrlPattern = "/logs";
     const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
     const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
@@ -52370,20 +52384,6 @@ self.onmessage = function (e) {
       document.body.appendChild(link2);
       link2.click();
       document.body.removeChild(link2);
-    }
-    function encodePathParts(url) {
-      if (!url) return url;
-      try {
-        const fullUrl = new URL(url);
-        fullUrl.pathname = fullUrl.pathname.split("/").map(
-          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
-        ).join("/");
-        return fullUrl.toString();
-      } catch {
-        return url.split("/").map(
-          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
-        ).join("/");
-      }
     }
     const loaded_time = Date.now();
     let last_eval_time = 0;
