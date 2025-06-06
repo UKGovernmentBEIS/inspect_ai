@@ -1,5 +1,4 @@
 import os
-from typing import Awaitable, Callable
 
 import anyio
 import httpx
@@ -13,9 +12,13 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
+
+from ._web_search_provider import SearchProvider
 
 DEFAULT_RELEVANCE_PROMPT = """I am trying to answer the following question and need to find the most relevant information on the web. Please let me know if the following content is relevant to the question or not. You should just respond with "yes" or "no".
 
@@ -52,7 +55,7 @@ def maybe_get_google_api_keys() -> tuple[str, str] | None:
 
 def google_search_provider(
     in_options: dict[str, object] | None = None,
-) -> Callable[[str], Awaitable[str | None]]:
+) -> SearchProvider:
     options = GoogleOptions.model_validate(in_options) if in_options else None
     num_results = (options.num_results if options else None) or 3
     max_provider_calls = (options.max_provider_calls if options else None) or 3
@@ -69,14 +72,13 @@ def google_search_provider(
     # Create the client within the provider
     client = httpx.AsyncClient()
 
-    async def search(query: str) -> str | None:
+    async def search(query: str) -> list[ContentText] | None:
         # limit number of concurrent searches
-        page_contents: list[str] = []
-        processed_links: list[SearchLink] = []
+        results: list[ContentText] = []
         search_calls = 0
 
         # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
-        while len(page_contents) < num_results and search_calls < max_provider_calls:
+        while len(results) < num_results and search_calls < max_provider_calls:
             async with concurrency("google_web_search", max_connections):
                 links = await _search(query, start_idx=search_calls * 10)
 
@@ -84,10 +86,10 @@ def google_search_provider(
 
                 async def process_link(link: SearchLink) -> None:
                     try:
-                        page = await page_if_relevant(link.url, query, model, client)
-                        if page:
-                            page_contents.append(page)
-                            processed_links.append(link)
+                        if page := await page_if_relevant(
+                            link.url, query, model, client
+                        ):
+                            results.append(page)
                     # exceptions fetching pages are very common!
                     except Exception:
                         pass
@@ -97,18 +99,7 @@ def google_search_provider(
 
             search_calls += 1
 
-        return (
-            "\n\n".join(
-                "[{title}]({url}):\n{page_content}".format(
-                    title=link.title, url=link.url, page_content=page_content
-                )
-                for link, page_content in zip(
-                    processed_links, page_contents, strict=True
-                )
-            )
-            if processed_links
-            else None
-        )
+        return results or None
 
     async def _search(query: str, start_idx: int) -> list[SearchLink]:
         # List of allowed parameters can be found https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list
@@ -153,7 +144,7 @@ def google_search_provider(
 
 async def page_if_relevant(
     url: str, query: str, relevance_model: str | None, client: httpx.AsyncClient
-) -> str | None:
+) -> ContentText | None:
     """
     Use parser model to determine if a web page contents is relevant to a query.
 
@@ -181,13 +172,16 @@ async def page_if_relevant(
     # parse it
     encoding_scheme = response.encoding or "utf-8"
     soup = BeautifulSoup(response.content.decode(encoding_scheme), "html.parser")
+    page_title = soup.title.get_text(strip=True) if soup.title else None
 
     main_content = soup.find("main") or soup.find("body") or soup
     if not isinstance(main_content, NavigableString):
         paragraphs = main_content.find_all("p")
         full_text = ""
         for p in paragraphs:
-            full_text += p.get_text(strip=True, separator=" ")
+            full_text += ("\n" if full_text else "") + p.get_text(
+                strip=True, separator=" "
+            )
             if len(full_text.split()) > 2000:
                 break
     else:
@@ -202,6 +196,9 @@ async def page_if_relevant(
     ).message.text
 
     if "yes" in is_relevant.lower():
-        return full_text
+        return ContentText(
+            text=(f"{page_title}\n" if page_title else "") + full_text,
+            citations=[UrlCitation(url=url, title=page_title)],
+        )
     else:
         return None

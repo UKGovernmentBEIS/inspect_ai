@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentText
 from inspect_ai.tool._tools._web_search._google import google_search_provider
 
 # Mock response from Google Custom Search API
@@ -39,14 +41,26 @@ MOCK_HTML_CONTENT = """
 
 def create_mock_transport():
     """Create a mock transport that returns our test responses."""
+    call_count = 0
 
     async def mock_response(request):
+        nonlocal call_count
+
         # Handle Google API search request
         if "googleapis.com/customsearch" in str(request.url):
-            return httpx.Response(
-                status_code=HTTPStatus.OK,
-                json=MOCK_GOOGLE_SEARCH_RESPONSE,
-            )
+            call_count += 1
+            if call_count == 1:
+                # Return mock results on first call
+                return httpx.Response(
+                    status_code=HTTPStatus.OK,
+                    json=MOCK_GOOGLE_SEARCH_RESPONSE,
+                )
+            else:
+                # Return empty results on subsequent calls
+                return httpx.Response(
+                    status_code=HTTPStatus.OK,
+                    json={"items": []},
+                )
         # Handle page content requests
         else:
             return httpx.Response(
@@ -85,9 +99,27 @@ class TestGoogleSearchRendering:
 
             result = await search("test query")
 
-            assert result is not None
-            assert "[First Result](https://example.com/1):" in result
-            assert "This is a test page content." in result
-            assert "[Second Result](https://example.com/2):" in result
+            assert result == [
+                ContentText(
+                    text="Test Page\nThis is a test page content.",
+                    citations=[
+                        UrlCitation(
+                            title="Test Page",
+                            # cited_text="This is the first search result content.",
+                            url="https://example.com/1",
+                        ),
+                    ],
+                ),
+                ContentText(
+                    text="Test Page\nThis is a test page content.",
+                    citations=[
+                        UrlCitation(
+                            title="Test Page",
+                            # cited_text="This is the second search result content.",
+                            url="https://example.com/2",
+                        ),
+                    ],
+                ),
+            ]
 
             mock_model.generate.assert_called()
