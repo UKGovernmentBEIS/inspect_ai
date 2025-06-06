@@ -5,7 +5,7 @@
 - pass_at_k: Treat threshold as the the minimum inclusive value for passing (rather than checking equality)
 - Web search: Include links specified by providers in the results.
 - Content: Added `ContentData` for model specific content blocks.
-- Citations: Added `Citation` suit of types and included citations in `ContentText`.
+- Citations: Added `Citation` suite of types and included citations in `ContentText`.
 - Inspect View: Display sample id & epoch in sample dialog title bar.
 - Inspect View: Don't open sample dialog when simply navigating the sample list.
 - Inspect View: Fix error that could occur when determine transcript outline collapse state.
