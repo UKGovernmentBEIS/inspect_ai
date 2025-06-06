@@ -24466,6 +24466,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       error: "bi bi-exclamation-circle",
       file: "bi bi-file-code",
       folder: "bi bi-folder",
+      home: "bi bi-house",
       info: "bi bi-info-circle",
       input: "bi bi-terminal",
       limits: {
@@ -47657,11 +47658,15 @@ categories: ${categories.join(" ")}`;
       }
       return path.endsWith("/") ? path : path + "/";
     };
-    const header$3 = "_header_1iy71_1";
-    const breadcrumbs = "_breadcrumbs_1iy71_11";
+    const header$3 = "_header_cjk37_1";
+    const breadcrumbs = "_breadcrumbs_cjk37_11";
+    const left$2 = "_left_cjk37_17";
+    const toolbarButton = "_toolbarButton_cjk37_26";
     const styles$1e = {
       header: header$3,
-      breadcrumbs
+      breadcrumbs,
+      left: left$2,
+      toolbarButton
     };
     const Navbar = () => {
       const { logPath } = useParams();
@@ -47669,6 +47674,10 @@ categories: ${categories.join(" ")}`;
       const baseLogDir = dirname(logs.log_dir || "");
       const baseLogName = basename(logs.log_dir || "");
       const pathSegments = logPath ? decodeURIComponent(logPath).split("/") : void 0;
+      const backUrl = logUrl(
+        ensureTrailingSlash(dirname(logPath || "")),
+        logs.log_dir
+      );
       const dirSegments = pathSegments ? pathSegments.map((segment) => {
         return {
           text: segment,
@@ -47685,20 +47694,31 @@ categories: ${categories.join(" ")}`;
         {
           className: clsx("text-size-smaller", styles$1e.header),
           "aria-label": "breadcrumb",
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1e.breadcrumbs), children: segments == null ? void 0 : segments.map((segment, index2) => {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "li",
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1e.left), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: backUrl, className: clsx(styles$1e.toolbarButton), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.previous) }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              Link,
               {
-                className: clsx(
-                  styles$1e.pathLink,
-                  "breadcrumb-item",
-                  index2 === segments.length - 1 ? "active" : void 0
-                ),
-                children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1e.pathSegment), children: segment.text }, index2)
-              },
-              index2
-            );
-          }) })
+                to: logUrl("", logs.log_dir),
+                className: clsx(styles$1e.toolbarButton),
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.home) })
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1e.breadcrumbs), children: segments == null ? void 0 : segments.map((segment, index2) => {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "li",
+                {
+                  className: clsx(
+                    styles$1e.pathLink,
+                    "breadcrumb-item",
+                    index2 === segments.length - 1 ? "active" : void 0
+                  ),
+                  children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1e.pathSegment), children: segment.text }, index2)
+                },
+                index2
+              );
+            }) })
+          ] })
         }
       );
     };
@@ -57992,7 +58012,7 @@ self.onmessage = function (e) {
     };
     const eventRow = "_eventRow_1dssq_1";
     const selected$1 = "_selected_1dssq_8";
-    const toggle$1 = "_toggle_1dssq_12";
+    const toggle = "_toggle_1dssq_12";
     const eventLink = "_eventLink_1dssq_17";
     const label$7 = "_label_1dssq_28";
     const icon$1 = "_icon_1dssq_34";
@@ -58001,7 +58021,7 @@ self.onmessage = function (e) {
     const styles$I = {
       eventRow,
       selected: selected$1,
-      toggle: toggle$1,
+      toggle,
       eventLink,
       label: label$7,
       icon: icon$1,
@@ -90431,7 +90451,6 @@ Supported expressions:
     };
     const container$2 = "_container_1pujw_1";
     const wrapper = "_wrapper_1pujw_8";
-    const toggle = "_toggle_1pujw_14";
     const body = "_body_1pujw_21";
     const bodyContainer = "_bodyContainer_1pujw_27";
     const taskTitle = "_taskTitle_1pujw_33";
@@ -90441,7 +90460,6 @@ Supported expressions:
     const styles$8 = {
       container: container$2,
       wrapper,
-      toggle,
       body,
       bodyContainer,
       taskTitle,
@@ -90930,14 +90948,8 @@ Supported expressions:
       const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
       const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
-      const logDirectory = useStore((state) => state.logs.logs.log_dir);
-      const backUrl = logUrl(
-        ensureTrailingSlash(dirname(selectedLogFile || "")),
-        logDirectory
-      );
-      console.log({ selectedLogFile, logDirectory, backUrl });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.wrapper), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
             className: clsx(
@@ -90946,41 +90958,38 @@ Supported expressions:
               "mb-0",
               styles$8.container
             ),
-            children: [
-              showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: backUrl, className: clsx("btn", styles$8.toggle), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.previous }) }) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.body, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.bodyContainer, children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      id: "task-title",
-                      className: clsx("task-title", "text-truncate", styles$8.taskTitle),
-                      title: evalSpec == null ? void 0 : evalSpec.task,
-                      children: evalSpec == null ? void 0 : evalSpec.task
-                    }
-                  ),
-                  (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      id: "task-model",
-                      className: clsx(
-                        "task-model",
-                        "text-truncate",
-                        styles$8.taskModel,
-                        "text-size-base"
-                      ),
-                      title: evalSpec == null ? void 0 : evalSpec.model,
-                      children: evalSpec == null ? void 0 : evalSpec.model
-                    }
-                  ) : ""
-                ] }),
-                (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$8.secondaryContainer), children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
-                  selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
-                ] })
+            children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.body, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.bodyContainer, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    id: "task-title",
+                    className: clsx("task-title", "text-truncate", styles$8.taskTitle),
+                    title: evalSpec == null ? void 0 : evalSpec.task,
+                    children: evalSpec == null ? void 0 : evalSpec.task
+                  }
+                ),
+                (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    id: "task-model",
+                    className: clsx(
+                      "task-model",
+                      "text-truncate",
+                      styles$8.taskModel,
+                      "text-size-base"
+                    ),
+                    title: evalSpec == null ? void 0 : evalSpec.model,
+                    children: evalSpec == null ? void 0 : evalSpec.model
+                  }
+                ) : ""
+              ] }),
+              (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$8.secondaryContainer), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
+                selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
               ] })
-            ]
+            ] })
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.taskStatus, "navbar-text"), children: [

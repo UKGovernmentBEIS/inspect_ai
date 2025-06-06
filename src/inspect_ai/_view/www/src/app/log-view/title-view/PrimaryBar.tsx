@@ -1,15 +1,12 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { Link } from "react-router-dom";
 import { EvalResults, EvalSpec, Status } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
 import { kModelNone } from "../../../constants";
 import { toDisplayScorers } from "../../../scoring/metrics";
 import { useStore } from "../../../state/store";
-import { dirname, ensureTrailingSlash, filename } from "../../../utils/path";
-import { ApplicationIcons } from "../../appearance/icons";
-import { logUrl } from "../../routing/url";
+import { filename } from "../../../utils/path";
 import { ModelRolesView } from "./ModelRolesView";
 import styles from "./PrimaryBar.module.css";
 import { displayScorersFromRunningMetrics, ResultsPanel } from "./ResultsPanel";
@@ -39,13 +36,6 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
-  const logDirectory = useStore((state) => state.logs.logs.log_dir);
-
-  const backUrl = logUrl(
-    ensureTrailingSlash(dirname(selectedLogFile || "")),
-    logDirectory,
-  );
-  console.log({ selectedLogFile, logDirectory, backUrl });
 
   return (
     <div className={clsx(styles.wrapper)}>
@@ -57,13 +47,6 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
           styles.container,
         )}
       >
-        {showToggle ? (
-          <Link to={backUrl} className={clsx("btn", styles.toggle)}>
-            <i className={ApplicationIcons.previous}></i>
-          </Link>
-        ) : (
-          ""
-        )}
         <div className={styles.body}>
           <div className={styles.bodyContainer}>
             <div

@@ -4,7 +4,8 @@ import clsx from "clsx";
 import { FC } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useStore } from "../../state/store";
-import { basename, dirname } from "../../utils/path";
+import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
+import { ApplicationIcons } from "../appearance/icons";
 import { logUrl } from "../routing/url";
 import styles from "./Navbar.module.css";
 
@@ -21,6 +22,11 @@ export const Navbar: FC<NavbarProps> = () => {
   const pathSegments = logPath
     ? decodeURIComponent(logPath).split("/")
     : undefined;
+
+  const backUrl = logUrl(
+    ensureTrailingSlash(dirname(logPath || "")),
+    logs.log_dir,
+  );
 
   const dirSegments = pathSegments
     ? pathSegments.map((segment) => {
@@ -42,28 +48,40 @@ export const Navbar: FC<NavbarProps> = () => {
       className={clsx("text-size-smaller", styles.header)}
       aria-label="breadcrumb"
     >
-      <ol className={clsx("breadcrumb", styles.breadcrumbs)}>
-        {segments?.map((segment, index) => {
-          return (
-            <li
-              className={clsx(
-                styles.pathLink,
-                "breadcrumb-item",
-                index === segments.length - 1 ? "active" : undefined,
-              )}
-              key={index}
-            >
-              {segment.url ? (
-                <Link to={segment.url}>{segment.text}</Link>
-              ) : (
-                <span key={index} className={clsx(styles.pathSegment)}>
-                  {segment.text}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+      <div className={clsx(styles.left)}>
+        <Link to={backUrl} className={clsx(styles.toolbarButton)}>
+          <i className={clsx(ApplicationIcons.previous)} />
+        </Link>
+        <Link
+          to={logUrl("", logs.log_dir)}
+          className={clsx(styles.toolbarButton)}
+        >
+          <i className={clsx(ApplicationIcons.home)} />
+        </Link>
+
+        <ol className={clsx("breadcrumb", styles.breadcrumbs)}>
+          {segments?.map((segment, index) => {
+            return (
+              <li
+                className={clsx(
+                  styles.pathLink,
+                  "breadcrumb-item",
+                  index === segments.length - 1 ? "active" : undefined,
+                )}
+                key={index}
+              >
+                {segment.url ? (
+                  <Link to={segment.url}>{segment.text}</Link>
+                ) : (
+                  <span key={index} className={clsx(styles.pathSegment)}>
+                    {segment.text}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
     </nav>
   );
 };

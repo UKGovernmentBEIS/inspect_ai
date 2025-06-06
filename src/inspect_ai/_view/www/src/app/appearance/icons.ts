@@ -55,6 +55,7 @@ export const ApplicationIcons = {
   file: "bi bi-file-code",
   folder: "bi bi-folder",
   fork: "bi bi-signpost-split",
+  home: "bi bi-house",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",
   inspect: "bi bi-gear",

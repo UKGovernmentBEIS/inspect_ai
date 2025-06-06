@@ -9,5 +9,25 @@
 }
 
 .breadcrumbs {
+  border-left: solid var(--bs-border-color) 1px;
+  padding-left: 0.5em;
   margin-bottom: 0;
+}
+
+.left {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+  column-gap: 0.75em;
+}
+
+.toolbarButton {
+  font-size: 1.4em;
+  color: var(--bs-body);
+}
+
+.toolbarButton:hover {
+  color: var(--bs-link-hover-color);
 }
