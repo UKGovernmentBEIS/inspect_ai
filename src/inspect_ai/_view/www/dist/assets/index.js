@@ -42348,9 +42348,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
       if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+        return encodePathParts(
+          `/logs/${logPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`
+        );
       } else {
-        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
+        return encodePathParts(`/logs/${logPath}/samples/${sampleTabId || ""}`);
       }
     };
     const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
@@ -42424,9 +42426,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const logUrlRaw = (log_segment, tabId) => {
       if (tabId) {
-        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+        return encodePathParts(`/logs/${log_segment}/${tabId}`);
       } else {
-        return `/logs/${encodeURIComponent(log_segment)}`;
+        return encodePathParts(`/logs/${log_segment}`);
       }
     };
     const supportsLinking = () => {
@@ -51457,12 +51459,17 @@ categories: ${categories.join(" ")}`;
           } else if (name2.startsWith(currentDir)) {
             const relativePath = directoryRelativeUrl(name2, currentDir);
             const dirName = decodeURIComponent(rootName(relativePath));
+            const currentDirRelative = directoryRelativeUrl(
+              currentDir,
+              logs.log_dir
+            );
+            const url = join(dirName, decodeURIComponent(currentDirRelative));
             if (!processedFolders.has(dirName)) {
               logItems2.push({
                 id: dirName,
                 name: dirName,
                 type: "folder",
-                url: logUrl(dirName, logs.log_dir),
+                url: logUrl(url, logs.log_dir),
                 itemCount: logs.files.filter(
                   (file) => file.name.startsWith(dirname(name2))
                 ).length

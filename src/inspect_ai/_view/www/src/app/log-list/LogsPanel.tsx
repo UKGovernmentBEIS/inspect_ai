@@ -90,15 +90,21 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
       } else if (name.startsWith(currentDir)) {
         // This is file that is next level (or deeper) child
         // of the current directory, extract the top level folder name
-        const relativePath = directoryRelativeUrl(name, currentDir);
-        const dirName = decodeURIComponent(rootName(relativePath));
 
+        const relativePath = directoryRelativeUrl(name, currentDir);
+
+        const dirName = decodeURIComponent(rootName(relativePath));
+        const currentDirRelative = directoryRelativeUrl(
+          currentDir,
+          logs.log_dir,
+        );
+        const url = join(dirName, decodeURIComponent(currentDirRelative));
         if (!processedFolders.has(dirName)) {
           logItems.push({
             id: dirName,
             name: dirName,
             type: "folder",
-            url: logUrl(dirName, logs.log_dir),
+            url: logUrl(url, logs.log_dir),
             itemCount: logs.files.filter((file) =>
               file.name.startsWith(dirname(name)),
             ).length,

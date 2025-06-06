@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { kSampleMessagesTabId, kSampleTranscriptTabId } from "../../constants";
 import { useStore } from "../../state/store";
-import { directoryRelativeUrl } from "../../utils/uri";
+import { directoryRelativeUrl, encodePathParts } from "../../utils/uri";
 
 export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
@@ -28,9 +28,11 @@ export const sampleUrl = (
   sampleTabId?: string,
 ) => {
   if (sampleId !== undefined && sampleEpoch !== undefined) {
-    return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+    return encodePathParts(
+      `/logs/${logPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`,
+    );
   } else {
-    return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
+    return encodePathParts(`/logs/${logPath}/samples/${sampleTabId || ""}`);
   }
 };
 
@@ -151,9 +153,9 @@ export const makeLogPath = (log_file: string, log_dir?: string) => {
 
 export const logUrlRaw = (log_segment: string, tabId?: string) => {
   if (tabId) {
-    return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+    return encodePathParts(`/logs/${log_segment}/${tabId}`);
   } else {
-    return `/logs/${encodeURIComponent(log_segment)}`;
+    return encodePathParts(`/logs/${log_segment}`);
   }
 };
 
