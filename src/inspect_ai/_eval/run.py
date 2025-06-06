@@ -63,7 +63,6 @@ async def eval_run(
     eval_config: EvalConfig,
     eval_sandbox: SandboxEnvironmentType | None,
     recorder: Recorder,
-    header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
     tags: list[str] | None = None,
@@ -213,7 +212,6 @@ async def eval_run(
                     eval_config=task_eval_config,
                     metadata=((metadata or {}) | (task.metadata or {})) or None,
                     recorder=recorder,
-                    header_only=header_only,
                 )
                 await logger.init()
 
