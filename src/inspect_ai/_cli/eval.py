@@ -966,6 +966,7 @@ def eval_exec(
         success, _ = eval_set(**params)
         return success
     else:
+        params["log_header_only"] = (True,)  # cli invocation doesn't need full log
         eval(**params)
         return True
 

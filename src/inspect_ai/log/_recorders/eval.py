@@ -133,6 +133,7 @@ class EvalRecorder(FileRecorder):
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
+        header_only: bool = False,
     ) -> EvalLog:
         # get the key and log
         key = self._log_file_key(eval)
@@ -174,7 +175,7 @@ class EvalRecorder(FileRecorder):
 
         # flush and write the results
         await log.flush()
-        return await log.close()
+        return await log.close(header_only)
 
     @classmethod
     @override
@@ -321,12 +322,12 @@ class ZipLogFile:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
 
-    async def close(self) -> EvalLog:
+    async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
             # read the log from the temp file then close it
             try:
                 self._temp_file.seek(0)
-                return _read_log(self._temp_file, self._file)
+                return _read_log(self._temp_file, self._file, header_only=header_only)
             finally:
                 self._temp_file.close()
                 if self._zip:
