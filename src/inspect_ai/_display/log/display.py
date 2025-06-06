@@ -89,8 +89,7 @@ class LogDisplay(Display):
 
 
 class LogProgress(Progress):
-    def __init__(self, task: TaskWithResult, total: int):
-        self.task = task
+    def __init__(self, total: int):
         self.total = total
         self.current = 0
 
@@ -108,11 +107,10 @@ class LogTaskDisplay(TaskDisplay):
         self.samples_complete = 0
         self.samples_total = 0
         self.current_metrics: list[TaskDisplayMetric] | None = None
-        self.last_progress = 0
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
-        self.progress_display = LogProgress(self.task, self.task.profile.steps)
+        self.progress_display = LogProgress(self.task.profile.steps)
         yield self.progress_display
 
     @throttle(5)
@@ -128,12 +126,13 @@ class LogTaskDisplay(TaskDisplay):
         status_parts.append(f"Model: {self.task.profile.model}")
 
         # Add step progress
-        progress_percent = int(
-            self.progress_display.current / self.progress_display.total * 100
-        )
-        status_parts.append(
-            f"Steps: {self.progress_display.current}/{self.progress_display.total} {progress_percent}%"
-        )
+        if self.progress_display:
+            progress_percent = int(
+                self.progress_display.current / self.progress_display.total * 100
+            )
+            status_parts.append(
+                f"Steps: {self.progress_display.current}/{self.progress_display.total} {progress_percent}%"
+            )
 
         # Add sample progress
         status_parts.append(f"Samples: {self.samples_complete}/{self.samples_total}")
@@ -159,8 +158,6 @@ class LogTaskDisplay(TaskDisplay):
 
         # Print on new line
         logging.info(", ".join(status_parts), stacklevel=stacklevel)
-
-        self.last_progress = self.progress_display.current
 
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete
