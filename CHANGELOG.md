@@ -1,3 +1,7 @@
+## v0.3.103 (06 June 2025)
+
+- Eval set: Do not read full eval logs into memory at task completion.
+
 ## v0.3.102 (05 June 2025)
 
 - OpenAI: Use responses API for codex models.

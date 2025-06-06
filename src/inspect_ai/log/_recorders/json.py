@@ -96,6 +96,7 @@ class JSONRecorder(FileRecorder):
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
+        header_only: bool = False,
     ) -> EvalLog:
         log = self.data[self._log_file_key(spec)]
         log.data.status = status
