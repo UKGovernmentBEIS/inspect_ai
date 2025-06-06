@@ -65,13 +65,7 @@
           "type": "string"
         },
         "decision": {
-          "enum": [
-            "approve",
-            "modify",
-            "reject",
-            "escalate",
-            "terminate"
-          ],
+          "enum": ["approve", "modify", "reject", "escalate", "terminate"],
           "title": "Decision",
           "type": "string"
         },
@@ -127,9 +121,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "approvers"
-      ],
+      "required": ["approvers"],
       "title": "ApprovalPolicyConfig",
       "type": "object",
       "additionalProperties": false
@@ -162,11 +154,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "name",
-        "tools",
-        "params"
-      ],
+      "required": ["name", "tools", "params"],
       "title": "ApproverPolicyConfig",
       "type": "object"
     },
@@ -201,11 +189,7 @@
           "default": null
         }
       },
-      "required": [
-        "message",
-        "stop_reason",
-        "logprobs"
-      ],
+      "required": ["message", "stop_reason", "logprobs"],
       "title": "ChatCompletionChoice",
       "type": "object",
       "additionalProperties": false
@@ -261,10 +245,7 @@
         "source": {
           "anyOf": [
             {
-              "enum": [
-                "input",
-                "generate"
-              ],
+              "enum": ["input", "generate"],
               "type": "string"
             },
             {
@@ -383,10 +364,7 @@
         "source": {
           "anyOf": [
             {
-              "enum": [
-                "input",
-                "generate"
-              ],
+              "enum": ["input", "generate"],
               "type": "string"
             },
             {
@@ -414,13 +392,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "id",
-        "content",
-        "source",
-        "internal",
-        "role"
-      ],
+      "required": ["id", "content", "source", "internal", "role"],
       "title": "ChatMessageSystem",
       "type": "object",
       "additionalProperties": false
@@ -476,10 +448,7 @@
         "source": {
           "anyOf": [
             {
-              "enum": [
-                "input",
-                "generate"
-              ],
+              "enum": ["input", "generate"],
               "type": "string"
             },
             {
@@ -607,10 +576,7 @@
         "source": {
           "anyOf": [
             {
-              "enum": [
-                "input",
-                "generate"
-              ],
+              "enum": ["input", "generate"],
               "type": "string"
             },
             {
@@ -690,20 +656,12 @@
           "type": "string"
         },
         "format": {
-          "enum": [
-            "wav",
-            "mp3"
-          ],
+          "enum": ["wav", "mp3"],
           "title": "Format",
           "type": "string"
         }
       },
-      "required": [
-        "internal",
-        "type",
-        "audio",
-        "format"
-      ],
+      "required": ["internal", "type", "audio", "format"],
       "title": "ContentAudio",
       "type": "object",
       "additionalProperties": false
@@ -773,12 +731,7 @@
       },
       "title": "ContentCitation",
       "type": "object",
-      "required": [
-        "cited_text",
-        "title",
-        "internal",
-        "type"
-      ],
+      "required": ["cited_text", "title", "internal", "type"],
       "additionalProperties": false
     },
     "ContentData": {
@@ -809,11 +762,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "internal",
-        "type",
-        "data"
-      ],
+      "required": ["internal", "type", "data"],
       "title": "ContentData",
       "type": "object",
       "additionalProperties": false
@@ -844,21 +793,12 @@
         },
         "detail": {
           "default": "auto",
-          "enum": [
-            "auto",
-            "low",
-            "high"
-          ],
+          "enum": ["auto", "low", "high"],
           "title": "Detail",
           "type": "string"
         }
       },
-      "required": [
-        "internal",
-        "type",
-        "image",
-        "detail"
-      ],
+      "required": ["internal", "type", "image", "detail"],
       "title": "ContentImage",
       "type": "object",
       "additionalProperties": false
@@ -905,13 +845,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "internal",
-        "type",
-        "reasoning",
-        "signature",
-        "redacted"
-      ],
+      "required": ["internal", "type", "reasoning", "signature", "redacted"],
       "title": "ContentReasoning",
       "type": "object",
       "additionalProperties": false
@@ -986,13 +920,7 @@
           "title": "Citations"
         }
       },
-      "required": [
-        "internal",
-        "type",
-        "text",
-        "refusal",
-        "citations"
-      ],
+      "required": ["internal", "type", "text", "refusal", "citations"],
       "title": "ContentText",
       "type": "object",
       "additionalProperties": false
@@ -1022,21 +950,12 @@
           "type": "string"
         },
         "format": {
-          "enum": [
-            "mp4",
-            "mpeg",
-            "mov"
-          ],
+          "enum": ["mp4", "mpeg", "mov"],
           "title": "Format",
           "type": "string"
         }
       },
-      "required": [
-        "internal",
-        "type",
-        "video",
-        "format"
-      ],
+      "required": ["internal", "type", "video", "format"],
       "title": "ContentVideo",
       "type": "object",
       "additionalProperties": false
@@ -1117,24 +1036,14 @@
       },
       "title": "DocumentCitation",
       "type": "object",
-      "required": [
-        "cited_text",
-        "title",
-        "internal",
-        "type",
-        "range"
-      ],
+      "required": ["cited_text", "title", "internal", "type", "range"],
       "additionalProperties": false
     },
     "DocumentRange": {
       "description": "A range specifying a section of a document.",
       "properties": {
         "type": {
-          "enum": [
-            "block",
-            "page",
-            "char"
-          ],
+          "enum": ["block", "page", "char"],
           "title": "Type",
           "type": "string"
         },
@@ -1147,11 +1056,7 @@
           "type": "integer"
         }
       },
-      "required": [
-        "type",
-        "start_index",
-        "end_index"
-      ],
+      "required": ["type", "start_index", "end_index"],
       "title": "DocumentRange",
       "type": "object",
       "additionalProperties": false
@@ -1398,7 +1303,7 @@
         "cost_limit": {
           "anyOf": [
             {
-              "type": "float"
+              "type": "number"
             },
             {
               "type": "null"
@@ -1406,6 +1311,19 @@
           ],
           "default": null,
           "title": "Cost Limit"
+        },
+        "cost_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost File"
         },
         "max_samples": {
           "anyOf": [
@@ -1554,6 +1472,8 @@
         "token_limit",
         "time_limit",
         "working_limit",
+        "cost_limit",
+        "cost_file",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
@@ -1656,13 +1576,7 @@
       },
       "title": "EvalDataset",
       "type": "object",
-      "required": [
-        "name",
-        "location",
-        "samples",
-        "sample_ids",
-        "shuffled"
-      ],
+      "required": ["name", "location", "samples", "sample_ids", "shuffled"],
       "additionalProperties": false
     },
     "EvalError": {
@@ -1681,11 +1595,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "message",
-        "traceback",
-        "traceback_ansi"
-      ],
+      "required": ["message", "traceback", "traceback_ansi"],
       "title": "EvalError",
       "type": "object",
       "additionalProperties": false
@@ -1727,12 +1637,7 @@
           "title": "Metadata"
         }
       },
-      "required": [
-        "name",
-        "value",
-        "params",
-        "metadata"
-      ],
+      "required": ["name", "value", "params", "metadata"],
       "title": "EvalMetric",
       "type": "object",
       "additionalProperties": false
@@ -1757,10 +1662,7 @@
           "title": "Options"
         }
       },
-      "required": [
-        "name",
-        "options"
-      ],
+      "required": ["name", "options"],
       "title": "EvalMetricDefinition",
       "type": "object",
       "additionalProperties": false
@@ -1793,12 +1695,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "model",
-        "config",
-        "base_url",
-        "args"
-      ],
+      "required": ["model", "config", "base_url", "args"],
       "title": "EvalModelConfig",
       "type": "object",
       "additionalProperties": false
@@ -1865,12 +1762,7 @@
       },
       "title": "EvalPlan",
       "type": "object",
-      "required": [
-        "name",
-        "steps",
-        "finish",
-        "config"
-      ],
+      "required": ["name", "steps", "finish", "config"],
       "additionalProperties": false
     },
     "EvalPlanStep": {
@@ -1886,10 +1778,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "solver",
-        "params"
-      ],
+      "required": ["solver", "params"],
       "title": "EvalPlanStep",
       "type": "object",
       "additionalProperties": false
@@ -1931,12 +1820,7 @@
       },
       "title": "EvalResults",
       "type": "object",
-      "required": [
-        "total_samples",
-        "completed_samples",
-        "scores",
-        "metadata"
-      ],
+      "required": ["total_samples", "completed_samples", "scores", "metadata"],
       "additionalProperties": false
     },
     "EvalRevision": {
@@ -1956,11 +1840,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "origin",
-        "commit"
-      ],
+      "required": ["type", "origin", "commit"],
       "title": "EvalRevision",
       "type": "object",
       "additionalProperties": false
@@ -2310,8 +2190,8 @@
             "working",
             "message",
             "token",
-            "cost",
             "operator",
+            "cost",
             "custom"
           ],
           "title": "Type",
@@ -2322,10 +2202,7 @@
           "type": "number"
         }
       },
-      "required": [
-        "type",
-        "limit"
-      ],
+      "required": ["type", "limit"],
       "title": "EvalSampleLimit",
       "type": "object",
       "additionalProperties": false
@@ -2357,11 +2234,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "scorer",
-        "reducer",
-        "samples"
-      ],
+      "required": ["scorer", "reducer", "samples"],
       "title": "EvalSampleReductions",
       "type": "object",
       "additionalProperties": false
@@ -2480,13 +2353,7 @@
           "title": "Sample Id"
         }
       },
-      "required": [
-        "value",
-        "answer",
-        "explanation",
-        "metadata",
-        "sample_id"
-      ],
+      "required": ["value", "answer", "explanation", "metadata", "sample_id"],
       "title": "EvalSampleScore",
       "type": "object",
       "additionalProperties": false
@@ -2622,12 +2489,7 @@
           "title": "Metadata"
         }
       },
-      "required": [
-        "name",
-        "options",
-        "metrics",
-        "metadata"
-      ],
+      "required": ["name", "options", "metrics", "metadata"],
       "title": "EvalScorer",
       "type": "object",
       "additionalProperties": false
@@ -2921,11 +2783,7 @@
       },
       "title": "EvalStats",
       "type": "object",
-      "required": [
-        "started_at",
-        "completed_at",
-        "model_usage"
-      ],
+      "required": ["started_at", "completed_at", "model_usage"],
       "additionalProperties": false
     },
     "GenerateConfig": {
@@ -3196,11 +3054,7 @@
         "reasoning_effort": {
           "anyOf": [
             {
-              "enum": [
-                "low",
-                "medium",
-                "high"
-              ],
+              "enum": ["low", "medium", "high"],
               "type": "string"
             },
             {
@@ -3225,11 +3079,7 @@
         "reasoning_summary": {
           "anyOf": [
             {
-              "enum": [
-                "concise",
-                "detailed",
-                "auto"
-              ],
+              "enum": ["concise", "detailed", "auto"],
               "type": "string"
             },
             {
@@ -3242,12 +3092,7 @@
         "reasoning_history": {
           "anyOf": [
             {
-              "enum": [
-                "none",
-                "all",
-                "last",
-                "auto"
-              ],
+              "enum": ["none", "all", "last", "auto"],
               "type": "string"
             },
             {
@@ -3607,14 +3452,7 @@
       "description": "Describes a change to data using JSON Patch format.",
       "properties": {
         "op": {
-          "enum": [
-            "remove",
-            "add",
-            "replace",
-            "move",
-            "test",
-            "copy"
-          ],
+          "enum": ["remove", "add", "replace", "move", "test", "copy"],
           "title": "Op",
           "type": "string"
         },
@@ -3643,13 +3481,7 @@
           "default": null
         }
       },
-      "required": [
-        "op",
-        "path",
-        "from",
-        "value",
-        "replaced"
-      ],
+      "required": ["op", "path", "from", "value", "replaced"],
       "title": "JsonChange",
       "type": "object",
       "additionalProperties": false
@@ -3821,12 +3653,7 @@
           "title": "Top Logprobs"
         }
       },
-      "required": [
-        "token",
-        "logprob",
-        "bytes",
-        "top_logprobs"
-      ],
+      "required": ["token", "logprob", "bytes", "top_logprobs"],
       "title": "Logprob",
       "type": "object",
       "additionalProperties": false
@@ -3842,9 +3669,7 @@
           "type": "array"
         }
       },
-      "required": [
-        "content"
-      ],
+      "required": ["content"],
       "title": "Logprobs",
       "type": "object",
       "additionalProperties": false
@@ -3879,11 +3704,7 @@
           "title": "Time"
         }
       },
-      "required": [
-        "request",
-        "response",
-        "time"
-      ],
+      "required": ["request", "response", "time"],
       "title": "ModelCall",
       "type": "object",
       "additionalProperties": false
@@ -3976,11 +3797,7 @@
         "tool_choice": {
           "anyOf": [
             {
-              "enum": [
-                "auto",
-                "any",
-                "none"
-              ],
+              "enum": ["auto", "any", "none"],
               "type": "string"
             },
             {
@@ -4022,10 +3839,7 @@
         "cache": {
           "anyOf": [
             {
-              "enum": [
-                "read",
-                "write"
-              ],
+              "enum": ["read", "write"],
               "type": "string"
             },
             {
@@ -4162,14 +3976,7 @@
       },
       "title": "ModelOutput",
       "type": "object",
-      "required": [
-        "model",
-        "choices",
-        "usage",
-        "time",
-        "metadata",
-        "error"
-      ],
+      "required": ["model", "choices", "usage", "time", "metadata", "error"],
       "additionalProperties": false
     },
     "ModelUsage": {
@@ -4274,12 +4081,7 @@
           "title": "Strict"
         }
       },
-      "required": [
-        "name",
-        "json_schema",
-        "description",
-        "strict"
-      ],
+      "required": ["name", "json_schema", "description", "strict"],
       "title": "ResponseSchema",
       "type": "object",
       "additionalProperties": false
@@ -4584,10 +4386,7 @@
           "title": "Config"
         }
       },
-      "required": [
-        "type",
-        "config"
-      ],
+      "required": ["type", "config"],
       "title": "SandboxEnvironmentSpec",
       "type": "object",
       "additionalProperties": false
@@ -4635,11 +4434,7 @@
           "type": "string"
         },
         "action": {
-          "enum": [
-            "exec",
-            "read_file",
-            "write_file"
-          ],
+          "enum": ["exec", "read_file", "write_file"],
           "title": "Action",
           "type": "string"
         },
@@ -4850,12 +4645,7 @@
           "title": "Metadata"
         }
       },
-      "required": [
-        "value",
-        "answer",
-        "explanation",
-        "metadata"
-      ],
+      "required": ["value", "answer", "explanation", "metadata"],
       "title": "Score",
       "type": "object",
       "additionalProperties": false
@@ -5197,10 +4987,7 @@
           "type": "string"
         },
         "action": {
-          "enum": [
-            "begin",
-            "end"
-          ],
+          "enum": ["begin", "end"],
           "title": "Action",
           "type": "string"
         },
@@ -5558,10 +5345,7 @@
           "title": "Title"
         },
         "format": {
-          "enum": [
-            "text",
-            "markdown"
-          ],
+          "enum": ["text", "markdown"],
           "title": "Format",
           "type": "string"
         },
@@ -5570,11 +5354,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "title",
-        "format",
-        "content"
-      ],
+      "required": ["title", "format", "content"],
       "title": "ToolCallContent",
       "type": "object",
       "additionalProperties": false
@@ -5602,10 +5382,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "message"
-      ],
+      "required": ["type", "message"],
       "title": "ToolCallError",
       "type": "object",
       "additionalProperties": false
@@ -5638,10 +5415,7 @@
       },
       "title": "ToolCallView",
       "type": "object",
-      "required": [
-        "context",
-        "call"
-      ],
+      "required": ["context", "call"],
       "additionalProperties": false
     },
     "ToolEvent": {
@@ -5963,9 +5737,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "title": "ToolFunction",
       "type": "object",
       "additionalProperties": false
@@ -5998,12 +5770,7 @@
           "title": "Options"
         }
       },
-      "required": [
-        "name",
-        "description",
-        "parameters",
-        "options"
-      ],
+      "required": ["name", "description", "parameters", "options"],
       "title": "ToolInfo",
       "type": "object",
       "additionalProperties": false
@@ -6039,12 +5806,7 @@
       },
       "title": "ToolParams",
       "type": "object",
-      "required": [
-        "type",
-        "properties",
-        "required",
-        "additionalProperties"
-      ],
+      "required": ["type", "properties", "required", "additionalProperties"],
       "additionalProperties": false
     },
     "TopLogprob": {
@@ -6074,11 +5836,7 @@
           "title": "Bytes"
         }
       },
-      "required": [
-        "token",
-        "logprob",
-        "bytes"
-      ],
+      "required": ["token", "logprob", "bytes"],
       "title": "TopLogprob",
       "type": "object",
       "additionalProperties": false
@@ -6150,13 +5908,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "cited_text",
-        "title",
-        "internal",
-        "type",
-        "url"
-      ],
+      "required": ["cited_text", "title", "internal", "type", "url"],
       "title": "UrlCitation",
       "type": "object",
       "additionalProperties": false
@@ -6171,12 +5923,7 @@
     },
     "status": {
       "default": "started",
-      "enum": [
-        "started",
-        "success",
-        "cancelled",
-        "error"
-      ],
+      "enum": ["started", "success", "cancelled", "error"],
       "title": "Status",
       "type": "string"
     },
@@ -6246,9 +5993,7 @@
       "type": "string"
     }
   },
-  "required": [
-    "eval"
-  ],
+  "required": ["eval"],
   "title": "EvalLog",
   "type": "object"
 }
