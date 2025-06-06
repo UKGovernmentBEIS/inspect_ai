@@ -708,6 +708,79 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ContentCitation": {
+      "description": "A generic content citation.",
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "content",
+          "default": "content",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "ContentCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type"
+      ],
+      "additionalProperties": false
+    },
     "ContentData": {
       "description": "Model internal.",
       "properties": {
@@ -885,27 +958,15 @@
               "items": {
                 "discriminator": {
                   "mapping": {
+                    "content": "#/$defs/ContentCitation",
                     "document": "#/$defs/DocumentCitation",
-                    "document_block": "#/$defs/DocumentBlockCitation",
-                    "document_char": "#/$defs/DocumentCharCitation",
-                    "document_page": "#/$defs/DocumentPageCitation",
-                    "generic": "#/$defs/GenericCitation",
                     "url": "#/$defs/UrlCitation"
                   },
                   "propertyName": "type"
                 },
                 "oneOf": [
                   {
-                    "$ref": "#/$defs/GenericCitation"
-                  },
-                  {
-                    "$ref": "#/$defs/DocumentCharCitation"
-                  },
-                  {
-                    "$ref": "#/$defs/DocumentPageCitation"
-                  },
-                  {
-                    "$ref": "#/$defs/DocumentBlockCitation"
+                    "$ref": "#/$defs/ContentCitation"
                   },
                   {
                     "$ref": "#/$defs/DocumentCitation"
@@ -980,184 +1041,8 @@
       "type": "object",
       "additionalProperties": false
     },
-    "DocumentBlockCitation": {
-      "description": "A citation that refers to a block range in a document.\n\nA block is a model defined subset of a document",
-      "properties": {
-        "cited_text": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "maxItems": 2,
-              "minItems": 2,
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cited Text"
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Title"
-        },
-        "internal": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "$ref": "#/$defs/JsonValue"
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Internal"
-        },
-        "type": {
-          "const": "document_block",
-          "default": "document_block",
-          "title": "Type",
-          "type": "string"
-        },
-        "block_range": {
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "integer"
-            }
-          ],
-          "title": "Block Range",
-          "type": "array"
-        }
-      },
-      "required": [
-        "cited_text",
-        "title",
-        "internal",
-        "type",
-        "block_range"
-      ],
-      "title": "DocumentBlockCitation",
-      "type": "object",
-      "additionalProperties": false
-    },
-    "DocumentCharCitation": {
-      "description": "A citation that refers to a character range in a document.",
-      "properties": {
-        "cited_text": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "maxItems": 2,
-              "minItems": 2,
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cited Text"
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Title"
-        },
-        "internal": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "$ref": "#/$defs/JsonValue"
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Internal"
-        },
-        "type": {
-          "const": "document_char",
-          "default": "document_char",
-          "title": "Type",
-          "type": "string"
-        },
-        "char_range": {
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "integer"
-            }
-          ],
-          "title": "Char Range",
-          "type": "array"
-        }
-      },
-      "required": [
-        "cited_text",
-        "title",
-        "internal",
-        "type",
-        "char_range"
-      ],
-      "title": "DocumentCharCitation",
-      "type": "object",
-      "additionalProperties": false
-    },
     "DocumentCitation": {
-      "description": "A citation that refers to a document.",
+      "description": "A citation that refers to a page range in a document.",
       "properties": {
         "cited_text": {
           "anyOf": [
@@ -1217,6 +1102,17 @@
           "default": "document",
           "title": "Type",
           "type": "string"
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "DocumentCitation",
@@ -1225,95 +1121,38 @@
         "cited_text",
         "title",
         "internal",
-        "type"
+        "type",
+        "range"
       ],
       "additionalProperties": false
     },
-    "DocumentPageCitation": {
-      "description": "A citation that refers to a page range in a document.",
+    "DocumentRange": {
+      "description": "A range specifying a section of a document.",
       "properties": {
-        "cited_text": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "maxItems": 2,
-              "minItems": 2,
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cited Text"
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Title"
-        },
-        "internal": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "$ref": "#/$defs/JsonValue"
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Internal"
-        },
         "type": {
-          "const": "document_page",
-          "default": "document_page",
+          "enum": [
+            "block",
+            "page",
+            "char"
+          ],
           "title": "Type",
           "type": "string"
         },
-        "page_range": {
-          "maxItems": 2,
-          "minItems": 2,
-          "prefixItems": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "integer"
-            }
-          ],
-          "title": "Page Range",
-          "type": "array"
+        "start_index": {
+          "title": "Start Index",
+          "type": "integer"
+        },
+        "end_index": {
+          "title": "End Index",
+          "type": "integer"
         }
       },
       "required": [
-        "cited_text",
-        "title",
-        "internal",
         "type",
-        "page_range"
+        "start_index",
+        "end_index"
       ],
-      "title": "DocumentPageCitation",
+      "title": "DocumentRange",
       "type": "object",
       "additionalProperties": false
     },
@@ -3460,79 +3299,6 @@
         "reasoning_history",
         "response_schema",
         "extra_body"
-      ],
-      "additionalProperties": false
-    },
-    "GenericCitation": {
-      "description": "A generic citation.",
-      "properties": {
-        "cited_text": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "maxItems": 2,
-              "minItems": 2,
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cited Text"
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Title"
-        },
-        "internal": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "$ref": "#/$defs/JsonValue"
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Internal"
-        },
-        "type": {
-          "const": "generic",
-          "default": "generic",
-          "title": "Type",
-          "type": "string"
-        }
-      },
-      "title": "GenericCitation",
-      "type": "object",
-      "required": [
-        "cited_text",
-        "title",
-        "internal",
-        "type"
       ],
       "additionalProperties": false
     },

@@ -290,16 +290,10 @@ website:
           href: reference/inspect_ai.model.qmd#citation
         - text: CitationBase
           href: reference/inspect_ai.model.qmd#citationbase
-        - text: DocumentBlockCitation
-          href: reference/inspect_ai.model.qmd#documentblockcitation
-        - text: DocumentCharCitation
-          href: reference/inspect_ai.model.qmd#documentcharcitation
         - text: DocumentCitation
           href: reference/inspect_ai.model.qmd#documentcitation
-        - text: DocumentPageCitation
-          href: reference/inspect_ai.model.qmd#documentpagecitation
-        - text: GenericCitation
-          href: reference/inspect_ai.model.qmd#genericcitation
+        - text: ContentCitation
+          href: reference/inspect_ai.model.qmd#contentcitation
         - text: UrlCitation
           href: reference/inspect_ai.model.qmd#urlcitation
         - text: execute_tools

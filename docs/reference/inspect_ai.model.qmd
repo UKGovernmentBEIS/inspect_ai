@@ -40,11 +40,8 @@ title: "inspect_ai.model"
 
 ### Citation
 ### CitationBase
-### DocumentBlockCitation
-### DocumentCharCitation
 ### DocumentCitation
-### DocumentPageCitation
-### GenericCitation
+### ContentCitation
 ### UrlCitation
 
 ## Tools

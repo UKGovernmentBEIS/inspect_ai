@@ -1,11 +1,8 @@
 from inspect_ai._util.citation import (
     Citation,
     CitationBase,
-    DocumentBlockCitation,
-    DocumentCharCitation,
+    ContentCitation,
     DocumentCitation,
-    DocumentPageCitation,
-    GenericCitation,
     UrlCitation,
 )
 from inspect_ai._util.content import (
@@ -91,11 +88,8 @@ __all__ = [
     "ToolParams",
     "Citation",
     "CitationBase",
-    "DocumentBlockCitation",
-    "DocumentCharCitation",
     "DocumentCitation",
-    "DocumentPageCitation",
-    "GenericCitation",
+    "ContentCitation",
     "UrlCitation",
 ]
 

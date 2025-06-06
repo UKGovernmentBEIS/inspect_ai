@@ -1,9 +1,9 @@
-import { Type23 } from "../../@types/log";
+import { Type21 } from "../../@types/log";
 
 /**
  * Formats a limit message
  */
-export const sampleLimitMessage = (type: Type23): string => {
+export const sampleLimitMessage = (type: Type21): string => {
   switch (type) {
     case "operator":
       return "Sample terminated due to operator limit.";

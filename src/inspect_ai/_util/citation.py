@@ -37,52 +37,34 @@ class CitationBase(BaseModel):
     """Model provider specific payload - typically used to aid transformation back to model types."""
 
 
-class GenericCitation(CitationBase):
-    """A generic citation."""
+class ContentCitation(CitationBase):
+    """A generic content citation."""
 
-    type: Literal["generic"] = Field(default="generic")
+    type: Literal["content"] = Field(default="content")
     """Type."""
 
 
+class DocumentRange(BaseModel):
+    """A range specifying a section of a document."""
+
+    type: Literal["block", "page", "char"]
+    """The type of the document section specified by the range."""
+
+    start_index: int
+    """0 based index of the start of the range."""
+
+    end_index: int
+    """0 based index of the end of the range."""
+
+
 class DocumentCitation(CitationBase):
-    """A citation that refers to a document."""
+    """A citation that refers to a page range in a document."""
 
     type: Literal["document"] = Field(default="document")
     """Type."""
 
-
-class DocumentPageCitation(CitationBase):
-    """A citation that refers to a page range in a document."""
-
-    type: Literal["document_page"] = Field(default="document_page")
-    """Type."""
-
-    page_range: tuple[int, int]
-    """Page range in the document that this citation refers to."""
-
-
-class DocumentCharCitation(CitationBase):
-    """A citation that refers to a character range in a document."""
-
-    type: Literal["document_char"] = Field(default="document_char")
-    """Type."""
-
-    char_range: tuple[int, int]
-    """Character range in the document that this citation refers to."""
-
-
-class DocumentBlockCitation(CitationBase):
-    """
-    A citation that refers to a block range in a document.
-
-    A block is a model defined subset of a document
-    """
-
-    type: Literal["document_block"] = Field(default="document_block")
-    """Type."""
-
-    block_range: tuple[int, int]
-    """Block range in the document that this citation refers to."""
+    range: DocumentRange | None = Field(default=None)
+    """Range of the document that is cited."""
 
 
 class UrlCitation(CitationBase):
@@ -90,16 +72,14 @@ class UrlCitation(CitationBase):
 
     type: Literal["url"] = Field(default="url")
     """Type."""
+
     url: str
     """URL of the cited resource."""
 
 
 Citation: TypeAlias = Annotated[
     Union[
-        GenericCitation,
-        DocumentCharCitation,
-        DocumentPageCitation,
-        DocumentBlockCitation,
+        ContentCitation,
         DocumentCitation,
         UrlCitation,
     ],
