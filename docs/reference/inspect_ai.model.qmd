@@ -40,9 +40,9 @@ title: "inspect_ai.model"
 
 ### Citation
 ### CitationBase
+### UrlCitation
 ### DocumentCitation
 ### ContentCitation
-### UrlCitation
 
 ## Tools
 
