@@ -256,7 +256,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--cost-limit",
         type=float,
-        help="Limit on idealized inference cost for each sample (ignores local inspect caches). Must be used with a cost file (--cost-file)",
+        help="Limit on idealized inference cost for each sample, assuming no local caching (treats the local inspect cache reads as real token spend). Must be used with a cost file (--cost-file)",
         envvar="INSPECT_EVAL_COST_LIMIT",
     )
     @click.option(
