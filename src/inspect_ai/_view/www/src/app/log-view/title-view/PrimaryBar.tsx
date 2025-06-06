@@ -14,7 +14,6 @@ import { RunningStatusPanel } from "./RunningStatusPanel";
 import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 
 interface PrimaryBarProps {
-  showToggle: boolean;
   status?: Status;
   evalResults?: EvalResults | null;
   runningMetrics?: RunningMetric[];
@@ -23,7 +22,6 @@ interface PrimaryBarProps {
 }
 
 export const PrimaryBar: FC<PrimaryBarProps> = ({
-  showToggle,
   status,
   evalResults,
   runningMetrics,

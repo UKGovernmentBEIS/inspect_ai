@@ -20,7 +20,6 @@ interface TitleViewProps {
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;
   status?: Status;
-  showToggle: boolean;
 }
 
 /**
@@ -31,7 +30,6 @@ export const TitleView: FC<TitleViewProps> = ({
   evalPlan,
   evalResults,
   evalStats,
-  showToggle,
   status,
   runningMetrics,
 }) => {
@@ -41,7 +39,6 @@ export const TitleView: FC<TitleViewProps> = ({
       <PrimaryBar
         evalSpec={evalSpec}
         evalResults={evalResults}
-        showToggle={showToggle}
         status={status}
         runningMetrics={runningMetrics}
         sampleCount={totalSampleCount}

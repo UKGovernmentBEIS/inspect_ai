@@ -34,8 +34,6 @@ export const LogView: FC = () => {
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,
   );
-  const logs = useStore((state) => state.logs.logs);
-  const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
 
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
@@ -120,7 +118,6 @@ export const LogView: FC = () => {
           runningMetrics={runningMetrics}
           evalStats={selectedLogSummary?.stats}
           status={selectedLogSummary?.status}
-          showToggle={showToggle}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
           <div className={clsx("log-detail", styles.tabContainer)}>
