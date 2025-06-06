@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Use responses API for codex models.
+- Bugfix: Temporarily revert change to eval set header reading to investigate regression.
 
 ## v0.3.101 (05 June 2025)
 

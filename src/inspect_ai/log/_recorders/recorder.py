@@ -46,7 +46,6 @@ class Recorder(abc.ABC):
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
-        header_only: bool = False,
     ) -> EvalLog: ...
 
     @classmethod

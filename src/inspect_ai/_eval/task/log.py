@@ -75,7 +75,6 @@ class TaskLogger:
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
         recorder: Recorder,
-        header_only: bool,
     ) -> None:
         # determine versions
         git = git_context()
@@ -154,7 +153,6 @@ class TaskLogger:
 
         # stack recorder and location
         self.recorder = recorder
-        self.header_only = header_only
 
         # number of samples logged
         self._samples_completed = 0
@@ -240,7 +238,7 @@ class TaskLogger:
     ) -> EvalLog:
         # finish and get log
         log = await self.recorder.log_finish(
-            self.eval, status, stats, results, reductions, error, self.header_only
+            self.eval, status, stats, results, reductions, error
         )
 
         # cleanup the events db
