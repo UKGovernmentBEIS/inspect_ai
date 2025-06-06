@@ -201,7 +201,7 @@ def list_files():
         """List the files in a directory.
 
         Args:
-            dir (str): Directory
+            dir: Directory
 
         Returns:
             File listing of the directory

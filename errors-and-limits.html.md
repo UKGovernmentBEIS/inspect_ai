@@ -378,17 +378,28 @@ if limit_scope.limit_error:
     print(f"One of our limits was hit: {limit_scope.limit_error}")
 ```
 
-### Time Limit
+### Checking Usage
 
-> [!NOTE]
->
-> The `time_limit()` function described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
+You can query how much of a limited resource has been used so far via
+the `usage` property of a scoped limit. For example:
+
+``` python
+with token_limit(10_000) as limit:
+    await generate()
+    print(f"Used {limit.usage:,} of 10,000 tokens")
+```
+
+If you’re passing the limit instance to `apply_limits()` or an agent and
+want to query the usage, you should keep a reference to it:
+
+``` python
+limit = token_limit(10_000)
+with apply_limits([limit]):
+    await generate()
+    print(f"Used {limit.usage:,} of 10,000 tokens")
+```
+
+### Time Limit
 
 To limit the wall clock time to 15 minutes within a block of code:
 
@@ -403,16 +414,6 @@ block will be cancelled at the first yield point (e.g. `await`
 statement).
 
 ### Working Limit
-
-> [!NOTE]
->
-> The `working_limit()` function described below is available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 The `working_limit` differs from the `time_limit` in that it measures
 only the time spent working (as opposed to retrying in response to rate

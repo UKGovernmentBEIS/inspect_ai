@@ -36,7 +36,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
 | `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | None |
-| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1) | None |
+| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set) | None |
 | `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | None |
 | `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | None |
 | `--message-limit` | integer | Limit on total messages used for each sample. | None |

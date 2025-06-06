@@ -497,6 +497,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#scoped-limits" id="toc-scoped-limits" class="nav-link" data-scroll-target="#scoped-limits">Scoped Limits</a>
   <ul class="collapse">
+  <li><a href="#checking-usage" id="toc-checking-usage" class="nav-link" data-scroll-target="#checking-usage">Checking Usage</a></li>
   <li><a href="#time-limit-1" id="toc-time-limit-1" class="nav-link" data-scroll-target="#time-limit-1">Time Limit</a></li>
   <li><a href="#working-limit-1" id="toc-working-limit-1" class="nav-link" data-scroll-target="#working-limit-1">Working Limit</a></li>
   <li><a href="#message-limit-1" id="toc-message-limit-1" class="nav-link" data-scroll-target="#message-limit-1">Message Limit</a></li>
@@ -771,43 +772,27 @@ Important
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> limit_scope.limit_error:</span>
 <span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"One of our limits was hit: </span><span class="sc">{</span>limit_scope<span class="sc">.</span>limit_error<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="checking-usage" class="level3">
+<h3 class="anchored" data-anchor-id="checking-usage">Checking Usage</h3>
+<p>You can query how much of a limited resource has been used so far via the <code>usage</code> property of a scoped limit. For example:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> token_limit(<span class="dv">10_000</span>) <span class="im">as</span> limit:</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">await</span> generate()</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Used </span><span class="sc">{</span>limit<span class="sc">.</span>usage<span class="sc">:,}</span><span class="ss"> of 10,000 tokens"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you’re passing the limit instance to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#apply_limits">apply_limits()</a></span> or an agent and want to query the usage, you should keep a reference to it:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>limit <span class="op">=</span> token_limit(<span class="dv">10_000</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> apply_limits([limit]):</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">await</span> generate()</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Used </span><span class="sc">{</span>limit<span class="sc">.</span>usage<span class="sc">:,}</span><span class="ss"> of 10,000 tokens"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 <section id="time-limit-1" class="level3">
 <h3 class="anchored" data-anchor-id="time-limit-1">Time Limit</h3>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#time_limit">time_limit()</a></span> function described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
 <p>To limit the wall clock time to 15 minutes within a block of code:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> time_limit(<span class="dv">15</span> <span class="op">*</span> <span class="dv">60</span>):</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> time_limit(<span class="dv">15</span> <span class="op">*</span> <span class="dv">60</span>):</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Internally, this uses <a href="https://anyio.readthedocs.io/en/stable/cancellation.html"><code>anyio</code>’s cancellation scopes</a>. The block will be cancelled at the first yield point (e.g.&nbsp;<code>await</code> statement).</p>
 </section>
 <section id="working-limit-1" class="level3">
 <h3 class="anchored" data-anchor-id="working-limit-1">Working Limit</h3>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#working_limit">working_limit()</a></span> function described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
 <p>The <code>working_limit</code> differs from the <code>time_limit</code> in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g.&nbsp;rate limited requests); and (b) waiting on shared resources (e.g.&nbsp;Docker containers or subprocess execution).</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">

@@ -517,6 +517,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-web-search" id="toc-sec-web-search" class="nav-link" data-scroll-target="#sec-web-search">Web Search</a>
   <ul class="collapse">
   <li><a href="#openai-options" id="toc-openai-options" class="nav-link" data-scroll-target="#openai-options">OpenAI Options</a></li>
+  <li><a href="#anthropic-options" id="toc-anthropic-options" class="nav-link" data-scroll-target="#anthropic-options">Anthropic Options</a></li>
   <li><a href="#tavily-options" id="toc-tavily-options" class="nav-link" data-scroll-target="#tavily-options">Tavily Options</a></li>
   </ul></li>
   <li><a href="#sec-think" id="toc-sec-think" class="nav-link" data-scroll-target="#sec-think">Think</a>
@@ -1003,6 +1004,34 @@ Sandbox Dependencies
 </section>
 <section id="sec-web-search" class="level2">
 <h2 class="anchored" data-anchor-id="sec-web-search">Web Search</h2>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:</p>
+<ul>
+<li><p>Internal providers: “openai” and “anthropic” - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
+<li><p>External providers: “tavily” and “google”. These are external services that work with any model and require separate accounts and API keys.</p></li>
+</ul>
+<p>Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on <code>openai</code> models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.</p>
+<p>You can configure the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool in various ways:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> web_search</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co"># single provider</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>web_search(<span class="st">"tavily"</span>)</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="co"># with internal provider and fallback</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"tavily"</span>])</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="co"># provider with specific options</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>web_search({<span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}})</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple providers with options</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>web_search([{<span class="st">"openai"</span>: <span class="va">True</span>}, {<span class="st">"google"</span>: {<span class="st">"num_results"</span>: <span class="dv">5</span>}}])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="openai-options" class="level3">
+<h3 class="anchored" data-anchor-id="openai-options">OpenAI Options</h3>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, and “gpt-4.1”). This provider does not require any API keys beyond what’s needed for the model itself.</p>
+<p>For more details on OpenAI’s web search parameters, see <a href="https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses">OpenAI Web Search Documentation</a>.</p>
+<p>Note that when using the “openai” provider, you should also specify a fallback external provider (like “tavily” or “google”) if you are also running the evaluation with non-OpenAI model.</p>
+</section>
+<section id="anthropic-options" class="level3">
+<h3 class="anchored" data-anchor-id="anthropic-options">Anthropic Options</h3>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -1013,35 +1042,13 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The “openai” web search provider described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Anthropic internal web search is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:</p>
-<ul>
-<li><p>Internal providers: “openai” - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
-<li><p>External providers: “tavily” and “google”. These are external services that work with any model and require separate accounts and API keys.</p></li>
-</ul>
-<p>Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on <code>openai</code> models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.</p>
-<p>You can configure the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool in various ways:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> web_search</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co"># single provider</span></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>web_search(<span class="st">"tavily"</span>)</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="co"># with internal provider and fallback</span></span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"tavili"</span>])</span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="co"># provider with specific options</span></span>
-<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>web_search({<span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}})</span>
-<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple providers with options</span></span>
-<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>web_search([{<span class="st">"openai"</span>: <span class="va">None</span>}, {<span class="st">"google"</span>: {<span class="st">"num_results"</span>: <span class="dv">5</span>}}])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="openai-options" class="level3">
-<h3 class="anchored" data-anchor-id="openai-options">OpenAI Options</h3>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use OpenAI’s built-in search capability when running on OpenAI models. This provider does not require any API keys beyond what’s needed for the model itself.</p>
-<p>For more details on OpenAI’s web search parameters, see <a href="https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses">OpenAI Web Search Documentation</a>.</p>
-<p>Note that when using the “openai” provider, you should also specify a fallback external provider (like “tavily” or “google”) if you are also running the evaluation with non-OpenAI model.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use Anthropic’s built-in search capability when running on a limited number of Anthropic models (currently “claude-opus-4-20250514”, “claude-sonnet-4-20250514”, “claude-3-7-sonnet-20250219”, “claude-3-5-sonnet-latest”, “claude-3-5-haiku-latest”). This provider does not require any API keys beyond what’s needed for the model itself.</p>
+<p>For more details on Anthropic’s web search parameters, see <a href="https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool">Anthropic Web Search Documentation</a>.</p>
+<p>Note that when using the “anthropic” provider, you should also specify a fallback external provider (like “tavily” or “google”) if you are also running the evaluation with non-Anthropic model.</p>
 </section>
 <section id="tavily-options" class="level3">
 <h3 class="anchored" data-anchor-id="tavily-options">Tavily Options</h3>
@@ -1780,7 +1787,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","closeEffect":"zoom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+<script>var lightboxQuarto = GLightbox({"loop":false,"selector":".lightbox","openEffect":"zoom","closeEffect":"zoom","descPosition":"bottom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

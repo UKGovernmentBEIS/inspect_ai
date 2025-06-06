@@ -53,6 +53,25 @@ Note that in both cases we specified a custom log directory—this is
 actually a requirement for eval sets, as it provides a scope where
 completed work can be tracked.
 
+### Concurrency
+
+By default, `eval_set()` will run multiple tasks in parallel, using the
+greater of 4 and the number of models being evaluated as the default
+`max_tasks`. The eval set scheduler will always attempt to balance
+active tasks across models so that contention for a single model
+provider is minimized.
+
+Use the `max_tasks` option to override the default behavior:
+
+``` python
+eval_set(
+   tasks=["mmlu.py", "mathematics.py", "ctf.py", "science.py"],
+   model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+   max_tasks=8,
+   log_dir="logs-run-42"      
+)
+```
+
 ### Dynamic Tasks
 
 In the above examples tasks are ready from the filesystem. It is also

@@ -568,8 +568,8 @@ def add():
         Add two numbers.
 
         Args:
-            x (int): First number to add.
-            y (int): Second number to add.
+            x: First number to add.
+            y: Second number to add.
 
         Returns:
             The sum of the two numbers.

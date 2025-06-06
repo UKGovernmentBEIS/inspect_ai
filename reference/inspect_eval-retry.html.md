@@ -14,7 +14,7 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | None |
-| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1) | None |
+| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set) | None |
 | `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | None |
 | `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | None |
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |

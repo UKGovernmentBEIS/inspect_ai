@@ -578,24 +578,14 @@ inspect eval computer.py --no-internal-tools
 
 ## Web Search
 
-> [!NOTE]
->
-> The “openai” web search provider described below is available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `web_search()` tool provides models the ability to enhance their
 context window by performing a search. Web searches are executed using a
 provider. Providers are split into two categories:
 
-- Internal providers: “openai” - these use the model’s built-in search
-  capability and do not require separate API keys. These work only for
-  their respective model provider (e.g. the “openai” search provider
-  works only for `openai/*` models).
+- Internal providers: “openai” and “anthropic” - these use the model’s
+  built-in search capability and do not require separate API keys. These
+  work only for their respective model provider (e.g. the “openai”
+  search provider works only for `openai/*` models).
 
 - External providers: “tavily” and “google”. These are external services
   that work with any model and require separate accounts and API keys.
@@ -615,20 +605,21 @@ from inspect_ai.tool import web_search
 web_search("tavily")
 
 # with internal provider and fallback
-web_search(["openai", "tavili"])
+web_search(["openai", "tavily"])
 
 # provider with specific options
 web_search({"tavily": {"max_results": 5}})
 
 # multiple providers with options
-web_search([{"openai": None}, {"google": {"num_results": 5}}])
+web_search([{"openai": True}, {"google": {"num_results": 5}}])
 ```
 
 ### OpenAI Options
 
 The `web_search()` tool can use OpenAI’s built-in search capability when
-running on OpenAI models. This provider does not require any API keys
-beyond what’s needed for the model itself.
+running on a limited number of OpenAI models (currently “gpt-4o”,
+“gpt-4o-mini”, and “gpt-4.1”). This provider does not require any API
+keys beyond what’s needed for the model itself.
 
 For more details on OpenAI’s web search parameters, see [OpenAI Web
 Search
@@ -637,6 +628,32 @@ Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode
 Note that when using the “openai” provider, you should also specify a
 fallback external provider (like “tavily” or “google”) if you are also
 running the evaluation with non-OpenAI model.
+
+### Anthropic Options
+
+> [!NOTE]
+>
+> Anthropic internal web search is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `web_search()` tool can use Anthropic’s built-in search capability
+when running on a limited number of Anthropic models (currently
+“claude-opus-4-20250514”, “claude-sonnet-4-20250514”,
+“claude-3-7-sonnet-20250219”, “claude-3-5-sonnet-latest”,
+“claude-3-5-haiku-latest”). This provider does not require any API keys
+beyond what’s needed for the model itself.
+
+For more details on Anthropic’s web search parameters, see [Anthropic
+Web Search
+Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
+
+Note that when using the “anthropic” provider, you should also specify a
+fallback external provider (like “tavily” or “google”) if you are also
+running the evaluation with non-Anthropic model.
 
 ### Tavily Options
 

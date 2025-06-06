@@ -486,6 +486,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#running-eval-sets" id="toc-running-eval-sets" class="nav-link" data-scroll-target="#running-eval-sets">Running Eval Sets</a>
   <ul class="collapse">
+  <li><a href="#concurrency" id="toc-concurrency" class="nav-link" data-scroll-target="#concurrency">Concurrency</a></li>
   <li><a href="#dynamic-tasks" id="toc-dynamic-tasks" class="nav-link" data-scroll-target="#dynamic-tasks">Dynamic Tasks</a></li>
   <li><a href="#retry-options" id="toc-retry-options" class="nav-link" data-scroll-target="#retry-options">Retry Options</a></li>
   <li><a href="#publishing" id="toc-publishing" class="nav-link" data-scroll-target="#publishing">Publishing</a></li>
@@ -556,23 +557,34 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.</p>
+<section id="concurrency" class="level3">
+<h3 class="anchored" data-anchor-id="concurrency">Concurrency</h3>
+<p>By default, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default <code>max_tasks</code>. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.</p>
+<p>Use the <code>max_tasks</code> option to override the default behavior:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>   tasks<span class="op">=</span>[<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>, <span class="st">"ctf.py"</span>, <span class="st">"science.py"</span>],</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>   max_tasks<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 <section id="dynamic-tasks" class="level3">
 <h3 class="anchored" data-anchor-id="dynamic-tasks">Dynamic Tasks</h3>
 <p>In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_task(dataset: <span class="bu">str</span>):</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(dataset<span class="op">=</span>csv_dataset(dataset))</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>mmlu <span class="op">=</span> create_task(<span class="st">"mmlu.csv"</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>maths <span class="op">=</span> create_task(<span class="st">"maths.csv"</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>   [mmlu, maths],</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_task(dataset: <span class="bu">str</span>):</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(dataset<span class="op">=</span>csv_dataset(dataset))</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>mmlu <span class="op">=</span> create_task(<span class="st">"mmlu.csv"</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>maths <span class="op">=</span> create_task(<span class="st">"maths.csv"</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>   [mmlu, maths],</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Notice that we create our tasks from a function decorated with <code>@task</code>. Doing this is a critical requirement because it enables Inspect to capture the arguments to <code>create_task()</code> and use that to distinguish the two tasks (in turn used to pair tasks to log files for retries).</p>
 <p>There are two fundamental requirements for dynamic tasks used with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>:</p>
 <ol type="1">
@@ -615,15 +627,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>For example, here we specify a base wait time of 120 seconds:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>   <span class="ex">--retry-wait</span> 120</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   <span class="ex">--retry-wait</span> 120</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>   [<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>   retry_wait<span class="op">=</span><span class="dv">120</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>   [<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>   retry_wait<span class="op">=</span><span class="dv">120</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="publishing" class="level3">
 <h3 class="anchored" data-anchor-id="publishing">Publishing</h3>
@@ -661,13 +673,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).</p></li>
 </ol>
 <p>Once all of the tasks in an eval set are complete, re-running <code>inspect eval-set</code> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> on the same log directory will be a no-op as there is no more work to do. At this point you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span> function to collect up logs for analysis:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> list_eval_logs(<span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> list_eval_logs(<span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If you are calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function it will return a tuple of <code>bool</code> and <code>list[EvalLog]</code>, where the <code>bool</code> indicates whether all tasks were completed:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>success, logs <span class="op">=</span> eval_set(...)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> success:</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># analyse logs</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># will need to run eval_set again</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>success, logs <span class="op">=</span> eval_set(...)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> success:</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># analyse logs</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># will need to run eval_set again</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that eval_set() does by default do quite a bit of retrying (up to 10 times by default) so <code>success=False</code> reflects the case where even after all of the retries the tasks were still not completed (this might occur due to a service outage or perhaps bugs in eval code raising runtime errors).</p>
 <section id="sec-sample-preservation" class="level3">
 <h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
@@ -704,49 +716,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="multiple-tasks-in-a-file" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-tasks-in-a-file">Multiple Tasks in a File</h3>
 <p>The simplest possible organisation would be multiple tasks defined in a single source file. Consider this source file (<code>ctf.py</code>) with two tasks in it:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> attack_defense():</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> attack_defense():</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>We can run both of these tasks with the following command (note for this and the remainder of examples we’ll assume that you have let an <code>INSPECT_EVAL_MODEL</code> environment variable so you don’t need to pass the <code>--model</code> argument explicitly):</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set ctf.py <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set ctf.py <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or equivalently:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>eval_set(<span class="st">"ctf.py"</span>, log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>eval_set(<span class="st">"ctf.py"</span>, log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that during development and debugging we can also run the tasks individually:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py@jeopardy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py@jeopardy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="multiple-tasks-in-a-directory" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-tasks-in-a-directory">Multiple Tasks in a Directory</h3>
 <p>Next, let’s consider a multiple tasks in a directory. Imagine you have the following directory structure, where <code>jeopardy.py</code> and <code>attack_defense.py</code> each have one or more <code>@task</code> functions defined:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">security/</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="ex">import.py</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">analyze.py</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="ex">jeopardy.py</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">attack_defense.py</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">security/</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="ex">import.py</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">analyze.py</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="ex">jeopardy.py</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">attack_defense.py</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Here is the listing of all the tasks in the suite:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>$ inspect <span class="bu">list</span> tasks security</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>crypto</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>decompile</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>packet</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>heap_trouble</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>saar</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>bank</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>voting</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>dns</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>$ inspect <span class="bu">list</span> tasks security</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>crypto</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>decompile</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>packet</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>heap_trouble</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>saar</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>bank</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>voting</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>dns</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can run this eval set as follows:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security <span class="at">--log-dir</span> logs-security-02-09-24</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security <span class="at">--log-dir</span> logs-security-02-09-24</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that some of the files in this directory don’t contain evals (e.g.&nbsp;<code>import.py</code> and <code>analyze.py</code>). These files are not read or executed by <code>inspect eval-set</code> (which only executes files that contain <code>@task</code> definitions).</p>
 <p>If we wanted to run more than one directory we could do so by just passing multiple directory names. For example:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security persuasion <span class="at">--log-dir</span> logs-suite-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security persuasion <span class="at">--log-dir</span> logs-suite-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or equivalently:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>eval_set([<span class="st">"security"</span>, <span class="st">"persuasion"</span>], log_dir<span class="op">=</span><span class="st">"logs-suite-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>eval_set([<span class="st">"security"</span>, <span class="st">"persuasion"</span>], log_dir<span class="op">=</span><span class="st">"logs-suite-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="listing-and-filtering" class="level2">
@@ -763,24 +775,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="attributes-and-filters" class="level3">
 <h3 class="anchored" data-anchor-id="attributes-and-filters">Attributes and Filters</h3>
 <p>Eval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a “light” suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Given this, you could list all of the light tasks in <code>security</code> and pass them to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> as follows:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>light_suite <span class="op">=</span> list_tasks(</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"security"</span>, </span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">filter</span> <span class="op">=</span> <span class="kw">lambda</span> task: task.attribs.get(<span class="st">"light"</span>) <span class="kw">is</span> <span class="va">True</span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(light_suite, log_dir<span class="op">=</span><span class="st">"logs-light-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>light_suite <span class="op">=</span> list_tasks(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"security"</span>, </span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">filter</span> <span class="op">=</span> <span class="kw">lambda</span> task: task.attribs.get(<span class="st">"light"</span>) <span class="kw">is</span> <span class="va">True</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(light_suite, log_dir<span class="op">=</span><span class="st">"logs-light-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the <code>inspect list tasks</code> command can also be used to enumerate tasks in plain text or JSON (use one or more <code>-F</code> options if you want to filter tasks):</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span></span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span> <span class="at">-F</span> light=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span> <span class="at">-F</span> light=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can feed the results of <code>inspect list tasks</code> into <code>inspect eval-set</code> using <code>xargs</code> as follows:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="kw">|</span> <span class="fu">xargs</span> <span class="dt">\</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>   inspect eval-set <span class="at">--log-dir</span> logs-security-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="kw">|</span> <span class="fu">xargs</span> <span class="dt">\</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>   inspect eval-set <span class="at">--log-dir</span> logs-security-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-simple callout-important">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
@@ -788,15 +800,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <div class="callout-body-container">
 <p>One important thing to keep in mind when using attributes to filter tasks is that both <code>inspect list tasks</code> (and the underlying <code>list_tasks()</code> function) do not execute code when scanning for tasks (rather they parse it). This means that if you want to use a task attribute in a filtering expression it needs to be a constant (rather than the result of function call). For example:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># this is valid for filtering expressions</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co"># this is NOT valid for filtering expressions</span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span>light_enabled(<span class="st">"ctf"</span>))</span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># this is valid for filtering expressions</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="co"># this is NOT valid for filtering expressions</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span>light_enabled(<span class="st">"ctf"</span>))</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
