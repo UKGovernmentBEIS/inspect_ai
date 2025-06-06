@@ -42,12 +42,13 @@ export const LogListFooter: FC<LogListFooterProps> = ({
               {progressText}...
             </div>
           </div>
-        ) : (
-          <div>{`${startItem} - ${endItem} / ${itemCount}`}</div>
-        )}
+        ) : undefined}
+      </div>
+      <div className={clsx(styles.center)}>
+        <LogPager itemCount={itemCount} />
       </div>
       <div className={clsx(styles.right)}>
-        <LogPager itemCount={itemCount} />
+        <div>{`${startItem} - ${endItem} / ${itemCount}`}</div>
       </div>
     </div>
   );

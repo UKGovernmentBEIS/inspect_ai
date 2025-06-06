@@ -2,7 +2,7 @@
   border-top: solid var(--bs-light-border-subtle) 1px;
   background: var(--bs-light-bg-subtle);
   display: grid;
-  grid-template-columns: max-content max-content;
+  grid-template-columns: 0.5fr 1fr 0.5fr;
   justify-content: space-between;
 
   padding: 0.2em 1em;
@@ -41,6 +41,15 @@
   grid-auto-columns: max-content;
   grid-auto-flow: column;
   justify-content: start;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+.center {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: center;
   align-items: center;
   column-gap: 0.5em;
 }

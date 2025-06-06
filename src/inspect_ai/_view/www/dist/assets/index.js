@@ -51404,19 +51404,21 @@ categories: ${categories.join(" ")}`;
         )) })
       ] }) });
     };
-    const footer$1 = "_footer_mypf9_1";
-    const spinnerContainer$1 = "_spinnerContainer_mypf9_11";
-    const spinner$2 = "_spinner_mypf9_11";
-    const label$8 = "_label_mypf9_25";
-    const right$1 = "_right_mypf9_30";
-    const left$1 = "_left_mypf9_39";
+    const footer$1 = "_footer_14uod_1";
+    const spinnerContainer$1 = "_spinnerContainer_14uod_11";
+    const spinner$2 = "_spinner_14uod_11";
+    const label$8 = "_label_14uod_25";
+    const right$1 = "_right_14uod_30";
+    const left$1 = "_left_14uod_39";
+    const center$1 = "_center_14uod_48";
     const styles$14 = {
       footer: footer$1,
       spinnerContainer: spinnerContainer$1,
       spinner: spinner$2,
       label: label$8,
       right: right$1,
-      left: left$1
+      left: left$1,
+      center: center$1
     };
     const pager = "_pager_as2da_1";
     const item$2 = "_item_as2da_8";
@@ -51530,8 +51532,9 @@ categories: ${categories.join(" ")}`;
             progressText,
             "..."
           ] })
-        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) })
+        ] }) : void 0 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.center), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` }) })
       ] });
     };
     const panel$3 = "_panel_18nhs_1";
