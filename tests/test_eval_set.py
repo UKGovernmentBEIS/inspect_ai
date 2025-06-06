@@ -238,22 +238,6 @@ def test_eval_set_retry_started():
         assert eval_log_status() == "success"
 
 
-def test_eval_set_header_only() -> None:
-    dataset: list[Sample] = []
-    for _ in range(0, 10):
-        dataset.append(Sample(input="Say hello", target="hello"))
-    task1 = Task(
-        name="task1",
-        dataset=dataset,
-        solver=[generate()],
-        scorer=includes(),
-    )
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        success, logs = eval_set(task1, model="mockllm/model", log_dir=log_dir)
-        assert logs[0].samples is None
-
-
 @task
 def sleep_for_1_task(task_arg: str):
     return Task(

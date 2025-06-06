@@ -1,3 +1,8 @@
+## v0.3.102 (05 June 2025)
+
+- OpenAI: Use responses API for codex models.
+- Bugfix: Temporarily revert change to eval set header reading to investigate regression.
+
 ## v0.3.101 (05 June 2025)
 
 - Eval set: Default `max_tasks` to the greater of 4 and the number of models being evaluated.
