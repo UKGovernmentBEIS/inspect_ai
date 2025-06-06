@@ -1,5 +1,5 @@
 import { FC, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
 import {
   useFilteredSamples,
@@ -7,14 +7,14 @@ import {
   useTotalSampleCount,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { baseUrl } from "../routing/url";
+import { baseUrl, useDecodedParams } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
 
 /**
  * LogContainer component that handles routing to specific logs, tabs, and samples
  */
 export const LogViewContainer: FC = () => {
-  const { logPath, tabId, sampleId, epoch, sampleTabId } = useParams<{
+  const { logPath, tabId, sampleId, epoch, sampleTabId } = useDecodedParams<{
     logPath?: string;
     tabId?: string;
     sampleId?: string;
@@ -69,7 +69,7 @@ export const LogViewContainer: FC = () => {
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
-        await selectLogFile(decodeURIComponent(logPath));
+        await selectLogFile(logPath);
 
         // Set the tab if specified in the URL
         if (tabId) {

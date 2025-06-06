@@ -1,9 +1,86 @@
 import { useCallback } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
-import { logUrlRaw, sampleUrl } from "./url";
+import { logUrl, logUrlRaw, sampleUrl, useDecodedParams } from "./url";
+
+export const useLogNavigation = () => {
+  const navigate = useNavigate();
+  const { logPath } = useDecodedParams<{ logPath: string }>();
+  const logs = useStore((state) => state.logs.logs);
+  const loadedLog = useStore((state) => state.log.loadedLog);
+
+  const selectTab = useCallback(
+    (tabId: string) => {
+      // Only update URL if we have a loaded log
+      if (loadedLog && logPath) {
+        // We already have the logPath from params, just navigate to the tab
+        const url = logUrlRaw(logPath, tabId);
+        navigate(url);
+      } else if (loadedLog) {
+        // Fallback to constructing the path if needed
+        const url = logUrl(loadedLog, logs.log_dir, tabId);
+        navigate(url);
+      }
+    },
+    [loadedLog, logPath, logs.log_dir, navigate],
+  );
+
+  return {
+    selectTab,
+  };
+};
+
+export const useSampleUrl = () => {
+  const { logPath, tabId, sampleTabId } = useDecodedParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleTabId?: string;
+  }>();
+
+  const logDirectory = useStore((state) => state.logs.logs.log_dir);
+
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+
+  // Helper function to resolve the log path for URLs
+  const resolveLogPath = useCallback(() => {
+    // If we have a logPath from URL params, use that
+    if (logPath) {
+      return logPath;
+    }
+
+    if (selectedLogFile) {
+      return directoryRelativeUrl(selectedLogFile, logDirectory);
+    }
+
+    return undefined;
+  }, [logPath, selectedLogFile, logDirectory]);
+
+  // Get a sample URL for a specific sample
+  const getSampleUrl = useCallback(
+    (
+      sampleId: string | number,
+      epoch: number,
+      specificSampleTabId?: string,
+    ) => {
+      const resolvedPath = resolveLogPath();
+      if (resolvedPath) {
+        const currentSampleTabId = specificSampleTabId || sampleTabId;
+        const url = sampleUrl(
+          resolvedPath,
+          sampleId,
+          epoch,
+          currentSampleTabId,
+        );
+        return url;
+      }
+      return undefined;
+    },
+    [resolveLogPath, tabId, sampleTabId],
+  );
+  return getSampleUrl;
+};
 
 /**
  * Hook that provides sample navigation utilities with proper URL handling
@@ -16,7 +93,7 @@ export const useSampleNavigation = () => {
   const logDirectory = useStore((state) => state.logs.logs.log_dir);
 
   // The log
-  const { logPath, tabId, sampleTabId } = useParams<{
+  const { logPath, tabId, sampleTabId } = useDecodedParams<{
     logPath?: string;
     tabId?: string;
     sampleTabId?: string;

@@ -4,6 +4,38 @@ import { kSampleMessagesTabId, kSampleTranscriptTabId } from "../../constants";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl, encodePathParts } from "../../utils/uri";
 
+/**
+ * Decodes a URL parameter that may be URL-encoded.
+ * Safely handles already decoded strings.
+ */
+export const decodeUrlParam = (param: string | undefined): string | undefined => {
+  if (!param) return param;
+  try {
+    return decodeURIComponent(param);
+  } catch {
+    // If decoding fails, return the original string
+    return param;
+  }
+};
+
+/**
+ * Hook that provides URL parameters with automatic decoding.
+ * Use this instead of useParams when you need the actual unencoded values.
+ */
+export const useDecodedParams = <T extends Record<string, string | undefined>>() => {
+  const params = useParams<T>();
+  
+  const decodedParams = useMemo(() => {
+    const decoded = {} as T;
+    Object.entries(params).forEach(([key, value]) => {
+      (decoded as any)[key] = decodeUrlParam(value as string);
+    });
+    return decoded;
+  }, [params]);
+  
+  return decodedParams;
+};
+
 export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
 export const kSampleRouteUrlPattern =
@@ -27,12 +59,15 @@ export const sampleUrl = (
   sampleEpoch?: string | number,
   sampleTabId?: string,
 ) => {
+  // Ensure logPath is decoded before encoding for URL construction
+  const decodedLogPath = decodeUrlParam(logPath) || logPath;
+  
   if (sampleId !== undefined && sampleEpoch !== undefined) {
     return encodePathParts(
-      `/logs/${logPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`,
+      `/logs/${decodedLogPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`,
     );
   } else {
-    return encodePathParts(`/logs/${logPath}/samples/${sampleTabId || ""}`);
+    return encodePathParts(`/logs/${decodedLogPath}/samples/${sampleTabId || ""}`);
   }
 };
 
@@ -61,7 +96,7 @@ export const useSampleMessageUrl = (
     logPath: urlLogPath,
     sampleId: urlSampleId,
     epoch: urlEpoch,
-  } = useParams<{
+  } = useDecodedParams<{
     logPath?: string;
     tabId?: string;
     sampleId?: string;
@@ -98,7 +133,7 @@ export const useSampleEventUrl = (
     logPath: urlLogPath,
     sampleId: urlSampleId,
     epoch: urlEpoch,
-  } = useParams<{
+  } = useDecodedParams<{
     logPath?: string;
     tabId?: string;
     sampleId?: string;
@@ -152,10 +187,13 @@ export const makeLogPath = (log_file: string, log_dir?: string) => {
 };
 
 export const logUrlRaw = (log_segment: string, tabId?: string) => {
+  // Ensure log_segment is decoded before encoding for URL construction
+  const decodedLogSegment = decodeUrlParam(log_segment) || log_segment;
+  
   if (tabId) {
-    return encodePathParts(`/logs/${log_segment}/${tabId}`);
+    return encodePathParts(`/logs/${decodedLogSegment}/${tabId}`);
   } else {
-    return encodePathParts(`/logs/${log_segment}`);
+    return encodePathParts(`/logs/${decodedLogSegment}`);
   }
 };
 

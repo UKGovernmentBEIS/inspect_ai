@@ -1,14 +1,13 @@
 import clsx from "clsx";
 import { FC, useEffect, useMemo } from "react";
 
-import { useParams } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs, usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
-import { logUrl } from "../routing/url";
+import { logUrl, useDecodedParams } from "../routing/url";
 import { LogListGrid } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
@@ -42,14 +41,14 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
     kDefaultPageSize,
   );
 
-  const { logPath } = useParams<{
+  const { logPath } = useDecodedParams<{
     logPath?: string;
     tabId?: string;
     sampleId?: string;
     epoch?: string;
   }>();
 
-  const currentDir = join(decodeURIComponent(logPath || ""), logs.log_dir);
+  const currentDir = join(logPath || "", logs.log_dir);
 
   // All the items visible in the current directory (might span
   // multiple pages)

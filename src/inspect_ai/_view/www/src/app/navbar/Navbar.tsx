@@ -2,15 +2,15 @@ interface NavbarProps {}
 
 import clsx from "clsx";
 import { FC } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
 import { ApplicationIcons } from "../appearance/icons";
-import { logUrl } from "../routing/url";
+import { logUrl, useDecodedParams } from "../routing/url";
 import styles from "./Navbar.module.css";
 
 export const Navbar: FC<NavbarProps> = () => {
-  const { logPath } = useParams<{
+  const { logPath } = useDecodedParams<{
     logPath?: string;
     tabId?: string;
     sampleId?: string;
@@ -20,7 +20,7 @@ export const Navbar: FC<NavbarProps> = () => {
   const baseLogDir = dirname(logs.log_dir || "");
   const baseLogName = basename(logs.log_dir || "");
   const pathSegments = logPath
-    ? decodeURIComponent(logPath).split("/")
+    ? logPath.split("/")
     : undefined;
 
   const backUrl = logUrl(
