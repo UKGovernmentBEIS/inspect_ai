@@ -130,6 +130,25 @@ def skip_if_no_together_base_url(func):
     return pytest.mark.api(skip_if_env_var("TOGETHER_BASE_URL", exists=False)(func))
 
 
+def skip_if_no_perplexity(func):
+    missing_requirements = []
+    if importlib.util.find_spec("openai") is None:
+        missing_requirements.append("openai package")
+    if os.environ.get("PERPLEXITY_API_KEY") is None:
+        missing_requirements.append("PERPLEXITY_API_KEY environment variable")
+
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            len(missing_requirements) > 0,
+            reason=f"Test requires: {', '.join(missing_requirements)}",
+        )(func)
+    )
+
+
+def skip_if_no_perplexity_package(func):
+    return skip_if_no_package("openai")(func)
+
+
 def skip_if_no_azureai(func):
     return pytest.mark.api(skip_if_env_var("AZUREAI_API_KEY", exists=False)(func))
 

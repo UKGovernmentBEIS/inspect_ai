@@ -407,6 +407,25 @@ The following environment variables are supported by the Cloudflare provider:
 | `CLOUDFLARE_API_TOKEN` | API key credentials (required). |
 | `CLOUDFLARE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
 
+## Perplexity {#perplexity}
+
+To use the [Perplexity](https://www.perplexity.ai/) provider, install the `openai` package (if not already installed), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export PERPLEXITY_API_KEY=your-perplexity-api-key
+inspect eval arc.py --model perplexity/sonar
+```
+
+The following environment variables are supported by the Perplexity provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `PERPLEXITY_API_KEY` | API key credentials (required). |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+
+Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+
 ## Hugging Face {#hugging-face}
 
 The [Hugging Face](https://huggingface.co/models) provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. To use the Hugging Face provider, install the `torch`, `transformers`, and `accelerate` packages and specify a model using the `--model` option:
