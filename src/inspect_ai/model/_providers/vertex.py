@@ -33,6 +33,7 @@ from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -338,6 +339,8 @@ async def content_part(content: Content | str) -> Part:
     else:
         if isinstance(content, ContentAudio):
             file = content.audio
+        elif isinstance(content, ContentData):
+            assert False, "Vertex provider should never encounter ContentData"
         else:
             # it's ContentVideo
             file = content.video

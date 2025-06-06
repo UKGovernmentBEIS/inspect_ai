@@ -284,6 +284,18 @@ website:
           href: reference/inspect_ai.model.qmd#contentaudio
         - text: ContentVideo
           href: reference/inspect_ai.model.qmd#contentvideo
+        - text: ContentData
+          href: reference/inspect_ai.model.qmd#contentdata
+        - text: Citation
+          href: reference/inspect_ai.model.qmd#citation
+        - text: CitationBase
+          href: reference/inspect_ai.model.qmd#citationbase
+        - text: DocumentCitation
+          href: reference/inspect_ai.model.qmd#documentcitation
+        - text: ContentCitation
+          href: reference/inspect_ai.model.qmd#contentcitation
+        - text: UrlCitation
+          href: reference/inspect_ai.model.qmd#urlcitation
         - text: execute_tools
           href: reference/inspect_ai.model.qmd#execute_tools
         - text: ExecuteToolsResult

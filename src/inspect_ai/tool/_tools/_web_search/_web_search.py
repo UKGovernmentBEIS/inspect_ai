@@ -17,7 +17,7 @@ from ..._tool import Tool, ToolResult, tool
 from ._google import GoogleOptions, google_search_provider
 from ._tavily import TavilyOptions, tavily_search_provider
 
-Provider: TypeAlias = Literal["openai", "tavily", "google"]  # , "gemini", "anthropic"
+Provider: TypeAlias = Literal["openai", "anthropic", "tavily", "google"]  # , "gemini"
 valid_providers = set(get_args(Provider))
 
 
@@ -30,9 +30,17 @@ valid_providers = set(get_args(Provider))
 # If the caller uses this dict form and uses a value of `None`, it means that
 # they want to use that provider and to use the default options.
 class Providers(TypedDict, total=False):
-    google: dict[str, Any] | None
-    tavily: dict[str, Any] | None
-    openai: dict[str, Any] | None
+    openai: dict[str, Any] | Literal[True]
+    anthropic: dict[str, Any] | Literal[True]
+    tavily: dict[str, Any] | Literal[True]
+    google: dict[str, Any] | Literal[True]
+
+
+class _NormalizedProviders(TypedDict, total=False):
+    openai: dict[str, Any]
+    anthropic: dict[str, Any]
+    tavily: dict[str, Any]
+    google: dict[str, Any]
 
 
 class WebSearchDeprecatedArgs(TypedDict, total=False):
@@ -53,8 +61,8 @@ def web_search(
     Web searches are executed using a provider. Providers are split
     into two categories:
 
-    - Internal providers: "openai" - these use the model's built-in search
-      capability and do not require separate API keys. These work only for
+    - Internal providers: "openai", "anthropic" - these use the model's built-in
+      search capability and do not require separate API keys. These work only for
       their respective model provider (e.g. the "openai" search provider
       works only for `openai/*` models).
 
@@ -70,12 +78,12 @@ def web_search(
 
     Args:
       providers: Configuration for the search providers to use. Currently supported
-        providers are "openai","tavily", and "google", The `providers` parameter
-        supports several formats based on either a `str` specifying a provider or
-        a `dict` whose keys are the provider names and whose values are the
-        provider-specific options. A single value or a list of these can be passed.
-        This arg is optional just for backwards compatibility. New code should
-        always provide this argument.
+        providers are "openai", "anthropic", "tavily", and "google", The `providers`
+        parameter supports several formats based on either a `str` specifying a
+        provider or a `dict` whose keys are the provider names and whose values
+        are the provider-specific options. A single value or a list of these can
+        be passed. This arg is optional just for backwards compatibility. New code
+        should always provide this argument.
 
         Single provider:
         ```
@@ -88,8 +96,8 @@ def web_search(
         # "openai" used for OpenAI models, "tavily" as fallback
         web_search(["openai", "tavily"])
 
-        # The None value means to use the provider with default options
-        web_search({"openai": None, "tavily": {"max_results": 5}}
+        # The True value means to use the provider with default options
+        web_search({"openai": True, "tavily": {"max_results": 5}}
         ```
 
         Mixed format:
@@ -103,6 +111,9 @@ def web_search(
         Provider-specific options:
         - openai: Supports OpenAI's web search parameters.
           See https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses
+
+        - anthropic: Supports Anthropic's web search parameters.
+          See https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#tool-definition
 
         - tavily: Supports options like `max_results`, `search_depth`, etc.
           See https://docs.tavily.com/documentation/api-reference/endpoint/search
@@ -148,7 +159,7 @@ def web_search(
 def _normalize_config(
     providers: Provider | Providers | list[Provider | Providers] | None,
     **deprecated: Unpack[WebSearchDeprecatedArgs],
-) -> Providers:
+) -> _NormalizedProviders:
     """
     Deal with breaking changes in the web_search parameter list.
 
@@ -191,17 +202,26 @@ def _normalize_config(
         )
 
     assert providers, "providers should not be None here"
-    normalized: Providers = {}
+    normalized: _NormalizedProviders = {}
     for entry in providers if isinstance(providers, list) else [providers]:
         if isinstance(entry, str):
             if entry not in valid_providers:
                 raise ValueError(f"Invalid provider: '{entry}'")
-            normalized[entry] = None  # type: ignore
+            normalized[entry] = {}  # type: ignore
         else:
             for key, value in entry.items():
                 if key not in valid_providers:
                     raise ValueError(f"Invalid provider: '{key}'")
-                normalized[key] = value  # type: ignore
+
+                if (
+                    not isinstance(value, dict)
+                    and value is not True
+                    and value is not None
+                ):
+                    raise ValueError(
+                        f"Invalid value for provider '{key}': {value}. Expected a dict, None, or True."
+                    )
+                normalized[key] = value if isinstance(value, dict) else {}  # type: ignore
     return normalized
 
 
@@ -211,14 +231,14 @@ def _get_config_via_back_compat(
     max_provider_calls: int | None,
     max_connections: int | None,
     model: str | None,
-) -> Providers:
+) -> _NormalizedProviders:
     if (
         num_results is None
         and max_provider_calls is None
         and max_connections is None
         and model is None
     ):
-        return {"google": None} if provider == "google" else {"tavily": None}
+        return {"google": {}} if provider == "google" else {"tavily": {}}
 
     # If we get here, we have at least one old school parameter
     deprecation_warning(
@@ -243,12 +263,12 @@ def _get_config_via_back_compat(
 
 
 def _create_external_provider(
-    providers: Providers,
+    providers: _NormalizedProviders,
 ) -> Callable[[str], Awaitable[str | None]]:
     if "tavily" in providers:
-        return tavily_search_provider(providers.get("tavily", None))
+        return tavily_search_provider(providers.get("tavily"))
 
     if "google" in providers:
-        return google_search_provider(providers.get("google", None))
+        return google_search_provider(providers.get("google"))
 
     raise ValueError("No valid provider found.")

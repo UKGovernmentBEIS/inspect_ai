@@ -12,7 +12,7 @@ import clsx from "clsx";
 import { FC, Fragment } from "react";
 import { ContentTool } from "../../../app/types";
 import styles from "./MessageContents.module.css";
-import { ChatViewToolCallStyle } from "./types";
+import { ChatViewToolCallStyle, Citation } from "./types";
 
 interface MessageContentsProps {
   id: string;
@@ -21,12 +21,24 @@ interface MessageContentsProps {
   toolCallStyle: ChatViewToolCallStyle;
 }
 
+export interface MessagesContext {
+  citations: Citation[];
+}
+
+export const defaultContext = () => {
+  return {
+    citeOffset: 0,
+    citations: [],
+  };
+};
+
 export const MessageContents: FC<MessageContentsProps> = ({
   id,
   message,
   toolMessages,
   toolCallStyle,
 }) => {
+  const context: MessagesContext = defaultContext();
   if (
     message.role === "assistant" &&
     message.tool_calls &&
@@ -79,14 +91,18 @@ export const MessageContents: FC<MessageContentsProps> = ({
       <Fragment>
         {message.content && (
           <div className={styles.content}>
-            <MessageContent contents={message.content} />
+            <MessageContent contents={message.content} context={context} />
           </div>
         )}
         {toolCalls}
       </Fragment>
     );
   } else {
-    return <MessageContent contents={message.content} />;
+    return (
+      <>
+        <MessageContent contents={message.content} context={context} />
+      </>
+    );
   }
 };
 
@@ -109,6 +125,7 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
             text: content,
             refusal: null,
             internal: null,
+            citations: null,
           },
         ],
       },
@@ -125,6 +142,7 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
                 text: con,
                 refusal: null,
                 internal: null,
+                citations: null,
               },
             ],
           } as ContentTool;

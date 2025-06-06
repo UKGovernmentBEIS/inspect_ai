@@ -22,6 +22,8 @@ from anthropic.types import (
     MessageParam,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
+    ServerToolUseBlock,
+    ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
     ThinkingBlock,
@@ -31,6 +33,9 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    WebSearchTool20250305Param,
+    WebSearchToolResultBlock,
+    WebSearchToolResultBlockParam,
     message_create_params,
 )
 from anthropic.types.beta import (
@@ -43,6 +48,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -61,6 +67,10 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
+from .._providers._anthropic_citations import (
+    to_anthropic_citation,
+    to_inspect_citation,
+)
 from .util import environment_prerequisite_error, model_base_url
 from .util.hooks import HttpxHooks
 
@@ -69,6 +79,14 @@ logger = getLogger(__name__)
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
+
+WEB_SEARCH_COMPATIBLE_MODELS = [
+    "claude-opus-4-20250514",
+    "claude-sonnet-4-20250514",
+    "claude-3-7-sonnet-20250219",
+    "claude-3-5-sonnet-latest",
+    "claude-3-5-haiku-latest",
+]
 
 
 class AnthropicAPI(ModelAPI):
@@ -232,27 +250,19 @@ class AnthropicAPI(ModelAPI):
             if self.extra_body is not None:
                 request["extra_body"] = self.extra_body
 
-            # make request (unless overrideen, stream if we are using reasoning)
+            # make request (unless overridden, stream if we are using reasoning)
             streaming = (
                 self.is_using_thinking(config)
                 if self.streaming == "auto"
                 else self.streaming
             )
-            if streaming:
-                async with self.client.messages.stream(**request) as stream:
-                    message = await stream.get_final_message()
-            else:
-                message = await self.client.messages.create(**request, stream=False)
 
-            # set response for ModelCall
-            response = message.model_dump()
-
-            # extract output
-            output = await model_output_from_message(
-                self.client, self.service_model_name(), message, tools
+            message, output = await self._perform_request_and_continuations(
+                request, streaming, tools
             )
 
-            # return output and call
+            response = message.model_dump()
+
             return output, model_call()
 
         except BadRequestError as ex:
@@ -268,6 +278,50 @@ class AnthropicAPI(ModelAPI):
                 ), model_call()
             else:
                 raise ex
+
+    async def _perform_request_and_continuations(
+        self,
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[ToolInfo],
+    ) -> tuple[Message, ModelOutput]:
+        """
+        This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
+
+        It considers the result from the initial request the "head" and the result
+        from the continuation the "tail".
+        """
+        if streaming:
+            async with self.client.messages.stream(**request) as stream:
+                head_message = await stream.get_final_message()
+        else:
+            head_message = await self.client.messages.create(**request, stream=False)
+
+        head_model_output, continuation_required = await model_output_from_message(
+            self.client, self.service_model_name(), head_message, tools
+        )
+
+        if continuation_required:
+            tail_request = dict(request)
+            tail_request["messages"] = request["messages"] + [
+                MessageParam(role=head_message.role, content=head_message.content)
+            ]
+            _, tail_model_output = await self._perform_request_and_continuations(
+                tail_request, streaming, tools
+            )
+
+            head_content = _content_list(head_model_output.message.content)
+            tail_content = _content_list(tail_model_output.message.content)
+            tail_model_output.message.content = head_content + tail_content
+
+            # TODO:
+            # It looks weird to return the head message with the tail output, but
+            # the contract for this function is that it returns the head message
+            # even when it has needed to recurse. This is because model_call()
+            # above doesn't currently support multiple requests
+            return head_message, tail_model_output
+
+        return head_message, head_model_output
 
     def completion_config(
         self, config: GenerateConfig
@@ -521,7 +575,11 @@ class AnthropicAPI(ModelAPI):
         self, tool: ToolInfo, config: GenerateConfig
     ) -> Optional["ToolParamDef"]:
         return (
-            (self.computer_use_tool_param(tool) or self.text_editor_tool_param(tool))
+            (
+                self.computer_use_tool_param(tool)
+                or self.text_editor_tool_param(tool)
+                or self.web_search_tool_param(tool)
+            )
             if config.internal_tools is not False
             else None
         )
@@ -598,6 +656,49 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
+    def web_search_tool_param(
+        self, tool: ToolInfo
+    ) -> WebSearchTool20250305Param | None:
+        if (
+            tool.name == "web_search"
+            and tool.options
+            and "anthropic" in tool.options
+            and self.model_name in WEB_SEARCH_COMPATIBLE_MODELS
+        ):
+            return _web_search_tool_param(tool.options["anthropic"])
+        else:
+            return None
+
+
+def _web_search_tool_param(
+    maybe_anthropic_options: object,
+) -> WebSearchTool20250305Param:
+    if maybe_anthropic_options is not None and not isinstance(
+        maybe_anthropic_options, dict
+    ):
+        raise TypeError(
+            f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
+        )
+
+    result = WebSearchTool20250305Param(
+        name="web_search",
+        type="web_search_20250305",
+    )
+
+    if maybe_anthropic_options:
+        if "allowed_domains" in maybe_anthropic_options:
+            result["allowed_domains"] = maybe_anthropic_options["allowed_domains"]
+        if "blocked_domains" in maybe_anthropic_options:
+            result["blocked_domains"] = maybe_anthropic_options["blocked_domains"]
+        if "cache_control" in maybe_anthropic_options:
+            result["cache_control"] = maybe_anthropic_options["cache_control"]
+        if "max_uses" in maybe_anthropic_options:
+            result["max_uses"] = maybe_anthropic_options["max_uses"]
+        if "user_location" in maybe_anthropic_options:
+            result["user_location"] = maybe_anthropic_options["user_location"]
+
+    return result
+
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
 ToolParamDef = (
@@ -605,6 +706,7 @@ ToolParamDef = (
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | WebSearchTool20250305Param
 )
 
 
@@ -614,6 +716,7 @@ def add_cache_control(
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | WebSearchTool20250305Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -698,6 +801,8 @@ async def message_param(message: ChatMessage) -> MessageParam:
                     | ImageBlockParam
                     | ThinkingBlockParam
                     | RedactedThinkingBlockParam
+                    | ServerToolUseBlockParam
+                    | WebSearchToolResultBlockParam
                 ]
             ) = message.error.message
             # anthropic requires that content be populated when
@@ -735,6 +840,8 @@ async def message_param(message: ChatMessage) -> MessageParam:
             | RedactedThinkingBlockParam
             | ImageBlockParam
             | ToolUseBlockParam
+            | ServerToolUseBlockParam
+            | WebSearchToolResultBlockParam
         ] = (
             [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
@@ -785,7 +892,7 @@ async def model_output_from_message(
     model: str,
     message: Message,
     tools: list[ToolInfo],
-) -> ModelOutput:
+) -> tuple[ModelOutput, bool]:
     # extract content and tool calls
     content: list[Content] = []
     reasoning_tokens = 0
@@ -800,7 +907,20 @@ async def model_output_from_message(
                 content_text = content_text.replace("<result>", "").replace(
                     "</result>", ""
                 )
-            content.append(ContentText(type="text", text=content_text))
+            content.append(
+                ContentText(
+                    type="text",
+                    text=content_text,
+                    citations=(
+                        [
+                            to_inspect_citation(citation)
+                            for citation in content_block.citations
+                        ]
+                        if content_block.citations
+                        else None
+                    ),
+                )
+            )
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
             (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
@@ -812,6 +932,10 @@ async def model_output_from_message(
                     internal=internal_name,
                 )
             )
+        elif isinstance(content_block, ServerToolUseBlock):
+            content.append(ContentData(data=content_block.model_dump()))
+        elif isinstance(content_block, WebSearchToolResultBlock):
+            content.append(ContentData(data=content_block.model_dump()))
         elif isinstance(content_block, RedactedThinkingBlock):
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
@@ -827,11 +951,12 @@ async def model_output_from_message(
             )
 
     # resolve choice
+    stop_reason, pause_turn = message_stop_reason(message)
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
-        stop_reason=message_stop_reason(message),
+        stop_reason=stop_reason,
     )
 
     # return ModelOutput
@@ -844,17 +969,20 @@ async def model_output_from_message(
         + (input_tokens_cache_read or 0)
         + message.usage.output_tokens  # includes reasoning tokens
     )
-    return ModelOutput(
-        model=message.model,
-        choices=[choice],
-        usage=ModelUsage(
-            input_tokens=message.usage.input_tokens,
-            output_tokens=message.usage.output_tokens,
-            total_tokens=total_tokens,
-            input_tokens_cache_write=input_tokens_cache_write,
-            input_tokens_cache_read=input_tokens_cache_read,
-            reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+    return (
+        ModelOutput(
+            model=message.model,
+            choices=[choice],
+            usage=ModelUsage(
+                input_tokens=message.usage.input_tokens,
+                output_tokens=message.usage.output_tokens,
+                total_tokens=total_tokens,
+                input_tokens_cache_write=input_tokens_cache_write,
+                input_tokens_cache_read=input_tokens_cache_read,
+                reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+            ),
         ),
+        pause_turn,
     )
 
 
@@ -893,16 +1021,18 @@ def _names_for_tool_call(
     )
 
 
-def message_stop_reason(message: Message) -> StopReason:
+def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
     match message.stop_reason:
         case "end_turn" | "stop_sequence":
-            return "stop"
+            return "stop", False
         case "tool_use":
-            return "tool_calls"
+            return "tool_calls", False
         case "max_tokens":
-            return message.stop_reason
+            return message.stop_reason, False
+        case "refusal":
+            return "content_filter", False
         case _:
-            return "unknown"
+            return "unknown", message.stop_reason == "pause_turn"
 
 
 def split_system_messages(
@@ -918,9 +1048,24 @@ def split_system_messages(
 
 async def message_param_content(
     content: Content,
-) -> TextBlockParam | ImageBlockParam | ThinkingBlockParam | RedactedThinkingBlockParam:
+) -> (
+    TextBlockParam
+    | ImageBlockParam
+    | ThinkingBlockParam
+    | RedactedThinkingBlockParam
+    | ServerToolUseBlockParam
+    | WebSearchToolResultBlockParam
+):
     if isinstance(content, ContentText):
-        return TextBlockParam(type="text", text=content.text or NO_CONTENT)
+        citations = (
+            [to_anthropic_citation(citation) for citation in content.citations]
+            if content.citations
+            else None
+        )
+
+        return TextBlockParam(
+            type="text", text=content.text or NO_CONTENT, citations=citations
+        )
     elif isinstance(content, ContentImage):
         # resolve to url
         image = await file_as_data_uri(content.image)
@@ -948,6 +1093,19 @@ async def message_param_content(
             return ThinkingBlockParam(
                 type="thinking", thinking=content.reasoning, signature=content.signature
             )
+    elif isinstance(content, ContentData):
+        match content.data.get("type", None):
+            case "server_tool_use":
+                return cast(
+                    ServerToolUseBlockParam,
+                    ServerToolUseBlock.model_validate(content.data).model_dump(),
+                )
+            case "web_search_tool_result":
+                return cast(
+                    WebSearchToolResultBlockParam,
+                    WebSearchToolResultBlock.model_validate(content.data).model_dump(),
+                )
+        raise NotImplementedError()
     else:
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."
@@ -990,3 +1148,7 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
+
+
+def _content_list(input: str | list[Content]) -> list[Content]:
+    return [ContentText(text=input)] if isinstance(input, str) else input

@@ -13,6 +13,7 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
+from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
@@ -64,6 +65,8 @@ class OpenAIAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
+        # Can't use the XxxDeprecatedArgs approach since this already has a **param
+        # but responses_store is deprecated and should not be used.
         responses_store: Literal["auto"] | bool = "auto",
         service_tier: str | None = None,
         client_timeout: float | None = None,
@@ -98,9 +101,8 @@ class OpenAIAPI(ModelAPI):
         self.responses_api = responses_api or responses_model
 
         # resolve whether we are using the responses store
-        self.responses_store = (
-            responses_store if isinstance(responses_store, bool) else responses_model
-        )
+        if isinstance(responses_store, bool):
+            deprecation_warning("`responses_store` is no longer supported.")
 
         # set service tier if specified
         self.service_tier = service_tier
@@ -260,7 +262,6 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
-                store=self.responses_store,
             )
 
         # allocate request_id (so we can see it from ModelCall)

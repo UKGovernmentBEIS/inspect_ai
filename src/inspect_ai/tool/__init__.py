@@ -1,6 +1,14 @@
+from inspect_ai._util.citation import (
+    Citation,
+    CitationBase,
+    ContentCitation,
+    DocumentCitation,
+    UrlCitation,
+)
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -62,6 +70,7 @@ __all__ = [
     "MCPServer",
     "Content",
     "ContentAudio",
+    "ContentData",
     "ContentImage",
     "ContentReasoning",
     "ContentText",
@@ -77,6 +86,11 @@ __all__ = [
     "ToolInfo",
     "ToolParam",
     "ToolParams",
+    "Citation",
+    "CitationBase",
+    "DocumentCitation",
+    "ContentCitation",
+    "UrlCitation",
 ]
 
 _UTIL_MODULE_VERSION = "0.3.19"

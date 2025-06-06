@@ -247,6 +247,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -366,6 +369,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -456,6 +462,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -584,6 +593,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -693,6 +705,116 @@
         "format"
       ],
       "title": "ContentAudio",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentCitation": {
+      "description": "A generic content citation.",
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "content",
+          "default": "content",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "ContentCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "ContentData": {
+      "description": "Model internal.",
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "data",
+          "default": "data",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Data",
+          "type": "object"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "data"
+      ],
+      "title": "ContentData",
       "type": "object",
       "additionalProperties": false
     },
@@ -829,13 +951,47 @@
           ],
           "default": null,
           "title": "Refusal"
+        },
+        "citations": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "content": "#/$defs/ContentCitation",
+                    "document": "#/$defs/DocumentCitation",
+                    "url": "#/$defs/UrlCitation"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ContentCitation"
+                  },
+                  {
+                    "$ref": "#/$defs/DocumentCitation"
+                  },
+                  {
+                    "$ref": "#/$defs/UrlCitation"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citations"
         }
       },
       "required": [
         "internal",
         "type",
         "text",
-        "refusal"
+        "refusal",
+        "citations"
       ],
       "title": "ContentText",
       "type": "object",
@@ -882,6 +1038,121 @@
         "format"
       ],
       "title": "ContentVideo",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "DocumentCitation": {
+      "description": "A citation that refers to a page range in a document.",
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "document",
+          "default": "document",
+          "title": "Type",
+          "type": "string"
+        },
+        "range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DocumentRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "DocumentCitation",
+      "type": "object",
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type",
+        "range"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentRange": {
+      "description": "A range specifying a section of a document.",
+      "properties": {
+        "type": {
+          "enum": [
+            "block",
+            "page",
+            "char"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "start_index": {
+          "title": "Start Index",
+          "type": "integer"
+        },
+        "end_index": {
+          "title": "End Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "start_index",
+        "end_index"
+      ],
+      "title": "DocumentRange",
       "type": "object",
       "additionalProperties": false
     },
@@ -5474,6 +5745,9 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
+              "$ref": "#/$defs/ContentData"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
@@ -5490,6 +5764,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -5789,6 +6066,84 @@
         "bytes"
       ],
       "title": "TopLogprob",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "UrlCitation": {
+      "description": "A citation that refers to a URL.",
+      "properties": {
+        "cited_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "additionalItems": false,
+              "items": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cited Text"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
+        "type": {
+          "const": "url",
+          "default": "url",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cited_text",
+        "title",
+        "internal",
+        "type",
+        "url"
+      ],
+      "title": "UrlCitation",
       "type": "object",
       "additionalProperties": false
     }

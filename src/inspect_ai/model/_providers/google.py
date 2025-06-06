@@ -48,6 +48,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.content import (
     ContentAudio,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -500,6 +501,8 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
         return Part.from_text(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentReasoning):
         return Part.from_text(text=content.reasoning or NO_CONTENT)
+    elif isinstance(content, ContentData):
+        assert False, "Google provider should never encounter ContentData"
     else:
         return await chat_content_to_part(client, content)
 
@@ -656,6 +659,7 @@ def completion_choice_from_candidate(
                 | ContentImage
                 | ContentAudio
                 | ContentVideo
+                | ContentData
             ]
         ) = ""
     # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL

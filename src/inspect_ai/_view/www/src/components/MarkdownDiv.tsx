@@ -51,8 +51,11 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
     // For `code` tags, reverse the escaping if we can
     const withCode = unescapeCodeHtmlEntities(unescaped);
 
+    // For `sup` tags, reverse the escaping if we can
+    const withSup = unescapeSupHtmlEntities(withCode);
+
     // Return the rendered markdown
-    const markup = { __html: withCode };
+    const markup = { __html: withSup };
 
     return (
       <div
@@ -65,7 +68,7 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
   },
 );
 
-const kLetterListPattern = /^([a-zA-Z0-9][).]\s.*?)$/gm;
+const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 
 const protectBackslashesInLatex = (content: string): string => {
@@ -192,6 +195,16 @@ const unprotectMarkdown = (txt: string): string => {
   txt = txt.replaceAll("(close:767A125E)", "]");
   return txt;
 };
+
+function unescapeSupHtmlEntities(str: string): string {
+  // replace &lt;sup&gt; with <sup>
+  if (!str) {
+    return str;
+  }
+  return str
+    .replace(/&lt;sup&gt;/g, "<sup>")
+    .replace(/&lt;\/sup&gt;/g, "</sup>");
+}
 
 function unescapeCodeHtmlEntities(str: string): string {
   if (!str) return str;
