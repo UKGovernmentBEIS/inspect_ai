@@ -103,8 +103,25 @@ def registry_tag(
         **kwargs (dict[str,Any]): Creation keyword arguments
     """
     # bind arguments to params
+    named_params = extract_named_params(type, False, *args, **kwargs)
+
+    # set attribute
+    setattr(o, REGISTRY_INFO, info)
+    setattr(o, REGISTRY_PARAMS, named_params)
+
+
+def extract_named_params(
+    type: Callable[..., Any], apply_defaults: bool, *args: Any, **kwargs: Any
+) -> dict[str, Any]:
+    # bind arguments to params
     named_params: dict[str, Any] = {}
-    bound_params = inspect.signature(type).bind(*args, **kwargs)
+
+    if apply_defaults:
+        bound_params = inspect.signature(type).bind_partial(*args, **kwargs)
+        bound_params.apply_defaults()
+    else:
+        bound_params = inspect.signature(type).bind(*args, **kwargs)
+
     for param, value in bound_params.arguments.items():
         named_params[param] = registry_value(value)
 
@@ -128,9 +145,7 @@ def registry_tag(
                 or "<unknown>"
             )
 
-    # set attribute
-    setattr(o, REGISTRY_INFO, info)
-    setattr(o, REGISTRY_PARAMS, named_params)
+    return named_params
 
 
 def registry_name(o: object, name: str) -> str:

@@ -812,7 +812,7 @@ async def eval_retry_async(
         model_roles = model_roles_config_to_model_roles(eval_log.eval.model_roles)
 
         # collect the rest of the params we need for the eval
-        task_args = eval_log.eval.task_args
+        task_args = eval_log.eval.task_args_passed
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
         sample_id = eval_log.eval.config.sample_id

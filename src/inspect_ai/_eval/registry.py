@@ -8,6 +8,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
+    extract_named_params,
     registry_add,
     registry_create,
     registry_info,
@@ -17,7 +18,7 @@ from inspect_ai._util.registry import (
 )
 
 from .task import Task
-from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .task.constants import TASK_ALL_PARAMS_ATTR, TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 
 MODEL_PARAM = "model"
 
@@ -132,6 +133,10 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                 *w_args,
                 **w_kwargs,
             )
+
+            # extract all task parameters including defaults
+            named_params = extract_named_params(task_type, True, *w_args, **w_kwargs)
+            setattr(task_instance, TASK_ALL_PARAMS_ATTR, named_params)
 
             # if its not from an installed package then it is a "local"
             # module import, so set its task file and run dir

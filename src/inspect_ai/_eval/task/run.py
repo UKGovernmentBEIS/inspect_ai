@@ -223,7 +223,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         samples=len(samples),
         steps=len(samples) * SAMPLE_TOTAL_PROGRESS_UNITS,
         eval_config=config,
-        task_args=logger.eval.task_args,
+        task_args=logger.eval.task_args_passed,
         generate_config=generate_config,
         tags=tags,
         log_location=log_location,
