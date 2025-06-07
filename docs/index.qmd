@@ -169,6 +169,7 @@ Above we demonstrated using `inspect eval` from CLI to run evaluations—you can
 
 ``` python
 from inspect_ai import eval
+from .tasks import theory_of_mind
 
 eval(theory_of_mind(), model="openai/gpt-4o")
 ```
