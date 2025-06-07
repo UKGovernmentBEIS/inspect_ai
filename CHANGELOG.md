@@ -5,6 +5,7 @@
 - Content: Added `ContentData` for model specific content blocks.
 - Citations: Added `Citation` suite of types and included citations in `ContentText` (supported for OpenAI and Anthropic models).
 - Added development container (`.devcontainer`) configuration.
+- `trim_messages()` now removes any trailing assistant message after compaction.
 - Inspect View: Add support for displaying citations for web searches in the transcript.
 - Inspect View: Correctly update browser URL when navigation between samples.
 
