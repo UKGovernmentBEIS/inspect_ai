@@ -567,7 +567,7 @@ class _CostLimit(Limit, _Node):
             raise ValueError(
                 "Cost limit requires setting a cost file, but no file was specified"
             )
-        self._cost = Decimal()
+        self._cost = Decimal(0)
         self._limit = limit
 
     def __enter__(self) -> Limit:
@@ -582,6 +582,10 @@ class _CostLimit(Limit, _Node):
         exc_tb: TracebackType | None,
     ) -> None:
         self._pop_and_check_identity(cost_limit_tree)
+
+    @property
+    def usage(self) -> float:
+        return float(self._cost)
 
     @property
     def limit(self) -> int | None:
@@ -601,10 +605,10 @@ class _CostLimit(Limit, _Node):
             )
         self._limit = cost_limit
 
-    def calculate_cost(self, usage: ContextVar[dict[str, ModelUsage]]) -> None:
+    def calculate_cost(self, usage: ContextVar[dict[str, ModelUsage]]) -> Decimal:
         """Calculate cost of usage for this node."""
         current_usage: dict[str, ModelUsage] = usage.get()
-        cost = 0
+        cost = Decimal(0)
         for m_name, m_usage in current_usage.items():
             cost += self._cost_calculator.get_cost(m_name, m_usage)
         return cost
