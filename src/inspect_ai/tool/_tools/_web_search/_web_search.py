@@ -1,7 +1,5 @@
 from typing import (
     Any,
-    Awaitable,
-    Callable,
     Literal,
     TypeAlias,
     TypedDict,
@@ -16,6 +14,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from ..._tool import Tool, ToolResult, tool
 from ._google import GoogleOptions, google_search_provider
 from ._tavily import TavilyOptions, tavily_search_provider
+from ._web_search_provider import SearchProvider
 
 Provider: TypeAlias = Literal["openai", "anthropic", "tavily", "google"]  # , "gemini"
 valid_providers = set(get_args(Provider))
@@ -128,7 +127,7 @@ def web_search(
     """
     normalized_providers = _normalize_config(providers, **deprecated)
 
-    search_provider: Callable[[str], Awaitable[str | None]] | None = None
+    search_provider: SearchProvider | None = None
 
     async def execute(query: str) -> ToolResult:
         """
@@ -142,13 +141,17 @@ def web_search(
             search_provider = _create_external_provider(normalized_providers)
         search_result = await search_provider(query)
 
+        # This is gunky here because ToolResult is typed with a List rather than
+        # a Sequence, and Lists are variant (rather than covariant). This means
+        # it's illegal to assign a List of a narrower type to a List of a broader
+        # type. By making a copy of the list and not capturing an alias to it,
+        # mypy knows it's safe.
         return (
-            (
-                "Here are your web search results. Please read them carefully as they may be useful later!\n"
-                + search_result
-            )
-            if search_result
-            else ("I'm sorry, I couldn't find any relevant information on the web.")
+            list(search_result)
+            if isinstance(search_result, list)
+            else search_result
+            if search_result is not None
+            else "I couldn't find any relevant information on the web."
         )
 
     return ToolDef(
@@ -264,7 +267,7 @@ def _get_config_via_back_compat(
 
 def _create_external_provider(
     providers: _NormalizedProviders,
-) -> Callable[[str], Awaitable[str | None]]:
+) -> SearchProvider:
     if "tavily" in providers:
         return tavily_search_provider(providers.get("tavily"))
 
