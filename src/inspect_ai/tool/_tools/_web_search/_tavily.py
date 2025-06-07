@@ -1,5 +1,5 @@
 import os
-from typing import Awaitable, Callable, Literal
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, Field
@@ -11,9 +11,13 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
+
+from ._web_search_provider import SearchProvider
 
 
 class TavilyOptions(BaseModel):
@@ -52,7 +56,7 @@ class TavilySearchResponse(BaseModel):
 
 def tavily_search_provider(
     in_options: dict[str, object] | None = None,
-) -> Callable[[str], Awaitable[str | None]]:
+) -> SearchProvider:
     options = TavilyOptions.model_validate(in_options) if in_options else None
     # Separate max_connections (which is an inspect thing) from the rest of the
     # options which will be passed in the request body
@@ -74,7 +78,7 @@ def tavily_search_provider(
     # Create the client within the provider
     client = httpx.AsyncClient(timeout=30)
 
-    async def search(query: str) -> str | None:
+    async def search(query: str) -> str | ContentText | None:
         # See https://docs.tavily.com/documentation/api-reference/endpoint/search
         search_url = "https://api.tavily.com/search"
         headers = {
@@ -99,12 +103,18 @@ def tavily_search_provider(
             tavily_search_response = TavilySearchResponse.model_validate(
                 (await _search()).json()
             )
-            results_str = "\n\n".join(
-                [
-                    f"[{result.title}]({result.url}):\n{result.content}"
+
+            if not tavily_search_response.results and not tavily_search_response.answer:
+                return None
+
+            return ContentText(
+                text=tavily_search_response.answer or "No answer found.",
+                citations=[
+                    UrlCitation(
+                        cited_text=result.content, title=result.title, url=result.url
+                    )
                     for result in tavily_search_response.results
-                ]
+                ],
             )
-            return f"Answer: {tavily_search_response.answer}\n\n{results_str}"
 
     return search
