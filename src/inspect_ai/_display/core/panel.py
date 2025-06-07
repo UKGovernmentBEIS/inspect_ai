@@ -9,7 +9,7 @@ from rich.text import Text
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai.util._display import display_type
+from inspect_ai.util._display import display_type_plain
 
 from .display import TaskProfile
 from .rich import is_vscode_notebook, rich_theme
@@ -27,7 +27,7 @@ def task_panel(
     log_location: str | None,
 ) -> RenderableType:
     # dispatch to plain handler if we are in plain mode
-    if display_type() == "plain":
+    if display_type_plain():
         return task_panel_plain(
             profile, show_model, body, subtitle, footer, log_location
         )
