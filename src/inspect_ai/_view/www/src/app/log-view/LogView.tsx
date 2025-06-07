@@ -13,7 +13,7 @@ import { Navbar } from "./navbar/Navbar";
 
 import { useEvalSpec, useRefreshLog } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { useLogNavigation } from "../routing/navigationHooks";
+import { useLogNavigation } from "../routing/logNavigation";
 import styles from "./LogView.module.css";
 import { useInfoTabConfig } from "./tabs/InfoTab";
 import { useJsonTabConfig } from "./tabs/JsonTab";

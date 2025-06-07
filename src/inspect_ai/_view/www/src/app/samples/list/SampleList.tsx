@@ -20,7 +20,7 @@ import clsx from "clsx";
 import { useProperty, useSampleDescriptor } from "../../../state/hooks";
 import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
-import { useSampleNavigation } from "../../routing/navigationHooks";
+import { useSampleNavigation } from "../../routing/sampleNavigation";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
