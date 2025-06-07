@@ -47,8 +47,10 @@ async def test_perplexity_api() -> None:
     assert response.usage.total_tokens > 0
 
     # Validate Perplexity-specific usage metrics
-    if (hasattr(response.usage, 'reasoning_tokens') and
-            response.usage.reasoning_tokens is not None):
+    if (
+        hasattr(response.usage, "reasoning_tokens")
+        and response.usage.reasoning_tokens is not None
+    ):
         assert response.usage.reasoning_tokens >= 0
 
     # Validate metadata contains Perplexity-specific fields
@@ -66,15 +68,17 @@ async def test_perplexity_api() -> None:
 
     # Check if citations are present
     choice = response.choices[0]
-    if (hasattr(choice.message, 'content') and
-            isinstance(choice.message.content, list)):
+    if hasattr(choice.message, "content") and isinstance(choice.message.content, list):
         for part in choice.message.content:
-            if (isinstance(part, ContentText) and
-                    hasattr(part, 'citations') and part.citations):
+            if (
+                isinstance(part, ContentText)
+                and hasattr(part, "citations")
+                and part.citations
+            ):
                 # If citations exist, validate they are UrlCitation objects
                 for citation in part.citations:
                     assert isinstance(citation, UrlCitation)
-                    assert citation.url.startswith(('http://', 'https://'))
+                    assert citation.url.startswith(("http://", "https://"))
 
 
 @pytest.mark.anyio
@@ -90,21 +94,12 @@ async def test_perplexity_citation_mapping(monkeypatch) -> None:
             {
                 "index": 0,
                 "finish_reason": "stop",
-                "message": {
-                    "content": "Test response content",
-                    "role": "assistant"
-                }
+                "message": {"content": "Test response content", "role": "assistant"},
             }
         ],
-        "citations": [
-            "https://example.com"
-        ],
+        "citations": ["https://example.com"],
         "search_results": [
-            {
-                "title": "Example",
-                "url": "https://example.com",
-                "date": "2023-12-25"
-            }
+            {"title": "Example", "url": "https://example.com", "date": "2023-12-25"}
         ],
         "usage": {
             "prompt_tokens": 2,
@@ -119,11 +114,7 @@ async def test_perplexity_citation_mapping(monkeypatch) -> None:
 
     output = ModelOutput(
         model="perplexity/sonar",
-        choices=[
-            ChatCompletionChoice(
-                message=ChatMessageAssistant(content="hello")
-            )
-        ],
+        choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="hello"))],
     )
     call = ModelCall.create({}, {})
 

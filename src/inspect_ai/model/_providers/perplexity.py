@@ -1,5 +1,7 @@
 from typing import Any, cast
 
+from openai.types.chat import ChatCompletion
+
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
 from inspect_ai.model._generate_config import GenerateConfig
@@ -11,7 +13,6 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice
-from .._openai import ChatCompletion
 
 
 class PerplexityAPI(OpenAICompatibleAPI):
@@ -58,7 +59,7 @@ class PerplexityAPI(OpenAICompatibleAPI):
             search_results = response.get("search_results")
             if isinstance(search_results, list):
                 citations = [
-                    UrlCitation(title=sr.get("title"), url=sr.get("url"))
+                    UrlCitation(title=sr.get("title"), url=sr.get("url", ""))
                     for sr in search_results
                     if isinstance(sr, dict) and sr.get("url") is not None
                 ]
@@ -117,6 +118,6 @@ class PerplexityAPI(OpenAICompatibleAPI):
         return output, call
 
     def chat_choices_from_completion(
-        self, completion: "ChatCompletion", tools: list["ToolInfo"]
-    ) -> list["ChatCompletionChoice"]:
+        self, completion: ChatCompletion, tools: list[ToolInfo]
+    ) -> list[ChatCompletionChoice]:
         return chat_choices_from_openai(completion, tools)
