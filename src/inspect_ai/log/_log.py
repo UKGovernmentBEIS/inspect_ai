@@ -422,7 +422,7 @@ class EvalSample(BaseModel):
             # warning will handle this)
             del values["transcript"]
 
-        return migrate_sandbox_spec(values)
+        return migrate_values(values)
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -707,7 +707,10 @@ class EvalSpec(BaseModel):
     """Attributes of the @task decorator."""
 
     task_args: dict[str, Any] = Field(default_factory=dict)
-    """Arguments used for invoking the task."""
+    """Arguments used for invoking the task (including defaults)."""
+
+    task_args_passed: dict[str, Any] = Field(default_factory=dict)
+    """Arguments explicitly passed by caller for invoking the task."""
 
     solver: str | None = Field(default=None)
     """Solver name."""
@@ -782,16 +785,18 @@ class EvalSpec(BaseModel):
     def read_sandbox_spec(
         cls: Type["EvalSpec"], values: dict[str, Any]
     ) -> dict[str, Any]:
-        return migrate_sandbox_spec(values)
+        return migrate_values(values)
 
 
-def migrate_sandbox_spec(values: dict[str, Any]) -> dict[str, Any]:
+def migrate_values(values: dict[str, Any]) -> dict[str, Any]:
     if "sandbox" in values:
         sandbox = values.get("sandbox")
         if isinstance(sandbox, list):
             values["sandbox"] = SandboxEnvironmentSpec(
                 type=sandbox[0], config=sandbox[1]
             )
+    if "task_args_passed" not in values:
+        values["task_args_passed"] = values.get("task_args", {})
     return values
 
 

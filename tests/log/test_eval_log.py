@@ -184,6 +184,12 @@ def test_can_load_log_with_all_tool_call_errors():
     read_eval_log(log_file)
 
 
+def test_log_provides_migrated_task_passed_args():
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_tool_call_error.json")
+    log = read_eval_log(log_file)
+    assert log.eval.task_args_passed == {"foo": "bar"}
+
+
 def check_log_location(log_file: str):
     location = filesystem(log_file).info(log_file).name
     log = read_eval_log(location)
