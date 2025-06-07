@@ -5,6 +5,7 @@ from test_helpers.utils import failing_solver, skip_if_no_google, skip_if_no_ope
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.solver import solver
@@ -71,7 +72,7 @@ def test_model_role_eval_set() -> None:
             retry_attempts=5,
             model_roles={RED_TEAM: GEMINI_FLASH_20},
         )
-        check_model_role(logs[0], RED_TEAM, GEMINI_FLASH_20)
+        check_model_role(read_eval_log(logs[0].location), RED_TEAM, GEMINI_FLASH_20)
 
 
 def check_model_role(log: EvalLog, role: str, model: str) -> None:
