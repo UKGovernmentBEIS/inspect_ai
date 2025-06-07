@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Anthropic: Support for binding to internal `web search()` tool.
+- Add [Perplexity](https://inspect.aisi.org.uk/providers.html#perplexity) model provider.
 - Content: Added `ContentData` for model specific content blocks.
 - Citations: Added `Citation` suite of types and included citations in `ContentText` (supported for OpenAI and Anthropic models).
 - Added development container (`.devcontainer`) configuration.

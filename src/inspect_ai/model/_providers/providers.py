@@ -218,6 +218,17 @@ def openrouter() -> type[ModelAPI]:
     return OpenRouterAPI
 
 
+@modelapi(name="perplexity")
+def perplexity() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("Perplexity API")
+
+    # in the clear
+    from .perplexity import PerplexityAPI
+
+    return PerplexityAPI
+
+
 @modelapi(name="llama-cpp-python")
 def llama_cpp_python() -> type[ModelAPI]:
     # validate
