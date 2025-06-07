@@ -1,4 +1,5 @@
 import functools
+from pathlib import Path
 from typing import Any, Callable, Literal, cast
 
 import click
@@ -251,6 +252,20 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help="Limit on total working time (e.g. model generation, tool calls, etc.) for each sample.",
         envvar="INSPECT_EVAL_WORKING_LIMIT",
+    )
+    @click.option(
+        "--cost-limit",
+        type=float,
+        help="Limit on idealized inference cost for each sample, assuming no local caching (treats the local inspect cache reads as real token spend). Must be used with a cost file (--cost-file)",
+        envvar="INSPECT_EVAL_COST_LIMIT",
+    )
+    @click.option(
+        "--cost-file",
+        type=click.Path(
+            exists=True, file_okay=True, dir_okay=False, readable=True, path_type=Path
+        ),
+        help="Path to a JSON file mapping model names to per token costs, see docs for format details.",
+        envvar="INSPECT_EVAL_COST_FILE",
     )
     @click.option(
         "--fail-on-error",
@@ -546,6 +561,8 @@ def eval_command(
     token_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: float | None,
+    cost_file: Path | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -602,6 +619,8 @@ def eval_command(
         token_limit=token_limit,
         time_limit=time_limit,
         working_limit=working_limit,
+        cost_limit=cost_limit,
+        cost_file=cost_file,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -722,6 +741,8 @@ def eval_set_command(
     token_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: float | None,
+    cost_file: Path | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -783,6 +804,8 @@ def eval_set_command(
         token_limit=token_limit,
         time_limit=time_limit,
         working_limit=working_limit,
+        cost_limit=cost_limit,
+        cost_file=cost_file,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -842,6 +865,8 @@ def eval_exec(
     token_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: float | None,
+    cost_file: Path | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -940,6 +965,8 @@ def eval_exec(
             token_limit=token_limit,
             time_limit=time_limit,
             working_limit=working_limit,
+            cost_limit=cost_limit,
+            cost_file=cost_file,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
