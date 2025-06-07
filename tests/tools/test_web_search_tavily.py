@@ -4,6 +4,8 @@ from unittest.mock import patch
 import httpx
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentText
 from inspect_ai.tool._tools._web_search._tavily import tavily_search_provider
 
 # See https://docs.tavily.com/documentation/api-reference/endpoint/search
@@ -64,8 +66,18 @@ class TestTavilySearchRendering:
                 result = await search("test query")
 
                 # Verify the result contains all expected content
-                assert "Answer: test answer" in result
-                assert "[First Result](https://example.com/1):" in result
-                assert "This is the first search result content." in result
-                assert "[Second Result](https://example.com/2):" in result
-                assert "This is the second search result content." in result
+                assert result == ContentText(
+                    text="test answer",
+                    citations=[
+                        UrlCitation(
+                            title="First Result",
+                            cited_text="This is the first search result content.",
+                            url="https://example.com/1",
+                        ),
+                        UrlCitation(
+                            title="Second Result",
+                            cited_text="This is the second search result content.",
+                            url="https://example.com/2",
+                        ),
+                    ],
+                )

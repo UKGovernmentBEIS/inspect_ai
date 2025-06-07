@@ -87,6 +87,7 @@ ipython_config.py
 # VSCode
 # Ignore developer specific files.
 .vscode/bookmarks.json
+*.code-workspace
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is

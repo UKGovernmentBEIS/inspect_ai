@@ -6,9 +6,9 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { useLogSelection, usePrevious, useSampleData } from "../../state/hooks";
 import { useStatefulScrollPosition } from "../../state/scrolling";
 import { useStore } from "../../state/store";
-import { useSampleNavigation } from "../routing/navigationHooks";
 import { SampleDisplay } from "./SampleDisplay";
 
+import { useSampleNavigation } from "../routing/sampleNavigation";
 import styles from "./SampleDialog.module.css";
 
 interface SampleDialogProps {

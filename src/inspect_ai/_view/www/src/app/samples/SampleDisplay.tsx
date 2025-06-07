@@ -37,7 +37,7 @@ import { formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
-import { useSampleDetailNavigation } from "../routing/navigationHooks";
+import { useSampleDetailNavigation } from "../routing/sampleNavigation";
 import { sampleUrl } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";

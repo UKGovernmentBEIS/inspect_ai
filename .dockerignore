@@ -1,0 +1,10 @@
+*
+
+!pyproject.toml
+!requirements.txt
+!uv.lock
+
+!LICENSE
+!README.md
+
+!src/**/*.py

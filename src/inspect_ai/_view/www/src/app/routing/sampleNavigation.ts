@@ -3,84 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
-import { logUrl, logUrlRaw, sampleUrl } from "./url";
-
-export const useLogNavigation = () => {
-  const navigate = useNavigate();
-  const { logPath } = useParams<{ logPath: string }>();
-  const logs = useStore((state) => state.logs.logs);
-  const loadedLog = useStore((state) => state.log.loadedLog);
-
-  const selectTab = useCallback(
-    (tabId: string) => {
-      // Only update URL if we have a loaded log
-      if (loadedLog && logPath) {
-        // We already have the logPath from params, just navigate to the tab
-        const url = logUrlRaw(logPath, tabId);
-        navigate(url);
-      } else if (loadedLog) {
-        // Fallback to constructing the path if needed
-        const url = logUrl(loadedLog, logs.log_dir, tabId);
-        navigate(url);
-      }
-    },
-    [loadedLog, logPath, logs.log_dir, navigate],
-  );
-
-  return {
-    selectTab,
-  };
-};
-
-export const useSampleUrl = () => {
-  const { logPath, tabId, sampleTabId } = useParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleTabId?: string;
-  }>();
-
-  const logDirectory = useStore((state) => state.logs.logs.log_dir);
-
-  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-
-  // Helper function to resolve the log path for URLs
-  const resolveLogPath = useCallback(() => {
-    // If we have a logPath from URL params, use that
-    if (logPath) {
-      return logPath;
-    }
-
-    if (selectedLogFile) {
-      return directoryRelativeUrl(selectedLogFile, logDirectory);
-    }
-
-    return undefined;
-  }, [logPath, selectedLogFile, logDirectory]);
-
-  // Get a sample URL for a specific sample
-  const getSampleUrl = useCallback(
-    (
-      sampleId: string | number,
-      epoch: number,
-      specificSampleTabId?: string,
-    ) => {
-      const resolvedPath = resolveLogPath();
-      if (resolvedPath) {
-        const currentSampleTabId = specificSampleTabId || sampleTabId;
-        const url = sampleUrl(
-          resolvedPath,
-          sampleId,
-          epoch,
-          currentSampleTabId,
-        );
-        return url;
-      }
-      return undefined;
-    },
-    [resolveLogPath, tabId, sampleTabId],
-  );
-  return getSampleUrl;
-};
+import { logUrlRaw, sampleUrl } from "./url";
 
 /**
  * Hook that provides sample navigation utilities with proper URL handling
@@ -127,6 +50,7 @@ export const useSampleNavigation = () => {
   const setShowingSampleDialog = useStore(
     (state) => state.appActions.setShowingSampleDialog,
   );
+  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
 
   // Navigate to a specific sample with index
   const showSample = useCallback(
@@ -163,22 +87,51 @@ export const useSampleNavigation = () => {
     ],
   );
 
+  const navigateSampleIndex = useCallback(
+    (index: number) => {
+      if (index > -1 && index < sampleSummaries.length) {
+        if (showingSampleDialog) {
+          const resolvedPath = resolveLogPath();
+          if (resolvedPath) {
+            const summary = sampleSummaries[index];
+            const url = sampleUrl(
+              resolvedPath,
+              summary.id,
+              summary.epoch,
+              sampleTabId,
+            );
+
+            // Navigate to the sample URL
+            navigate(url);
+          }
+        } else {
+          selectSample(index);
+        }
+      }
+    },
+    [
+      selectedSampleIndex,
+      showSample,
+      sampleTabId,
+      sampleSummaries,
+      showingSampleDialog,
+      resolveLogPath,
+      navigate,
+    ],
+  );
+
   // Navigate to the next sample
   const nextSample = useCallback(() => {
     const itemsCount = sampleSummaries.length;
     const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
-    if (next > -1) {
-      selectSample(next);
-    }
-  }, [selectedSampleIndex, showSample, sampleTabId]);
+    navigateSampleIndex(next);
+  }, [selectedSampleIndex, navigateSampleIndex, sampleSummaries]);
 
   // Navigate to the previous sample
   const previousSample = useCallback(() => {
     const prev = selectedSampleIndex - 1;
-    if (prev > -1) {
-      selectSample(prev);
-    }
-  }, [selectedSampleIndex, showSample, sampleTabId]);
+    navigateSampleIndex(prev);
+  }, [selectedSampleIndex, navigateSampleIndex]);
 
   // Get a sample URL for a specific sample
   const getSampleUrl = useCallback(
