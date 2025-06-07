@@ -1,6 +1,6 @@
 import json
 import logging
-from decimal import getcontext
+from decimal import Decimal, getcontext
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_FIELDS = [
     "input_cost_per_token",
-    "cache_read_input_token_cost",
     "output_cost_per_token",
 ]
 
@@ -46,7 +45,7 @@ class _CostCalculator:
     def _model_data_valid(data):
         return all([x in data for x in REQUIRED_FIELDS])
 
-    def get_cost(self, model_name, usage):
+    def get_cost(self, model_name, usage) -> Decimal:
         if model_name not in self._costs:
             # Retry after dropping initial slash
             if "/" in model_name:
@@ -62,11 +61,17 @@ class _CostCalculator:
                 f"Invalid pricing data for {model_name} in {self._cost_file}"
             )
 
+        # Blank cache implies no cached read discount
+        if "cache_read_input_token_cost" not in model_cost:
+            model_cost["cache_read_input_token_cost"] = model_cost[
+                "input_cost_per_token"
+            ]
+
         cached_input_tokens = usage.input_tokens_cache_read or 0
         uncached_input_tokens = usage.input_tokens - cached_input_tokens
         output_tokens = usage.output_tokens
 
-        return (
+        return Decimal(
             model_cost["input_cost_per_token"] * uncached_input_tokens
             + model_cost["cache_read_input_token_cost"] * cached_input_tokens
             + model_cost["output_cost_per_token"] * output_tokens
