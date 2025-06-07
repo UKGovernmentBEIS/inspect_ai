@@ -13,6 +13,7 @@ def trim_messages(
     - Retaining the 'input' messages from the sample.
     - Preserving a proportion of the remaining messages (`preserve=0.7` by default).
     - Ensuring that all assistant tool calls have corresponding tool messages.
+    - Ensuring that the sequence of messages doesn't end with an assistant message.
 
     Args:
         messages: List of messages to trim.
@@ -48,6 +49,10 @@ def trim_messages(
         elif message.role == "user":
             active_tool_ids = set()
             conversation_messages.append(message)
+
+    # it's possible that we end with an assistant message w/ if so, remove it
+    if len(conversation_messages) and conversation_messages[-1].role == "assistant":
+        conversation_messages.pop()
 
     # return trimmed messages
     return partitioned.system + partitioned.input + conversation_messages

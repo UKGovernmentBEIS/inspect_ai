@@ -49,7 +49,7 @@ def test_simple_conversation() -> None:
         ChatMessageAssistant(content="How can I help you today?"),
     ]
     # With default preserve=0.7, all messages should be retained
-    assert trim_messages(messages) == messages
+    assert trim_messages(messages) == messages[:-1]
 
 
 def test_no_system_messages() -> None:
@@ -58,7 +58,7 @@ def test_no_system_messages() -> None:
         ChatMessageUser(content="Hello!"),
         ChatMessageAssistant(content="How can I help you today?"),
     ]
-    assert trim_messages(messages) == messages
+    assert trim_messages(messages) == messages[:-1]
 
 
 def test_preserve_ratio() -> None:
@@ -74,7 +74,7 @@ def test_preserve_ratio() -> None:
     trimmed = trim_messages(messages, preserve=0.5)
 
     # System message + user message + 10 preserved conversation messages (5 user-assistant pairs)
-    assert len(trimmed) == 2 + 10
+    assert len(trimmed) == 2 + 10 - 1
     # The system message should be the first one
     assert trimmed[0] == system_message
     assert trimmed[1].content == "User message 0"
@@ -248,7 +248,7 @@ def test_preserve_edge_cases() -> None:
     # Test with preserve=1
     trimmed = trim_messages(messages, preserve=1)
     # All messages should be preserved
-    assert trimmed == messages
+    assert trimmed == messages[:-1]
 
     # Test with preserve > 1
     with pytest.raises(ValueError):
@@ -357,7 +357,7 @@ def test_alternating_conversation() -> None:
 
     assert system_count == 1
     assert user_count == 6
-    assert assistant_count == 5
+    assert assistant_count == 4
 
     # The conversation should start with "User message 0"
     first_user_idx = next(i for i, m in enumerate(trimmed) if m.role == "user")
