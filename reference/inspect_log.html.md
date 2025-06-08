@@ -53,7 +53,7 @@ inspect log list [OPTIONS]
 | `--no-recursive` | boolean | List log files recursively (defaults to True). | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
-| `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
+| `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
 | `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
 | `--debug` | boolean | Wait to attach debugger | `False` |

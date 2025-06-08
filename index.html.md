@@ -204,6 +204,7 @@ within Python using the `eval()` function. For example:
 
 ``` python
 from inspect_ai import eval
+from .tasks import theory_of_mind
 
 eval(theory_of_mind(), model="openai/gpt-4o")
 ```

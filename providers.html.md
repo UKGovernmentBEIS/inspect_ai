@@ -9,7 +9,7 @@ providers is built in to Inspect:
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek) |
+| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), |
@@ -540,6 +540,40 @@ provider:
 | `CLOUDFLARE_ACCOUNT_ID` | Account id (required). |
 | `CLOUDFLARE_API_TOKEN` | API key credentials (required). |
 | `CLOUDFLARE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
+
+## Perplexity
+
+> [!NOTE]
+>
+> The Perplexity model provider is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+To use the [Perplexity](https://www.perplexity.ai/) provider, install
+the `openai` package (if not already installed), set your credentials,
+and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export PERPLEXITY_API_KEY=your-perplexity-api-key
+inspect eval arc.py --model perplexity/sonar
+```
+
+The following environment variables are supported by the Perplexity
+provider
+
+| Variable | Description |
+|----|----|
+| `PERPLEXITY_API_KEY` | API key credentials (required). |
+| `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
+
+Perplexity responses include citations when available. These are
+surfaced as `UrlCitation`s attached to the assistant message. Additional
+usage metrics such as `reasoning_tokens` and `citation_tokens` are
+recorded in `ModelOutput.metadata`.
 
 ## Hugging Face
 
