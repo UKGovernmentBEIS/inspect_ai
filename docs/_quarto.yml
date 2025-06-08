@@ -45,6 +45,8 @@ website:
           - text: "Evals"
             href: evals/index.qmd
       right: 
+          - text: "Changelog"
+            href: CHANGELOG.md
           - icon: github
             href: https://github.com/UKGovernmentBEIS/inspect_ai
       
