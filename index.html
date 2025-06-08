@@ -524,9 +524,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="welcome" class="level2">
 <h2 class="anchored" data-anchor-id="welcome">Welcome</h2>
 <p>Welcome to Inspect, a framework for large language model evaluations created by the <a href="https://aisi.gov.uk">UK AI Security Institute</a>.</p>
-<p>Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g.&nbsp;to support new elicitation and scoring techniques) can be provided by other Python packages.</p>
-<p><a href="images/inspect.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect.png" class="border img-fluid" alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."></a></p>
-<p>We’ll walk through a fairly trivial “Hello, Inspect” example below. Read on to learn the basics, then read the documentation on <a href="./options.html">Options</a>, <a href="./solvers.html">Solvers</a>, <a href="./tools.html">Tools</a>, <a href="./scorers.html">Scorers</a>, <a href="./datasets.html">Datasets</a>, and <a href="./models.html">Models</a> to learn how to create more advanced evaluations.</p>
+<p>Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:</p>
+<div class="welcome-bullets">
+<ul>
+<li>A set of straightforward interfaces for implementing evalutions and re-using components across evaluations.</li>
+<li>Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.</li>
+<li>Support for running many evaluation tasks in parallel, including automatic retry with preservation of previous work for tasks which fail.</li>
+<li>Flexible support for tool calling—custom and MCP tools, as well as built-in bash, python, text editing, web search, web browing, and comptuer tools.</li>
+<li>Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents, and agent observability in Inspect View.</li>
+<li>A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Proxmox, and other systems via an extension API.</li>
+</ul>
+</div>
+<p>We’ll walk through a fairly trivial “Hello, Inspect” example below. Read on to learn the basics, then read the documentation on <a href="./datasets.html">Datasets</a>, <a href="./solvers.html">Solvers</a>, <a href="./scorers.html">Scorers</a>, <a href="./tools.html">Tools</a>, and <a href="./agents.html">Agents</a> to learn how to create more advanced evaluations.</p>
 </section>
 <section id="getting-started" class="level2">
 <h2 class="anchored" data-anchor-id="getting-started">Getting Started</h2>
@@ -573,7 +582,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama or llama-cpp-python.</p>
+<p>In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama or llama-cpp-python. See the documentation on <a href="./providers.html">Model Providers</a> for additional details.</p>
 </section>
 <section id="sec-hello-inspect" class="level2">
 <h2 class="anchored" data-anchor-id="sec-hello-inspect">Hello, Inspect</h2>
@@ -655,7 +664,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>If you are using VS Code, we recommend installing the <a href="./vscode.html">Inspect VS Code Extension</a> and using its integrated log browsing and viewing.</p>
 <p>For other editors, you can use the <code>inspect view</code> command to open a log viewer in the browser (you only need to do this once as the viewer will automatically updated when new evals are run):</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-home.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-home.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."></a></p>
+<p><a href="images/inspect-view-home.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-home.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."></a></p>
 <p>See the <a href="./log-viewer.html">Log Viewer</a> section for additional details on using Inspect View.</p>
 </section>
 <section id="eval-from-python" class="level2">
@@ -1267,7 +1276,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","selector":".lightbox","loop":false,"closeEffect":"zoom","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom","openEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
