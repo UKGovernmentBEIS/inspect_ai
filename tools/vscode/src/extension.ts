@@ -153,7 +153,9 @@ export async function activate(context: ExtensionContext) {
 
   start("Final Setup");
   // Register the log view link provider
-  window.registerTerminalLinkProvider(logviewTerminalLinkProvider());
+  window.registerTerminalLinkProvider(
+    logviewTerminalLinkProvider(context, logsWatcher),
+  );
 
   // Activate Code Lens
   activateCodeLens(context);
