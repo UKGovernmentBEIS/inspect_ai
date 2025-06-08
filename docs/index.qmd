@@ -20,7 +20,6 @@ Inspect can be used for a broad range of evaluations that measure coding, agenti
 ::: {.welcome-bullets}
 - A set of straightforward interfaces for implementing evalutions and re-using components across evaluations.
 - Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
-- Support for running many evaluation tasks in parallel, including automatic retry with preservation of previous work for tasks which fail.
 - Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browing, and comptuer tools.
 - Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents, and agent observability in Inspect View.
 - A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Proxmox, and other systems via an extension API.
