@@ -690,6 +690,7 @@ export interface EvalSpec {
   task_registry_name: TaskRegistryName;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;
+  task_args_passed: TaskArgsPassed;
   solver: Solver;
   solver_args: SolverArgs;
   tags: Tags;
@@ -711,6 +712,9 @@ export interface TaskAttribs {
   [k: string]: unknown;
 }
 export interface TaskArgs {
+  [k: string]: unknown;
+}
+export interface TaskArgsPassed {
   [k: string]: unknown;
 }
 /**

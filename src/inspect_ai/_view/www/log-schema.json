@@ -2688,6 +2688,11 @@
           "title": "Task Args",
           "type": "object"
         },
+        "task_args_passed": {
+          "additionalProperties": true,
+          "title": "Task Args Passed",
+          "type": "object"
+        },
         "solver": {
           "anyOf": [
             {
@@ -2866,6 +2871,7 @@
         "task_registry_name",
         "task_attribs",
         "task_args",
+        "task_args_passed",
         "solver",
         "solver_args",
         "tags",
