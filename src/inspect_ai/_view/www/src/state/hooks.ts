@@ -606,7 +606,7 @@ export const useLogs = () => {
         console.log("done fetching headers for", logFiles);
       } catch (e) {
         log.error("Error loading log headers", e);
-        setHeaders({});
+        setHeaders({ ...existingHeaders });
       } finally {
         setHeadersLoading(false);
       }

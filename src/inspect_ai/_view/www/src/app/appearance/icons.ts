@@ -58,7 +58,8 @@ export const ApplicationIcons = {
   home: "bi bi-house",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",
-  inspect: "bi bi-gear",
+  inspect: "ii inspect-icon-16",
+  inspectFile: "ii inspect-icon-file",
   json: "bi bi-filetype-json",
   limits: {
     messages: "bi bi-chat-right-text",
@@ -78,6 +79,12 @@ export const ApplicationIcons = {
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",
   "multiple-choice": "bi bi-card-list",
+  navbar: {
+    home: "ii inspect-icon-home",
+    back: "ii inspect-icon-back",
+    inspectLogo: "ii inspect-icon-16",
+  },
+
   next: "bi bi-chevron-right",
   noSamples: "bi bi-ban",
   play: "bi bi-play-fill",

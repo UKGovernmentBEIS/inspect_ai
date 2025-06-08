@@ -43,13 +43,13 @@ export const Navbar: FC<NavbarProps> = () => {
     >
       <div className={clsx(styles.left)}>
         <Link to={backUrl} className={clsx(styles.toolbarButton)}>
-          <i className={clsx(ApplicationIcons.previous)} />
+          <i className={clsx(ApplicationIcons.navbar.back)} />
         </Link>
         <Link
           to={logUrl("", logs.log_dir)}
           className={clsx(styles.toolbarButton)}
         >
-          <i className={clsx(ApplicationIcons.home)} />
+          <i className={clsx(ApplicationIcons.navbar.home)} />
         </Link>
 
         <ol className={clsx("breadcrumb", styles.breadcrumbs)}>

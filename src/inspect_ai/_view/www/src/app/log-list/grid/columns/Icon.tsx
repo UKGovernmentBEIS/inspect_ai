@@ -13,7 +13,7 @@ export const iconColumn = () => {
         <i
           className={clsx(
             info.getValue() === "file"
-              ? ApplicationIcons.file
+              ? ApplicationIcons.inspectFile
               : ApplicationIcons.folder,
           )}
         />

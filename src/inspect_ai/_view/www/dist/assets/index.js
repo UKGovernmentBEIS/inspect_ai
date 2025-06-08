@@ -24481,11 +24481,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       confirm: "bi bi-check",
       copy: "bi bi-copy",
       error: "bi bi-exclamation-circle",
-      file: "bi bi-file-code",
       folder: "bi bi-folder",
-      home: "bi bi-house",
       info: "bi bi-info-circle",
       input: "bi bi-terminal",
+      inspectFile: "ii inspect-icon-file",
       limits: {
         messages: "bi bi-chat-right-text",
         custom: "bi bi-exclamation-triangle",
@@ -24498,6 +24497,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       logging: loggingIcons,
       metadata: "bi bi-table",
       model: "bi bi-grid-3x3-gap",
+      navbar: {
+        home: "ii inspect-icon-home",
+        back: "ii inspect-icon-back"
+      },
       next: "bi bi-chevron-right",
       noSamples: "bi bi-ban",
       play: "bi bi-play-fill",
@@ -47671,7 +47674,7 @@ categories: ${categories.join(" ")}`;
             console.log("done fetching headers for", logFiles);
           } catch (e) {
             log.error("Error loading log headers", e);
-            setHeaders({});
+            setHeaders({ ...existingHeaders });
           } finally {
             setHeadersLoading(false);
           }
@@ -47800,10 +47803,10 @@ categories: ${categories.join(" ")}`;
       }
       return path.endsWith("/") ? path : path + "/";
     };
-    const header$3 = "_header_cjk37_1";
-    const breadcrumbs = "_breadcrumbs_cjk37_11";
-    const left$2 = "_left_cjk37_17";
-    const toolbarButton = "_toolbarButton_cjk37_26";
+    const header$3 = "_header_1lin6_1";
+    const breadcrumbs = "_breadcrumbs_1lin6_11";
+    const left$2 = "_left_1lin6_17";
+    const toolbarButton = "_toolbarButton_1lin6_26";
     const styles$1e = {
       header: header$3,
       breadcrumbs,
@@ -47837,13 +47840,13 @@ categories: ${categories.join(" ")}`;
           className: clsx("text-size-smaller", styles$1e.header),
           "aria-label": "breadcrumb",
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1e.left), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: backUrl, className: clsx(styles$1e.toolbarButton), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.previous) }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: backUrl, className: clsx(styles$1e.toolbarButton), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.back) }) }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               Link,
               {
                 to: logUrl("", logs.log_dir),
                 className: clsx(styles$1e.toolbarButton),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.home) })
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.home) })
               }
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1e.breadcrumbs), children: segments == null ? void 0 : segments.map((segment, index2) => {
@@ -50964,7 +50967,7 @@ categories: ${categories.join(" ")}`;
         }
       });
     };
-    const iconCell = "_iconCell_r7y7d_1";
+    const iconCell = "_iconCell_1jobp_1";
     const styles$19 = {
       iconCell
     };
@@ -50976,7 +50979,7 @@ categories: ${categories.join(" ")}`;
           "i",
           {
             className: clsx(
-              info.getValue() === "file" ? ApplicationIcons.file : ApplicationIcons.folder
+              info.getValue() === "file" ? ApplicationIcons.inspectFile : ApplicationIcons.folder
             )
           }
         ) }),

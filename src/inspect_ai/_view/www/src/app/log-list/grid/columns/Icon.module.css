@@ -5,3 +5,7 @@
   font-size: 1rem;
   color: var(--bs-gray-600);
 }
+
+:global(.ii:before) {
+  background-color: var(--bs-gray-600);
+}
