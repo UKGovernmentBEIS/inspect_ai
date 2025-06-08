@@ -25,7 +25,7 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_http_retries_str
-from ..core.panel import task_panel, task_targets
+from ..core.panel import task_panel
 from ..core.results import task_metric, tasks_results
 
 
@@ -79,7 +79,7 @@ class PlainDisplay(Display):
             profile=profile,
             show_model=True,
             body="",  # Empty body since we haven't started yet
-            subtitle=(task_config(profile), task_targets(profile)),
+            subtitle=task_config(profile),
             footer=None,
             log_location=None,
         )

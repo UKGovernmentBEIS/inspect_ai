@@ -7,6 +7,7 @@
 - Eval log: `task_args` now includes defaulted args (formerly it only included explicitly passed args).
 - Added development container (`.devcontainer`) configuration.
 - `trim_messages()` now removes any trailing assistant message after compaction.
+- Task display: Ensure that full path to log file is always displayed (wrap as required).
 - Inspect View: Add support for displaying citations for web searches in the transcript.
 - Inspect View: Correctly update browser URL when navigation between samples.
 
