@@ -160,6 +160,18 @@ def set_active_sample_total_messages(total_messages: int) -> None:
         active.total_messages = total_messages
 
 
+def set_active_sample_cost_limit(cost_limit: Decimal | None) -> None:
+    active = sample_active()
+    if active:
+        active.cost_limit = cost_limit
+
+
+def set_active_sample_total_cost(total_cost: Decimal) -> None:
+    active = sample_active()
+    if active:
+        active.total_cost = total_cost
+
+
 _active_model_event: ContextVar[ModelEvent | None] = ContextVar(
     "_active_model_event", default=None
 )

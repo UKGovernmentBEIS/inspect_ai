@@ -59,6 +59,7 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
+    calculate_model_usage_cost,
     check_cost_limit,
     check_message_limit,
     check_token_limit,
@@ -1460,7 +1461,10 @@ def init_sample_model_usage() -> None:
 
 
 def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
-    from inspect_ai.log._samples import set_active_sample_total_tokens
+    from inspect_ai.log._samples import (
+        set_active_sample_total_cost,
+        set_active_sample_total_tokens,
+    )
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
@@ -1477,6 +1481,7 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
 
     # update active sample
     set_active_sample_total_tokens(total_tokens)
+    set_active_sample_total_cost(total_cost)
 
     check_token_limit()
     check_cost_limit()

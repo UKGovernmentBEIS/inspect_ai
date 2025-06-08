@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
+from decimal import Decimal
 from random import Random
 from typing import Any, Type, Union, cast, overload
 
@@ -325,6 +326,24 @@ class TaskState:
         from inspect_ai.log._samples import set_active_sample_message_limit
 
         set_active_sample_message_limit(messages)
+
+    @property
+    def cost_limit(self) -> Decimal | None:
+        """Limit on total messages allowed per conversation."""
+        return self._cost_limit.limit
+
+    @cost_limit.setter
+    def cost_limit(self, cost: Decimal | None) -> None:
+        """Set limit on total idealized cost allowed per conversation.
+
+        Also checks whether the current cost exceeds the new limit.
+        """
+        self._cost_limit.limit = cost
+        # check_cost_limit(len(self.messages), raise_for_equal=False) # XXX TODO
+
+        from inspect_ai.log._samples import set_active_sample_cost_limit
+
+        set_active_sample_cost_limit(cost)
 
     @property
     def token_limit(self) -> int | None:
