@@ -16,7 +16,8 @@ group_order = {
     "Mathematics": 5,
     "Reasoning": 6,
     "Knowledge": 7,
-    "Multimodal": 8
+    "Scheming": 8,
+    "Personality": 9
 }
     
 records = sorted(records, key=lambda x: group_order.get(x["group"], float('inf')))    

@@ -158,6 +158,20 @@
   tasks:
   - core_bench
   title: CORE-Bench
+- arxiv: https://arxiv.org/abs/2404.10952
+  categories:
+  - Coding
+  contributors:
+  - danwilhelm
+  description: 'Evaluates language model performance on difficult Olympiad programming
+    problems across four difficulty levels.
+
+    '
+  group: Coding
+  path: src/inspect_evals/usaco
+  tasks:
+  - usaco
+  title: 'USACO: USA Computing Olympiad'
 - arxiv: https://arxiv.org/abs/2311.12983
   categories:
   - Assistants
@@ -483,7 +497,8 @@
   - xeon27
   dependency: math
   description: 'Dataset of 12,500 challenging competition mathematics problems. Demonstrates
-    fewshot prompting and custom scorers.
+    fewshot prompting and custom scorers. NOTE: The dataset has been taken down due
+    to a DMCA notice from The Art of Problem Solving.
 
     '
   group: Mathematics
@@ -821,6 +836,24 @@
   tasks:
   - paws
   title: 'PAWS: Paraphrase Adversaries from Word Scrambling'
+- arxiv: https://arxiv.org/pdf/2408.02718
+  categories:
+  - Reasoning
+  - Multimodal
+  contributors:
+  - Esther-Guo
+  description: A comprehensive dataset designed to evaluate Large Vision-Language
+    Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses
+    7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously
+    curated multiple-choice questions.
+  group: Reasoning
+  path: src/inspect_evals/mmiu
+  tags:
+  - Multimodal
+  tasks:
+  - mmiu
+  title: 'MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language
+    Models'
 - arxiv: https://arxiv.org/abs/2009.03300
   categories:
   - Knowledge
@@ -1015,6 +1048,20 @@
   tasks:
   - simpleqa
   title: 'SimpleQA: Measuring short-form factuality in large language models'
+- categories:
+  - Knowledge
+  contributors:
+  - alexbrooker
+  description: 'Tests model understanding of aviation regulations including ICAO annexes,
+    flight dispatch rules, pilot procedures, and airport ground operations safety
+    protocols.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/pre_flight
+  tasks:
+  - pre_flight
+  title: 'Pre-Flight: Aviation Operations Knowledge Evaluation'
 - arxiv: https://arxiv.org/pdf/2407.17436
   categories:
   - Knowledge
@@ -1029,18 +1076,66 @@
   tasks:
   - air_bench
   title: 'AIR Bench: AI Risk Benchmark'
-- arxiv: https://arxiv.org/pdf/2408.02718
+- arxiv: https://arxiv.org/abs/2505.01420
   categories:
-  - Multimodal
+  - Scheming
+  - Agent
   contributors:
-  - Esther-Guo
-  description: A comprehensive dataset designed to evaluate Large Vision-Language
-    Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses
-    7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously
-    curated multiple-choice questions.
-  group: Multimodal
-  path: src/inspect_evals/mmiu
+  - ZiyueWang25
+  - XkunW
+  description: 'Test AI''s ability to reason about its environment.
+
+    '
+  group: Scheming
+  path: src/inspect_evals/gdm_capabilities/self_reasoning
+  tags:
+  - Agent
   tasks:
-  - mmiu
-  title: 'MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language
-    Models'
+  - gdm_approved_directories
+  - gdm_calculator_improvement
+  - gdm_context_length_mod_instrumental_only
+  - gdm_context_length_mod_irreversibility_only
+  - gdm_database_tool
+  - gdm_latency_calculator
+  - gdm_max_messages_calculator
+  - gdm_max_tokens
+  - gdm_oversight_frequency
+  - gdm_read_logs
+  - gdm_turn_off_filters
+  title: 'GDM Dangerous Capabilities: Self-Reasoning'
+- arxiv: https://arxiv.org/abs/2505.01420
+  categories:
+  - Scheming
+  - Agent
+  contributors:
+  - ZiyueWang25
+  description: 'Test AI''s ability to reason about and circumvent oversight.
+
+    '
+  group: Scheming
+  path: src/inspect_evals/gdm_capabilities/stealth
+  tags:
+  - Agent
+  tasks:
+  - gdm_classifier_evasion
+  - gdm_cover_your_tracks
+  - gdm_oversight_pattern
+  - gdm_strategic_rule_breaking
+  title: 'GDM Dangerous Capabilities: Stealth'
+- categories:
+  - Personality
+  contributors:
+  - guiem
+  dependency: personality
+  description: "An evaluation suite consisting of multiple personality tests that\
+    \ can be applied to LLMs.\nIts primary goals are twofold:\n  1. Assess a model's\
+    \ default personality: the persona it naturally exhibits without specific prompting.\
+    \  \n  2. Evaluate whether a model can embody a specified persona**: how effectively\
+    \ it adopts certain personality traits when prompted or guided.\n"
+  group: Personality
+  path: src/inspect_evals/personality
+  tasks:
+  - personality_BFI
+  - personality_TRAIT
+  - personality_PRIME
+  title: Personality
