@@ -82,7 +82,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/index.html</loc>
-    <lastmod>2025-06-07T12:46:25.627Z</lastmod>
+    <lastmod>2025-06-08T13:21:50.239Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/typing.html</loc>
@@ -105,36 +105,40 @@
     <lastmod>2025-05-27T14:04:38.183Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/approval.html</loc>
-    <lastmod>2025-04-13T07:38:56.507Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
+    <lastmod>2025-06-08T13:09:37.855Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/agents.html</loc>
-    <lastmod>2025-05-27T14:04:38.183Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/vscode.html</loc>
-    <lastmod>2025-04-10T07:08:47.832Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/solvers.html</loc>
-    <lastmod>2025-05-10T12:31:02.751Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tasks.html</loc>
-    <lastmod>2025-05-10T12:31:02.752Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/evals/index.html</loc>
-    <lastmod>2025-06-08T13:08:28.090Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/tools.html</loc>
+    <lastmod>2025-04-21T16:49:10.938Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/tutorial.html</loc>
     <lastmod>2025-06-03T10:42:02.511Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/tools.html</loc>
-    <lastmod>2025-04-21T16:49:10.938Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/evals/index.html</loc>
+    <lastmod>2025-06-08T13:08:28.090Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tasks.html</loc>
+    <lastmod>2025-05-10T12:31:02.752Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/solvers.html</loc>
+    <lastmod>2025-05-10T12:31:02.751Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/vscode.html</loc>
+    <lastmod>2025-04-10T07:08:47.832Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/agents.html</loc>
+    <lastmod>2025-05-27T14:04:38.183Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/approval.html</loc>
+    <lastmod>2025-04-13T07:38:56.507Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/sandboxing.html</loc>

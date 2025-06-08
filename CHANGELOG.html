@@ -1,0 +1,2274 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>changelog – Inspect</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<meta property="og:title" content="Inspect">
+<meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://inspect.aisi.org.uk//images/inspect.png">
+<meta property="og:site_name" content="Inspect">
+<meta property="og:image:height" content="1258">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
+<meta name="twitter:description" content="Open-source framework for large language model evaluations">
+<meta name="twitter:image" content="https://inspect.aisi.org.uk//images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1258">
+<meta name="twitter:image-width" content="2400">
+</head>
+
+<body class="nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./reference/index.html"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="./CHANGELOG.html" aria-current="page"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#v0.3.103-06-june-2025" id="toc-v0.3.103-06-june-2025" class="nav-link" data-scroll-target="#v0.3.103-06-june-2025">v0.3.103 (06 June 2025)</a></li>
+  <li><a href="#v0.3.102-05-june-2025" id="toc-v0.3.102-05-june-2025" class="nav-link" data-scroll-target="#v0.3.102-05-june-2025">v0.3.102 (05 June 2025)</a></li>
+  <li><a href="#v0.3.101-05-june-2025" id="toc-v0.3.101-05-june-2025" class="nav-link" data-scroll-target="#v0.3.101-05-june-2025">v0.3.101 (05 June 2025)</a></li>
+  <li><a href="#v0.3.100-01-june-2025" id="toc-v0.3.100-01-june-2025" class="nav-link" data-scroll-target="#v0.3.100-01-june-2025">v0.3.100 (01 June 2025)</a></li>
+  <li><a href="#v0.3.99-22-may-2025" id="toc-v0.3.99-22-may-2025" class="nav-link" data-scroll-target="#v0.3.99-22-may-2025">v0.3.99 (22 May 2025)</a></li>
+  <li><a href="#v0.3.98-18-may-2025" id="toc-v0.3.98-18-may-2025" class="nav-link" data-scroll-target="#v0.3.98-18-may-2025">v0.3.98 (18 May 2025)</a></li>
+  <li><a href="#v0.3.97-16-may-2025" id="toc-v0.3.97-16-may-2025" class="nav-link" data-scroll-target="#v0.3.97-16-may-2025">v0.3.97 (16 May 2025)</a></li>
+  <li><a href="#v0.3.96-13-may-2025" id="toc-v0.3.96-13-may-2025" class="nav-link" data-scroll-target="#v0.3.96-13-may-2025">v0.3.96 (13 May 2025)</a></li>
+  <li><a href="#v0.3.95-10-may-2025" id="toc-v0.3.95-10-may-2025" class="nav-link" data-scroll-target="#v0.3.95-10-may-2025">v0.3.95 (10 May 2025)</a></li>
+  <li><a href="#v0.3.94-06-may-2025" id="toc-v0.3.94-06-may-2025" class="nav-link" data-scroll-target="#v0.3.94-06-may-2025">v0.3.94 (06 May 2025)</a></li>
+  <li><a href="#v0.3.93-01-may-2025" id="toc-v0.3.93-01-may-2025" class="nav-link" data-scroll-target="#v0.3.93-01-may-2025">v0.3.93 (01 May 2025)</a></li>
+  <li><a href="#v0.3.92-26-april-2025" id="toc-v0.3.92-26-april-2025" class="nav-link" data-scroll-target="#v0.3.92-26-april-2025">v0.3.92 (26 April 2025)</a></li>
+  <li><a href="#v0.3.91-26-april-2025" id="toc-v0.3.91-26-april-2025" class="nav-link" data-scroll-target="#v0.3.91-26-april-2025">v0.3.91 (26 April 2025)</a></li>
+  <li><a href="#v0.3.90-21-april-2025" id="toc-v0.3.90-21-april-2025" class="nav-link" data-scroll-target="#v0.3.90-21-april-2025">v0.3.90 (21 April 2025)</a></li>
+  <li><a href="#v0.3.89-17-april-2025" id="toc-v0.3.89-17-april-2025" class="nav-link" data-scroll-target="#v0.3.89-17-april-2025">v0.3.89 (17 April 2025)</a></li>
+  <li><a href="#v0.3.88-11-april-2025" id="toc-v0.3.88-11-april-2025" class="nav-link" data-scroll-target="#v0.3.88-11-april-2025">v0.3.88 (11 April 2025)</a></li>
+  <li><a href="#v0.3.87-10-april-2025" id="toc-v0.3.87-10-april-2025" class="nav-link" data-scroll-target="#v0.3.87-10-april-2025">v0.3.87 (10 April 2025)</a></li>
+  <li><a href="#v0.3.86-09-april-2025" id="toc-v0.3.86-09-april-2025" class="nav-link" data-scroll-target="#v0.3.86-09-april-2025">v0.3.86 (09 April 2025)</a></li>
+  <li><a href="#v0.3.85-08-april-2025" id="toc-v0.3.85-08-april-2025" class="nav-link" data-scroll-target="#v0.3.85-08-april-2025">v0.3.85 (08 April 2025)</a></li>
+  <li><a href="#v0.3.84-07-april-2025" id="toc-v0.3.84-07-april-2025" class="nav-link" data-scroll-target="#v0.3.84-07-april-2025">v0.3.84 (07 April 2025)</a></li>
+  <li><a href="#v0.3.83-07-april-2025" id="toc-v0.3.83-07-april-2025" class="nav-link" data-scroll-target="#v0.3.83-07-april-2025">v0.3.83 (07 April 2025)</a></li>
+  <li><a href="#v0.3.82-02-april-2025" id="toc-v0.3.82-02-april-2025" class="nav-link" data-scroll-target="#v0.3.82-02-april-2025">v0.3.82 (02 April 2025)</a></li>
+  <li><a href="#v0.3.81-30-march-2025" id="toc-v0.3.81-30-march-2025" class="nav-link" data-scroll-target="#v0.3.81-30-march-2025">v0.3.81 (30 March 2025)</a></li>
+  <li><a href="#v0.3.80-30-march-2025" id="toc-v0.3.80-30-march-2025" class="nav-link" data-scroll-target="#v0.3.80-30-march-2025">v0.3.80 (30 March 2025)</a></li>
+  <li><a href="#v0.3.79-26-march-2025" id="toc-v0.3.79-26-march-2025" class="nav-link" data-scroll-target="#v0.3.79-26-march-2025">v0.3.79 (26 March 2025)</a></li>
+  <li><a href="#v0.3.78-25-march-2025" id="toc-v0.3.78-25-march-2025" class="nav-link" data-scroll-target="#v0.3.78-25-march-2025">v0.3.78 (25 March 2025)</a></li>
+  <li><a href="#v0.3.77-25-march-2025" id="toc-v0.3.77-25-march-2025" class="nav-link" data-scroll-target="#v0.3.77-25-march-2025">v0.3.77 (25 March 2025)</a></li>
+  <li><a href="#v0.3.76-23-march-2025" id="toc-v0.3.76-23-march-2025" class="nav-link" data-scroll-target="#v0.3.76-23-march-2025">v0.3.76 (23 March 2025)</a></li>
+  <li><a href="#v0.3.75-18-march-2025" id="toc-v0.3.75-18-march-2025" class="nav-link" data-scroll-target="#v0.3.75-18-march-2025">v0.3.75 (18 March 2025)</a></li>
+  <li><a href="#v0.3.74-15-march-2025" id="toc-v0.3.74-15-march-2025" class="nav-link" data-scroll-target="#v0.3.74-15-march-2025">v0.3.74 (15 March 2025)</a></li>
+  <li><a href="#v0.3.73-14-march-2025" id="toc-v0.3.73-14-march-2025" class="nav-link" data-scroll-target="#v0.3.73-14-march-2025">v0.3.73 (14 March 2025)</a></li>
+  <li><a href="#v0.3.72-03-march-2025" id="toc-v0.3.72-03-march-2025" class="nav-link" data-scroll-target="#v0.3.72-03-march-2025">v0.3.72 (03 March 2025)</a></li>
+  <li><a href="#v0.3.71-01-march-2025" id="toc-v0.3.71-01-march-2025" class="nav-link" data-scroll-target="#v0.3.71-01-march-2025">v0.3.71 (01 March 2025)</a></li>
+  <li><a href="#v0.3.70-25-february-2025" id="toc-v0.3.70-25-february-2025" class="nav-link" data-scroll-target="#v0.3.70-25-february-2025">v0.3.70 (25 February 2025)</a></li>
+  <li><a href="#v0.3.69-20-february-2025" id="toc-v0.3.69-20-february-2025" class="nav-link" data-scroll-target="#v0.3.69-20-february-2025">v0.3.69 (20 February 2025)</a></li>
+  <li><a href="#v0.3.68-19-february-2025" id="toc-v0.3.68-19-february-2025" class="nav-link" data-scroll-target="#v0.3.68-19-february-2025">v0.3.68 (19 February 2025)</a></li>
+  <li><a href="#v0.3.67-18-february-2025" id="toc-v0.3.67-18-february-2025" class="nav-link" data-scroll-target="#v0.3.67-18-february-2025">v0.3.67 (18 February 2025)</a></li>
+  <li><a href="#v0.3.66-17-february-2025" id="toc-v0.3.66-17-february-2025" class="nav-link" data-scroll-target="#v0.3.66-17-february-2025">v0.3.66 (17 February 2025)</a></li>
+  <li><a href="#v0.3.65-16-february-2025" id="toc-v0.3.65-16-february-2025" class="nav-link" data-scroll-target="#v0.3.65-16-february-2025">v0.3.65 (16 February 2025)</a></li>
+  <li><a href="#v0.3.64-14-february-2025" id="toc-v0.3.64-14-february-2025" class="nav-link" data-scroll-target="#v0.3.64-14-february-2025">v0.3.64 (14 February 2025)</a></li>
+  <li><a href="#v0.3.63-07-february-2025" id="toc-v0.3.63-07-february-2025" class="nav-link" data-scroll-target="#v0.3.63-07-february-2025">v0.3.63 (07 February 2025)</a></li>
+  <li><a href="#v0.3.62-03-february-2025" id="toc-v0.3.62-03-february-2025" class="nav-link" data-scroll-target="#v0.3.62-03-february-2025">v0.3.62 (03 February 2025)</a></li>
+  <li><a href="#v0.3.61-31-january-2025" id="toc-v0.3.61-31-january-2025" class="nav-link" data-scroll-target="#v0.3.61-31-january-2025">v0.3.61 (31 January 2025)</a></li>
+  <li><a href="#v0.3.60-29-january-2025" id="toc-v0.3.60-29-january-2025" class="nav-link" data-scroll-target="#v0.3.60-29-january-2025">v0.3.60 (29 January 2025)</a></li>
+  <li><a href="#v0.3.59-24-january-2025" id="toc-v0.3.59-24-january-2025" class="nav-link" data-scroll-target="#v0.3.59-24-january-2025">v0.3.59 (24 January 2025)</a></li>
+  <li><a href="#v0.3.58-16-january-2025" id="toc-v0.3.58-16-january-2025" class="nav-link" data-scroll-target="#v0.3.58-16-january-2025">v0.3.58 (16 January 2025)</a></li>
+  <li><a href="#v0.3.57-09-january-2025" id="toc-v0.3.57-09-january-2025" class="nav-link" data-scroll-target="#v0.3.57-09-january-2025">v0.3.57 (09 January 2025)</a></li>
+  <li><a href="#v0.3.56-01-january-2025" id="toc-v0.3.56-01-january-2025" class="nav-link" data-scroll-target="#v0.3.56-01-january-2025">v0.3.56 (01 January 2025)</a></li>
+  <li><a href="#v0.3.55-29-december-2024" id="toc-v0.3.55-29-december-2024" class="nav-link" data-scroll-target="#v0.3.55-29-december-2024">v0.3.55 (29 December 2024)</a></li>
+  <li><a href="#v0.3.54-26-december-2024" id="toc-v0.3.54-26-december-2024" class="nav-link" data-scroll-target="#v0.3.54-26-december-2024">v0.3.54 (26 December 2024)</a></li>
+  <li><a href="#v0.3.53-20-december-2024" id="toc-v0.3.53-20-december-2024" class="nav-link" data-scroll-target="#v0.3.53-20-december-2024">v0.3.53 (20 December 2024)</a></li>
+  <li><a href="#v0.3.52-13-december-2024" id="toc-v0.3.52-13-december-2024" class="nav-link" data-scroll-target="#v0.3.52-13-december-2024">v0.3.52 (13 December 2024)</a></li>
+  <li><a href="#v0.3.51-13-december-2024" id="toc-v0.3.51-13-december-2024" class="nav-link" data-scroll-target="#v0.3.51-13-december-2024">v0.3.51 (13 December 2024)</a></li>
+  <li><a href="#v0.3.50-12-december-2024" id="toc-v0.3.50-12-december-2024" class="nav-link" data-scroll-target="#v0.3.50-12-december-2024">v0.3.50 (12 December 2024)</a></li>
+  <li><a href="#v0.3.49-03-december-2024" id="toc-v0.3.49-03-december-2024" class="nav-link" data-scroll-target="#v0.3.49-03-december-2024">v0.3.49 (03 December 2024)</a></li>
+  <li><a href="#v0.3.48-01-december-2024" id="toc-v0.3.48-01-december-2024" class="nav-link" data-scroll-target="#v0.3.48-01-december-2024">v0.3.48 (01 December 2024)</a></li>
+  <li><a href="#v0.3.47-18-november-2024" id="toc-v0.3.47-18-november-2024" class="nav-link" data-scroll-target="#v0.3.47-18-november-2024">v0.3.47 (18 November 2024)</a></li>
+  <li><a href="#v0.3.46-12-november-2024" id="toc-v0.3.46-12-november-2024" class="nav-link" data-scroll-target="#v0.3.46-12-november-2024">v0.3.46 (12 November 2024)</a></li>
+  <li><a href="#v0.3.45-11-november-2024" id="toc-v0.3.45-11-november-2024" class="nav-link" data-scroll-target="#v0.3.45-11-november-2024">v0.3.45 (11 November 2024)</a></li>
+  <li><a href="#v0.3.44-04-november-2024" id="toc-v0.3.44-04-november-2024" class="nav-link" data-scroll-target="#v0.3.44-04-november-2024">v0.3.44 (04 November 2024)</a></li>
+  <li><a href="#v0.3.43-04-november-2024" id="toc-v0.3.43-04-november-2024" class="nav-link" data-scroll-target="#v0.3.43-04-november-2024">v0.3.43 (04 November 2024)</a></li>
+  <li><a href="#v0.3.42-23-october-2024" id="toc-v0.3.42-23-october-2024" class="nav-link" data-scroll-target="#v0.3.42-23-october-2024">v0.3.42 (23 October 2024)</a></li>
+  <li><a href="#v0.3.41-11-october-2024" id="toc-v0.3.41-11-october-2024" class="nav-link" data-scroll-target="#v0.3.41-11-october-2024">v0.3.41 (11 October 2024)</a></li>
+  <li><a href="#v0.3.40-6-october-2024" id="toc-v0.3.40-6-october-2024" class="nav-link" data-scroll-target="#v0.3.40-6-october-2024">v0.3.40 (6 October 2024)</a></li>
+  <li><a href="#v0.3.39-3-october-2024" id="toc-v0.3.39-3-october-2024" class="nav-link" data-scroll-target="#v0.3.39-3-october-2024">v0.3.39 (3 October 2024)</a></li>
+  <li><a href="#v0.3.38-3-october-2024" id="toc-v0.3.38-3-october-2024" class="nav-link" data-scroll-target="#v0.3.38-3-october-2024">v0.3.38 (3 October 2024)</a></li>
+  <li><a href="#v0.3.37-2-october-2024" id="toc-v0.3.37-2-october-2024" class="nav-link" data-scroll-target="#v0.3.37-2-october-2024">v0.3.37 (2 October 2024)</a></li>
+  <li><a href="#v0.3.36-2-october-2024" id="toc-v0.3.36-2-october-2024" class="nav-link" data-scroll-target="#v0.3.36-2-october-2024">v0.3.36 (2 October 2024)</a></li>
+  <li><a href="#v0.3.35-1-october-2024" id="toc-v0.3.35-1-october-2024" class="nav-link" data-scroll-target="#v0.3.35-1-october-2024">v0.3.35 (1 October 2024)</a></li>
+  <li><a href="#v0.3.34-30-september-2024" id="toc-v0.3.34-30-september-2024" class="nav-link" data-scroll-target="#v0.3.34-30-september-2024">v0.3.34 (30 September 2024)</a></li>
+  <li><a href="#v0.3.33-30-september-2024" id="toc-v0.3.33-30-september-2024" class="nav-link" data-scroll-target="#v0.3.33-30-september-2024">v0.3.33 (30 September 2024)</a></li>
+  <li><a href="#v0.3.32-25-september-2024" id="toc-v0.3.32-25-september-2024" class="nav-link" data-scroll-target="#v0.3.32-25-september-2024">v0.3.32 (25 September 2024)</a></li>
+  <li><a href="#v0.3.31-24-september-2024" id="toc-v0.3.31-24-september-2024" class="nav-link" data-scroll-target="#v0.3.31-24-september-2024">v0.3.31 (24 September 2024)</a></li>
+  <li><a href="#v0.3.30-18-september-2024" id="toc-v0.3.30-18-september-2024" class="nav-link" data-scroll-target="#v0.3.30-18-september-2024">v0.3.30 (18 September 2024)</a></li>
+  <li><a href="#v0.3.29-16-september-2024" id="toc-v0.3.29-16-september-2024" class="nav-link" data-scroll-target="#v0.3.29-16-september-2024">v0.3.29 (16 September 2024)</a></li>
+  <li><a href="#v0.3.28-14-september-2024" id="toc-v0.3.28-14-september-2024" class="nav-link" data-scroll-target="#v0.3.28-14-september-2024">v0.3.28 (14 September 2024)</a></li>
+  <li><a href="#v0.3.27-6-september-2024" id="toc-v0.3.27-6-september-2024" class="nav-link" data-scroll-target="#v0.3.27-6-september-2024">v0.3.27 (6 September 2024)</a></li>
+  <li><a href="#v0.3.26-6-september-2024" id="toc-v0.3.26-6-september-2024" class="nav-link" data-scroll-target="#v0.3.26-6-september-2024">v0.3.26 (6 September 2024)</a></li>
+  <li><a href="#v0.3.25-25-august-2024" id="toc-v0.3.25-25-august-2024" class="nav-link" data-scroll-target="#v0.3.25-25-august-2024">v0.3.25 (25 August 2024)</a></li>
+  <li><a href="#v0.3.24-18-august-2024" id="toc-v0.3.24-18-august-2024" class="nav-link" data-scroll-target="#v0.3.24-18-august-2024">v0.3.24 (18 August 2024)</a></li>
+  <li><a href="#v0.3.23-16-august-2024" id="toc-v0.3.23-16-august-2024" class="nav-link" data-scroll-target="#v0.3.23-16-august-2024">v0.3.23 (16 August 2024)</a></li>
+  <li><a href="#v0.3.22-07-august-2024" id="toc-v0.3.22-07-august-2024" class="nav-link" data-scroll-target="#v0.3.22-07-august-2024">v0.3.22 (07 August 2024)</a></li>
+  <li><a href="#v0.3.21-07-august-2024" id="toc-v0.3.21-07-august-2024" class="nav-link" data-scroll-target="#v0.3.21-07-august-2024">v0.3.21 (07 August 2024)</a></li>
+  <li><a href="#v0.3.20-03-august-2024" id="toc-v0.3.20-03-august-2024" class="nav-link" data-scroll-target="#v0.3.20-03-august-2024">v0.3.20 (03 August 2024)</a></li>
+  <li><a href="#v0.3.19-02-august-2024" id="toc-v0.3.19-02-august-2024" class="nav-link" data-scroll-target="#v0.3.19-02-august-2024">v0.3.19 (02 August 2024)</a></li>
+  <li><a href="#v0.3.18-14-july-2024" id="toc-v0.3.18-14-july-2024" class="nav-link" data-scroll-target="#v0.3.18-14-july-2024">v0.3.18 (14 July 2024)</a></li>
+  <li><a href="#v0.3.17-25-june-2024" id="toc-v0.3.17-25-june-2024" class="nav-link" data-scroll-target="#v0.3.17-25-june-2024">v0.3.17 (25 June 2024)</a></li>
+  <li><a href="#v0.3.16-24-june-2024" id="toc-v0.3.16-24-june-2024" class="nav-link" data-scroll-target="#v0.3.16-24-june-2024">v0.3.16 (24 June 2024)</a></li>
+  <li><a href="#v0.3.15-15-june-2024" id="toc-v0.3.15-15-june-2024" class="nav-link" data-scroll-target="#v0.3.15-15-june-2024">v0.3.15 (15 June 2024)</a></li>
+  <li><a href="#v0.3.14-04-june-2024" id="toc-v0.3.14-04-june-2024" class="nav-link" data-scroll-target="#v0.3.14-04-june-2024">v0.3.14 (04 June 2024)</a></li>
+  <li><a href="#v0.3.13-31-may-2024" id="toc-v0.3.13-31-may-2024" class="nav-link" data-scroll-target="#v0.3.13-31-may-2024">v0.3.13 (31 May 2024)</a></li>
+  <li><a href="#v0.3.12-31-may-2024" id="toc-v0.3.12-31-may-2024" class="nav-link" data-scroll-target="#v0.3.12-31-may-2024">v0.3.12 (31 May 2024)</a></li>
+  <li><a href="#v0.3.11-30-may-2024" id="toc-v0.3.11-30-may-2024" class="nav-link" data-scroll-target="#v0.3.11-30-may-2024">v0.3.11 (30 May 2024)</a></li>
+  <li><a href="#v0.3.10-29-may-2024" id="toc-v0.3.10-29-may-2024" class="nav-link" data-scroll-target="#v0.3.10-29-may-2024">v0.3.10 (29 May 2024)</a></li>
+  <li><a href="#v0.3.9-14-may-2024" id="toc-v0.3.9-14-may-2024" class="nav-link" data-scroll-target="#v0.3.9-14-may-2024">v0.3.9 (14 May 2024)</a></li>
+  <li><a href="#v0.3.8-07-may-2024" id="toc-v0.3.8-07-may-2024" class="nav-link" data-scroll-target="#v0.3.8-07-may-2024">v0.3.8 (07 May 2024)</a></li>
+  <li><a href="#v0.3.7-07-may-2024" id="toc-v0.3.7-07-may-2024" class="nav-link" data-scroll-target="#v0.3.7-07-may-2024">v0.3.7 (07 May 2024)</a></li>
+  <li><a href="#v0.3.6-06-may-2024" id="toc-v0.3.6-06-may-2024" class="nav-link" data-scroll-target="#v0.3.6-06-may-2024">v0.3.6 (06 May 2024)</a></li>
+  <li><a href="#v0.3.5-04-may-2024" id="toc-v0.3.5-04-may-2024" class="nav-link" data-scroll-target="#v0.3.5-04-may-2024">v0.3.5 (04 May 2024)</a></li>
+  <li><a href="#v0.3.4-01-may-2024" id="toc-v0.3.4-01-may-2024" class="nav-link" data-scroll-target="#v0.3.4-01-may-2024">v0.3.4 (01 May 2024)</a></li>
+  <li><a href="#v0.3.3-28-april-2024" id="toc-v0.3.3-28-april-2024" class="nav-link" data-scroll-target="#v0.3.3-28-april-2024">v0.3.3 (28 April 2024)</a></li>
+  <li><a href="#v0.3.2-21-april-2024" id="toc-v0.3.2-21-april-2024" class="nav-link" data-scroll-target="#v0.3.2-21-april-2024">v0.3.2 (21 April 2024)</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+
+
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Anthropic: Support for binding to internal <code>web search()</code> tool.</li>
+<li>Add <a href="https://inspect.aisi.org.uk/providers.html#perplexity">Perplexity</a> model provider.</li>
+<li>Content: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentdata">ContentData</a></span> for model specific content blocks.</li>
+<li>Citations: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#citation">Citation</a></span> suite of types and included citations in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttext">ContentText</a></span> (supported for OpenAI and Anthropic models).</li>
+<li>Eval log: <code>task_args</code> now includes defaulted args (formerly it only included explicitly passed args).</li>
+<li>Added development container (<code>.devcontainer</code>) configuration.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#trim_messages">trim_messages()</a></span> now removes any trailing assistant message after compaction.</li>
+<li>Inspect View: Add support for displaying citations for web searches in the transcript.</li>
+<li>Inspect View: Correctly update browser URL when navigation between samples.</li>
+</ul>
+</section>
+<section id="v0.3.103-06-june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.103-06-june-2025">v0.3.103 (06 June 2025)</h2>
+<ul>
+<li>Eval set: Do not read full eval logs into memory at task completion.</li>
+</ul>
+</section>
+<section id="v0.3.102-05-june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.102-05-june-2025">v0.3.102 (05 June 2025)</h2>
+<ul>
+<li>OpenAI: Use responses API for codex models.</li>
+<li>Bugfix: Temporarily revert change to eval set header reading to investigate regression.</li>
+</ul>
+</section>
+<section id="v0.3.101-05-june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.101-05-june-2025">v0.3.101 (05 June 2025)</h2>
+<ul>
+<li>Eval set: Default <code>max_tasks</code> to the greater of 4 and the number of models being evaluated.</li>
+<li>Eval set: Do not read full eval logs into memory at task completion.</li>
+<li>pass_at_k: Treat threshold as the the minimum inclusive value for passing (rather than checking equality)</li>
+<li>Web search: Include links specified by providers in the results.</li>
+<li>Inspect View: Display sample id &amp; epoch in sample dialog title bar.</li>
+<li>Inspect View: Don’t open sample dialog when simply navigating the sample list.</li>
+<li>Inspect View: Fix error that could occur when determine transcript outline collapse state.</li>
+<li>Inspect View: Show the correct sample when opening a sample from a sorted list.</li>
+<li>Bugfix: Ensure that dataset shuffle_choices=True always uses a distinct random seed.</li>
+<li>Bugfix: Don’t attempt to use OpenAI’s web search preview against models that are known to not support it.</li>
+</ul>
+</section>
+<section id="v0.3.100-01-june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.100-01-june-2025">v0.3.100 (01 June 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/errors-and-limits.html#time-limit">time_limit()</a> and <a href="https://inspect.aisi.org.uk/errors-and-limits.html#working-limit">working_limit()</a> context managers for scoped application of time limits.</li>
+<li>Abiliy to query current usage for scoped limits (e.g.&nbsp;time or tokens).</li>
+<li>Added native OpenAI web search to <a href="https://inspect.aisi.org.uk/tools-standard.html#sec-web-search">web_search()</a> tool.</li>
+<li>Limit <code>docker compose</code> concurrency to 2 * os.cpu_count() by default (override with <code>INSPECT_DOCKER_CLI_CONCURRENCY</code>).</li>
+<li>ReAct agent: Only send custom <code>on_continue</code> message to the model if the model made no tool calls.</li>
+<li>Tool calling: Support for <code>Enum</code> types in tool arguments.</li>
+<li>AzureAI: Automatically fold user and tool messages for Mistral models.</li>
+<li>Task display: Simplify task display for <code>plain</code> mode (no outline, don’t expand tables to console width).</li>
+<li>Task display: Truncate task config to prevent overflow (collapse dicts, limit individual values to 50 chars, limit overall output to 500 chars).</li>
+<li>Task display: Always show the sample init event in the task transcript display.</li>
+<li>Task display: Fix mouse support on ghostty (and possibly other terminals).</li>
+<li>Inspect View: Outline view for transcript which enables high level navigation to solvers, agents, scorers, etc.</li>
+<li>Inspect View: Fix an issue that prevented the display of the viewer in VSCode when the viewer tab was moved to the background.</li>
+<li>Inspect View: Don’t error when metadata contains null values.</li>
+</ul>
+</section>
+<section id="v0.3.99-22-may-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.99-22-may-2025">v0.3.99 (22 May 2025)</h2>
+<ul>
+<li>Exported <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#view">view()</a></span> function for running Inspect View from Python.</li>
+<li>Always return tasks in the same order they were passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>.</li>
+<li>Google: Updated required version of <code>google-genai</code> to 1.16.1 (which includes support for reasoning summaries and is now compatible with the trio async backend).</li>
+<li>Anthropic: More flexible detection of “overloaded_error” for retires.</li>
+<li>Inspect View: Improve text zooming and wrapping when rendering sample errors.</li>
+<li>Inspect View: Preserve log mtime-ordering in the bundle output directory</li>
+</ul>
+</section>
+<section id="v0.3.98-18-may-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.98-18-may-2025">v0.3.98 (18 May 2025)</h2>
+<ul>
+<li>Google: Disable reasoning when <code>reasoning_tokens</code> is set to 0.</li>
+<li>Temporarily pin to textual &lt; 3.0.0 to work around event loop breakage.</li>
+<li>CLI display: improve performance of sample rendering by only rendering the 10 most recent events.</li>
+<li>Inspect View: Improve sample score column layout, markdown render explanation.</li>
+</ul>
+</section>
+<section id="v0.3.97-16-may-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.97-16-may-2025">v0.3.97 (16 May 2025)</h2>
+<ul>
+<li>React agent: Use of <code>submit()</code> tool is now <a href="https://inspect.aisi.org.uk/agent.html#submit-tool">optional</a>.</li>
+<li>Agents: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#is_agent">is_agent()</a></span> typeguard function for checking whether an object is an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span>.</li>
+<li>Anthropic: Show warning when generation config incompatible with extended thinking is used (affects <code>temperature</code>, <code>top_p</code>, and <code>top_k</code>).</li>
+<li>AzureAI: Don’t include <code>tools</code> or <code>tool_choice</code> in requests when emulating tool calling (avoiding a 400 error).</li>
+<li>AzureAI: Accept <code>&lt;tool_calls&gt;</code> plural from Llama models (as it sometimes uses this instead of <code>&lt;tool_call&gt;</code>).</li>
+<li>AzureAI: Correctly handle tool calls with no arguments.</li>
+<li>Eval retry: Improve error message when attempting to retry tasks in packages that have not been registered.</li>
+<li>Warn when a passed <code>--sample-id</code> is not found in the target dataset (raise error if there are no matches at all).</li>
+<li>Dataframes: <a href="https://inspect.aisi.org.uk/dataframe.html#parallel-reading">parallel</a> option to read samples in parallel using multiprocessing.</li>
+<li>Dataframes: Include underlying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> and <code>Exception</code> in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#columnerror">ColumnError</a></span>.</li>
+<li>Dataframes: Use native pyarrow column storage with pd.NA for missing values.</li>
+<li>Inspect View: Improve the performance and memory efficiency of the viewer when viewing large samples with long, complex transcripts.</li>
+<li>Inspect View: Improve the performance of the viewer when viewing large, complex sample or task metadata.</li>
+<li>Inspect View: Live display of subtask, tool and other child events when viewing a running evaluation.</li>
+<li>Inspect View: Transcript rendering improvements including less complex overall layout, more collapsible entities, and improved rendering of sandbox events, tool calls, and other events.</li>
+<li>Inspect View: Message rendering improvement including coloring user messages, reducing layout complexity, and other minor improvements.</li>
+<li>Inspect View: Render metadata for samples and tasks as an interactive tree.</li>
+<li>Inspect View: When deployed via <code>inspect view bundle</code>, support linking to individual transcript events or messages.</li>
+<li>Inspect View: Reduce the maximum size of the header (before it is collapsed) when evals have large numbers of metrics.</li>
+<li>Bugfix: More robust handling of non-529 “overloaded_error” for Anthropic.</li>
+<li>Bugfix: More robust handling of no result returned from tool call.</li>
+</ul>
+</section>
+<section id="v0.3.96-13-may-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.96-13-may-2025">v0.3.96 (13 May 2025)</h2>
+<ul>
+<li>Dataframes: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#events_df">events_df()</a></span> function, improved message reading, log filtering, don’t re-sort passed logs</li>
+<li>Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of <code>mcp</code> package.</li>
+<li>vLLM/SGLang: Fix dynamic port binding for local server on Mac OS X.</li>
+<li>React Agent: Improve continue prompt to remind the model to include the answer in their call to <code>submit()</code>.</li>
+<li>Inspect View: Properly sort samples by score even when there are samples with errors.</li>
+<li>Inspect View: Allow filtering of samples by score when evals are running.</li>
+</ul>
+</section>
+<section id="v0.3.95-10-may-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.95-10-may-2025">v0.3.95 (10 May 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/dataframe.html">Dataframe</a> functions for reading dataframes from log files.</li>
+<li>Web Search: Added provider for <a href="https://inspect.aisi.org.uk/tools-standard.html#tavily-provider">Tavily</a> Research API.</li>
+<li>Multiple Choice: <code>max_tokens</code> option to control tokens used for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
+<li>Don’t enforce sample <code>working_limit</code> after solvers have completed executing (matching behavior of other sample limits).</li>
+<li>Only pass <code>user</code> parameter on to sandboxes if is not <code>None</code> (eases compatibility with older sandbox providers).</li>
+<li>Anthropic: Retry when <code>type</code> in the error message body is “overloaded_error”.</li>
+<li>Agent Bridge: Compatibility with <code>request()</code> method in v1.78.0 of <code>openai</code> package (now the minimum required version).</li>
+<li>Model Context Protocol: Update to typing changes made in v1.8.0 of <code>mcp</code> package (now the minimum required version).</li>
+<li>TaskState: <code>input_text</code> and <code>user_prompt</code> properties now read the last rather than first user message.</li>
+<li>Inspect View: Properly display ‘more’ options when content is collapsed.</li>
+<li>Inspect View: Fix issue that prevented filtering of sample list when viewing a running evaluation.</li>
+<li>Inspect View: Fix selection of specific metrics within scorers when a scorer produces more than one metric.</li>
+<li>Ignore OSError that occurs while rotating trace files.</li>
+<li>Restore logging <code>metadata</code> from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> rather than from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>.</li>
+<li>Bugfix: Restore ability of operator to terminate the current sample in tool call approval.</li>
+<li>Bugfix: Ensure that “init” span is exited in the same async context when sandbox connection errors occur.</li>
+<li>Bugfix: Protect against no <code>thought</code> argument being passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#think">think()</a></span> tool.</li>
+<li>Bugfix: Correct handling of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool for Claude Sonnet 3.5.</li>
+</ul>
+</section>
+<section id="v0.3.94-06-may-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.94-06-may-2025">v0.3.94 (06 May 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans">span()</a> function for grouping transcript events.</li>
+<li><a href="https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans">collect()</a> function for enclosing parallel tasks in spans.</li>
+<li><a href="https://inspect.aisi.org.uk/reference/inspect_ai.log.html#event-tree">Event tree</a> functions for organising transcript events into a tree of spans.</li>
+<li><code>inspect log convert</code> now always fully re-writes log files even of the same format (so that e.g.&nbsp;sample summaries always exist in the converted logs).</li>
+<li>React agent: <code>answer_only</code> and <code>answer_delimiter</code> to control how submitted answers are reflected in the assistant message content.</li>
+<li>Python tool: Execute using a bash login shell for consistency of Python versions across <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#python">python()</a></span> tools.</li>
+<li>Task display: Realtime display of events that occur within tool calls and subtasks.</li>
+<li>Multiple choice: Support for more than 26 choices.</li>
+<li>Bugfix: Ensure that each MCP server gets its own cached tool list.</li>
+</ul>
+</section>
+<section id="v0.3.93-01-may-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.93-01-may-2025">v0.3.93 (01 May 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/errors-and-limits.html#scoped-limits">Scoped Limits</a> for enforcing token and message limits using a context manager.</li>
+<li><a href="https://inspect.aisi.org.uk/errors-and-limits.html#agent-limits">Agent Limits</a> for enforcing token and message limits for agent execution.</li>
+<li>Enhanced <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> tool to provide richer interface to model and to support interactive sessions (e.g.&nbsp;logging in to a remote server).</li>
+<li><a href="https://inspect.aisi.org.uk/eval-logs.html#summaries">read_eval_log_sample_summaries()</a> function for reading sample summaries (including scoring) from eval logs.</li>
+<li>Updated <a href="https://inspect.aisi.org.uk/providers.html#vllm">vLLM</a> provider to use local server rather than in process <code>vllm</code> package (improved concurrency and resource utilization).</li>
+<li>New <a href="https://inspect.aisi.org.uk/providers.html#sglang">SGLang</a> provider (using similar local server architecture as vLLM provider).</li>
+<li>Anthropic: Added <code>streaming</code> model argument to control whether streaming API is used (by default, streams when using extended thinking).</li>
+<li><code>--sample-id</code> option can now include task prefixes (e.g.&nbsp;<code>--sample-id=popularity:10,security:5)</code>).</li>
+<li>Improved write performance for realtime event logging.</li>
+<li><code>--no-log-realtime</code> option for disabling realtime event logging (live viewing of logs is disabled when this is specified).</li>
+<li>Packaging: Exclude <code>_resources</code> directories from package (reduces pressure on path lengths for Windows).</li>
+<li>Inspect View: Split info tab into task, models, and info for improved layout.</li>
+<li>Bugfix: Avoid validation errors when loading old log files which contain “output_limit” tool errors.</li>
+</ul>
+</section>
+<section id="v0.3.92-26-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.92-26-april-2025">v0.3.92 (26 April 2025)</h2>
+<ul>
+<li>OpenAI: In responses API, don’t pass back assistant output that wasn’t part of the output included in the server response (e.g.&nbsp;output generated from a call to a <code>submit()</code> tool).</li>
+<li>Bugfix: Correctly pass tool arguments back to model for OpenAI responses API.</li>
+</ul>
+</section>
+<section id="v0.3.91-26-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.91-26-april-2025">v0.3.91 (26 April 2025)</h2>
+<ul>
+<li>Support for using tools from <a href="https://inspect.aisi.org.uk/tools-mcp.html">Model Context Protocol</a> providers.</li>
+<li>New <a href="https://inspect.aisi.org.uk/errors-and-limits.html#sample-retries">retry_on_error</a> option to enable sample level retry of errors (retries occur immediately rather than waiting until the next full eval retry).</li>
+<li>OpenAI: <a href="https://inspect.aisi.org.uk/reasoning.html#reasoning-history">reasoning_summary</a> generation option for reasoning models.</li>
+<li>OpenAI: <code>responses_store</code> model argument to control whether the <code>store</code> option is enabled (it is enabled by default for reasoning models to support reasoning playback).</li>
+<li>OpenAI: Support for <a href="https://inspect.aisi.org.uk/providers.html#flex-processing">flex processing</a>, which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).</li>
+<li>OpenAI: Responses API is now used by default for all reasoning models.</li>
+<li>OpenAI: Automatically alias reserved internal tool names (e.g.&nbsp;<code>python</code>) for responses API.</li>
+<li>Anthropic: Warn only once if unable to call count_tokens() for a model.</li>
+<li>Google: Update to 1.12.1 of <code>google-genai</code> (which is now required).</li>
+<li>Google: Support for <code>reasoning_tokens</code> option for Gemini 2.5 models.</li>
+<li>Grok: Support for <code>reasoning_effort</code> option and capturing reasoning content.</li>
+<li>OpenRouter: Forward <code>reasoning_effort</code> and <code>reasoning_tokens</code> to <code>reasoning</code> field.</li>
+<li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolsource">ToolSource</a></span> for dynamic tools inputs (can be used in calls to <code>model.generate()</code> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#execute_tools">execute_tools()</a></span>)</li>
+<li>ReAct Agent: Ability to fully repleace the default <code>submit()</code> tool.</li>
+<li>Human Agent: Added <code>user</code> parameter for running the human agent cli as a given user.</li>
+<li>Scoring: Support for multimodal inputs to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span>.</li>
+<li>Scoring: Handle parsing unicode fractions when evaluating numeric input for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#match">match()</a></span> scorer.</li>
+<li>Scoring: Add <code>sample_metadata_as()</code> method to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#samplescore">SampleScore</a></span>.</li>
+<li>Sandbox API: Added <code>user</code> parameter to <code>connection()</code> method for getting connection details for a given user.</li>
+<li>Docker: Register samples for cleanup immediately (so they are still cleaned up even if interrupted during startup).</li>
+<li>Docker: Support sample metadata interpolation for image names in compose files.</li>
+<li>Tool calling: Support for additional types (<code>datetime</code>, <code>date</code>, <code>time</code>, and <code>Set</code>)</li>
+<li>Log API: Functions for reading/writing eval logs can now take a <code>Path</code>.</li>
+<li>Registry: Evaluate string annotations when creating registry objects.</li>
+<li>Error handling: Added <code>--traceback-locals</code> CLI option to print values of local variables in tracebacks.</li>
+<li>Error handling: Fully unwrap inner errors from exception groups for reporting.</li>
+<li>Inspect View: Support for viewing logs in Google Cloud Storage (gc://).</li>
+<li>Inspect View: Improved display of reasoning blocks.</li>
+<li>Inspect View: Improved display and layout of transcript and events.</li>
+<li>Inspect View: Improved Tool input and output display.</li>
+<li>Inspect View: Improved display of sample input, target, answer, and scoring information (improve column width behavior).</li>
+<li>Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.</li>
+<li>Inspect View: Collapse sample init view by default.</li>
+<li>Inspect: Properly store and restore NaN values when viewing logs in VSCode.</li>
+<li>Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.</li>
+<li>Documentation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.</li>
+<li>Bugfix: Correct parsing of <code>CUDA_VISIBLE_DEVICES</code> environment variable for vLLM provider</li>
+<li>Bugfix: Don’t require saved response message id for openai assistant messages.</li>
+<li>Bugfix: Don’t show empty <code>&lt;think&gt;</code> tag in conversation view if there is no reasoning content.</li>
+<li>Bugfix: Properly handle multiple reasoning blocks and empty reasoning summaries in OpenAI responses API.</li>
+<li>Bugfix: Tolerate assistant messages with no internal representation in Open AI responses API.</li>
+<li>Bugifx: Correct reporting of seconds until next retry for model generate calls.</li>
+</ul>
+</section>
+<section id="v0.3.90-21-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.90-21-april-2025">v0.3.90 (21 April 2025)</h2>
+<ul>
+<li>Inspect View: Collapse user messages after 15 lines by default.</li>
+<li>Inspect View: Improved spacing between transcript events.</li>
+<li>Bugfix: Prevent duplicate sample init events in transcript.</li>
+<li>Bugfix: Properly collapse initialization events in the transcript.</li>
+<li>Bugfix: Properly pre-wrap source code in the transcript.</li>
+</ul>
+</section>
+<section id="v0.3.89-17-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.89-17-april-2025">v0.3.89 (17 April 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/models.html#model-roles">Model Roles</a> for creating aliases to models used in a task (e.g.&nbsp;“grader”, “red_team”, “blue_team”, etc.)</li>
+<li>New <a href="https://inspect.aisi.org.uk/providers.html#openai-api">openai-api</a> model provider for interfacing with arbitrary services that have Open AI API compatible endpoints.</li>
+<li>ReAct Agent: <a href="https://inspect.aisi.org.uk/agents.html#truncation">truncation</a> option to trim conversation messages when the model context window is exceeded.</li>
+<li>ReAct Agent: Improve default <code>on_continue</code> message, including using a dynamic name for the submit tool.</li>
+<li>Agent Bridge: Add <code>metadata</code> field to bridge input for backward compatibility with solver-based bridge.</li>
+<li>Added <code>default</code> argument to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> to explicitly specify a fallback model if the specified model isn’t found.</li>
+<li>Approval: Approvers now take <code>history</code> argument (rather than <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>) to better handle agent conversation state.</li>
+<li>Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.</li>
+<li>Google: Return “(no content)” when a generate call results in no completion choices.</li>
+<li>CloudFlare: Use OpenAI compatible REST endpoint for interface to models.</li>
+<li>Azure AI: Use <code>2025-03-01-preview</code> as default API version if none explicitly specified.</li>
+<li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#trim_messages">trim_messages()</a></span> function for pruning messages to fit within model context windows.</li>
+<li>Model API: Improved detection of context window overflow for Grok, Groq, and CloudFlare.</li>
+<li>Task Display: Show both provider and model name when concurrency context is not shared across all models for a given provider.</li>
+<li>Registry: Exported <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#registry_create">registry_create()</a></span> function for dynamic creation of registry objects (e.g.&nbsp;<code>@task</code>, <code>@solver</code>, etc.).</li>
+<li>Remove <code>chdir</code> option from <code>@task</code> (tasks can no longer change their working directory during execution).</li>
+<li><code>INSPECT_EVAL_LOG_FILE_PATTERN</code> environment variable for setting the eval log file pattern.</li>
+<li>Bugfix: Eval retry now works correctly for models with a service prefix (e.g.&nbsp;<code>openai/azure/model-name</code>).</li>
+<li>Bugfix: Correctly resolve approvers in the same source file as tasks.</li>
+<li>Bugfix: Ensure agent decorator resolves string annotations from <code>__future__</code> as needed.</li>
+<li>Bugfix: Correctly handle string <code>dict</code> keys that are numeric in store diffs.</li>
+</ul>
+</section>
+<section id="v0.3.88-11-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.88-11-april-2025">v0.3.88 (11 April 2025)</h2>
+<ul>
+<li>Tools: Restore formerly required (but now deprecated) <code>type</code> field to <code>ToolCall</code>.</li>
+<li>Approval: Raise operator limit exceeded error for tool approval termination action.</li>
+<li>Anthropic: Don’t include side count of <code>reasoning_tokens</code> in <code>total_tokens</code> (they are already included).</li>
+<li>Anthropic: Update string matching to correctly handle BadRequestErrors related to prompts being too long.</li>
+</ul>
+</section>
+<section id="v0.3.87-10-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.87-10-april-2025">v0.3.87 (10 April 2025)</h2>
+<ul>
+<li>Eval: Fix an error when attempting to display realtime metrics for an evaluation.</li>
+<li>Log Viewer: Fix an error when displaying a running log with a null metric value.</li>
+</ul>
+</section>
+<section id="v0.3.86-09-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.86-09-april-2025">v0.3.86 (09 April 2025)</h2>
+<ul>
+<li>Open AI: Treat <code>UnprocessableEntityError</code> as bad request so we can include the request payload in the error message.</li>
+<li>Eval Retry: Correctly restore model-specific generation config on retry.</li>
+<li>Inspect View: Resolve sample attachments before including in realtime event stream.</li>
+<li>Bugfix: Properly handle special characters in IDs during event database cleanup.</li>
+</ul>
+</section>
+<section id="v0.3.85-08-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.85-08-april-2025">v0.3.85 (08 April 2025)</h2>
+<ul>
+<li>Remove support for <code>goodfire</code> model provider (dependency conflicts).</li>
+<li>React Agent: Enable specification of <code>description</code> without <code>name</code>.</li>
+</ul>
+</section>
+<section id="v0.3.84-07-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.84-07-april-2025">v0.3.84 (07 April 2025)</h2>
+<ul>
+<li>Bugfix: Suppress link click behavior in vscode links.</li>
+</ul>
+</section>
+<section id="v0.3.83-07-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.83-07-april-2025">v0.3.83 (07 April 2025)</h2>
+<ul>
+<li>Inspect View: <a href="https://inspect.aisi.org.uk/log-viewer.html#live-view">Live updates</a> to running evaluation logs.</li>
+<li><a href="https://inspect.aisi.org.uk/agents.html">Agent</a> protocol and <a href="https://inspect.aisi.org.uk/reference/inspect_ai.agent.html">inspect_ai.agent</a> module with new system for creating, composing, and executing agents.</li>
+<li>Scoring: New <a href="https://inspect.aisi.org.uk/scoring.html#metric-grouping">grouped()</a> metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.</li>
+<li>Basic Agent: New <code>submit_append</code> option to append the submit tool output to the completion rather than replacing the completion (note that the new <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent appends by default).</li>
+<li>Model API: New <a href="https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools">execute_tools()</a> function (replaces deprecated <code>call_tools()</code> function) which handles agent handoffs that occur during tool calling.</li>
+<li>Model API: <code>generate_loop()</code> method for calling generate with a tool use loop.</li>
+<li>Model API: Provide optional sync context manager for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> (works only with providers that don’t require an async close).</li>
+<li>Anthropic: Add support for <code>tool_choice="none"</code> (added in v0.49.0, which is now required).</li>
+<li>Together AI: Updated <code>logprobs</code> to pass <code>1</code> rather than <code>True</code> (protocol change).</li>
+<li>Tools: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> now create a distinct sandbox process each time they are instantiated.</li>
+<li>Computer Tool: Support for use of the native Open AI computer tool (available in the model <code>openai/computer-use-preview</code>)</li>
+<li>Task API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool_with">tool_with()</a></span> no longer copy the input task or tool (rather, they modify it in place and return it).</li>
+<li>Eval Set: Resolve tasks before each pass (ensure that each pass runs against an entirely new task instance).</li>
+<li>Eval Retry: Ability to retry any task in the registry, even if it has a custom <code>name</code> (save <code>registry_name</code> separately).</li>
+<li>Human Agent: Start task with clock paused and then automatically start it on container logins.</li>
+<li>Typed Store: <code>instance</code> option for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> for using multiple instances of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> within a sample.</li>
+<li>Typed Store: Raise error if attempting to embed a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> within another <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span>.</li>
+<li>Sandbox: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox_default">sandbox_default()</a></span> context manager for temporarily changing the default sandbox.</li>
+<li>Docker: <code>write_file()</code> function now gracefully handles larger input file sizes (was failing on files &gt; 2MB).</li>
+<li>Docker: Prevent low timeout values (e.g.&nbsp;1 second) from disabling timeout entirely when they are retried.</li>
+<li>Display: Print warnings after task summaries for improved visibility.</li>
+<li>Inspect View: Fallback to content range request if initial HEAD request fails.</li>
+<li>Inspect View: Improve error message when view bundles are server from incompatible servers.</li>
+<li>Inspect View: Render messages in <code>user</code> and <code>assistant</code> solver events.</li>
+<li>Inspect View: Improved support for display of nested arrays.</li>
+<li>Inspect View: Improved rendering of complex scores and metrics.</li>
+<li>Inspect View: Properly handle filtering of dictionary scores.</li>
+<li>Inspect View: Render math in model input and output using katex.</li>
+<li>Inspect View: Improve sample score rendering (single scoring tab with scores rendered in a table).</li>
+<li>Inspect View: Improve sample count display in sample list footer.</li>
+<li>Inspect View: Properly refresh running evals when restoring from being backgrounded.</li>
+<li>Bugfix: Support for calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function within Jupyter notebooks.</li>
+<li>Bugfix: Handle process lookup errors that can occur during timeout race conditions.</li>
+<li>Bugfix: Correctly capture and return logs from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> when a cancellation occurs.</li>
+<li>Bugfix: Correctly handle custom <code>api_version</code> model argument for OpenAI on Azure.</li>
+<li>Bugfix: Correct handling for <code>None</code> passed to tool call by model for optional parameters.</li>
+<li>Bugfix: Cleanup automatically created <code>.compose.yml</code> when not in working directory.</li>
+<li>Bugfix: Prevent exception when navigating to sample that no longer exists in running samples display.</li>
+</ul>
+</section>
+<section id="v0.3.82-02-april-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.82-02-april-2025">v0.3.82 (02 April 2025)</h2>
+<ul>
+<li>Bugfix: Correct handling of backward compatibility for inspect-web-browser-tool image.</li>
+<li>Bugfix: Eval now properly exits when <code>max_tasks</code> is greater than total tasks</li>
+</ul>
+</section>
+<section id="v0.3.81-30-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.81-30-march-2025">v0.3.81 (30 March 2025)</h2>
+<ul>
+<li>Requirements: Temporarily upper-bound <code>rich</code> to &lt; 14.0.0 to workaround issue.</li>
+</ul>
+</section>
+<section id="v0.3.80-30-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.80-30-march-2025">v0.3.80 (30 March 2025)</h2>
+<ul>
+<li>Google: Compatibility with httpx client in <code>google-genai</code> &gt;= 1.8.0 (which is now required).</li>
+<li>Mistral: Compatibility with tool call schema for <code>mistralai</code> &gt;= v1.6.0 (which is now required).</li>
+<li>Inspect View: Correctly parse NaN values (use JSON5 for all JSON parsing)</li>
+</ul>
+</section>
+<section id="v0.3.79-26-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.79-26-march-2025">v0.3.79 (26 March 2025)</h2>
+<ul>
+<li>Google: Compatibility with v1.7 of google-genai package (create client per-generate request)</li>
+<li>Bugfix: Properly record scorer and metrics when there are multiple tasks run in an eval.</li>
+</ul>
+</section>
+<section id="v0.3.78-25-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.78-25-march-2025">v0.3.78 (25 March 2025)</h2>
+<ul>
+<li>OpenAI: Ensure that assistant messages always have the <code>msg_</code> prefix in responses API.</li>
+</ul>
+</section>
+<section id="v0.3.77-25-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.77-25-march-2025">v0.3.77 (25 March 2025)</h2>
+<ul>
+<li>New <a href="https://inspect.aisi.org.uk/tools-standard.html#sec-think">think()</a> tool that provides models with the ability to include an additional thinking step.</li>
+<li>OpenAI: Support for the new <a href="https://inspect.ai-safety-institute.org.uk/providers.html#responses-api">Responses API</a> and <a href="https://platform.openai.com/docs/models/o1-pro">o1-pro</a> models.</li>
+<li>OpenAI: Remove base64-encoded audio content from API call JSON in ModelEvent.</li>
+<li>AzureAI: Support for use of native <a href="https://inspect.ai-safety-institute.org.uk/providers.html#openai-on-azure">OpenAI</a> and <a href="https://inspect.ai-safety-institute.org.uk/providers.html#mistral-on-azure-ai">Mistral</a> clients using service qualifiers (e.g.&nbsp;<code>openai/azure/gpt-4o-mini</code> or <code>mistral/azure/Mistral-Large-2411</code>).</li>
+<li>OpenRouter: Handle “error” field in response object and retry for empty responses.</li>
+<li>Added <code>--metadata</code> option to eval for associating metadata with eval runs.</li>
+<li>Task display: Show reasoning tokens for models that report them.</li>
+<li>Anthropic: Include reasoning tokens in computation of total tokens</li>
+<li>Inspect View: Properly wrap tool input for non-code inputs like <code>think</code>.</li>
+</ul>
+</section>
+<section id="v0.3.76-23-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.76-23-march-2025">v0.3.76 (23 March 2025)</h2>
+<ul>
+<li><a href="https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-bash-session">bash_session()</a> tool for creating a stateful bash shell that retains its state across calls from the model.</li>
+<li><a href="https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-text-editor">text_editor()</a> tool which enables viewing, creating and editing text files.</li>
+<li>Structured Output: Properly handle Pydantic BaseModel that contains other BaseModel definitions in its schema.</li>
+<li>OpenAI: Support for .wav files in audio inputs for gpt-4o-audio-preview.</li>
+<li>OpenAI: Strip ‘azure’ prefix from model_name so that model type checks all work correctly.</li>
+<li>OpenAI: Don’t send <code>reasoning_effort</code> parameter to o1-preview (as it is not supported).</li>
+<li>Inspect View: Fix error sorting numeric or categorical score results.</li>
+<li>Inspect View: Properly wrap model API call text in the transcript.</li>
+<li>Bugfix: Only initialise display in eval_set if it wasn’t initialised from the CLI</li>
+<li>Bugfix: Set the global log level based on the specified Inspect log level.</li>
+<li>Bugfix: Resolve issue when deserialising a SubtaskEvent from a log file which does not have a completed time.</li>
+<li>Bugfix: Fix unnecessary warnings about task arguments.</li>
+<li>Bugfix: When a task does not take a kwargs argument, only warn if the provided argument is not valid.</li>
+</ul>
+</section>
+<section id="v0.3.75-18-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.75-18-march-2025">v0.3.75 (18 March 2025)</h2>
+<ul>
+<li>Model API: Specifying a default model (e.g.&nbsp;<code>--model</code>) is no longer required (as some evals have no model or use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> for model access).</li>
+<li>Tasks can now directly specify a <code>model</code>, and model is no longer a required axis for parallel tasks.</li>
+<li>Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).</li>
+<li>Don’t generate <code>id</code> for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span> when deserialising (<code>id</code> is now <code>str | None</code> and is only populated when messages are directly created).</li>
+<li>Log: Support for zip64 extensions required to read some log files that are larger than 4GB.</li>
+<li>Anthropic: Provide <code>reasoning_tokens</code> for standard thinking blocks (redacted thinking not counted).</li>
+<li>Google: Improve checking of <code>APIError</code> status codes for retry.</li>
+<li>CLI: Added <code>--env</code> option for defining environment variables for the duration of the <code>inspect</code> process.</li>
+<li>Inspect View: Fix issue generating diffs for nested arrays.</li>
+<li>Inspect View: Fix layout issue with sample error display in sample detail summary.</li>
+<li>Inspect View: Better support large eval files (in excess of 4GB).</li>
+<li>Inspect View: Correctly display ‘None’ when passed in tool calls.</li>
+<li>Inspect View: Fix ‘Access Denied’ error when using <code>inspect view</code> and viewing the log in a browser.</li>
+<li>Bugfix: Properly handle nested Pydantic models when reading typed store (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span>) from log.</li>
+<li>Bugfix: Enable passing <code>solver</code> list to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> (decorate <code>chain</code> function with <code>@solver</code>).</li>
+<li>Bugfix: Support deserializing custom sandbox configuration objects when said sandbox plugin is not installed.</li>
+<li>Bugfix: Fix error in sample filtering autocomplete (could cause autocomplete to fail and show an error in js console).</li>
+</ul>
+</section>
+<section id="v0.3.74-15-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.74-15-march-2025">v0.3.74 (15 March 2025)</h2>
+<ul>
+<li>Bugfix: Exclude chat message <code>id</code> from cache key (fixes regression in model output caching).</li>
+</ul>
+</section>
+<section id="v0.3.73-14-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.73-14-march-2025">v0.3.73 (14 March 2025)</h2>
+<ul>
+<li>Constrain model output to a particular JSON schema using <a href="https://inspect.aisi.org.uk/structured.html">Structured Output</a> (supported for OpenAI, Google, and Mistral).</li>
+<li>New “HTTP Retries” display (replacing the “HTTP Rate Limits” display) which counts all retries and does so much more consistently and accurately across providers.</li>
+<li>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modelapi">ModelAPI</a></span> class now has a <code>should_retry()</code> method that replaces the deprecated <code>is_rate_limit()</code> method.</li>
+<li>The “Generate…” progress message in the Running Samples view now shows the number of retries for the active call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
+<li>New <code>inspect trace http</code> command which will show all HTTP requests for a run.</li>
+<li>More consistent use of <code>max_retries</code> and <code>timeout</code> configuration options. These options now exclusively control Inspect’s outer retry handler; model providers use their default behaviour for the inner request, which is typically 2-4 retries and a service-appropriate timeout.</li>
+<li>Improved async implementation using AnyIO (can now optionally run Trio rather than asyncio as the <a href="https://inspect.aisi.org.uk/parallelism.html#async-backends">async backend</a>).</li>
+<li>Agent Bridge: Correct handling for <code>tool_choice</code> option.</li>
+<li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span> now includes an <code>id</code> field (defaults to auto-generated uuid).</li>
+<li>OpenAI: More flexible parsing of content parts (some providers omit the “type” field); support for “reasoning” content parts.</li>
+<li>Anthropic: Retry api connection errors and remote protocol errors that occur during streaming.</li>
+<li>Mistral: Update to new Mistral API (v1.5.1 of <code>mistralai</code> is now required).</li>
+<li>Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possibility of duplicate display). This should improve compatibility with applications that have their own custom logging configured.</li>
+<li>Tasks: For filesystem based tasks, no longer switch to the task file’s directory during execution (directory switching still occurs during task loading). Specify <code>@task(chdir=True)</code> to preserve the previous behavior.</li>
+<li>Bugfix: Fix issue with deserializing custom sandbox configuration objects.</li>
+<li>Bugfix: Handle <code>parallel_tool_calls</code> correctly for OpenAI models served through Azure.</li>
+</ul>
+</section>
+<section id="v0.3.72-03-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.72-03-march-2025">v0.3.72 (03 March 2025)</h2>
+<ul>
+<li>Computer: Updated tool definition to match improvements in Claude Sonnet 3.7.</li>
+</ul>
+</section>
+<section id="v0.3.71-01-march-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.71-01-march-2025">v0.3.71 (01 March 2025)</h2>
+<ul>
+<li>Anthropic: Support for <a href="https://inspect.aisi.org.uk/reasoning.html#claude-3.7-sonnet">extended thinking</a> features of Claude Sonnet 3.7 (minimum version of <code>anthropic</code> package bumped to 0.47.1).</li>
+<li>Reasoning: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> type for representing model reasoning blocks.</li>
+<li>Reasoning: <code>reasoning_tokens</code> for setting maximum reasoning tokens (currently only supported by Claude Sonnet 3.7)</li>
+<li>Reasoning: <code>reasoning_history</code> can now be specified as “none”, “all”, “last”, or “auto” (which yields a provider specific recommended default).</li>
+<li>Web Browser: <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/1314">Various improvements</a> to performance and robustness along with several bug fixes.</li>
+<li>OpenAI: Provide long connection (reasoning friendly) socket defaults in http client</li>
+<li>OpenAI: Capture <code>reasoning_tokens</code> when reported.</li>
+<li>OpenAI: Retry on rate limit requests with “Request too large”.</li>
+<li>OpenAI: Tolerate <code>None</code> for assistant content (can happen when there is a refusal).</li>
+<li>Google: Retry requests on more HTTP status codes (selected 400 errors and all 500 errors).</li>
+<li>Event Log: Add <code>working_start</code> attribute to events and <code>completed</code> and <code>working_time</code> to model, tool, and subtask events.</li>
+<li>Human Agent: Add <code>task quit</code> command for giving up on tasks.</li>
+<li>Human Agent: Don’t emit sandbox events for human agent</li>
+<li>Inspect View: Improve rendering of JSON within logging events.</li>
+<li>Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.</li>
+<li>Task Display: Let plugins display counters (‘rich’ and ‘full’ display modes only).</li>
+<li>Inspect View: Fix layout issues with human agent terminal session playback.</li>
+<li>Inspect View: Improve tool input / output appearance when rendered in VSCode.</li>
+<li>Inspect View: Display reasoning tokens in model usage for the samples and for the complete eval.</li>
+<li>Inspect View: Improve model api request / response output when rendered in VSCode.</li>
+<li>Inspect View: Improve rendering of some tool calls in the transcript.</li>
+<li>Bugfix: Fix audio and video inputs for new Google GenAI client.</li>
+<li>Bugfix: Ensure that token limits are not enforced during model graded scoring.</li>
+<li>Bugfix: Catch standard <code>TimeoutError</code> for running shell commands in the computer tool container.</li>
+<li>Bugfix: Correct combination of consecutive string based user messages for Anthropic provider.</li>
+</ul>
+</section>
+<section id="v0.3.70-25-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.70-25-february-2025">v0.3.70 (25 February 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/errors_and_limits.html#working-limit">working_limit</a> option for specifying a maximum working time (e.g.&nbsp;model generation, tool calls, etc.) for samples.</li>
+<li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#sandboxevent">SandboxEvent</a></span> to transcript for recording sandbox execution and I/O.</li>
+<li>Sandboxes: <code>as_type()</code> function for checked downcasting of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span></li>
+<li>Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).</li>
+<li>Only explicitly set <code>state.completed=True</code> when entering scoring (<code>basic_agent()</code> no longer sets <code>completed</code> so can be used in longer compositions of solvers).</li>
+<li>Add <code>uuid</code> property to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> (globally unique identifier for sample run).</li>
+<li>Add <code>cleanup</code> to tasks for executing a function at the end of each sample run.</li>
+<li>Agent <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> is now compatible with the use of a custom <code>OPENAI_BASE_URL</code>.</li>
+<li>Mistral: Bump required version of <code>mistralai</code> package to 1.5 (required for <code>working_limit</code>).</li>
+<li>Truncate tracebacks included in evaluation log to a maximum of 1MB.</li>
+<li>Compatibility with textual version 2.0 (remove upper bound).</li>
+<li>Align with HF datasets <code>fsspec</code> version constraints to avoid pip errors when installing alongside <code>datasets</code>.</li>
+<li>Bugfix: Fix issue with tools that had an ordinary <code>dict</code> as a parameter.</li>
+<li>Bugfix: Print the correct container <code>sample_id</code> for <code>--no-sandbox-cleanup</code>.</li>
+</ul>
+</section>
+<section id="v0.3.69-20-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.69-20-february-2025">v0.3.69 (20 February 2025)</h2>
+<ul>
+<li>Google provider updated to use the <a href="https://googleapis.github.io/python-genai/">Google Gen AI SDK</a>, which is now the recommended API for Gemini 2.0 models.</li>
+<li>Task display: Use cooperative cancellation for cancel buttons in task display.</li>
+<li>Task display: Print task progress every 5 seconds for ‘plain’ display mode.</li>
+<li>Task display: Handle click on running samples tab when there is no transcript.</li>
+<li>Docker: Print stderr from <code>compose up</code> when no services startup successfully.</li>
+<li>Docker: Print sample id and epoch for each container when using <code>--no-sandbox-cleanup</code></li>
+<li>Mistral: Create and destroy client within generate.</li>
+<li>Inspect View: Fix display of score dictionaries containing boolean values</li>
+<li>Bugfix: Catch standard <code>TimeoutError</code> for subprocess timeouts (ensure kill/cleanup of timed out process).</li>
+</ul>
+</section>
+<section id="v0.3.68-19-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.68-19-february-2025">v0.3.68 (19 February 2025)</h2>
+<ul>
+<li>Task display: Improve spacing/layout of final task display.</li>
+<li>Textual: speicfy broader range of compatible versions (v0.86.2 to v1.0.0)</li>
+</ul>
+</section>
+<section id="v0.3.67-18-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.67-18-february-2025">v0.3.67 (18 February 2025)</h2>
+<ul>
+<li>Memoize calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> so that model instances with the same parameters are cached and re-used (pass <code>memoize=False</code> to disable).</li>
+<li>Async context manager for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> class for optional scoped usage of model clients.</li>
+<li>New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#assistant_message">assistant_message()</a></span> solver.</li>
+<li>Prompt templates: Ignore template placeholders that don’t map to passed parameters in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#prompt_template">prompt_template()</a></span>, and system/user/assistant solvers.</li>
+<li>Google: Handle system messages with content lists and input with system but no user messages.</li>
+<li>Google: Ensure that a completion choice is provided even when none are returned by the service.</li>
+<li>Inspect View: Improve the display of subtasks with no inputs or events.</li>
+<li>Inspect View: Fix transcript display of phantom subtask or other phantom events.</li>
+<li>Inspect View: Fix formatting issues in sample error display</li>
+<li>Bugfix: Raise error for empty dataset (rather than providing a dummy sample).</li>
+<li>Bugfix: Specify markup=False for textual static controls (stricter parser in textual 2.0 leading to exceptions).</li>
+<li>Bugfix: Temporarily pin to textual==1.0.0 while they chase all of their regressions in 2.0</li>
+</ul>
+</section>
+<section id="v0.3.66-17-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.66-17-february-2025">v0.3.66 (17 February 2025)</h2>
+<ul>
+<li>Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.</li>
+<li>Escape brackets when rendering task config (another textual 2.0 fix)</li>
+</ul>
+</section>
+<section id="v0.3.65-16-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.65-16-february-2025">v0.3.65 (16 February 2025)</h2>
+<ul>
+<li>Compatibility with textual 2.0 (which had several breaking changes).</li>
+<li>Inspect View: Improve scorer display formatting.</li>
+<li>Bugfix: Inspect view now correctly renders arrays with embedded <code>null</code> values.</li>
+<li>Bugfix: Inspect view now correctly handles scorers with no metrics.</li>
+</ul>
+</section>
+<section id="v0.3.64-14-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.64-14-february-2025">v0.3.64 (14 February 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/reference/">Reference documentation</a> for Python API and CLI commands.</li>
+<li>Add support for <a href="https://inspect.aisi.org.uk/scorers.html#clustered-standard-errors">clustered standard errors</a> via a new <code>cluster</code> parameter for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#stderr">stderr()</a></span> metric.</li>
+<li>Improvements to <a href="https://inspect.aisi.org.uk/scorers.html#sec-scorer-workflow">scoring workflow</a> (<code>inspect score</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function).</li>
+<li>Metrics now take <code>list[SampleScore]</code> rather than <code>list[Score]</code> (previous signature is deprecated but still works with a warning).</li>
+<li>Use a sample adjustment for the <code>var()</code> metric.</li>
+<li>Google: Speculative fix for completion candidates not being returned as a list.</li>
+<li>Python and Bash tools: Add <code>sandbox</code> argument for running in non-default sandboxes.</li>
+<li>Transcript: Log <code>ScoreEvent</code> (with <code>intermediate=True</code>) when the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function is called.</li>
+<li>Transcript: Add <code>source</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#infoevent">InfoEvent</a></span> and use it for events logged by the human agent.</li>
+<li>Docker: Support Dockerfiles with <code>.Dockerfile</code> extension.</li>
+<li>Docker: Raise error when there is an explicitly configured <code>container_name</code> (incompatible with epochs &gt; 1).</li>
+<li>Docker: Dynamically set <code>compose up</code> timeout when there are <code>healthcheck</code> entries for services.</li>
+<li>Log: Validate that <code>log_dir</code> is writeable at startup.</li>
+<li>Log: Write eval config defaults into log file (rather than <code>None</code>).</li>
+<li>Bugfix: Always honor level-level-transcript setting for transcript logging.</li>
+<li>Bugfix: Fix some dynamic layout issues for sample sandbox view.</li>
+</ul>
+</section>
+<section id="v0.3.63-07-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.63-07-february-2025">v0.3.63 (07 February 2025)</h2>
+<ul>
+<li>Add <a href="https://inspect.aisi.org.uk/providers.html#openrouter">OpenRouter</a> model provider.</li>
+<li>Inspect View: Convert codebase from JS/Preact to Typescript/React</li>
+<li>Add <code>shuffle_choices</code> to dataset and dataset loading functions. Deprecate <code>shuffle</code> parameter to the <code>multiple_choice</code> solver.</li>
+<li>Add <code>stop_words</code> param to the <code>f1</code> scorer. <code>stop_words</code> will be removed from the target and answer during normalization.</li>
+<li>Tools: Handle return of empty list from tool calls.</li>
+<li>Computer: Moved out of beta (i.e.&nbsp;from <code>inspect_ai.tool.beta</code> into <code>inspect_ai.tool</code>).</li>
+<li>Sandboxes: Docker now uses <code>tee</code> for write_file operations.</li>
+<li>Inspect View: Handle Zip64 zip files (for log files greater than 4GB)</li>
+<li>Bugfix: Change <code>type</code> parameter of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span> to <code>pattern</code> to address registry serialisation error.</li>
+<li>Bugfix: Restore printing of request payloads for 400 errors from Anthropic.</li>
+<li>Bugfix: Log transcript event for solver provided scores (improves log viewer display of solver scoring)</li>
+</ul>
+</section>
+<section id="v0.3.62-03-february-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.62-03-february-2025">v0.3.62 (03 February 2025)</h2>
+<ul>
+<li>Various improvements for <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/1229">reasoning models</a> including extracting reasoning content from assistant messages.</li>
+<li>OpenAI: Handle <code>reasoning_effort</code>, <code>max_tokens</code>, <code>temperature</code>, and <code>parallel_tool_calls</code> correctly for o3 models.</li>
+<li>OpenAI: Map some additional 400 status codes to <code>content_filter</code> stop reason.</li>
+<li>Anthropic: Handle 413 status code (Payload Too Large) and map to <code>model_length</code> StopReason.</li>
+<li>Tasks: Log sample with error prior to raising task-ending exception.</li>
+<li>Python: Enhance prompt to emphasise that it is a script rather than a notebook.</li>
+<li>Computer: Various improvements to image including desktop, python, and VS Code configuration.</li>
+<li>Bugfix: Don’t download full log from S3 for header_only reads.</li>
+</ul>
+</section>
+<section id="v0.3.61-31-january-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.61-31-january-2025">v0.3.61 (31 January 2025)</h2>
+<ul>
+<li>Computer: Enable viewing computer tool’s remote mouse cursor via VNC.</li>
+<li>Computer: Disable lock screen on from computer tool reference image.</li>
+<li>Limits: Amend <code>SampleLimitExceededError</code> with current <code>state</code> so that messages, etc. are preserved when limits are hit.</li>
+<li>Tools: Properly handle image dispatching when multiple tool calls are made by assistant.</li>
+<li>Anthropic: Raise error on 400 status not identified as model_length or content_filter.</li>
+<li>Basic Agent: <code>incorrect_message</code> can now optionally be an async function.</li>
+<li>Bugfix: Remove <code>suffix</code> from <code>eval-set</code> CLI args.</li>
+<li>Bugfix: Only catch <code>Exception</code> from sandboxenv_init (allow cancelled to propagate)</li>
+</ul>
+</section>
+<section id="v0.3.60-29-january-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.60-29-january-2025">v0.3.60 (29 January 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/agent-bridge.html">Agent Bridge</a> for integrating external agent frameworks with Inspect.</li>
+<li><a href="https://inspect.aisi.org.uk/models.html#goodfire">Goodfire</a> model provider.</li>
+<li>Add <code>@wraps</code> to functions wrapped by Inspect decorators to preserve type information.</li>
+<li>Hugging Face: Add support for stop sequences for HF models.</li>
+<li>Docker: More robust parsing of version strings (handle development versions).</li>
+<li>Vertex: Support for Anthropic models hosted on Vertex.</li>
+<li>OpenAI: Read <code>refusal</code> field from assistant message when provided.</li>
+<li>OpenAI: Use qualifiers rather than model args for OpenAI on other providers (<code>openai/azure</code>)</li>
+<li>Anthropic: Don’t insert ‘(no content)’ into canonical messages list (do only on replay)</li>
+<li>Anthropic: Use qualifiers rather than model args for Anthropic on other providers (<code>anthropic/bedrock</code>, <code>anthropic/vertex</code>).</li>
+<li>Anthropic: Support for <code>extra_body</code> model arg (for adding additional JSON properties to the request)</li>
+<li>Basic Agent: Append <code>tools</code> to <code>state</code> so that tools added in <code>init</code> are preserved.</li>
+<li>Scoring: Always provide half-again the sample time limit for scoring.</li>
+<li>Bugfix: Fix issue w/ approvals for samples with id==0.</li>
+<li>Bugfix: Use “plain” display when running eval_async() outside of eval().</li>
+<li>Bugfix: Fix issue with multiple scorers of the same type in a task.</li>
+</ul>
+</section>
+<section id="v0.3.59-24-january-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.59-24-january-2025">v0.3.59 (24 January 2025)</h2>
+<ul>
+<li>Beta version of <a href="https://inspect.aisi.org.uk/tools-standard.html#sec-computer">computer()</a> tool which models with a computer desktop environment.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#user_message">user_message()</a></span> solver for appending parameterised user messages.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#prompt_template">prompt_template()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#system_message">system_message()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#user_message">user_message()</a></span> solver now also include the sample <code>store</code> in substitution parameters.</li>
+<li>Limits: Enforce token and message limit at lower level (not longer required to check <code>state.completed</code> for limit enforcement).</li>
+<li>Limits: Enforce <a href="https://inspect.aisi.org.uk/errors-and-limits.html#custom-limit">custom limits</a> for samples by raising <code>SampleLimitExceededError</code>.</li>
+<li>Tasks: Optional ability for solvers to <a href="https://inspect.aisi.org.uk/solvers.html#sec-scoring-in-solvers">yield scores</a> for a task.</li>
+<li>Model API: Log model calls that result in bad request errors.</li>
+<li>Tools: <code>model_input</code> option that determines how tool call result content is played back to the model.</li>
+<li>Tools: Don’t attempt to marshall arguments of dynamic <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tooldef">ToolDef</a></span> with <code>**kwargs: Any</code> (just pass them through).</li>
+<li>Log warning when a non-fatal sample error occurs (i.e.&nbsp;errors permitted by the <code>fail_on_error</code> option)</li>
+<li>Inspect View: allow filtering samples by compound expressions including multiple scorers. (thanks <span class="citation" data-cites="andrei-apollo">@andrei-apollo</span>)</li>
+<li>Inspect View: improve rendering performance and stability for the viewer when viewing very large eval logs or samples with a large number of steps.</li>
+<li>Task display: Improved <code>plain</code> mode with periodic updates on progress, metrics, etc.</li>
+<li>Google: Update to v0.8.4 of google-generativeai (py.typed support and removal of logprobs generation options)</li>
+<li>Google: Support for string enums (e.g.&nbsp;<code>Literal["a", "b", "c"])</code>) in tool function declarations.</li>
+</ul>
+</section>
+<section id="v0.3.58-16-january-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.58-16-january-2025">v0.3.58 (16 January 2025)</h2>
+<ul>
+<li>Support for <a href="https://inspect.aisi.org.uk/multimodal.html">audio and video</a> inputs for Open AI and Google Gemini models.</li>
+<li>Task display: Added Timeout Tool button for manually timing out a tool call.</li>
+<li>Task display: Automatically switch to “plain” mode when running in a background thread</li>
+<li>Sandboxes: Setup and initialisation errors are now handled at the sample level.</li>
+<li>Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren’t idempotent).</li>
+<li>Sandboxes: Add <code>timeout_retry</code> option (defaulting to <code>True</code>) to <code>exec()</code> function.</li>
+<li>Sandboxes: Add <code>type</code> and optional <code>container</code> properties to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxconnection">SandboxConnection</a></span>.</li>
+<li>Docker: Services which exit with status 0 during setup no longer cause an error.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> function for creating task variants.</li>
+<li>Added <code>--filter</code> argument to trace CLI commands for filtering on trace log message content.</li>
+<li>Print model conversations to terminal with <code>--display=conversation</code> (was formerly <code>--trace</code>, which is now deprecated).</li>
+<li>HuggingFace: Support models that don’t provide a chat template (e.g.&nbsp;gpt2)</li>
+<li>Eval Set: Ensure that logs with status ‘started’ are retried.</li>
+<li>Rename the built in <code>bootstrap_std</code> metric to <code>bootstrap_stderr</code> (deprecate <code>bootstrap_std</code>)</li>
+<li>Bugfix: Fix duplication of summaries when eval log file is rewritten.</li>
+</ul>
+</section>
+<section id="v0.3.57-09-january-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.57-09-january-2025">v0.3.57 (09 January 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/tracing.html#tracing-api">Tracing API</a> for custom trace logging.</li>
+<li>Inspect View: never truncate tool result images and display at default width of 800px.</li>
+<li>Inspect View: display tool error messages in transcript when tool errors occur.</li>
+<li>Inspect View: display any completed samples even if the task fails because of an error</li>
+<li>Inspect View: don’t display the ‘input’ column heading if there isn’t an input</li>
+<li>Open AI: Handle additional bad request status codes (mapping them to appropriate <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stopreason">StopReason</a></span>)</li>
+<li>Open AI: Use new <code>max_completion_tokens</code> option for o1 full.</li>
+<li>Web Browser: raise error when both <code>error</code> and <code>web_at</code> fields are present in response.</li>
+<li>Sandboxes: Apply dataset filters (limit and sample id) prior to sandbox initialisation.</li>
+<li>Docker: Prevent issue with container/project names that have a trailing underscore.</li>
+<li>Store: initialise <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> from existing dictionary.</li>
+<li>Log: provide <code>metadata_as</code> and <code>store_as</code> typed accessors for sample metadata and store.</li>
+<li>Tool parameters with a default of <code>None</code> are now supported.</li>
+<li>More fine graned HTML escaping for sample transcripts displalyed in terminal.</li>
+<li>Bugfix: prevent errors when a state or storage value uses a tilde or slash in the key name.</li>
+<li>Bugfix: Include input in sample summary when the sample input contains a simple string.</li>
+</ul>
+</section>
+<section id="v0.3.56-01-january-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.56-01-january-2025">v0.3.56 (01 January 2025)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/human-agent.html">Human Agent</a> solver for human baselining of computing tasks.</li>
+<li><a href="https://inspect.aisi.org.uk/typing.html">Typed interfaces</a> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> store and metadata using Pydantic models.</li>
+<li><a href="https://inspect.aisi.org.uk/approval.html#task-approvers">Approval policies</a> can now be defined at the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> level (<code>eval</code> level approval policies take precedence).</li>
+<li>Tools can now return <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttext">ContentText</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentimage">ContentImage</a></span>.</li>
+<li>Move tool result images into subsequent user messages for models that don’t support tools returning images.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxconnection">SandboxConnection</a></span> that contains login information from sandboxes.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#display_type">display_type()</a></span> function for detecting the current display type (e.g.&nbsp;“full”, “rich”, etc.)</li>
+<li>Trace: improved handling of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> running in multiple processes at once (trace file per-process)</li>
+<li>Docker: don’t apply timeouts to <code>docker build</code> and <code>docker pull</code> commands.</li>
+<li>Bugfix: fix issue w/ <code>store.get()</code> not auto-inserting <code>default</code> value.</li>
+</ul>
+</section>
+<section id="v0.3.55-29-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.55-29-december-2024">v0.3.55 (29 December 2024)</h2>
+<ul>
+<li>Bedrock: redact authentication model args from eval logs.</li>
+<li>OpenAI: warn when <code>temperature</code> is used with o1 models (as it is not supported).</li>
+<li>Bugfix: spread args for cache trace logging.</li>
+</ul>
+</section>
+<section id="v0.3.54-26-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.54-26-december-2024">v0.3.54 (26 December 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/tracing.html">Tracing</a> for diagnosing runs with unterminated action (e.g.&nbsp;model calls, docker commands, etc.).</li>
+<li>Provide default timeout/retry for docker compose commands to mitigate unreliability in some configurations.</li>
+<li>Switch to sync S3 writes to overcome unreliability observed when using async interface.</li>
+<li>Task display: Added <code>--no-score-display</code> option to disable realtime scoring metrics.</li>
+<li>Bugfix: Fix failure to fully clone samples that have message lists as input.</li>
+<li>llama-cpp-python: Support for <code>logprobs</code>.</li>
+</ul>
+</section>
+<section id="v0.3.53-20-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.53-20-december-2024">v0.3.53 (20 December 2024)</h2>
+<ul>
+<li>OpenAI: Support for o1 including native tool calling and <code>reasoning_effort</code> generation option.</li>
+<li>Task API: Introduce <code>setup</code> step that always runs even if <code>solver</code> is replaced.</li>
+<li>Bedrock: Support for tool calling on Nova models.</li>
+<li>Bedrock: Support for custom <code>model_args</code> passed through to <code>session.Client</code>.</li>
+<li>Bedrock: Support for <code>jpeg</code> images.</li>
+<li>Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.</li>
+<li>Inspect View: Various improvements to appearance of tool calls in transcript.</li>
+<li>Task display: Ensure that widths of progress elements are kept consistent across tasks.</li>
+<li>Sandboxes: New <code>max_sandboxes</code> option for (per-provider) maximum number of running sandboxes.</li>
+<li>Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.</li>
+<li>Concurrency: Do not use <code>max_tasks</code> as a lower bound for <code>max_samples</code>.</li>
+<li>Log recorder: Always re-open log buffer for <code>eval</code> format logs.</li>
+<li>Bugfix: Proper handling of text find for eval raw JSON display</li>
+<li>Bugfix: Correct handling for <code>--sample-id</code> integer comparisons.</li>
+<li>Bugfix: Proper removal of model_args with falsey values (explicit check for <code>None</code>)</li>
+<li>Bugfix: Properly handle custom metrics that return dictionaries or lists</li>
+<li>Bugfix: Proper sample count display when retrying an evaluation</li>
+<li>Bugfix: Fix inability to define and run tasks in a notebook.</li>
+</ul>
+</section>
+<section id="v0.3.52-13-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.52-13-december-2024">v0.3.52 (13 December 2024)</h2>
+<ul>
+<li>Eval: <code>--sample-id</code> option for evaluating specific sample id(s).</li>
+<li>Bedrock: Detect and report HTTP rate limit errors.</li>
+<li>Azure AI: Add <code>emulate_tools</code> model arg to force tool emulation (emulation is enabled by default for Llama models).</li>
+<li>Basic Agent: Add <code>max_tool_output</code> parameter to override default max tool output from generate config.</li>
+<li>Inspect View: Correct display of sample ID for single sample tasks.</li>
+<li>Trace: Show custom tool views in <code>--trace</code> mode.</li>
+<li>Bugfix: Support for dynamic metric names in realtime scoring display.</li>
+</ul>
+</section>
+<section id="v0.3.51-13-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.51-13-december-2024">v0.3.51 (13 December 2024)</h2>
+<ul>
+<li>Bugfix: Task display fails to load when no scorers are defined for a task.</li>
+</ul>
+</section>
+<section id="v0.3.50-12-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.50-12-december-2024">v0.3.50 (12 December 2024)</h2>
+<ul>
+<li>Tools: Improved typing/schema support (unions, optional params, enums).</li>
+<li>Tools: Added <code>append</code> argument to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#use_tools">use_tools()</a></span> for adding (rather than replacing) the currently available tools.</li>
+<li>Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).</li>
+<li>Sandbox API: Enable passing <code>BaseModel</code> types for sandbox <code>config</code> (formerly only a file path could be passed).</li>
+<li>Task display: Show all task scores in realtime (expand task progress to see scores).</li>
+<li>Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).</li>
+<li>Task display: Show sample messages/tokens used (plus limits if specified).</li>
+<li>Task display: Resolve issue where task display would lose mouse input after VS Code reload.</li>
+<li>Datasets: Validate that all IDs in datasets are unique (as several downstream problems occur w/ duplicate IDs).</li>
+<li>Inspect View: Fix issue with incorrectly displayed custom tool views.</li>
+<li>Human approval: Use fullscreen display (makes approval UI async and enables rapid processing of approvals via the <code>Enter</code> key).</li>
+<li>Added <code>input_panel()</code> API for adding custom panels to the fullscreen task display.</li>
+<li>Log recorder: Methods are now async which will improve performance for fsspec filesystems with async implementations (e.g.&nbsp;S3)</li>
+<li>Log recorder: Improve <code>.eval</code> log reading performance for remote filesystem (eagerly fetch log to local buffer).</li>
+<li>Add <code>token_usage</code> property to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> which has current total tokens used across all calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> (same value that is used for enforcing token limits).</li>
+<li>Add <code>time</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span> that records total time spent within call to ModelAPI <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
+<li>Web browser: Remove base64 images from web page contents (prevent filling up model context with large images).</li>
+<li>Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).</li>
+<li>Hugging Face: Support for native HF tool calling for Llama, Mistral, Qwen, and others if they conform to various standard schemas.</li>
+<li>Hugging Face: <code>tokenizer_call_args</code> dict to specify custom args during tokenization, such as <code>max_length</code> and <code>truncation</code>.</li>
+<li>Azure AI: Fix schema validation error that occurred when model API returns <code>None</code> for <code>content</code>.</li>
+<li>Display: Throttle updating of sample list based on number of samples.</li>
+<li>Display: Add explicit ‘ctrl+c’ keybinding (as textual now disables this by default).</li>
+<li>Bugfix: Correct rate limit error display when running in fullscreen mode.</li>
+<li>Bugfix: <code>hf_dataset</code> now explicitly requires the <code>split</code> argument (previously, it would crash when not specified).</li>
+<li>Bugfix: Prevent cascading textual error when an error occurs during task initialisation.</li>
+<li>Bugfix: Correctly restore sample summaries from log file after amend.</li>
+<li>Bugfix: Report errors that occur during task finalisation.</li>
+</ul>
+</section>
+<section id="v0.3.49-03-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.49-03-december-2024">v0.3.49 (03 December 2024)</h2>
+<ul>
+<li>Logging: Only call CreateBucket on Amazon S3 when the bucket does not already exist.</li>
+<li>Improve cancellation feedback and prevent multiple cancellations when using fullscreen display.</li>
+<li>Inspect View: Prevent circular reference error when rendering complex tool input.</li>
+<li>Inspect View: Resolve display issue with sorting by sample then epoch.</li>
+</ul>
+</section>
+<section id="v0.3.48-01-december-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.48-01-december-2024">v0.3.48 (01 December 2024)</h2>
+<ul>
+<li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/865">Realtime display</a> of sample transcripts (including ability to cancel running samples).</li>
+<li>Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our <a href="https://inspect.aisi.org.uk/scorers.html#sec-multiple-scorers">scorer documentation</a> for more information.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> now includes a <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/872">location</a> property indicating where it was read from.</li>
+<li>Use <a href="https://inspect.aisi.org.uk/approval.html#tool-views">tool views</a> when rendering tool calls in Inspect View.</li>
+<li>Consistent behavior for <code>max_samples</code> across sandbox and non-sandbox evals (both now apply <code>max_samples</code> per task, formerly evals with sandboxes applied <code>max_samples</code> globally).</li>
+<li>Log files now properly deal with scores that produce Nan. (fixes <a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/834">#834</a>)</li>
+<li>Bash tool: add <code>--login</code> option so that e.g.&nbsp;.bashrc is read before executing the command.</li>
+<li>Google: Support for tools/functions that have no parameters.</li>
+<li>Google/Vertex: Support for <code>logprobs</code> and other new 1.5 (002 series) options.</li>
+<li>AzureAI: Change default max_tokens for Llama models to 2048 (4096 currently yields an error w/ Llama 3.1).</li>
+<li>Mistral: Various compatibility changes for their client and tool calling implementation.</li>
+<li>Handle exponents in numeric normalisation for match, include, and answer scorers.</li>
+<li>hf_dataset: Added <code>cached</code> argument to control whether to use a previously cached version of the dataset if available (defaults to <code>True</code>).</li>
+<li>hf_dataset: Added <code>revision</code> option to load a specific branch or commit SHA (when using <code>revision</code> datasets are always revalidated on Hugging Face, i.e.&nbsp;<code>cached</code> is ignored).</li>
+<li>Log viewer: Display sample ids rather than indexes.</li>
+<li>Log viewer: Add timestamps to transcript events.</li>
+<li>Log viewer: Metadata which contains images will now render the images.</li>
+<li>Log viewer: Show custom tool call views in messages display.</li>
+<li>Bugfix: Correctly read and forward image detail property.</li>
+<li>Bugfix: Correct resolution of global eval override of task or sample sandboxes.</li>
+<li>Bugfix: Don’t do eval log listing on background threads (s3fs can deadlock when run from multiple threads).</li>
+</ul>
+</section>
+<section id="v0.3.47-18-november-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.47-18-november-2024">v0.3.47 (18 November 2024)</h2>
+<ul>
+<li>Basic agent: Ensure that the scorer is only run once when max_attempts = 1.</li>
+<li>Basic agent: Support custom function for incorrect_message reply to model.</li>
+<li>Tool calling: Execute multiple tool calls serially (some models assume that multiple calls are executed this way rather than in parallel).</li>
+<li>Google: Combine consecutive tool messages into single content part; ensure no empty text content parts.</li>
+<li>AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).</li>
+<li>Bedrock: Migrate to the <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html">Converse API</a>, which supports many more features including tool calling and multimodal models.</li>
+<li>Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our <a href="https://inspect.aisi.org.uk/scorers.html#sec-multiple-scorers">scorer documentation</a> for more information.</li>
+<li>Sample limit events will now appear in the transcript if a limit (e.g.&nbsp;message, token, or time limit) halt a sample. The sample list and sample detail also display the limit, if applicable.</li>
+</ul>
+</section>
+<section id="v0.3.46-12-november-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.46-12-november-2024">v0.3.46 (12 November 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/eval-logs.html#sec-log-format">eval</a> is now the default log format (use <code>--log-format=json</code> to use old format).</li>
+<li>Base 64 images are now logged by default for all log formats (disable with <code>--no-log-images</code>).</li>
+<li>The log viewer now properly displays sample errors in the sample list for <code>eval</code> format log files.</li>
+<li>Improve path handling when using <code>inspect log convert</code> to convert a single log file.</li>
+<li>Web browser tool: Subtasks now each have independent web browser sessions.</li>
+<li>Anthropic: Ensure that assistant messages created in generate never have empty content lists.</li>
+<li>Increase sandbox <code>exec()</code> output limit from 1 MiB to 10 MiB.</li>
+</ul>
+</section>
+<section id="v0.3.45-11-november-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.45-11-november-2024">v0.3.45 (11 November 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits">time_limit</a> option for specifying a maximum execution time for samples.</li>
+<li><a href="https://inspect.aisi.org.uk/eval-logs.html#streaming">read_eval_log_samples()</a> function for streaming reads of <code>.eval</code> log files.</li>
+<li>Mistral: Support for multi-modal models (requires v1.2 of mistralai package).</li>
+<li>Groq: Support for multi-modal models (requires v0.11.0 of groq package).</li>
+<li>AzureAI: Use Model Inference API (preview) for implementation of model client.</li>
+<li>Bedrock: Fix parsing of Bedrock Mistral Large 2407 responses</li>
+<li>Apply standard sample error handling (fail-on-error, etc.) when running scorers.</li>
+<li>Fix issue with correctly logging task_args for eval-set tasks which are interrupted.</li>
+<li>Move <code>INSPECT_DISABLE_MODEL_API</code> into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> (as opposed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span>)</li>
+<li>Always treat <code>.eval</code> files as logs (don’t apply file name pattern restrictions as we do with <code>.json</code>).</li>
+<li>Log model calls when model providers return bad request errors</li>
+<li>Better lay out large numbers of configuration and parameters when displaying log files.</li>
+<li>The log viewer now properly displays sample scores for running tasks.</li>
+<li>Add <code>metadata</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span> and provide various fields for the Groq provider.</li>
+</ul>
+</section>
+<section id="v0.3.44-04-november-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.44-04-november-2024">v0.3.44 (04 November 2024)</h2>
+<ul>
+<li>Revert change to single epoch reducer behavior (regressed some scoring scenarios).</li>
+</ul>
+</section>
+<section id="v0.3.43-04-november-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.43-04-november-2024">v0.3.43 (04 November 2024)</h2>
+<ul>
+<li>New binary <a href="https://inspect.aisi.org.uk/eval-logs.html#sec-log-format">log format</a> which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).</li>
+<li><a href="https://docs.x.ai/">Grok</a> model provider.</li>
+<li><a href="https://llama-cpp-python.readthedocs.io/en/latest/">llama-cpp-python</a> local model provider.</li>
+<li>Extensions: correctly load extensions in packages where package name differs from dist name.</li>
+<li>Added <code>--model-config</code>, <code>--task-config</code>, and <code>--solver-config</code> CLI arguments for specifying model, task, and solver args using a JSON or YAML config file.</li>
+<li>View: properly render complex score objects in transcript.</li>
+<li>Write custom tool call views into transcript for use by Inspect View.</li>
+<li>Use <code>casefold()</code> for case-insensitive compare in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#includes">includes()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#match">match()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#exact">exact()</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#f1">f1()</a></span> scorers.</li>
+<li>OpenAI: eliminate use of <code>strict</code> tool calling (sporadically supported across models and we already internally validate).</li>
+<li>Mistral: fix bug where base_url was not respected when passing both an api_key and base_url.</li>
+<li>Don’t include package scope for task name part of log files.</li>
+<li>Improve performance of write_file for Docker sandboxes.</li>
+<li>Use user_data_dir rather than user_runtime_dir for view notifications.</li>
+<li>Implement <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample">read_eval_log_sample()</a></span> for JSON log files.</li>
+<li>Log the list of dataset sample IDs.</li>
+<li>Limit <code>SandboxEnvironment.exec()</code> output streams to 1 MiB. Limit <code>SandboxEnvironment.read_file()</code> to 100 MiB.</li>
+<li>Add <code>INSPECT_DISABLE_MODEL_API</code> environment variable for disabling all Model APIs save for mockllm.</li>
+<li>Add optional <code>tool_call_id</code> param to <code>ModelOutput.for_tool_call()</code>.</li>
+<li>Support all JSON and CSV dataset arguments in <code>file_dataset()</code> function.</li>
+</ul>
+</section>
+<section id="v0.3.42-23-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.42-23-october-2024">v0.3.42 (23 October 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/tools-custom.html#sec-dynamic-tools">ToolDef</a> class for dynamically creating tool definitions.</li>
+<li>Added <code>--tags</code> option to eval for tagging evaluation runs.</li>
+<li>Added APIs for accessing sample event transcripts and for creating and resolving attachments for larger content items.</li>
+<li>Cleanup Docker Containers immediately for samples with errors.</li>
+<li>Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).</li>
+<li>Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).</li>
+<li>Anthropic: ensure that we never send empty text content to the API.</li>
+<li>Google: compatibility with google-generativeai v0.8.3</li>
+<li>Llama: remove extraneous &lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt; if it appears in an assistant message.</li>
+<li>OpenAI: Remove tool call id in user message reporting tool calls to o1- models.</li>
+<li>Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.</li>
+<li>Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.</li>
+<li>Support INSPECT_EVAL_MODEL_ARGS environment variable for calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</li>
+<li>Requirements: add lower bounds to various dependencies based on usage, compatibility, and stability.</li>
+<li>Added <code>include_history</code> option to model graded scorers to optionally include the full chat history in the presented question.</li>
+<li>Added <code>delimiter</code> option to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#csv_dataset">csv_dataset()</a></span> (defaults to “,”)</li>
+<li>Improve answer detection in multiple choice scorer.</li>
+<li>Open log files in binary mode when reading headers (fixes ijson deprecation warning).</li>
+<li>Capture <code>list</code> and <code>dict</code> of registry objects when logging <code>plan</code>.</li>
+<li>Add <code>model_usage</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> to record token usage by model for each sample.</li>
+<li>Correct directory handling for tasks that are imported as local (non-package) modules.</li>
+<li>Basic agent: terminate agent loop when the context window is exceeded.</li>
+<li>Call tools sequentially when they have opted out of parallel calling.</li>
+<li>Inspect view bundle: support for bundling directories with nested subdirectories.</li>
+<li>Bugfix: strip protocol prefix when resolving eval event content</li>
+<li>Bugfix: switch to run directory when running multiple tasks with the same run directory.</li>
+<li>Bugfix: ensure that log directories don’t end in forward/back slash.</li>
+</ul>
+</section>
+<section id="v0.3.41-11-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.41-11-october-2024">v0.3.41 (11 October 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/approval.html">Approval mode</a> for extensible approvals of tool calls (human and auto-approvers built in, arbitrary other approval schemes via extensions).</li>
+<li><a href="https://inspect.aisi.org.uk/interactivity.html#sec-trace-mode">Trace mode</a> for printing model interactions to the terminal.</li>
+<li>Add <code>as_dict()</code> utility method to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span></li>
+<li><a href="https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits">Sample limits</a> (<code>token_limit</code> and <code>message_limit</code>) for capping the number of tokens or messages used per sample ( <code>message_limit</code> replaces deprecated <code>max_messages</code>).</li>
+<li>Add <code>metadata</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> and record in log <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalspec">EvalSpec</a></span>.</li>
+<li>Include datetime and level in file logger.</li>
+<li>Correct llama3 and o1 tool calling when empty arguments passed.</li>
+<li>Allow resolution of any sandbox name when there is only a single environment.</li>
+<li>Introduce <code>--log-level-transcript</code> option for separate control of log entries recorded in the eval log file</li>
+<li>Improve mime type detection for image content encoding (fixes issues w/ webp images).</li>
+<li>Fix memory leak in Inspect View worker-based JSON parsing.</li>
+<li>Add <code>fail_on_error</code> option for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> and <code>inspect eval-retry</code>.</li>
+<li>Defer resolving helper models in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#self_critique">self_critique()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>.</li>
+<li>Fix Docker relative path resolution on Windows (use PurePosixPath not Path)</li>
+<li>Restore support for <code>--port</code> and <code>--host</code> on Inspect View.</li>
+</ul>
+</section>
+<section id="v0.3.40-6-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.40-6-october-2024">v0.3.40 (6 October 2024)</h2>
+<ul>
+<li>Add <code>interactive</code> option to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> for disabling interactive tools (clicking, typing, and submitting forms).</li>
+<li>Provide token usage and raw model API calls for OpenAI o1-preview.</li>
+<li>Add support for reading CSV files of dialect ‘excel-tab’.</li>
+<li>Improve prompting for Python tool to emphasise the need to print output.</li>
+<li>For <code>basic_agent()</code>, defer to task <code>max_messages</code> if none is specified for the agent (default to 50 is the task does not specify <code>max_messages</code>).</li>
+<li>Add optional <code>content</code> parameter to <code>ModelOutput.for_tool_call()</code>.</li>
+<li>Display total samples in Inspect View</li>
+<li>Prune <code>sample_reductions</code> when returning eval logs with <code>header_only=True</code>.</li>
+<li>Improved error message for undecorated solvers.</li>
+<li>For simple matching scorers, only include explanation if it differs from answer.</li>
+</ul>
+</section>
+<section id="v0.3.39-3-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.39-3-october-2024">v0.3.39 (3 October 2024)</h2>
+<ul>
+<li>The sample transcript will now display the target for scoring in the Score Event (for newly run evaluations).</li>
+<li>Provide setter for <code>max_messages</code> on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>.</li>
+<li>Provide <code>max_messages</code> option for <code>basic_agent()</code> (defaulting to 50) and use it rather than any task <code>max_messages</code> defined.</li>
+<li>Improved implementation of disabling parallel tool calling (also fixes a transcript issue introduced by the original implementation).</li>
+<li>Improve quality of error messages when a model API key environment variable is missing.</li>
+<li>Improve prompting around letting the model know it should not attempt parallel web browser calls.</li>
+</ul>
+</section>
+<section id="v0.3.38-3-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.38-3-october-2024">v0.3.38 (3 October 2024)</h2>
+<ul>
+<li>Rename <code>web_browser_tools()</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span>, and don’t export individual web browsing tools.</li>
+<li>Add <code>parallel</code> option to <code>@tool</code> decorator and specify <code>parallel=False</code> for web browsing tools.</li>
+<li>Improve prompting for web browser tools using more explicit examples.</li>
+<li>Improve prompting for <code>&lt;/tool_call&gt;</code> end sequence for Llama models.</li>
+<li>Fix issue with failure to execute sample setup scripts.</li>
+</ul>
+</section>
+<section id="v0.3.37-2-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.37-2-october-2024">v0.3.37 (2 October 2024)</h2>
+<ul>
+<li>Move evals into <a href="https://github.com/UKGovernmentBEIS/inspect_evals">inspect_evals</a> package.</li>
+</ul>
+</section>
+<section id="v0.3.36-2-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.36-2-october-2024">v0.3.36 (2 October 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser">Web Browser</a> tool which provides a headless Chromium browser that supports navigation, history, and mouse/keyboard interactions.</li>
+<li><code>auto_id</code> option for dataset readers to assign an auto-incrementing ID to records.</li>
+<li>Task args: don’t attempt to serialise registry objects that don’t have captured parameters.</li>
+</ul>
+</section>
+<section id="v0.3.35-1-october-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.35-1-october-2024">v0.3.35 (1 October 2024)</h2>
+<ul>
+<li>Catch o1-preview “invalid_prompt” exception and convert to normal content_filter refusal.</li>
+<li>Terminate timed out subprocesses.</li>
+<li>Support ‘anthropoic/bedrock/’ service prefix for Anthropic models hosted on AWS Bedrock.</li>
+<li>Change score reducer behavior to always reduce score metadata to the value of the <code>metadata</code> field in the first epoch</li>
+<li>Improve task termination message (provide eval-retry prompt for tasks published in packages)</li>
+<li>Preserve type for functions decorated with <code>@task</code>.</li>
+<li>Various improvements to layout and display for Inspect View transcript.</li>
+</ul>
+</section>
+<section id="v0.3.34-30-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.34-30-september-2024">v0.3.34 (30 September 2024)</h2>
+<ul>
+<li>Support for <code>max_tokens</code> on OpenAI o1 models (map to <code>max_completion_tokens</code>).</li>
+<li>Fix regression of log and debug options on <code>inspect view</code></li>
+<li>Improved focus management for Inspect View</li>
+<li>Raise error if <code>epochs</code> is less than 1</li>
+<li>Improve code parsing for HumanEval (compatibility with Llama model output)</li>
+</ul>
+</section>
+<section id="v0.3.33-30-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.33-30-september-2024">v0.3.33 (30 September 2024)</h2>
+<ul>
+<li>StopReason: Added “model_length” for exceeding token window and renamed “length” to “max_tokens”.</li>
+<li>Capture solver input params for subtasks created by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#fork">fork()</a></span>.</li>
+<li>Option to disable ANSI terminal output with <code>--no-ansi</code> or <code>INSPECT_NO_ANSI</code></li>
+<li>Add chain of thought option to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> and export <code>MultipleChoiceTemplate</code> enumeration</li>
+<li>Allow Docker sandboxes configured with <code>x-default</code> to be referred to by their declared service name.</li>
+<li>Improved error messages for Docker sandbox initialisation.</li>
+<li>Improve legibility of Docker sandbox log entries (join rather than displaying as array)</li>
+<li>Display user message immediately proceeding assistant message in model call transcripts.</li>
+<li>Display images created by tool calls in the Viewer.</li>
+<li>Fix duplicated tool call output display in Viewer for Gemini and Llama models.</li>
+<li>Require a <code>max_messages</code> for use of <code>basic_agent()</code> (as without it, the agent could end up in an infinite loop).</li>
+<li>Load extension entrypoints per-package (prevent unnecessary imports from packages not being referenced).</li>
+<li>Track sample task state in solver decorator rather than solver transcript.</li>
+<li>Display solver input parameters for forked subtasks.</li>
+<li>Improvements to docker compose down cleanup: timeout, survive missing compose files.</li>
+<li>Always produce epoch sample reductions even when there is only a single epoch.</li>
+<li>Scores produced after being reduced retain <code>answer</code>, <code>explanation</code>, and <code>metadata</code> only if equal across all epochs.</li>
+</ul>
+</section>
+<section id="v0.3.32-25-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.32-25-september-2024">v0.3.32 (25 September 2024)</h2>
+<ul>
+<li>Fix issue w/ subtasks not getting a fresh store() (regression from introduction of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#fork">fork()</a></span> in v0.3.30)</li>
+<li>Fix issue w/ subtasks that return None invalidating the log file.</li>
+<li>Make subtasks collapsible in Inspect View.</li>
+<li>Improved error reporting for missing <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> provider environment variables.</li>
+</ul>
+</section>
+<section id="v0.3.31-24-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.31-24-september-2024">v0.3.31 (24 September 2024)</h2>
+<ul>
+<li>Deprecated <code>Plan</code> in favor of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> (with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#chain">chain()</a></span> function to compose multiple solvers).</li>
+<li>Added <code>max_tool_output</code> generation option (defaults to 16KB).</li>
+<li>Improve performance of <code>header_only</code> log reading (switch from json-stream to ijson).</li>
+<li>Add support for 0 retries to <code>eval-set</code> (run a single <code>eval</code> then stop).</li>
+<li>Tool calling fixes for update to Mistral v1.1. client.</li>
+<li>Always show <code>epochs</code> in task status (formerly wasn’t included for multiple task display)</li>
+<li>Render transcript <code>info()</code> strings as markdown</li>
+<li>Eliminate log spam from spurious grpc fork message.</li>
+<li>Fix issue with hf_dataset shuffle=True not actually shuffling.</li>
+<li>Improved error handling when loading invalid setuptools entrypoints.</li>
+<li>Don’t catch TypeError when calling tools (we now handle this in other ways)</li>
+</ul>
+</section>
+<section id="v0.3.30-18-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.30-18-september-2024">v0.3.30 (18 September 2024)</h2>
+<ul>
+<li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#fork">fork()</a></span> function to fork a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and evaluate it against multiple solvers in parallel.</li>
+<li>Ensure that Scores produced after being reduced still retain <code>answer</code>, <code>explanation</code>, and <code>metadata</code>.</li>
+<li>Fix error when running <code>inspect info log-types</code></li>
+<li>Improve scorer names imported from modules by not including the the module names.</li>
+<li>Don’t mark messages read from cache with source=“cache” (as this breaks the cache key)</li>
+<li>Add <code>cache</code> argument to <code>basic_agent()</code> for specifying cache policy for the agent.</li>
+<li>Add <code>cache</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#modelevent">ModelEvent</a></span> to track cache reads and writes.</li>
+<li>Compatibility with Mistral v1.1 client (now required for Mistral).</li>
+<li>Catch and propagate Anthropic content filter exceptions as normal “content_filter” responses.</li>
+<li>Fix issue with failure to report metrics if all samples had a score value of 0.</li>
+<li>Improve concurrency of Bedrock models by using aioboto3.</li>
+<li>Added <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench">SWE Bench</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia">GAIA</a>, and <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/in_house_ctf">GDM CTF</a> evals.</li>
+</ul>
+</section>
+<section id="v0.3.29-16-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.29-16-september-2024">v0.3.29 (16 September 2024)</h2>
+<ul>
+<li>Added <code>--plan</code> and <code>-P</code> arguments to <code>eval</code> and <code>eval-set</code> commands for replacing the task default plan with another one.</li>
+<li>Improved support for eval retries when calling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> with a <code>plan</code> argument.</li>
+<li>Don’t log base64 images by default (re-enable logging with <code>--log-images</code>).</li>
+<li>Provide unique tool id when parsing tool calls for models that don’t support native tool usage.</li>
+<li>Fix bug that prevented <code>epoch_reducer</code> from being used in eval-retry.</li>
+<li>Fix bug that prevented eval() level <code>epoch</code> from overriding task level <code>epoch</code>.</li>
+</ul>
+</section>
+<section id="v0.3.28-14-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.28-14-september-2024">v0.3.28 (14 September 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/agents.html#sec-basic-agent">basic_agent()</a> that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.</li>
+<li><a href="https://inspect.aisi.org.uk/solvers.html#sec-scoring-in-solvers">score()</a> function for accessing scoring logic from within solvers.</li>
+<li>Ability to <a href="https://inspect.aisi.org.uk/log-viewer.html#sec-publishing">publish</a> a static standalone Inspect View website for a log directory.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#system_message">system_message()</a></span> now supports custom parameters and interpolation of <code>metadata</code> values from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> solver now accepts arbitrary generation config params.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#use_tools">use_tools()</a></span> now accepts a variadic list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool">Tool</a></span> in addition to literal <code>list[Tool]</code>.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#python">python()</a></span> tools now have a <code>user</code> parameter for choosing an alternate user to run code as.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#python">python()</a></span> tools now always return stderr and stdout no matter the exit status.</li>
+<li>Support for OpenAI o1-preview and o1-mini models.</li>
+<li>Input event for recording screen input in sample transcripts.</li>
+<li>Record to sample function for CSV and JSON dataset readers can now return multiple samples.</li>
+<li>Added <code>debug_errors</code> option to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> to raise task errors (rather than logging them) so they can be debugged.</li>
+<li>Properly support metrics that return a dict or list of values</li>
+<li>Improved display of prerequisite errors when running <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> from a script or notebook.</li>
+<li>Fix <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> issue with cleaning up failed logs on S3.</li>
+<li>Cleanup Docker containers that fail during sample init.</li>
+<li>Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole</li>
+<li>Fix for Vertex tool calling (don’t pass ‘additionalProperties’).</li>
+<li>Added <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad">SQuAD</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval">AGIEval</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_evals/ifeval/">IFEval</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa">PubMedQA</a>, and <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp">MBPP</a> benchmarks.</li>
+</ul>
+</section>
+<section id="v0.3.27-6-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.27-6-september-2024">v0.3.27 (6 September 2024)</h2>
+<ul>
+<li>Fix missing timestamp issue with running <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> with an S3-backed log directory.</li>
+<li>Correct rounding behavior for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#f1">f1()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#exact">exact()</a></span> scorers.</li>
+<li>Correct normalized text comparison for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#exact">exact()</a></span> scorer.</li>
+<li>Improved appearance and navigation for sample transcript view.</li>
+<li>Added <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mathvista">MathVista</a> benchmark.</li>
+</ul>
+</section>
+<section id="v0.3.26-6-september-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.26-6-september-2024">v0.3.26 (6 September 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/eval-sets.html">Eval Sets</a> for running groups of tasks with automatic retries.</li>
+<li><a href="https://inspect.aisi.org.uk/sandboxing.html#sec-per-sample-sandbox">Per-sample</a> Sandbox environments can now be specified (e.g.&nbsp;allowing for a distinct Dockerfile or Docker compose file for each sample).</li>
+<li><a href="https://inspect.aisi.org.uk/interactivity.html">input_screen()</a> context manager to temporarily clear task display for user input.</li>
+<li>Introduce two new scorers, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#f1">f1()</a></span> (precision and recall in text matching) and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#exact">exact()</a></span> (whether normalized text matches exactly).</li>
+<li>Task <code>metrics</code> now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#write_log_dir_manifest">write_log_dir_manifest()</a></span> to write a log header manifest for a log directory.</li>
+<li>Relocate <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">store()</a></span> and <code>@subtask</code> from solver to utils module; relocate <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#transcript">transcript()</a></span> from solver to log module.</li>
+<li>Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.</li>
+<li>Fix issue with resolving Docker configuration files when not running from the task directory.</li>
+<li>Only populate Docker compose config metadata values when they are used in the file.</li>
+<li>Treat Sandbox exec <code>cwd</code> that are relative paths as relative to sample working directory.</li>
+<li>Filter base64 encoded images out of model API call logs.</li>
+<li>Raise error when a Solver does not return a TaskState.</li>
+<li>Only run tests that use model APIs when the <code>--runapi</code> flag is passed to <code>pytest</code> (prevents unintended token usage)</li>
+<li>Remove <code>chdir</code> option from <code>@tasks</code> (tasks now always chdir during execution).</li>
+<li>Do not process <code>.env</code> files in task directories (all required vars should be specified in the global <code>.env</code>).</li>
+<li>Only enable <code>strict</code> mode for OpenAI tool calls when all function parameters are required.</li>
+<li>Added <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmmu">MMMU</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/commonsense_qa">CommonsenseQA</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu_pro">MMLU-Pro</a>, and <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/xstest">XSTest</a> benchmarks.</li>
+</ul>
+</section>
+<section id="v0.3.25-25-august-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.25-25-august-2024">v0.3.25 (25 August 2024)</h2>
+<ul>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> for manipulating arbitrary sample state from within solvers and tools.</li>
+<li><code>Transcripts</code> for detailed sample level tracking of model and tool calls, state changes, logging, etc.</li>
+<li><code>Subtasks</code> for delegating work to helper models, sub-agents, etc.</li>
+<li>Integration with Anthropic <a href="https://inspect.aisi.org.uk/caching.html#sec-provider-caching">prompt caching</a>.</li>
+<li><a href="https://inspect.aisi.org.uk/errors-and-limits.html#failure-threshold">fail_on_error</a> option to tolerate some threshold of sample failures without failing the evaluation.</li>
+<li>Specify <code>init</code> value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).</li>
+<li>Add <code>function</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> to indicate the name of the function called.</li>
+<li>Added <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race-h/">RACE</a> benchmark.</li>
+</ul>
+</section>
+<section id="v0.3.24-18-august-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.24-18-august-2024">v0.3.24 (18 August 2024)</h2>
+<ul>
+<li>Support for tool calling for Llama 3.1 models on Bedrock.</li>
+<li>Report JSON schema validation errors to model in tool response.</li>
+<li>Support for <code>strict</code> mode in OpenAI tool calls (update to v1.40.0 of <code>openai</code> package required).</li>
+</ul>
+</section>
+<section id="v0.3.23-16-august-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.23-16-august-2024">v0.3.23 (16 August 2024)</h2>
+<ul>
+<li>Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.</li>
+<li>Increase default <code>max_tokens</code> from 1024 to 2048.</li>
+<li>Record individual sample reductions along with results for multi-epoch evals.</li>
+<li>Change default to not log base64 encoded versions of images, as this often resulted in extremely large log files (use <code>--log-images</code> to opt back in).</li>
+<li>Update to new Mistral API (v1.0.1 of <code>mistralai</code> is now required).</li>
+<li>Support for Llama 3.1 models on Amazon Bedrock</li>
+<li>Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).</li>
+<li>Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)</li>
+<li>Fix bug in match scorer whereby numeric values with periods aren’t correctly recognized.</li>
+<li>Added <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/humaneval">HumanEval</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/winogrande">WinoGrande</a> and <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/drop">Drop</a> benchmarks.</li>
+</ul>
+</section>
+<section id="v0.3.22-07-august-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.22-07-august-2024">v0.3.22 (07 August 2024)</h2>
+<ul>
+<li>Fix issue affecting results of <code>pass_at_{k}</code> score reducer.</li>
+</ul>
+</section>
+<section id="v0.3.21-07-august-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.21-07-august-2024">v0.3.21 (07 August 2024)</h2>
+<ul>
+<li>Add <code>pass_at_{k}</code> score reducer to compute the probability of at least 1 correct sample given <code>k</code> epochs.</li>
+<li>Improved metrics <code>value_to_float</code> string conversion (handle numbers, “true”, “false”, etc.)</li>
+<li>Log viewer: Ctrl/Cmd+F to find text when running in VS Code.</li>
+<li>Set Claude default <code>max_tokens</code> to 4096</li>
+<li>Combine user and assistant messages for Vertex models.</li>
+<li>Warn when using the <code>name</code> parameter with task created from <code>@task</code> decorated function.</li>
+<li>Make sample <code>metadata</code> available in prompt, grading, and self-critique templates.</li>
+<li>Retry on several additional OpenAI errors (APIConnectionError | APITimeoutError | InternalServerError)</li>
+<li>Fix a regression which would cause the ‘answer’ to be improperly recorded when scoring a sample.</li>
+</ul>
+</section>
+<section id="v0.3.20-03-august-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.20-03-august-2024">v0.3.20 (03 August 2024)</h2>
+<ul>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#epochs">Epochs</a></span> data type for specifying epochs and reducers together (deprecated <code>epochs_reducer</code> argument).</li>
+<li>Enable customisation of model generation cache dir via <code>INSPECT_CACHE_DIR</code> environment variable.</li>
+<li>Use doc comment description rather than <code>prompt</code> attribute of <code>@tool</code> for descriptions.</li>
+<li>Include examples section from doc comments in tool descriptions.</li>
+<li>Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool_with">tool_with()</a></span> function for adapting tools to have varying names and parameter descriptions.</li>
+<li>Improve recording of <code>@task</code> arguments so that dynamically created tasks can be retried.</li>
+<li>Only print <code>eval-retry</code> message to terminal for filesystem based tasks.</li>
+<li>Enhance Python logger messages to capture more context from the log record.</li>
+<li>Fix an issue that could result in duplicate display of scorers in log view when using multiple epoch reducers.</li>
+</ul>
+</section>
+<section id="v0.3.19-02-august-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.19-02-august-2024">v0.3.19 (02 August 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/models.html#sec-vllm">vLLM</a> model provider.</li>
+<li><a href="https://groq.com/">Groq</a> model provider.</li>
+<li><a href="https://inspect.aisi.org.uk/models.html#google-vertex">Google Vertex</a> model provider.</li>
+<li><a href="https://inspect.aisi.org.uk/scorers.html##sec-reducing-epoch">Reduce scores</a> in multi-epoch tasks before computing metrics (defaults to averaging sample values).</li>
+<li>Replace the use of the <code>bootstrap_std</code> metric with <code>stderr</code> for built in scorers (see <a href="https://inspect.aisi.org.uk/scorers.html#stderr-note">rationale</a> for details).</li>
+<li>Option to write Python logger entries to an <a href="https://inspect.aisi.org.uk/log-viewer.html#sec-external-file">external file</a>.</li>
+<li>Rename <code>ToolEnvironment</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> and <code>tool_environment()</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> (moving the renamed types from <code>inspect_ai.tool</code> to <code>inspect_ai.util</code>). Existing symbols will continue to work but will print deprecation errors.</li>
+<li>Moved the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#python">python()</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> functions from <code>inspect_ai.solver</code> to <code>inspect_ai.tool</code>. Existing symbols will continue to work but will print deprecation errors.</li>
+<li>Enable parallel execution of tasks that share a working directory.</li>
+<li>Add <code>chdir</code> option to <code>@task</code> to opt-out of changing the working directory during task execution.</li>
+<li>Enable overriding of default safety settings for Google models.</li>
+<li>Use Python type annotations as the first source of type info for tool functions (fallback to docstrings only if necessary)</li>
+<li>Support for richer types (list, TypeDict, dataclass, Pydantic, etc.) in tool calling.</li>
+<li>Change <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolinfo">ToolInfo</a></span> parameters to be directly expressed in JSON Schema (making it much easier to pass them to model provider libraries).</li>
+<li>Validate tool call inputs using JSON Schema and report errors to the model.</li>
+<li>Gracefully handle tool calls that include only a single value (rather than a named dict of parameters).</li>
+<li>Support <code>tool_choice="any"</code> for OpenAI models (requires &gt;= 1.24.0 of openai package).</li>
+<li>Make multiple tool calls in parallel. Parallel tool calls occur by default for OpenAI, Anthropic, Mistral, and Groq. You can disable this behavior for OpenAI and Groq with <code>--parallel-tool-calls false</code>.</li>
+<li>Invoke rate limit retry for OpenAI APITimeoutError (which they have recently begun returning a lot of more of as a result of httpx.ConnectTimeout, which is only 5 seconds by default.).</li>
+<li>Add <code>cwd</code> argument to <code>SandboxEnvironment.exec()</code></li>
+<li>Use <code>tee</code> rather than <code>docker cp</code> for Docker sandbox environment implementation of <code>write_file()</code>.</li>
+<li>Handle duplicate tool call ids in Inspect View.</li>
+<li>Handle sorting sample ids of different types in Inspect View.</li>
+<li>Correctly resolve default model based on CLI –model argument.</li>
+<li>Fix issue with propagating API keys to Azure OpenAI provider.</li>
+<li>Add <code>azure</code> model arg for OpenAI provider to force binding (or not binding) to the Azure OpenAI back-end.</li>
+<li>Support for Llama 3 models with the Azure AI provider.</li>
+<li>Add <code>setup</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> for providing a per-sample setup script.</li>
+<li>Score multiple choice questions without parsed answers as incorrect (rather than being an error). Llama 3 and 3.1 models especially often fail to yield an answer.</li>
+<li>Read JSON encoded <code>metadata</code> field from samples.</li>
+<li>Show task/display progress immediately (rather than waiting for connections to fill).</li>
+<li>Reduce foreground task contention for Inspect View history loading.</li>
+<li>Ability to host standalone version of Inspect View to view single log files.</li>
+<li>Throw <code>TimeoutError</code> if a call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#subprocess">subprocess()</a></span> or <code>sandbox().exec()</code> times out (formerly a textual error was returned along with a non-zero exit code).</li>
+<li>Validate name passed to <code>example_dataset()</code> (and print available example dataset names).</li>
+<li>Resolve relative image paths within Dataset samples against the directory containing the dataset.</li>
+<li>Preserve <code>tool_error</code> text for Anthropic tool call responses.</li>
+<li>Fix issue with rate limit reporting being per task not per eval.</li>
+<li>Set maximum rate limit backoff time to 30 minutes</li>
+<li>Retry with exponential backoff for web_search Google provider.</li>
+</ul>
+</section>
+<section id="v0.3.18-14-july-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.18-14-july-2024">v0.3.18 (14 July 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/scorers.html#sec-multiple-scorers">Multiple Scorers</a> are now supported for evaluation tasks.</li>
+<li><a href="https://inspect.aisi.org.uk/parallelism.html#sec-multiple-models">Multiple Models</a> can now be evaluated in parallel by passing a list of models to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</li>
+<li>Add <code>api_key</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> for explicitly specifying an API key for a model.</li>
+<li>Improved handling of very large (&gt; 100MB) log files in Inspect View.</li>
+<li>Use <code>network_mode: none</code> for disabling networking by default in Docker tool environments.</li>
+<li>Shorten the default shutdown grace period for Docker container cleanup to 1 second.</li>
+<li>Allow sandbox environment providers to specify a default <code>max_samples</code> (set to 25 for the Docker provider).</li>
+<li>Prevent concurrent calls to <code>eval_async()</code> (unsafe because of need to change directories for tasks). Parallel task evaluation will instead be implemented as a top-level feature of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> and <code>eval_async()</code>.</li>
+<li>Match scorers now return answers consistently even when there is no match.</li>
+<li>Relocate tool related types into a new top-level <code>inspect_ai.tool</code> module (previous imports still work fow now, but result in a runtime deprecation warning).</li>
+<li>Decouple tools entirely from solvers and task state (previously they had ways to interact with metadata, removing this coupling will enable tool use in lower level interactions with models). Accordingly, the <code>call_tools()</code> function now operates directly on messages rather than task state.</li>
+<li>Support token usage for Google models (Inspect now requires <code>google-generativeai</code> v0.5.3).</li>
+</ul>
+</section>
+<section id="v0.3.17-25-june-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.17-25-june-2024">v0.3.17 (25 June 2024)</h2>
+<ul>
+<li>Optional increased control over the tool use loop via the <code>call_tools()</code> function and new <code>tool_calls</code> parameter for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
+<li>New <code>per_epoch</code> option for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#cachepolicy">CachePolicy</a></span> to allow caching to ignore epochs.</li>
+<li>Correctly handle <code>choices</code> and <code>files</code> when converting <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> images to base64.</li>
+</ul>
+</section>
+<section id="v0.3.16-24-june-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.16-24-june-2024">v0.3.16 (24 June 2024)</h2>
+<ul>
+<li>Various fixes for the use of Docker tool environments on Windows.</li>
+<li>Ability to disable cleanup of tool environments via <code>--no-toolenv-cleanup</code>.</li>
+<li>New <code>inspect toolenv cleanup</code> command for manually cleaning up tool environments.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolerror">ToolError</a></span> exception type for explicitly raising tool errors to the model. Formerly, any exception would be surfaced as a tool error to the model. Now, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolerror">ToolError</a></span> exception is required for reporting to the model (otherwise other exception types go through the call stack and result in an eval error).</li>
+<li>Resolve <code>INSPECT_LOG_DIR</code> in <code>.env</code> file relative to <code>.env</code> file parent directory.</li>
+<li>Use <code>-</code> for delimiting <code>--limit</code> ranges rather than <code>,</code>.</li>
+<li>Use HF model device for generate (compatibility with multi-GPU).</li>
+</ul>
+</section>
+<section id="v0.3.15-15-june-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.15-15-june-2024">v0.3.15 (15 June 2024)</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/sandboxing.html">Sandbox Environments</a> for executing tool code in a sandbox.</li>
+<li><a href="https://inspect.aisi.org.uk/caching.html">Caching</a> to reduce the number of model API calls made.</li>
+<li>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> solver now has support for questions with multiple correct answers.</li>
+<li>More fine grained handling of Claude <code>BadRequestError</code> (400) errors (which were formerly all treated as content moderation errors).</li>
+<li>Filter out empty TextBlockParam when playing messages back to Claude.</li>
+<li>Automatically combine Claude user messages that include tool content.</li>
+<li>Revert to “auto” rather than “none” after forced tool call.</li>
+<li>Provide <code>TaskState.tools</code> getter/setter (where the setter automatically syncs the system messages to the specified set of tools).</li>
+<li>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#use_tools">use_tools()</a></span> function now uses the <code>TaskState.tools</code> setter, so replaces the current set of tools entirely rather than appending to it.</li>
+<li>Set <code>state.completed = False</code> when <code>max_messages</code> is reached.</li>
+<li>Allow tools to be declared with no parameters.</li>
+<li>Allow for null <code>bytes</code> field in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#logprobs">Logprobs</a></span> and <code>TopLogprobs</code>.</li>
+<li>Support all Llama series models on Bedrock.</li>
+<li>Added <code>truthfulqa</code> benchmark.</li>
+<li>Added <code>intercode-ctf</code> example.</li>
+</ul>
+</section>
+<section id="v0.3.14-04-june-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.14-04-june-2024">v0.3.14 (04 June 2024)</h2>
+<ul>
+<li>Stream samples to the evaluation log as they are completed (subject to the new <code>--log-buffer</code> option). Always write completed samples in the case of an error or cancelled task.</li>
+<li>New <code>"cancelled"</code> status in eval log for tasks interrupted with SIGINT (e.g.&nbsp;Ctrl-C). Logs are now written for cancellations (previously they were not).</li>
+<li>Default <code>--max-samples</code> (maximum concurrent samples) to <code>--max-connections</code>, which will result in samples being more frequently completed and written to the log file.</li>
+<li>For <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span>, copy previously completed samples in the log file being retried so that work is not unnecessarily repeated.</li>
+<li>New <code>inspect eval-retry</code> command to retry a log file from a task that ended in error or cancellation.</li>
+<li>New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#retryable_eval_logs">retryable_eval_logs()</a></span> function and <code>--retryable</code> option for <code>inspect list logs</code> to query for tasks not yet completed within a log directory.</li>
+<li>Add <code>shuffled</code> property to datasets to determine if they were shuffled.</li>
+<li>Remove unused <code>extensions</code> argument from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span>.</li>
+</ul>
+</section>
+<section id="v0.3.13-31-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.13-31-may-2024">v0.3.13 (31 May 2024)</h2>
+<ul>
+<li>Bugfix: Inspect view was not reliably updating when new evaluation logs were written.</li>
+</ul>
+</section>
+<section id="v0.3.12-31-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.12-31-may-2024">v0.3.12 (31 May 2024)</h2>
+<ul>
+<li>Bugfix: <code>results</code> was not defined when no scorer was provided resulting in an error being thrown. Fixed by setting <code>results = EvalResults()</code> when no scorer is provided.</li>
+<li>Bugfix: The viewer was not properly handling samples without scores.</li>
+</ul>
+</section>
+<section id="v0.3.11-30-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.11-30-may-2024">v0.3.11 (30 May 2024)</h2>
+<ul>
+<li>Update to non-beta version of Anthropic tool use (remove legacy xml tools implementation).</li>
+</ul>
+</section>
+<section id="v0.3.10-29-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.10-29-may-2024">v0.3.10 (29 May 2024)</h2>
+<ul>
+<li><strong>BREAKING:</strong> The <code>pattern</code> scorer has been modified to match against any (or all) regex match groups. This replaces the previous behaviour when there was more than one group, which would only match the second group.</li>
+<li>Improved performance for Inspect View on very large datasets (virtualized sample list).</li>
+<li>ToolChoice <code>any</code> option to indicate the model should use at least one tool (supported by Anthropic and Mistral, mapped to <code>auto</code> for OpenAI).</li>
+<li>Tool calls can now return a simple scalar or <code>list[ContentText | ContentImage]</code>.</li>
+<li>Support for updated Anthropic tools beta (tool_choice and image tool results).</li>
+<li>Report tool_error back to model if it provides invalid JSON for tool calls arguments (formerly this halted the entire eval with an error).</li>
+<li>New <code>max_samples</code> option to control how many samples are run in parallel (still defaults to running all samples in parallel).</li>
+<li>Add <code>boolq.py</code> benchmark.</li>
+<li>Add <code>piqa.py</code> benchmark.</li>
+<li>View: Improved markdown rendering (properly escape reference links).</li>
+<li>Improved typing for example_dataset function.</li>
+<li>Setuptools entry point for loading custom model extensions.</li>
+<li>Break optional <code>tuple</code> return out of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolresult">ToolResult</a></span> type.</li>
+<li>Bugfix: always read original sample message(s) for <code>TaskState.input_text</code>.</li>
+<li>Bugfix: remove write counter from log (could have resulted in incomplete/invalid logs propagating to the viewer).</li>
+<li>Bugfix: handle task names that include spaces in log viewer.</li>
+</ul>
+</section>
+<section id="v0.3.9-14-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.9-14-may-2024">v0.3.9 (14 May 2024)</h2>
+<ul>
+<li>Add <code>ollama</code> local model provider.</li>
+<li>Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> and <code>majority_vote()</code> functions for combining multiple scorers into a single score.</li>
+<li>Add support for multiple model graders in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>.</li>
+<li>Raise <code>TypeError</code> for solvers and scorers not declared as <code>async</code>.</li>
+<li>Fallback to standard parse if <code>NaN</code> or <code>Inf</code> is encountered while reading log file header.</li>
+<li>Remove deprecated support for matching partial model names (e.g.&nbsp;“gpt” or “claude”).</li>
+</ul>
+</section>
+<section id="v0.3.8-07-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.8-07-may-2024">v0.3.8 (07 May 2024)</h2>
+<ul>
+<li>Exclude null config values from listings in log viewer.</li>
+</ul>
+</section>
+<section id="v0.3.7-07-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.7-07-may-2024">v0.3.7 (07 May 2024)</h2>
+<ul>
+<li>Add support for logprobs to HF provider, and create uniform API for other providers that support logprobs (Together and OpenAI).</li>
+<li>Provide an option to merge assistant messages and use it for Anthropoic models (as they don’t allow consecutive assistant messages).</li>
+<li>Supporting infrastructure in Inspect CLI for VS Code extension (additional list and info commands).</li>
+</ul>
+</section>
+<section id="v0.3.6-06-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.6-06-may-2024">v0.3.6 (06 May 2024)</h2>
+<ul>
+<li>Show first log file immediately (don’t wait for fetching metadata for other logs)</li>
+<li>Add <code>--version</code> CLI arg and <code>inspect info version</code> command for interrogating version and runtime source path.</li>
+<li>Fix: exclude <code>null</code> config values in output from <code>inspect info log-file</code></li>
+</ul>
+</section>
+<section id="v0.3.5-04-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.5-04-may-2024">v0.3.5 (04 May 2024)</h2>
+<ul>
+<li>Fix issue with logs from S3 buckets in inspect view.</li>
+<li>Add <code>sort()</code> method to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#dataset">Dataset</a></span> (defaults to sorting by sample input length).</li>
+<li>Improve tokenization for HF provider (left padding, attention mask, and allow for custom chat template)</li>
+<li>Improve batching for HF provider (generate as soon as queue fills, thread safety for future.set_result).</li>
+<li>Various improvements to documentation.</li>
+</ul>
+</section>
+<section id="v0.3.4-01-may-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.4-01-may-2024">v0.3.4 (01 May 2024)</h2>
+<ul>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#write_eval_log">write_eval_log()</a></span> now ignores unserializable objects in metadata fields.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span> now takes a <code>str</code> or <code>FileInfo</code> (for compatibility w/ list returned from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span>).</li>
+<li>Registry name looks are now case sensitive (fixes issue w/ loading tasks w/ mixed case names).</li>
+<li>Resiliency to Python syntax errors that occur when enumerating tasks in a directory.</li>
+<li>Do not throw error if unable to parse or load <code>.ipynb</code> file due to lack of dependencies (e.g.&nbsp;<code>nbformat</code>).</li>
+<li>Various additions to log viewer display (log file name, dataset/scorer in listing, filter by complex score types).</li>
+<li>Improvements to markdown rendering in log viewer (don’t render intraword underscores, escape html tags).</li>
+</ul>
+</section>
+<section id="v0.3.3-28-april-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.3-28-april-2024">v0.3.3 (28 April 2024)</h2>
+<ul>
+<li><code>inspect view</code> command for viewing eval log files.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> now has an optional <code>answer</code> field, which denotes the answer text extracted from model output.</li>
+<li>Accuracy metrics now take an optional <code>ValueToFloat</code> function for customising how textual values mapped to float.</li>
+<li>Made <code>model_graded_qa</code> more flexible with separate <code>instruction</code> template and <code>grade_pattern</code>, as well providing <code>partial_credit</code> as an option.</li>
+<li>Modify the default templates for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#chain_of_thought">chain_of_thought()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#self_critique">self_critique()</a></span> to instruct the model to reply with <code>ANSWER: $ANSWER</code> at the end on its own line.</li>
+<li>Improved numeric extraction for <code>match(numeric=True)</code> (better currency and decimal handling).</li>
+<li>Improve <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span> patterns so that they detect letter and word answers both within and at the end of model output.</li>
+<li><code>Plan</code> now has an optional <code>cleanup</code> function which can be used to free per-sample resources (e.g.&nbsp;Docker containers) even in the case of an evaluation error.</li>
+<li>Add <code>Dataset.filter</code> method for filtering samples using a predicate.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#dataset">Dataset</a></span> slices (e.g.&nbsp;<code>dataset[0:100]</code>) now return a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#dataset">Dataset</a></span> rather than <code>list[Sample]</code>.</li>
+<li>Relative path to <code>INSPECT_LOG_DIR</code> in <code>.env</code> file is now correctly resolved for execution within subdirectories.</li>
+<li><code>inspect list tasks</code> and <code>list_tasks()</code> now only parse source files (rather than loading them), ensuring that it is fast even for task files that have non-trivial global initialisation.</li>
+<li><code>inspect list logs</code> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span> now enumerate log files recursively by default, and only enumerate json files that match log file naming conventions.</li>
+<li>Provide <code>header_only</code> option for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span> and <code>inspect info log-file</code> for bypassing the potentially expensive reading of samples.</li>
+<li>Provide <code>filter</code> option for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span> to filter based on log file header info (i.e.&nbsp;anything but samples).</li>
+<li>Added <code>__main__.py</code> entry point for invocation via <code>python3 -m inspect_ai</code>.</li>
+<li>Removed prompt and callable from model <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tooldef">ToolDef</a></span> (renamed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolinfo">ToolInfo</a></span>).</li>
+<li>Fix issue with accesses of <code>completion</code> property on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span> with no choices.</li>
+</ul>
+</section>
+<section id="v0.3.2-21-april-2024" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.2-21-april-2024">v0.3.2 (21 April 2024)</h2>
+<ul>
+<li>Initial release.</li>
+</ul>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk\/");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      const annoteTargets = window.document.querySelectorAll('.code-annotation-anchor');
+      for (let i=0; i<annoteTargets.length; i++) {
+        const annoteTarget = annoteTargets[i];
+        const targetCell = annoteTarget.getAttribute("data-target-cell");
+        const targetAnnotation = annoteTarget.getAttribute("data-target-annotation");
+        const contentFn = () => {
+          const content = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          if (content) {
+            const tipContent = content.cloneNode(true);
+            tipContent.classList.add("code-annotation-tip-content");
+            return tipContent.outerHTML;
+          }
+        }
+        const config = {
+          allowHTML: true,
+          content: contentFn,
+          onShow: (instance) => {
+            selectCodeLines(instance.reference);
+            instance.reference.classList.add('code-annotation-active');
+            window.tippy.hideAll();
+          },
+          onHide: (instance) => {
+            unselectCodeLines();
+            instance.reference.classList.remove('code-annotation-active');
+          },
+          maxWidth: 300,
+          delay: [50, 0],
+          duration: [200, 0],
+          offset: [5, 10],
+          arrow: true,
+          trigger: 'click',
+          appendTo: function(el) {
+            return el.parentElement.parentElement.parentElement;
+          },
+          interactive: true,
+          interactiveBorder: 10,
+          theme: 'quarto',
+          placement: 'right',
+          positionFixed: true,
+          popperOptions: {
+            modifiers: [
+            {
+              name: 'flip',
+              options: {
+                flipVariations: false, // true by default
+                allowedAutoPlacements: ['right'],
+                fallbackPlacements: ['right', 'top', 'top-start', 'top-end', 'bottom', 'bottom-start', 'bottom-end', 'left'],
+              },
+            },
+            {
+              name: 'preventOverflow',
+              options: {
+                mainAxis: false,
+                altAxis: false
+              }
+            }
+            ]        
+          }      
+        };
+        window.tippy(annoteTarget, config); 
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://aisi.gov.uk/">
+<p>UK AI Security Institute</p>
+</a>
+  </li>  
+</ul>
+    </div>   
+    <div class="nav-footer-center">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE">
+<p>License</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/issues">
+<p>Issues</p>
+</a>
+  </li>  
+</ul>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://x.com/AISecurityInst">
+      <i class="bi bi-twitter" role="img" aria-label="UK AI Security Institute Twitter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
+      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>
