@@ -8,6 +8,7 @@
 - Added development container (`.devcontainer`) configuration.
 - `trim_messages()` now removes any trailing assistant message after compaction.
 - Task display: Ensure that full path to log file is always displayed (wrap as required).
+- Fix error writing Nan values to the `logs.json` summary file during bundling.
 - Inspect View: Add support for displaying citations for web searches in the transcript.
 - Inspect View: Correctly update browser URL when navigation between samples.
 
