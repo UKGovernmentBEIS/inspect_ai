@@ -32,7 +32,7 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_footer
-from ..core.panel import task_panel, task_targets, task_title, tasks_title
+from ..core.panel import task_panel, task_title, tasks_title
 from ..core.progress import (
     RichProgress,
     progress_description,
@@ -311,15 +311,13 @@ def task_live_status(
 
     # the panel contents
     config = task_config(tasks[0].profile, style=theme.light)
-    targets = task_targets(tasks[0].profile)
-    subtitle = config, targets
 
     # the panel
     return task_panel(
         profile=tasks[0].profile,
         show_model=len(tasks) == 1,
         body=Group("", progress),
-        subtitle=subtitle,
+        subtitle=config,
         footer=task_footer(counters, theme.light),
         log_location=None,
     )

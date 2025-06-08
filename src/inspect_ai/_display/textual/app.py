@@ -42,7 +42,7 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_footer
-from ..core.panel import task_targets, task_title, tasks_title
+from ..core.panel import task_title, tasks_title
 from ..core.rich import record_console_input, rich_initialise, rich_theme
 from .theme import inspect_dark, inspect_light
 from .widgets.console import ConsoleView
@@ -296,13 +296,8 @@ class TaskScreenApp(App[TR]):
             tasks.config = task_config(
                 self._tasks[0].profile, generate_config=not self._parallel
             )
-            if not self._parallel:
-                tasks.targets = task_targets(self._tasks[0].profile)
-            else:
-                tasks.targets = " \n "
         else:
             tasks.config = ""
-            tasks.targets = ""
 
     def update_samples(self) -> None:
         samples_view = self.query_one(SamplesView)

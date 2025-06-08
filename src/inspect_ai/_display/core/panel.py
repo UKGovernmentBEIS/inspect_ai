@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import rich
-from rich.console import RenderableType
+from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -89,23 +89,31 @@ def task_panel(
             log_location_relative = log_location
 
         root = Table.grid(expand=True)
-        root.add_column()
+        root.add_column(overflow="fold")
         root.add_row(table)
         root.add_row()
         root.add_row(
             f"[bold][{theme.light}]Log:[/{theme.light}][/bold] "
             + f"[{theme.link}]{log_location_relative}[/{theme.link}]"
         )
+        root.add_row()
 
-    # create panel w/ title
-    panel = Panel(
-        root,
-        title=task_panel_title(profile, show_model),
-        title_align="left",
-        width=width,
-        expand=True,
-    )
-    return panel
+        panel = Panel(
+            task_panel_title(profile, show_model),
+            padding=(0, 0),
+            width=width,
+            height=3,
+            expand=True,
+        )
+        return Group(panel, root)
+    else:
+        return Panel(
+            root,
+            title=task_panel_title(profile, show_model),
+            title_align="left",
+            width=width,
+            expand=True,
+        )
 
 
 def task_panel_plain(

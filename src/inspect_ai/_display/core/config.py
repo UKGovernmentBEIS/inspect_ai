@@ -30,6 +30,7 @@ def task_config(
         config = dict(profile.generate_config.model_dump(exclude_none=True)) | config
     if profile.tags:
         config["tags"] = ",".join(profile.tags)
+    config["dataset"] = profile.dataset
     config_print: list[str] = []
     for name, value in config.items():
         if name == "approval" and isinstance(value, dict):

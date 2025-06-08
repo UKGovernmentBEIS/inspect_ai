@@ -18,7 +18,7 @@ from .display import (
     TaskSuccess,
     TaskWithResult,
 )
-from .panel import task_panel, task_targets
+from .panel import task_panel
 from .rich import rich_theme
 
 
@@ -41,8 +41,6 @@ def task_result_cancelled(
 ) -> RenderableType:
     # The contents of the panel
     config = task_config(profile)
-    targets = task_targets(profile)
-    subtitle = config, targets
     body = task_stats(cancelled.stats)
 
     # The panel
@@ -50,7 +48,7 @@ def task_result_cancelled(
         profile=profile,
         show_model=True,
         body=body,
-        subtitle=subtitle,
+        subtitle=config,
         footer=task_interrupted(profile, cancelled.samples_completed),
         log_location=profile.log_location,
     )
@@ -76,8 +74,6 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
 def task_result_summary(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
     # The contents of the panel
     config = task_config(profile)
-    targets = task_targets(profile)
-    subtitle = config, targets
     body = task_stats(success.stats)
 
     # the panel
@@ -85,7 +81,7 @@ def task_result_summary(profile: TaskProfile, success: TaskSuccess) -> Renderabl
         profile=profile,
         show_model=True,
         body=body,
-        subtitle=subtitle,
+        subtitle=config,
         footer=task_results(profile, success),
         log_location=profile.log_location,
     )
