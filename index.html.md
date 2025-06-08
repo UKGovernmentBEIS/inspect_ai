@@ -15,9 +15,6 @@ understanding. Core features of Inspect include:
 - Extensive tooling, including a web-based Inspect View tool for
   monitoring and visualizing evaluations and a VS Code Extension that
   assists with authoring and debugging.
-- Support for running many evaluation tasks in parallel, including
-  automatic retry with preservation of previous work for tasks which
-  fail.
 - Flexible support for tool calling—custom and MCP tools, as well as
   built-in bash, python, text editing, web search, web browing, and
   comptuer tools.
