@@ -1,0 +1,13 @@
+- Extension: "[Inspect Cyber](https://ukgovernmentbeis.github.io/inspect_cyber/)"
+  Description: |
+    Framework which distills best practices for cybersecurity evalutions. Provides a consistent methodology for a wide range of tasks from CTF challenges up to complex cyber ranges.
+  Author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
+
+- Extension: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
+  Description: |
+    The k8s_sandbox Python package provides a Kubernetes (K8s) sandbox environment for Inspect. Run untrusted model code in a secure [gVisor](https://gvisor.dev/) container runtime and limit network access using [Cilium](https://cilium.io/).
+  Author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox)"
+
+- Extension: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  Description: Use virtual machines, running within a [Proxmox](https://www.proxmox.com/en/products/proxmox-virtual-environment/overview) instance, as Inspect sandboxes.
+  Author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
