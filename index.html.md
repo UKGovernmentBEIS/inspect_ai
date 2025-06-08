@@ -10,14 +10,14 @@ Inspect can be used for a broad range of evaluations that measure
 coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal
 understanding. Core features of Inspect include:
 
-- A set of straightforward interfaces for implementing evalutions and
+- A set of straightforward interfaces for implementing evaluations and
   re-using components across evaluations.
 - Extensive tooling, including a web-based Inspect View tool for
   monitoring and visualizing evaluations and a VS Code Extension that
   assists with authoring and debugging.
 - Flexible support for tool calling—custom and MCP tools, as well as
-  built-in bash, python, text editing, web search, web browing, and
-  comptuer tools.
+  built-in bash, python, text editing, web search, web browsing, and
+  computer tools.
 - Support for agent evaluations, including flexible built-in agents,
   multi-agent primitives, the ability to run arbitrary external agents,
   and agent observability in Inspect View.
