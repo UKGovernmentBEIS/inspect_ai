@@ -14,11 +14,20 @@ citation:
 
 Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Security Institute](https://aisi.gov.uk).
 
-Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
+Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:
 
-![](images/inspect.png){.lightbox .border fig-alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."}
 
-We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Options](options.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd), [Scorers](scorers.qmd), [Datasets](datasets.qmd), and [Models](models.qmd) to learn how to create more advanced evaluations.
+::: {.welcome-bullets}
+- A set of straightforward interfaces for implementing evalutions and re-using components across evaluations.
+- Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
+- Support for running many evaluation tasks in parallel, including automatic retry with preservation of previous work for tasks which fail.
+- Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browing, and comptuer tools.
+- Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents, and agent observability in Inspect View.
+- A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Proxmox, and other systems via an extension API.
+:::
+
+
+We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Datasets](datasets.qmd), [Solvers](solvers.qmd), [Scorers](scorers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) to learn how to create more advanced evaluations.
 
 ## Getting Started
 
@@ -87,7 +96,7 @@ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama or llama-cpp-python.
+In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama or llama-cpp-python. See the documentation on [Model Providers](providers.qmd) for additional details.
 
 ## Hello, Inspect {#sec-hello-inspect}
 
