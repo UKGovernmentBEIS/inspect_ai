@@ -6,6 +6,6 @@ export interface LogviewState {
   sample?: {
     id: string;
     epoch: string;
-  }
+  };
   background_refresh?: boolean;
 }

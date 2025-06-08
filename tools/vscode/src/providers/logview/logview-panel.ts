@@ -143,7 +143,7 @@ export class LogviewPanel extends Disposable {
         type: "updateState",
         url: state.log_file?.toString(),
         sample_id: state.sample?.id,
-        sample_epoch: state.sample?.epoch
+        sample_epoch: state.sample?.epoch,
       };
       const stateScript = state.log_file
         ? `<script id="logview-state" type="application/json">${JSON.stringify(
