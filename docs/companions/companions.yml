@@ -1,6 +1,6 @@
 - Name: "[Inspect Cyber](https://ukgovernmentbeis.github.io/inspect_cyber/)"
   Description: |
-    Python package (inspect_cyber) which distills best practices for cybersecity evals. Provides a consistent methodology for a wide range of tasks from CTF challenges up to complex cyber ranges.
+    Python package (inspect_cyber) that streamlines the process of creating agentic cyber evaluations in Inspect. Provides a consistent methodology for a wide range of tasks from CTF challenges up to complex cyber ranges.
   Author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
 
 - Name: "[Inspect<br/>VS Code](https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai)"
