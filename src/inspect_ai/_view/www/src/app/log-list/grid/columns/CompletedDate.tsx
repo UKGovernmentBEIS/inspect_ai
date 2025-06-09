@@ -5,7 +5,15 @@ import styles from "./CompletedDate.module.css";
 import { EmptyCell } from "./EmptyCell";
 
 export const completedDateColumn = () => {
-  return columnHelper.accessor((row) => itemCompletedAt(row) ?? null, {
+  return columnHelper.accessor((row) => {
+    const completed = itemCompletedAt(row);
+    if (!completed) return "";
+    const time = new Date(completed);
+    return `${time.toDateString()} ${time.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+  }, {
     id: "completed",
     header: "Completed",
     cell: (info) => {

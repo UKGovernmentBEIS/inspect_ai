@@ -50891,7 +50891,15 @@ categories: ${categories.join(" ")}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1c.emptyCell, children: "-" });
     };
     const completedDateColumn = () => {
-      return columnHelper.accessor((row2) => itemCompletedAt(row2) ?? null, {
+      return columnHelper.accessor((row2) => {
+        const completed = itemCompletedAt(row2);
+        if (!completed) return "";
+        const time = new Date(completed);
+        return `${time.toDateString()} ${time.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit"
+        })}`;
+      }, {
         id: "completed",
         header: "Completed",
         cell: (info) => {
