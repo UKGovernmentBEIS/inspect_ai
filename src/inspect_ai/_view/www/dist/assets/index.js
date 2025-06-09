@@ -51134,7 +51134,7 @@ categories: ${categories.join(" ")}`;
       cancelled
     };
     const statusColumn = () => {
-      return columnHelper.accessor((row2) => itemStatus(row2), {
+      return columnHelper.accessor((row2) => itemStatusLabel(row2), {
         id: "status",
         header: "Status",
         cell: (info) => {
@@ -51174,6 +51174,20 @@ categories: ${categories.join(" ")}`;
       }
       const header2 = item2.header;
       return header2 == null ? void 0 : header2.status;
+    };
+    const itemStatusLabel = (item2) => {
+      const status2 = itemStatus(item2);
+      if (!status2) return "";
+      switch (status2) {
+        case "error":
+          return "error failed failure";
+        case "started":
+          return "running started in-progress active";
+        case "cancelled":
+          return "cancelled canceled stopped aborted";
+        default:
+          return "success done complete finished completed";
+      }
     };
     const kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
     const parseLogFileName = (logFileName) => {

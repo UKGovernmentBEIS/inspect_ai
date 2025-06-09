@@ -7,7 +7,7 @@ import { ApplicationIcons } from "../../../appearance/icons";
 import styles from "./Status.module.css";
 
 export const statusColumn = () => {
-  return columnHelper.accessor((row) => itemStatus(row), {
+  return columnHelper.accessor((row) => itemStatusLabel(row), {
     id: "status",
     header: "Status",
     cell: (info) => {
@@ -75,4 +75,21 @@ const itemStatus = (item: FileLogItem | FolderLogItem) => {
   }
   const header = item.header;
   return header?.status;
+};
+
+const itemStatusLabel = (item: FileLogItem | FolderLogItem) => {
+  const status = itemStatus(item);
+  if (!status) return "";
+
+  // Return multiple searchable terms for filtering
+  switch (status) {
+    case "error":
+      return "error failed failure";
+    case "started":
+      return "running started in-progress active";
+    case "cancelled":
+      return "cancelled canceled stopped aborted";
+    default:
+      return "success done complete finished completed";
+  }
 };
