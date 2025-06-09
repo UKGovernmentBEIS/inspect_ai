@@ -97,6 +97,8 @@ export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
 export type WorkingLimit = number | null;
+export type CostLimit = number | string | null;
+export type CostFile = string | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -385,6 +387,7 @@ export type Type15 =
   | "time"
   | "working"
   | "token"
+  | "cost"
   | "operator"
   | "custom";
 export type Message2 = string;
@@ -639,6 +642,7 @@ export type Type21 =
   | "message"
   | "token"
   | "operator"
+  | "cost"
   | "custom";
 export type Limit2 = number;
 export type Reductions = EvalSampleReductions[] | null;
@@ -826,6 +830,8 @@ export interface EvalConfig {
   token_limit: TokenLimit;
   time_limit: TimeLimit;
   working_limit: WorkingLimit;
+  cost_limit: CostLimit;
+  cost_file: CostFile;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;

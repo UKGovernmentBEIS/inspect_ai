@@ -1395,6 +1395,34 @@
           "default": null,
           "title": "Working Limit"
         },
+        "cost_limit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Limit"
+        },
+        "cost_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost File"
+        },
         "max_samples": {
           "anyOf": [
             {
@@ -1542,6 +1570,8 @@
         "token_limit",
         "time_limit",
         "working_limit",
+        "cost_limit",
+        "cost_file",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
@@ -2299,6 +2329,7 @@
             "message",
             "token",
             "operator",
+            "cost",
             "custom"
           ],
           "title": "Type",
@@ -4527,6 +4558,7 @@
             "time",
             "working",
             "token",
+            "cost",
             "operator",
             "custom"
           ],
