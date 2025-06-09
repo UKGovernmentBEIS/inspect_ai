@@ -185,6 +185,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         log_images=log_images,
         message_limit=config.message_limit,
         token_limit=config.token_limit,
+        cost_limit=config.cost_limit,
+        cost_file=config.cost_file,
     )
 
     # resolve the plan (unroll chains)
@@ -952,6 +954,8 @@ async def resolve_dataset(
     log_images: bool,
     message_limit: int | None,
     token_limit: int | None,
+    cost_limit: Decimal | None,
+    cost_file: Path | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # slice dataset
     dataset = slice_dataset(dataset, limit, sample_id)
@@ -981,6 +985,8 @@ async def resolve_dataset(
                 messages=sample_messages(sample),
                 message_limit=message_limit,
                 token_limit=token_limit,
+                cost_limit=cost_limit,
+                cost_file=cost_file,
                 completed=False,
                 metadata=sample.metadata if sample.metadata else {},
             )

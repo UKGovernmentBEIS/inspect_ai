@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from decimal import Decimal
+from pathlib import Path
 from random import Random
 from typing import Any, Type, Union, cast, overload
 
@@ -27,6 +28,7 @@ from inspect_ai.util._limit import (
     check_message_limit,
     check_token_limit,
 )
+from inspect_ai.util._limit import cost_limit as create_cost_limit
 from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._limited_conversation import ChatMessageList
@@ -156,6 +158,8 @@ class TaskState:
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        cost_limit: Decimal | None = None,
+        cost_file: Path | None = None,
         completed: bool = False,
         metadata: dict[str, Any] = {},
     ) -> None:
@@ -170,6 +174,7 @@ class TaskState:
         self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = create_message_limit(message_limit)
         self._token_limit = create_token_limit(token_limit)
+        self._cost_limit = create_cost_limit(cost_limit, cost_file)
         self._completed = completed
         self._store = Store()
         self._uuid = uuid()
