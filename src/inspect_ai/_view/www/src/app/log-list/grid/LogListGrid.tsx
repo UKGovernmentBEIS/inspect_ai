@@ -5,13 +5,13 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  PaginationState,
   SortingState,
   Updater,
   useReactTable,
-  PaginationState,
 } from "@tanstack/react-table";
 import clsx from "clsx";
-import { FC, useEffect, useMemo, useRef } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useLogs, useLogsListing, usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
@@ -45,6 +45,21 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const sortingRef = useRef(sorting);
+  const loadingHeadersRef = useRef(false);
+
+  // Protected version of loadAllHeaders that prevents concurrent calls
+  const maybeLoadAllHeaders = useCallback(async () => {
+    if (loadingHeadersRef.current) {
+      return; // Already loading, skip this call
+    }
+
+    loadingHeadersRef.current = true;
+    try {
+      await loadAllHeaders();
+    } finally {
+      loadingHeadersRef.current = false;
+    }
+  }, [loadAllHeaders]);
 
   // Keep ref updated
   useEffect(() => {
@@ -88,27 +103,27 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     },
     rowCount: items.length,
     onSortingChange: async (updater: Updater<SortingState>) => {
-      await loadAllHeaders();
+      await maybeLoadAllHeaders();
       setSorting(
         typeof updater === "function" ? updater(sorting || []) : updater,
       );
     },
     onColumnFiltersChange: async (updater: Updater<ColumnFiltersState>) => {
-      await loadAllHeaders();
+      await maybeLoadAllHeaders();
       setFiltering(
         typeof updater === "function" ? updater(filtering || []) : updater,
       );
     },
-    onGlobalFilterChange: async (updater: Updater<string>) => {
-      await loadAllHeaders();
+    onGlobalFilterChange: (updater: Updater<string>) => {
       setGlobalFilter(
         typeof updater === "function" ? updater(globalFilter || "") : updater,
       );
     },
     onPaginationChange: (updater: Updater<PaginationState>) => {
-      const newPagination = typeof updater === "function" 
-        ? updater({ pageIndex: page, pageSize: itemsPerPage })
-        : updater;
+      const newPagination =
+        typeof updater === "function"
+          ? updater({ pageIndex: page, pageSize: itemsPerPage })
+          : updater;
       setPage(newPagination.pageIndex);
     },
     getCoreRowModel: getCoreRowModel(),
@@ -118,21 +133,27 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     enableColumnResizing: true,
   });
 
-
   // Update filtered count in store when table filtering changes
   useEffect(() => {
     const filteredRowCount = table.getFilteredRowModel().rows.length;
     setFilteredCount(filteredRowCount);
   }, [table.getFilteredRowModel().rows.length, setFilteredCount]);
 
+  // Load all headers when globalFilter changes
+  useEffect(() => {
+    if (globalFilter && globalFilter.trim()) {
+      maybeLoadAllHeaders();
+    }
+  }, [globalFilter, maybeLoadAllHeaders]);
+
   // Load headers for files on the current page (demand loading)
   useEffect(() => {
     const exec = async () => {
       const currentPageRows = table.getRowModel().rows;
       const fileItems = currentPageRows
-        .map(row => row.original)
+        .map((row) => row.original)
         .filter((item) => item.type === "file");
-      
+
       const logFiles = fileItems
         .map((item) => item.logFile)
         .filter((file) => file !== undefined)
