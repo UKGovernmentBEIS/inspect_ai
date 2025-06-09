@@ -1,9 +1,0 @@
-out
-dist
-node_modules
-.vscode-test/
-*.vsix
-
-.env
-logs/
-__pycache__/
