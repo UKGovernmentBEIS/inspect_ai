@@ -23733,6 +23733,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               }
               state.logs.listing.columnSizes[columnId] = size;
             });
+          },
+          setFilteredCount: (count2) => {
+            set2((state) => {
+              state.logs.listing.filteredCount = count2;
+            });
           }
         }
       };
@@ -47744,6 +47749,8 @@ categories: ${categories.join(" ")}`;
       );
       const columnSizes = useStore((state) => state.logs.listing.columnSizes);
       const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
+      const filteredCount = useStore((state) => state.logs.listing.filteredCount);
+      const setFilteredCount = useStore((state) => state.logsActions.setFilteredCount);
       return {
         sorting,
         setSorting,
@@ -47754,7 +47761,9 @@ categories: ${categories.join(" ")}`;
         columnResizeMode,
         setColumnResizeMode,
         columnSizes,
-        setColumnSize
+        setColumnSize,
+        filteredCount,
+        setFilteredCount
       };
     };
     const filename = (path) => {
@@ -50893,47 +50902,50 @@ categories: ${categories.join(" ")}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1d.emptyCell, children: "-" });
     };
     const completedDateColumn = () => {
-      return columnHelper.accessor((row2) => {
-        const completed = itemCompletedAt(row2);
-        if (!completed) return "";
-        const time = new Date(completed);
-        return `${time.toDateString()} ${time.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        })}`;
-      }, {
-        id: "completed",
-        header: "Completed",
-        cell: (info) => {
-          const item2 = info.row.original;
-          const completed = itemCompletedAt(item2);
-          const time = completed ? new Date(completed) : void 0;
-          const timeStr = time ? `${time.toDateString()}
-        ${time.toLocaleTimeString([], {
+      return columnHelper.accessor(
+        (row2) => {
+          const completed = itemCompletedAt(row2);
+          if (!completed) return "";
+          const time = new Date(completed);
+          return `${time.toDateString()} ${time.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit"
-          })}` : "";
-          if (!timeStr) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
-          }
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.dateCell, children: timeStr });
+          })}`;
         },
-        sortingFn: (rowA, rowB) => {
-          const itemA = rowA.original;
-          const itemB = rowB.original;
-          const completedA = itemCompletedAt(itemA);
-          const completedB = itemCompletedAt(itemB);
-          const timeA = new Date(completedA || 0);
-          const timeB = new Date(completedB || 0);
-          return timeA.getTime() - timeB.getTime();
-        },
-        enableSorting: true,
-        enableGlobalFilter: true,
-        size: 200,
-        minSize: 120,
-        maxSize: 300,
-        enableResizing: true
-      });
+        {
+          id: "completed",
+          header: "Completed",
+          cell: (info) => {
+            const item2 = info.row.original;
+            const completed = itemCompletedAt(item2);
+            const time = completed ? new Date(completed) : void 0;
+            const timeStr = time ? `${time.toDateString()}
+        ${time.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit"
+            })}` : "";
+            if (!timeStr) {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+            }
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.dateCell, children: timeStr });
+          },
+          sortingFn: (rowA, rowB) => {
+            const itemA = rowA.original;
+            const itemB = rowB.original;
+            const completedA = itemCompletedAt(itemA);
+            const completedB = itemCompletedAt(itemB);
+            const timeA = new Date(completedA || 0);
+            const timeB = new Date(completedB || 0);
+            return timeA.getTime() - timeB.getTime();
+          },
+          enableSorting: true,
+          enableGlobalFilter: true,
+          size: 200,
+          minSize: 120,
+          maxSize: 300,
+          enableResizing: true
+        }
+      );
     };
     const itemCompletedAt = (item2) => {
       var _a2, _b2;
@@ -51009,28 +51021,31 @@ categories: ${categories.join(" ")}`;
       modelCell
     };
     const modelColumn = () => {
-      return columnHelper.accessor((row2) => {
-        var _a2, _b2;
-        if (row2.type !== "file") return "";
-        return ((_b2 = (_a2 = row2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.model) || "";
-      }, {
-        id: "model",
-        header: "Model",
-        cell: (info) => {
+      return columnHelper.accessor(
+        (row2) => {
           var _a2, _b2;
-          const item2 = info.row.original;
-          if (item2.type !== "file" || ((_a2 = item2.header) == null ? void 0 : _a2.eval.model) === void 0) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
-          }
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.modelCell, children: ((_b2 = item2.header) == null ? void 0 : _b2.eval.model) || "" });
+          if (row2.type !== "file") return "";
+          return ((_b2 = (_a2 = row2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.model) || "";
         },
-        enableSorting: true,
-        enableGlobalFilter: true,
-        size: 300,
-        minSize: 100,
-        maxSize: 400,
-        enableResizing: true
-      });
+        {
+          id: "model",
+          header: "Model",
+          cell: (info) => {
+            var _a2, _b2;
+            const item2 = info.row.original;
+            if (item2.type !== "file" || ((_a2 = item2.header) == null ? void 0 : _a2.eval.model) === void 0) {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+            }
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.modelCell, children: ((_b2 = item2.header) == null ? void 0 : _b2.eval.model) || "" });
+          },
+          enableSorting: true,
+          enableGlobalFilter: true,
+          size: 300,
+          minSize: 100,
+          maxSize: 400,
+          enableResizing: true
+        }
+      );
     };
     const metricDisplayName = (metric) => {
       let modifier = void 0;
@@ -51095,36 +51110,39 @@ categories: ${categories.join(" ")}`;
       scoreCell
     };
     const scoreColumn = () => {
-      return columnHelper.accessor((row2) => {
-        const metric = itemMetric(row2);
-        return (metric == null ? void 0 : metric.value) !== void 0 ? formatPrettyDecimal(metric.value) : "";
-      }, {
-        id: "score",
-        header: "Score",
-        cell: (info) => {
-          const metric = itemMetric(info.row.original);
-          if (metric === void 0) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
-          }
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.scoreCell, children: formatPrettyDecimal(metric.value) });
+      return columnHelper.accessor(
+        (row2) => {
+          const metric = itemMetric(row2);
+          return (metric == null ? void 0 : metric.value) !== void 0 ? formatPrettyDecimal(metric.value) : "";
         },
-        sortingFn: (rowA, rowB) => {
-          const itemA = rowA.original;
-          const itemB = rowB.original;
-          const metricA = itemMetric(itemA);
-          const metricB = itemMetric(itemB);
-          if (!metricA && !metricB) return 0;
-          if (!metricA) return -1;
-          if (!metricB) return 1;
-          return (metricA.value || 0) - (metricB.value || 0);
-        },
-        enableSorting: true,
-        enableGlobalFilter: true,
-        size: 80,
-        minSize: 60,
-        maxSize: 120,
-        enableResizing: true
-      });
+        {
+          id: "score",
+          header: "Score",
+          cell: (info) => {
+            const metric = itemMetric(info.row.original);
+            if (metric === void 0) {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+            }
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.scoreCell, children: formatPrettyDecimal(metric.value) });
+          },
+          sortingFn: (rowA, rowB) => {
+            const itemA = rowA.original;
+            const itemB = rowB.original;
+            const metricA = itemMetric(itemA);
+            const metricB = itemMetric(itemB);
+            if (!metricA && !metricB) return 0;
+            if (!metricA) return -1;
+            if (!metricB) return 1;
+            return (metricA.value || 0) - (metricB.value || 0);
+          },
+          enableSorting: true,
+          enableGlobalFilter: true,
+          size: 80,
+          minSize: 60,
+          maxSize: 120,
+          enableResizing: true
+        }
+      );
     };
     const itemMetric = (item2) => {
       if (item2.type !== "file") {
@@ -51255,7 +51273,7 @@ categories: ${categories.join(" ")}`;
       return value2;
     };
     const columnHelper = createColumnHelper();
-    const getColumns = (logHeaders, columnIds) => {
+    const getColumns = (columnIds) => {
       const allColumns = [
         iconColumn(),
         taskColumn(),
@@ -51276,10 +51294,11 @@ categories: ${categories.join(" ")}`;
         setFiltering,
         globalFilter,
         setGlobalFilter,
-        columnResizeMode
+        columnResizeMode,
+        setFilteredCount
       } = useLogsListing();
-      const { loadAllHeaders } = useLogs();
-      const { page, itemsPerPage } = usePagination(
+      const { loadAllHeaders, loadHeaders } = useLogs();
+      const { page, itemsPerPage, setPage } = usePagination(
         kLogsPaginationId,
         kDefaultPageSize
       );
@@ -51302,7 +51321,7 @@ categories: ${categories.join(" ")}`;
       }, [logHeaders]);
       const columns = reactExports.useMemo(() => {
         return getColumns();
-      }, [logHeaders]);
+      }, []);
       const table2 = useReactTable({
         data: items,
         columns,
@@ -51335,12 +51354,33 @@ categories: ${categories.join(" ")}`;
             typeof updater === "function" ? updater(globalFilter || "") : updater
           );
         },
+        onPaginationChange: (updater) => {
+          const newPagination = typeof updater === "function" ? updater({ pageIndex: page, pageSize: itemsPerPage }) : updater;
+          setPage(newPagination.pageIndex);
+        },
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         enableColumnResizing: true
       });
+      reactExports.useEffect(() => {
+        const filteredRowCount = table2.getFilteredRowModel().rows.length;
+        setFilteredCount(filteredRowCount);
+      }, [table2.getFilteredRowModel().rows.length, setFilteredCount]);
+      reactExports.useEffect(() => {
+        const exec2 = async () => {
+          const currentPageRows = table2.getRowModel().rows;
+          const fileItems = currentPageRows.map((row2) => row2.original).filter((item2) => item2.type === "file");
+          const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
+            return logHeaders[logFile.name] === void 0;
+          });
+          if (logFiles.length > 0) {
+            await loadHeaders(logFiles);
+          }
+        };
+        exec2();
+      }, [table2.getRowModel().rows, loadHeaders, logHeaders]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1f.grid, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
@@ -51534,11 +51574,14 @@ categories: ${categories.join(" ")}`;
         kLogsPaginationId,
         kDefaultPageSize
       );
+      const { filteredCount } = useLogsListing();
+      const effectiveItemCount = filteredCount ?? itemCount;
+      const currentPage = page || 0;
       const pageItemCount = Math.min(
         itemsPerPage,
-        itemCount - (page || 0) * itemsPerPage
+        effectiveItemCount - currentPage * itemsPerPage
       );
-      const startItem = (page || 0) * itemsPerPage + 1;
+      const startItem = effectiveItemCount > 0 ? currentPage * itemsPerPage + 1 : 0;
       const endItem = startItem + pageItemCount - 1;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$16.footer), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.left), children: progressText ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$16.spinnerContainer), children: [
@@ -51558,8 +51601,8 @@ categories: ${categories.join(" ")}`;
             "..."
           ] })
         ] }) : void 0 }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.center), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: `${startItem} - ${endItem} / ${itemCount}` }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.center), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount: effectiveItemCount }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: filteredCount !== void 0 && filteredCount !== itemCount ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)` : `${startItem} - ${endItem} / ${effectiveItemCount}` }) })
       ] });
     };
     const panel$3 = "_panel_1mqvl_1";
@@ -51673,14 +51716,10 @@ categories: ${categories.join(" ")}`;
     const kDefaultPageSize = 30;
     const LogsPanel = () => {
       const loading = useStore((state) => state.app.status.loading);
-      const { loadLogs, loadHeaders } = useLogs();
+      const { loadLogs } = useLogs();
       const logs = useStore((state) => state.logs.logs);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const headersLoading = useStore((state) => state.logs.headersLoading);
-      const { page, itemsPerPage } = usePagination(
-        kLogsPaginationId,
-        kDefaultPageSize
-      );
       const { logPath } = useLogRouteParams();
       const currentDir = join(logPath || "", logs.log_dir);
       const logItems = reactExports.useMemo(() => {
@@ -51735,23 +51774,6 @@ categories: ${categories.join(" ")}`;
         };
         exec2();
       }, [loadLogs]);
-      const pageItems = reactExports.useMemo(() => {
-        const start2 = (page || 0) * itemsPerPage;
-        const end2 = start2 + itemsPerPage;
-        return logItems.slice(start2, end2);
-      }, [logItems, page, itemsPerPage]);
-      reactExports.useEffect(() => {
-        const exec2 = async () => {
-          const fileItems = pageItems.filter((item2) => item2.type === "file");
-          const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
-            return logHeaders[logFile.name] === void 0;
-          });
-          if (logFiles.length > 0) {
-            await loadHeaders(logFiles);
-          }
-        };
-        exec2();
-      }, [pageItems, loadHeaders, logHeaders]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$14.panel), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx(LogsToolbar, {}),

@@ -8,6 +8,7 @@ import {
   SortingState,
   Updater,
   useReactTable,
+  PaginationState,
 } from "@tanstack/react-table";
 import clsx from "clsx";
 import { FC, useEffect, useMemo, useRef } from "react";
@@ -32,11 +33,12 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     globalFilter,
     setGlobalFilter,
     columnResizeMode,
+    setFilteredCount,
   } = useLogsListing();
 
-  const { loadAllHeaders } = useLogs();
+  const { loadAllHeaders, loadHeaders } = useLogs();
 
-  const { page, itemsPerPage } = usePagination(
+  const { page, itemsPerPage, setPage } = usePagination(
     kLogsPaginationId,
     kDefaultPageSize,
   );
@@ -103,12 +105,48 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         typeof updater === "function" ? updater(globalFilter || "") : updater,
       );
     },
+    onPaginationChange: (updater: Updater<PaginationState>) => {
+      const newPagination = typeof updater === "function" 
+        ? updater({ pageIndex: page, pageSize: itemsPerPage })
+        : updater;
+      setPage(newPagination.pageIndex);
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     enableColumnResizing: true,
   });
+
+
+  // Update filtered count in store when table filtering changes
+  useEffect(() => {
+    const filteredRowCount = table.getFilteredRowModel().rows.length;
+    setFilteredCount(filteredRowCount);
+  }, [table.getFilteredRowModel().rows.length, setFilteredCount]);
+
+  // Load headers for files on the current page (demand loading)
+  useEffect(() => {
+    const exec = async () => {
+      const currentPageRows = table.getRowModel().rows;
+      const fileItems = currentPageRows
+        .map(row => row.original)
+        .filter((item) => item.type === "file");
+      
+      const logFiles = fileItems
+        .map((item) => item.logFile)
+        .filter((file) => file !== undefined)
+        .filter((logFile) => {
+          // Filter out files that are already loaded
+          return logHeaders[logFile.name] === undefined;
+        });
+
+      if (logFiles.length > 0) {
+        await loadHeaders(logFiles);
+      }
+    };
+    exec();
+  }, [table.getRowModel().rows, loadHeaders, logHeaders]);
 
   return (
     <div className={styles.gridContainer}>
