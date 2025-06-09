@@ -52774,9 +52774,9 @@ self.onmessage = function (e) {
       return result2;
     }
     async function log_message$1(log_file, message2) {
-      const params2 = new URLSearchParams();
-      params2.append("log_file", log_file);
-      params2.append("message", message2);
+      const params = new URLSearchParams();
+      params.append("log_file", log_file);
+      params.append("message", message2);
       const request = {
         headers: {
           "Content-Type": "text/plain"
@@ -52790,7 +52790,7 @@ self.onmessage = function (e) {
       };
       await apiRequest(
         "GET",
-        `/api/log-message?${params2.toString()}`,
+        `/api/log-message?${params.toString()}`,
         request
       );
     }
