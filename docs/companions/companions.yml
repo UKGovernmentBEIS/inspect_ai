@@ -1,0 +1,18 @@
+- Name: "[Inspect Cyber](https://ukgovernmentbeis.github.io/inspect_cyber/)"
+  Description: |
+    Python package (inspect_cyber) which distills best practices for cybersecity evals. Provides a consistent methodology for a wide range of tasks from CTF challenges up to complex cyber ranges.
+  Author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
+
+- Name: "[Inspect<br/>VS Code](https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai)"
+  Description: |
+    VS Code extension that assists with developing and debugging Inspect evaluations.
+  Author: "[Meridian Labs](https://github.com/meridianlabs-ai/inspect-vscode)"
+
+- Name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
+  Description: |
+    Python package (k8s_sandbox) that provides a Kubernetes sandbox environment for Inspect. Run untrusted code in a secure [gVisor](https://gvisor.dev/)  runtime and limit network access using [Cilium](https://cilium.io/).
+  Author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox)"
+
+- Name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  Description: Use virtual machines, running within a [Proxmox](https://www.proxmox.com/en/products/proxmox-virtual-environment/overview) instance, as Inspect sandboxes.
+  Author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"

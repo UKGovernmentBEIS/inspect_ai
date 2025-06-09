@@ -42,8 +42,8 @@ website:
             href: index.qmd
           - text: "Reference"
             href: reference/index.qmd
-          - text: "Extensions"
-            href: extensions/index.qmd
+          - text: "Companions"
+            href: companions/index.qmd
           - text: "Evals"
             href: evals/index.qmd
       right: 

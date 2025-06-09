@@ -1,9 +1,0 @@
----
-title: "Inspect Extensions"
-listing:
-  id: sample-listings
-  contents: 
-    - extensions.yml
-  type: table
----
-
