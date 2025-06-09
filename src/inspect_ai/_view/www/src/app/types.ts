@@ -73,6 +73,7 @@ export interface LogsListing {
   globalFilter?: string;
   columnResizeMode?: ColumnResizeMode;
   columnSizes?: Record<string, number>;
+  filteredCount?: number;
 }
 
 export interface LogState {

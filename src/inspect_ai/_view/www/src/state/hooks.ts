@@ -682,6 +682,9 @@ export const useLogsListing = () => {
   const columnSizes = useStore((state) => state.logs.listing.columnSizes);
   const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
 
+  const filteredCount = useStore((state) => state.logs.listing.filteredCount);
+  const setFilteredCount = useStore((state) => state.logsActions.setFilteredCount);
+
   return {
     sorting,
     setSorting,
@@ -693,5 +696,7 @@ export const useLogsListing = () => {
     setColumnResizeMode,
     columnSizes,
     setColumnSize,
+    filteredCount,
+    setFilteredCount,
   };
 };

@@ -38,6 +38,7 @@ export interface LogsSlice {
     setGlobalFilter: (globalFilter: string) => void;
     setColumnResizeMode: (mode: ColumnResizeMode) => void;
     setColumnSize: (columnId: string, size: number) => void;
+    setFilteredCount: (count: number) => void;
   };
 }
 
@@ -202,6 +203,11 @@ export const createLogsSlice = (
             state.logs.listing.columnSizes = {};
           }
           state.logs.listing.columnSizes[columnId] = size;
+        });
+      },
+      setFilteredCount: (count: number) => {
+        set((state) => {
+          state.logs.listing.filteredCount = count;
         });
       },
     },
