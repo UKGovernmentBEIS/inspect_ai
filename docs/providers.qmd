@@ -591,7 +591,6 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
 
-
 ## Ollama {#ollama}
 
 To use the [Ollama](https://ollama.com/) provider, install the `openai` package (which Ollama provides a compatible backend for) and specify a model using the `--model` option:
@@ -637,9 +636,11 @@ openai-api/<provider-name>/<model-name>
 Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):
 
 ```         
-<PROVIDER-NAME>_API_KEY
-<PROVIDER-NAME>_BASE_URL
+<PROVIDER_NAME>_API_KEY
+<PROVIDER_NAME>_BASE_URL
 ```
+
+Note that hyphens within provider names will be converted to underscores so they conform to requirements of environment variable names. For example, if the provider is named `awesome-models` then the API key environment variable should be `AWESOME_MODELS_API_KEY`.
 
 ### Example
 
