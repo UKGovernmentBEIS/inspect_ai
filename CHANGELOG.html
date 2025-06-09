@@ -111,6 +111,10 @@ ul.task-list li input[type="checkbox"] {
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./integrations/index.html"> 
+<span class="menu-text">Integrations</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="./evals/index.html"> 
 <span class="menu-text">Evals</span></a>
   </li>  
@@ -261,10 +265,16 @@ ul.task-list li input[type="checkbox"] {
 <li>Content: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentdata">ContentData</a></span> for model specific content blocks.</li>
 <li>Citations: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#citation">Citation</a></span> suite of types and included citations in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttext">ContentText</a></span> (supported for OpenAI and Anthropic models).</li>
 <li>Eval log: <code>task_args</code> now includes defaulted args (formerly it only included explicitly passed args).</li>
+<li>Eval set: <code>retry_connections</code> now defaults to 1.0 (resulting in no reduction in connections across passes).</li>
+<li>OpenAI compatible provider: Substitute <code>-</code> with <code>_</code> when looking up provider environment variables.</li>
 <li>Added development container (<code>.devcontainer</code>) configuration.</li>
 <li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#trim_messages">trim_messages()</a></span> now removes any trailing assistant message after compaction.</li>
+<li>Task display: Ensure that full path to log file is always displayed (wrap as required).</li>
+<li>Task display: Wrap scorers and scores in the task detail display.</li>
+<li>Fix error writing Nan values to the <code>logs.json</code> summary file during bundling.</li>
 <li>Inspect View: Add support for displaying citations for web searches in the transcript.</li>
 <li>Inspect View: Correctly update browser URL when navigation between samples.</li>
+<li>Bugfix: Properly honor <code>responses_api=False</code> when pass as an OpenAI model config arg.</li>
 </ul>
 </section>
 <section id="v0.3.103-06-june-2025" class="level2">

@@ -195,12 +195,15 @@ The sandbox is also available to custom scorers.
 
 ## Environment Binding
 
-There are two sandbox environments built in to Inspect:
+There are two sandbox environments built in to Inspect and two available
+as external packages:
 
 | Environment Type | Description |
 |----|----|
 | `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| `k8s` | Run `sandbox()` methods within a Kubernetes cluster (see the [K8s Sandbox](https://k8s-sandbox.aisi.org.uk/) package documentation for additional details). |
+| `proxmox` | Run `sandbox()` methods within a virtual machine (see the [Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) package documentation for additional details). |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or
 `eval()` level. Binding precedence goes from `eval()`, to `Task` to

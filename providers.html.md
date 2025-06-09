@@ -848,8 +848,13 @@ Inspect will read environment variables corresponding to the api key and
 base url of your provider using the following convention (note that the
 provider name is capitalized):
 
-    <PROVIDER-NAME>_API_KEY
-    <PROVIDER-NAME>_BASE_URL
+    <PROVIDER_NAME>_API_KEY
+    <PROVIDER_NAME>_BASE_URL
+
+Note that hyphens within provider names will be converted to underscores
+so they conform to requirements of environment variable names. For
+example, if the provider is named `awesome-models` then the API key
+environment variable should be `AWESOME_MODELS_API_KEY`.
 
 ### Example
 

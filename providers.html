@@ -147,6 +147,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./integrations/index.html"> 
+<span class="menu-text">Integrations</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="./evals/index.html"> 
 <span class="menu-text">Evals</span></a>
   </li>  
@@ -1329,8 +1333,9 @@ Note
 <p>If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the <code>openai-api</code> provider, which uses the following model naming convention:</p>
 <pre><code>openai-api/&lt;provider-name&gt;/&lt;model-name&gt;</code></pre>
 <p>Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):</p>
-<pre><code>&lt;PROVIDER-NAME&gt;_API_KEY
-&lt;PROVIDER-NAME&gt;_BASE_URL</code></pre>
+<pre><code>&lt;PROVIDER_NAME&gt;_API_KEY
+&lt;PROVIDER_NAME&gt;_BASE_URL</code></pre>
+<p>Note that hyphens within provider names will be converted to underscores so they conform to requirements of environment variable names. For example, if the provider is named <code>awesome-models</code> then the API key environment variable should be <code>AWESOME_MODELS_API_KEY</code>.</p>
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
 <p>Here is how you would access DeepSeek using the <code>openai-api</code> provider:</p>

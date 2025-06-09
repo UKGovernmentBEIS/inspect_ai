@@ -113,6 +113,10 @@ ul.task-list li input[type="checkbox"] {
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="../integrations/index.html"> 
+<span class="menu-text">Integrations</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="../evals/index.html"> 
 <span class="menu-text">Evals</span></a>
   </li>  
@@ -2134,7 +2138,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td><code>--retry-connections</code></td>
 <td>float</td>
-<td>Reduce max_connections at this rate with each retry (defaults to 0.5)</td>
+<td>Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction).</td>
 <td>None</td>
 </tr>
 <tr class="even">

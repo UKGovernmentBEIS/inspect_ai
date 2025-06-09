@@ -147,6 +147,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./integrations/index.html"> 
+<span class="menu-text">Integrations</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="./evals/index.html"> 
 <span class="menu-text">Evals</span></a>
   </li>  
@@ -673,7 +677,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="environment-binding" class="level2">
 <h2 class="anchored" data-anchor-id="environment-binding">Environment Binding</h2>
-<p>There are two sandbox environments built in to Inspect:</p>
+<p>There are two sandbox environments built in to Inspect and two available as external packages:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -689,6 +693,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="even">
 <td><code>docker</code></td>
 <td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods within a Docker container (see the <a href="#sec-docker-configuration">Docker Configuration</a> section below for additional details).</td>
+</tr>
+<tr class="odd">
+<td><code>k8s</code></td>
+<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods within a Kubernetes cluster (see the <a href="https://k8s-sandbox.aisi.org.uk/">K8s Sandbox</a> package documentation for additional details).</td>
+</tr>
+<tr class="even">
+<td><code>proxmox</code></td>
+<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods within a virtual machine (see the <a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">Proxmox Sandbox</a> package documentation for additional details).</td>
 </tr>
 </tbody>
 </table>
