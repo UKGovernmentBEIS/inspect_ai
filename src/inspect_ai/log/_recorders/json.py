@@ -3,6 +3,7 @@ from typing import Any, Literal, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
+from ijson.backends.python import UnexpectedSymbol  # type: ignore
 from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
@@ -129,12 +130,13 @@ class JSONRecorder(FileRecorder):
             # The Python JSON serializer supports NaN and Inf, however
             # this isn't technically part of the JSON spec. The json-stream
             # library shares this limitation, so if we fail with an
-            # invalid character then we move on and and parse w/ pydantic
+            # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
             # (which does support NaN and Inf by default)
-            except (ValueError, IncompleteJSONError) as ex:
+            except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
                 if (
                     str(ex).find("Invalid JSON character") != -1
                     or str(ex).find("invalid char in json text") != -1
+                    or str(ex).find("Unexpected symbol") != -1
                 ):
                     pass
                 else:
