@@ -50999,7 +50999,11 @@ categories: ${categories.join(" ")}`;
       modelCell
     };
     const modelColumn = () => {
-      return columnHelper.accessor("header.eval.model", {
+      return columnHelper.accessor((row2) => {
+        var _a2, _b2;
+        if (row2.type !== "file") return "";
+        return ((_b2 = (_a2 = row2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.model) || "";
+      }, {
         id: "model",
         header: "Model",
         cell: (info) => {

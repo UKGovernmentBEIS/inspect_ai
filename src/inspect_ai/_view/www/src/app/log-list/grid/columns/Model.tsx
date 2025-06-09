@@ -4,7 +4,10 @@ import { EmptyCell } from "./EmptyCell";
 import styles from "./Model.module.css";
 
 export const modelColumn = () => {
-  return columnHelper.accessor("header.eval.model", {
+  return columnHelper.accessor((row) => {
+    if (row.type !== "file") return "";
+    return row.header?.eval?.model || "";
+  }, {
     id: "model",
     header: "Model",
     cell: (info) => {
