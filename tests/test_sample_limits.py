@@ -340,6 +340,71 @@ def test_cost_limit(tmp_path):
     check_cost_limit_event(log, cost_limit)
 
 
+@pytest.mark.skip("Work in progress")
+def test_multi_model_cost_limit(tmp_path):
+    # TODO: how can we support multiple models
+
+    # Build a temporary JSON file under tmp_path (set by pytest)
+    cost_file = tmp_path / "cost_config.json"
+    data = {
+        "model": {
+            "input_cost_per_token": 0.01,
+            "output_cost_per_token": 0.001,
+            "cache_read_input_token_cost": 0.10,
+        },
+        "other_model": {
+            "input_cost_per_token": 0.01,
+            "output_cost_per_token": 0.001,
+            "cache_read_input_token_cost": 0.10,
+        },
+    }
+    cost_file.write_text(json.dumps(data))
+
+    model1 = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(
+            mock_model_output(
+                # Configure so each generation produces 1 unique input, 1 input cache,
+                # and 1 output token (total of 3 tokens)
+                input_tokens=1,  # Unique input tokens
+                input_tokens_cache_read=1,  # Cached input tokens
+                output_tokens=1,
+                total_tokens=3,
+            )
+        ),
+    )
+
+    model2 = get_model(
+        "mockllm/other_model",
+        custom_outputs=repeat_forever(
+            mock_model_output(
+                # Configure so each generation produces 1 unique input, 1 input cache,
+                # and 1 output token (total of 3 tokens)
+                input_tokens=1,  # Unique input tokens
+                input_tokens_cache_read=1,  # Cached input tokens
+                output_tokens=1,
+                total_tokens=3,
+            )
+        ),
+    )
+    # With our simulated costs, each turn should cost $0.111 so after 10 turns
+    # we should hit the limit at 30 total tokens.
+    # The cost limit should be hit while the token and turn limits should not
+    token_limit = 31
+    message_limit = 21  # Expect 10 messages from "user", 10 from assistant
+    cost_limit = 1.00
+
+    log = eval(
+        Task(solver=looping_solver()),
+        model=[model1, model2],
+        token_limit=token_limit,
+        message_limit=message_limit,
+        cost_limit=cost_limit,
+        cost_file=cost_file,
+    )[0]
+    check_cost_limit_event(log, cost_limit)
+
+
 @pytest.mark.slow
 @skip_if_no_docker
 def test_working_limit_does_not_raise_during_sandbox_teardown() -> None:

@@ -617,7 +617,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
-                    # TODO: Update cost info based on the cache hit
+                    # Cost limits should still be updated on cache hits
+                    if existing.usage:
+                        total_cost = calculate_model_usage_cost(
+                            {cache_entry.model: existing.usage}
+                        )
+                        record_model_usage_cost(total_cost)
                     return existing, event
             else:
                 cache_entry = None
