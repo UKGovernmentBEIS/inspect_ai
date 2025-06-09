@@ -217,12 +217,19 @@ async def subprocess(
                         # logger.info(f"Entered timeout scope for subprocess {proc.pid}.")
                         # logger.info("Anexting rc to get result.")
                         result = await anext(rc)
+                        logger.info("Got result.")
+                        assert isinstance(result, ExecResult)
+                        logger.info("Is instance of ExecResult.")
+                        logger.info(f"Return code: {result.returncode}.")
+                        logger.info(f"Success: {result.success}.")
+                        logger.info(f"Stdout: {result.stdout}.")
+                        logger.info(f"Stderr: {result.stderr}.")
+                        # logger.info(
+                        #     f"Subprocess {proc.pid} completed, returning exec result {result}"
+                        # )
                         logger.info(
                             f"Subprocess {proc.pid} completed, returning exec result {result}"
                         )
-                        # logger.info(
-                        #     f"Subprocess x completed, returning exec result x"
-                        # )
                         return cast(Union[ExecResult[str], ExecResult[bytes]], result)
                 except TimeoutError:
                     # logger.warning(f"Subprocess timed out {proc.pid}")
@@ -256,7 +263,11 @@ async def subprocess(
                             pass
                     # logger.warning(f"Re-raising {sys.exc_info()[0]} after timeout.")
                     raise
-
+                except Exception as e:
+                    logger.error(
+                        f"Exception while waiting for subprocess {proc.pid}: {e}."
+                    )
+                    raise e
             # await result without timeout
             else:
                 result = await anext(rc)
