@@ -7,7 +7,10 @@ import { EmptyCell } from "./EmptyCell";
 import styles from "./Score.module.css";
 
 export const scoreColumn = () => {
-  return columnHelper.accessor((row) => itemMetric(row)?.value ?? null, {
+  return columnHelper.accessor((row) => {
+    const metric = itemMetric(row);
+    return metric?.value !== undefined ? formatPrettyDecimal(metric.value) : "";
+  }, {
     id: "score",
     header: "Score",
     cell: (info) => {

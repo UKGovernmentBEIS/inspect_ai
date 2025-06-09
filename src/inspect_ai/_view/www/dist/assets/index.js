@@ -51086,8 +51086,8 @@ categories: ${categories.join(" ")}`;
     };
     const scoreColumn = () => {
       return columnHelper.accessor((row2) => {
-        var _a2;
-        return ((_a2 = itemMetric(row2)) == null ? void 0 : _a2.value) ?? null;
+        const metric = itemMetric(row2);
+        return (metric == null ? void 0 : metric.value) !== void 0 ? formatPrettyDecimal(metric.value) : "";
       }, {
         id: "score",
         header: "Score",
