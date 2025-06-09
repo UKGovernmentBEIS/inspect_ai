@@ -44,12 +44,11 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     _openContext: vscode.CustomDocumentOpenContext,
     _token: vscode.CancellationToken,
   ): Promise<vscode.CustomDocument> {
-
     // Parse any params from the Uri
     const queryParams = new URLSearchParams(uri.query);
     const sample_id = queryParams.get("sample_id");
     const epoch = queryParams.get("epoch");
-  
+
     // Return the document with additional info attached to payload
     return {
       uri: uri,
@@ -64,8 +63,10 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     _token: vscode.CancellationToken,
   ): Promise<void> {
-
-    const doc = document as vscode.CustomDocument & { sample_id?: string; epoch?: string };
+    const doc = document as vscode.CustomDocument & {
+      sample_id?: string;
+      epoch?: string;
+    };
     const sample_id = doc.sample_id;
     const epoch = doc.epoch;
 
@@ -111,14 +112,17 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
         docUriNoParams,
       );
 
-    // set html
+      // set html
       const logViewState: LogviewState = {
         log_file: docUriNoParams,
         log_dir: dirname(docUriNoParams),
-        sample: (sample_id && epoch) ? {
-          id: sample_id,
-          epoch: epoch,
-        } : undefined,
+        sample:
+          sample_id && epoch
+            ? {
+                id: sample_id,
+                epoch: epoch,
+              }
+            : undefined,
       };
       webviewPanel.webview.html = this.logviewPanel_.getHtml(logViewState);
     } else {
