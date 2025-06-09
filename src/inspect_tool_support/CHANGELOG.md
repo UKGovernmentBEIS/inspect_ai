@@ -1,4 +1,4 @@
-## Unreleased
+## v1.1.1 (2025-06-09)
 
 -   Fixed https://github.com/UKGovernmentBEIS/inspect_ai/issues/1964 by including current value in combobox accessibility tree info.
 
@@ -28,7 +28,6 @@
             session_name, lambda page: page.go_to_url(url)
         )
     ```
-
 
 ## v1.0.1 (29 April 2025)
 
