@@ -2,17 +2,16 @@ import { Link } from "react-router-dom";
 import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
-import { EvalLogHeader } from "../../../../client/api/types";
 import { parseLogFileName } from "../../../../utils/evallog";
 import styles from "./Task.module.css";
 
-export const taskColumn = (logHeaders: Record<string, EvalLogHeader>) => {
-  return columnHelper.accessor("name", {
+export const taskColumn = () => {
+  return columnHelper.accessor((row) => itemName(row), {
     id: "task",
     header: "Task",
     cell: (info) => {
       const item = info.row.original as FileLogItem | FolderLogItem;
-      let value = itemName(item, logHeaders);
+      let value = itemName(item);
       return (
         <div className={styles.nameCell}>
           {item.url ? (
@@ -34,26 +33,18 @@ export const taskColumn = (logHeaders: Record<string, EvalLogHeader>) => {
       const itemA = rowA.original as FileLogItem | FolderLogItem;
       const itemB = rowB.original as FileLogItem | FolderLogItem;
 
-      const valueA = itemName(itemA, logHeaders);
-      const valueB = itemName(itemB, logHeaders);
+      const valueA = itemName(itemA);
+      const valueB = itemName(itemB);
 
       return valueA.localeCompare(valueB);
     },
   });
 };
 
-const itemName = (
-  item: FileLogItem | FolderLogItem,
-  logHeaders: Record<string, EvalLogHeader>,
-) => {
+const itemName = (item: FileLogItem | FolderLogItem) => {
   let value = item.name;
   if (item.type === "file") {
-    if (logHeaders[item.logFile?.name || ""]?.eval.task) {
-      value = logHeaders[item.logFile?.name || ""].eval.task;
-    } else {
-      const parsed = parseLogFileName(item.name);
-      value = parsed.name;
-    }
+    return item.header?.eval?.task || parseLogFileName(item.name).name;
   }
   return value;
 };

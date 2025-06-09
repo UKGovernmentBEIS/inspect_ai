@@ -590,9 +590,7 @@ export const useLogs = () => {
     async (logFiles: LogFile[]) => {
       setHeadersLoading(true);
       try {
-        console.log("fetching headers for", logFiles);
         const logHeaders = await fetchHeaders(logFiles);
-        console.log("fetching complete for", logFiles);
         const result: Record<string, EvalLogHeader> = {};
         for (var i = 0; i < logFiles.length; i++) {
           const logFile = logFiles[i];
@@ -601,9 +599,7 @@ export const useLogs = () => {
             result[logFile.name] = logHeader as EvalLogHeader;
           }
         }
-        console.log("setting headers for", logFiles);
         setHeaders({ ...existingHeaders, ...result });
-        console.log("done fetching headers for", logFiles);
       } catch (e) {
         log.error("Error loading log headers", e);
         setHeaders({ ...existingHeaders });

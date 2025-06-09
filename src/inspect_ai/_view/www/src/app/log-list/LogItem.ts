@@ -1,4 +1,4 @@
-import { LogFile } from "../../client/api/types";
+import { EvalLogHeader, LogFile } from "../../client/api/types";
 
 export interface LogItem {
   id: string;
@@ -14,4 +14,5 @@ export interface FolderLogItem extends LogItem {
 export interface FileLogItem extends LogItem {
   type: "file";
   logFile: LogFile;
+  header?: EvalLogHeader;
 }

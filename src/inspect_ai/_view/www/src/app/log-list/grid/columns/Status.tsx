@@ -1,5 +1,4 @@
 import clsx from "clsx";
-import { EvalLogHeader } from "../../../../client/api/types";
 import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 import { EmptyCell } from "./EmptyCell";
@@ -7,36 +6,33 @@ import { EmptyCell } from "./EmptyCell";
 import { ApplicationIcons } from "../../../appearance/icons";
 import styles from "./Status.module.css";
 
-export const statusColumn = (logHeaders: Record<string, EvalLogHeader>) => {
-  return columnHelper.accessor("name", {
+export const statusColumn = () => {
+  return columnHelper.accessor((row) => itemStatus(row), {
     id: "status",
     header: "Status",
     cell: (info) => {
       const item = info.row.original;
-      const header =
-        item.type === "file"
-          ? logHeaders[item?.logFile?.name || ""]
-          : undefined;
+      const status = itemStatus(item);
 
-      if (!header) {
+      if (!status) {
         return <EmptyCell />;
       }
 
       const icon =
-        header.status === "error"
+        status === "error"
           ? ApplicationIcons.error
-          : header.status === "started"
+          : status === "started"
             ? ApplicationIcons.running
-            : header.status === "cancelled"
+            : status === "cancelled"
               ? ApplicationIcons.cancelled
               : ApplicationIcons.success;
 
       const clz =
-        header.status === "error"
+        status === "error"
           ? styles.error
-          : header.status === "started"
+          : status === "started"
             ? styles.started
-            : header.status === "cancelled"
+            : status === "cancelled"
               ? styles.cancelled
               : styles.success;
 
@@ -50,17 +46,8 @@ export const statusColumn = (logHeaders: Record<string, EvalLogHeader>) => {
       const itemA = rowA.original as FileLogItem | FolderLogItem;
       const itemB = rowB.original as FileLogItem | FolderLogItem;
 
-      const headerA =
-        itemA.type === "file"
-          ? logHeaders[itemA.logFile?.name || ""]
-          : undefined;
-      const headerB =
-        itemB.type === "file"
-          ? logHeaders[itemB.logFile?.name || ""]
-          : undefined;
-
-      const statusA = headerA && headerA.status ? headerA.status : "";
-      const statusB = headerB && headerB.status ? headerB.status : "";
+      const statusA = itemStatus(itemA) || "";
+      const statusB = itemStatus(itemB) || "";
 
       // If A is empty, goes to bottom
       if (!statusA && statusB) {
@@ -80,4 +67,12 @@ export const statusColumn = (logHeaders: Record<string, EvalLogHeader>) => {
     maxSize: 120,
     enableResizing: true,
   });
+};
+
+const itemStatus = (item: FileLogItem | FolderLogItem) => {
+  if (item.type !== "file") {
+    return undefined;
+  }
+  const header = item.header;
+  return header?.status;
 };

@@ -47658,9 +47658,7 @@ categories: ${categories.join(" ")}`;
         async (logFiles) => {
           setHeadersLoading(true);
           try {
-            console.log("fetching headers for", logFiles);
             const logHeaders = await fetchHeaders(logFiles);
-            console.log("fetching complete for", logFiles);
             const result2 = {};
             for (var i2 = 0; i2 < logFiles.length; i2++) {
               const logFile = logFiles[i2];
@@ -47669,9 +47667,7 @@ categories: ${categories.join(" ")}`;
                 result2[logFile.name] = logHeader;
               }
             }
-            console.log("setting headers for", logFiles);
             setHeaders({ ...existingHeaders, ...result2 });
-            console.log("done fetching headers for", logFiles);
           } catch (e) {
             log.error("Error loading log headers", e);
             setHeaders({ ...existingHeaders });
@@ -50894,15 +50890,13 @@ categories: ${categories.join(" ")}`;
     const EmptyCell = () => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1c.emptyCell, children: "-" });
     };
-    const completedDateColumn = (logHeaders) => {
-      return columnHelper.accessor("name", {
+    const completedDateColumn = () => {
+      return columnHelper.accessor((row2) => itemCompletedAt(row2) ?? null, {
         id: "completed",
         header: "Completed",
         cell: (info) => {
-          var _a2, _b2;
           const item2 = info.row.original;
-          const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          const completed = (_b2 = header2 == null ? void 0 : header2.stats) == null ? void 0 : _b2.completed_at;
+          const completed = itemCompletedAt(item2);
           const time = completed ? new Date(completed) : void 0;
           const timeStr = time ? `${time.toDateString()}
         ${time.toLocaleTimeString([], {
@@ -50915,13 +50909,12 @@ categories: ${categories.join(" ")}`;
           return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1d.dateCell, children: timeStr });
         },
         sortingFn: (rowA, rowB) => {
-          var _a2, _b2, _c, _d;
           const itemA = rowA.original;
           const itemB = rowB.original;
-          const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
-          const timeA = new Date(((_c = headerA == null ? void 0 : headerA.stats) == null ? void 0 : _c.completed_at) || 0);
-          const timeB = new Date(((_d = headerB == null ? void 0 : headerB.stats) == null ? void 0 : _d.completed_at) || 0);
+          const completedA = itemCompletedAt(itemA);
+          const completedB = itemCompletedAt(itemB);
+          const timeA = new Date(completedA || 0);
+          const timeB = new Date(completedB || 0);
           return timeA.getTime() - timeB.getTime();
         },
         enableSorting: true,
@@ -50931,6 +50924,11 @@ categories: ${categories.join(" ")}`;
         maxSize: 300,
         enableResizing: true
       });
+    };
+    const itemCompletedAt = (item2) => {
+      var _a2, _b2;
+      if (item2.type !== "file") return void 0;
+      return (_b2 = (_a2 = item2.header) == null ? void 0 : _a2.stats) == null ? void 0 : _b2.completed_at;
     };
     const nameCell$1 = "_nameCell_arm8o_1";
     const fileLink = "_fileLink_arm8o_8";
@@ -51000,28 +50998,17 @@ categories: ${categories.join(" ")}`;
     const styles$19 = {
       modelCell
     };
-    const modelColumn = (logHeaders) => {
-      return columnHelper.accessor("name", {
+    const modelColumn = () => {
+      return columnHelper.accessor("header.eval.model", {
         id: "model",
         header: "Model",
         cell: (info) => {
-          var _a2;
+          var _a2, _b2;
           const item2 = info.row.original;
-          const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          if (!(header2 == null ? void 0 : header2.eval.model)) {
+          if (item2.type !== "file" || ((_a2 = item2.header) == null ? void 0 : _a2.eval.model) === void 0) {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.modelCell, children: (header2 == null ? void 0 : header2.eval.model) || "" });
-        },
-        sortingFn: (rowA, rowB) => {
-          var _a2, _b2;
-          const itemA = rowA.original;
-          const itemB = rowB.original;
-          const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
-          const modelA = (headerA == null ? void 0 : headerA.eval.model) || "";
-          const modelB = (headerB == null ? void 0 : headerB.eval.model) || "";
-          return modelA.localeCompare(modelB);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.modelCell, children: ((_b2 = item2.header) == null ? void 0 : _b2.eval.model) || "" });
         },
         enableSorting: true,
         enableGlobalFilter: true,
@@ -51093,32 +51080,29 @@ categories: ${categories.join(" ")}`;
     const styles$18 = {
       scoreCell
     };
-    const scoreColumn = (logHeaders) => {
-      return columnHelper.accessor("name", {
+    const scoreColumn = () => {
+      return columnHelper.accessor((row2) => {
+        var _a2;
+        return ((_a2 = itemMetric(row2)) == null ? void 0 : _a2.value) ?? null;
+      }, {
         id: "score",
         header: "Score",
         cell: (info) => {
-          var _a2;
-          const item2 = info.row.original;
-          const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          const metric = header2 && header2.results ? firstMetric(header2.results) : void 0;
-          if (!metric) {
+          const metric = itemMetric(info.row.original);
+          if (metric === void 0) {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.scoreCell, children: metric ? formatPrettyDecimal(metric.value) : "" });
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.scoreCell, children: formatPrettyDecimal(metric.value) });
         },
         sortingFn: (rowA, rowB) => {
-          var _a2, _b2;
           const itemA = rowA.original;
           const itemB = rowB.original;
-          const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
-          const metricA = headerA && headerA.results ? firstMetric(headerA.results) : void 0;
-          const metricB = headerB && headerB.results ? firstMetric(headerB.results) : void 0;
-          if (!metricA && metricB) return -1;
-          if (metricA && !metricB) return 1;
+          const metricA = itemMetric(itemA);
+          const metricB = itemMetric(itemB);
           if (!metricA && !metricB) return 0;
-          return ((metricA == null ? void 0 : metricA.value) || 0) - ((metricB == null ? void 0 : metricB.value) || 0);
+          if (!metricA) return -1;
+          if (!metricB) return 1;
+          return (metricA.value || 0) - (metricB.value || 0);
         },
         enableSorting: true,
         enableGlobalFilter: true,
@@ -51127,6 +51111,13 @@ categories: ${categories.join(" ")}`;
         maxSize: 120,
         enableResizing: true
       });
+    };
+    const itemMetric = (item2) => {
+      if (item2.type !== "file") {
+        return void 0;
+      }
+      const header2 = item2.header;
+      return (header2 == null ? void 0 : header2.results) ? firstMetric(header2.results) : void 0;
     };
     const error$1 = "_error_14ftq_1";
     const started = "_started_14ftq_5";
@@ -51138,29 +51129,25 @@ categories: ${categories.join(" ")}`;
       success,
       cancelled
     };
-    const statusColumn = (logHeaders) => {
-      return columnHelper.accessor("name", {
+    const statusColumn = () => {
+      return columnHelper.accessor((row2) => itemStatus(row2), {
         id: "status",
         header: "Status",
         cell: (info) => {
-          var _a2;
           const item2 = info.row.original;
-          const header2 = item2.type === "file" ? logHeaders[((_a2 = item2 == null ? void 0 : item2.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          if (!header2) {
+          const status2 = itemStatus(item2);
+          if (!status2) {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
           }
-          const icon2 = header2.status === "error" ? ApplicationIcons.error : header2.status === "started" ? ApplicationIcons.running : header2.status === "cancelled" ? ApplicationIcons.cancelled : ApplicationIcons.success;
-          const clz = header2.status === "error" ? styles$17.error : header2.status === "started" ? styles$17.started : header2.status === "cancelled" ? styles$17.cancelled : styles$17.success;
+          const icon2 = status2 === "error" ? ApplicationIcons.error : status2 === "started" ? ApplicationIcons.running : status2 === "cancelled" ? ApplicationIcons.cancelled : ApplicationIcons.success;
+          const clz = status2 === "error" ? styles$17.error : status2 === "started" ? styles$17.started : status2 === "cancelled" ? styles$17.cancelled : styles$17.success;
           return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$17.statusCell, children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, clz) }) });
         },
         sortingFn: (rowA, rowB) => {
-          var _a2, _b2;
           const itemA = rowA.original;
           const itemB = rowB.original;
-          const headerA = itemA.type === "file" ? logHeaders[((_a2 = itemA.logFile) == null ? void 0 : _a2.name) || ""] : void 0;
-          const headerB = itemB.type === "file" ? logHeaders[((_b2 = itemB.logFile) == null ? void 0 : _b2.name) || ""] : void 0;
-          const statusA = headerA && headerA.status ? headerA.status : "";
-          const statusB = headerB && headerB.status ? headerB.status : "";
+          const statusA = itemStatus(itemA) || "";
+          const statusB = itemStatus(itemB) || "";
           if (!statusA && statusB) {
             return 1;
           }
@@ -51176,6 +51163,13 @@ categories: ${categories.join(" ")}`;
         maxSize: 120,
         enableResizing: true
       });
+    };
+    const itemStatus = (item2) => {
+      if (item2.type !== "file") {
+        return void 0;
+      }
+      const header2 = item2.header;
+      return header2 == null ? void 0 : header2.status;
     };
     const kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
     const parseLogFileName = (logFileName) => {
@@ -51201,13 +51195,13 @@ categories: ${categories.join(" ")}`;
       nameCell,
       logLink
     };
-    const taskColumn = (logHeaders) => {
-      return columnHelper.accessor("name", {
+    const taskColumn = () => {
+      return columnHelper.accessor((row2) => itemName(row2), {
         id: "task",
         header: "Task",
         cell: (info) => {
           const item2 = info.row.original;
-          let value2 = itemName(item2, logHeaders);
+          let value2 = itemName(item2);
           return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$16.logLink, children: value2 }) : value2 });
         },
         enableSorting: true,
@@ -51218,22 +51212,17 @@ categories: ${categories.join(" ")}`;
         sortingFn: (rowA, rowB) => {
           const itemA = rowA.original;
           const itemB = rowB.original;
-          const valueA = itemName(itemA, logHeaders);
-          const valueB = itemName(itemB, logHeaders);
+          const valueA = itemName(itemA);
+          const valueB = itemName(itemB);
           return valueA.localeCompare(valueB);
         }
       });
     };
-    const itemName = (item2, logHeaders) => {
-      var _a2, _b2, _c;
+    const itemName = (item2) => {
+      var _a2, _b2;
       let value2 = item2.name;
       if (item2.type === "file") {
-        if ((_b2 = logHeaders[((_a2 = item2.logFile) == null ? void 0 : _a2.name) || ""]) == null ? void 0 : _b2.eval.task) {
-          value2 = logHeaders[((_c = item2.logFile) == null ? void 0 : _c.name) || ""].eval.task;
-        } else {
-          const parsed = parseLogFileName(item2.name);
-          value2 = parsed.name;
-        }
+        return ((_b2 = (_a2 = item2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task) || parseLogFileName(item2.name).name;
       }
       return value2;
     };
@@ -51241,12 +51230,12 @@ categories: ${categories.join(" ")}`;
     const getColumns = (logHeaders, columnIds) => {
       const allColumns = [
         iconColumn(),
-        taskColumn(logHeaders),
+        taskColumn(),
         fileNameColumn(),
-        completedDateColumn(logHeaders),
-        modelColumn(logHeaders),
-        scoreColumn(logHeaders),
-        statusColumn(logHeaders)
+        completedDateColumn(),
+        modelColumn(),
+        scoreColumn(),
+        statusColumn()
       ];
       return allColumns;
     };
@@ -51284,7 +51273,7 @@ categories: ${categories.join(" ")}`;
         }
       }, [logHeaders]);
       const columns = reactExports.useMemo(() => {
-        return getColumns(logHeaders);
+        return getColumns();
       }, [logHeaders]);
       const table2 = useReactTable({
         data: items,
@@ -51622,7 +51611,8 @@ categories: ${categories.join(" ")}`;
               name: fileOrFolderName,
               type: "file",
               url: logUrl(path, logs.log_dir),
-              logFile
+              logFile,
+              header: logHeaders[logFile.name]
             });
           } else if (name2.startsWith(currentDir)) {
             const relativePath = directoryRelativeUrl(name2, currentDir);
@@ -51647,7 +51637,7 @@ categories: ${categories.join(" ")}`;
           }
         }
         return logItems2;
-      }, [logPath, logs.files]);
+      }, [logPath, logs.files, logHeaders]);
       reactExports.useEffect(() => {
         const exec2 = async () => {
           await loadLogs();

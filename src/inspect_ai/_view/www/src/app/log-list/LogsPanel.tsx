@@ -81,6 +81,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
           type: "file",
           url: logUrl(path, logs.log_dir),
           logFile: logFile,
+          header: logHeaders[logFile.name],
         });
       } else if (name.startsWith(currentDir)) {
         // This is file that is next level (or deeper) child
@@ -110,7 +111,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
     }
 
     return logItems;
-  }, [logPath, logs.files]);
+  }, [logPath, logs.files, logHeaders]);
 
   useEffect(() => {
     const exec = async () => {

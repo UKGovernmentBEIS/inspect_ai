@@ -1,24 +1,16 @@
-import { EvalLogHeader } from "../../../../client/api/types";
 import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
 import styles from "./CompletedDate.module.css";
 import { EmptyCell } from "./EmptyCell";
 
-export const completedDateColumn = (
-  logHeaders: Record<string, EvalLogHeader>,
-) => {
-  return columnHelper.accessor("name", {
+export const completedDateColumn = () => {
+  return columnHelper.accessor((row) => itemCompletedAt(row) ?? null, {
     id: "completed",
     header: "Completed",
     cell: (info) => {
       const item = info.row.original;
-      const header =
-        item.type === "file"
-          ? logHeaders[item?.logFile?.name || ""]
-          : undefined;
-
-      const completed = header?.stats?.completed_at;
+      const completed = itemCompletedAt(item);
       const time = completed ? new Date(completed) : undefined;
       const timeStr = time
         ? `${time.toDateString()}
@@ -38,17 +30,11 @@ export const completedDateColumn = (
       const itemA = rowA.original as FileLogItem | FolderLogItem;
       const itemB = rowB.original as FileLogItem | FolderLogItem;
 
-      const headerA =
-        itemA.type === "file"
-          ? logHeaders[itemA.logFile?.name || ""]
-          : undefined;
-      const headerB =
-        itemB.type === "file"
-          ? logHeaders[itemB.logFile?.name || ""]
-          : undefined;
+      const completedA = itemCompletedAt(itemA);
+      const completedB = itemCompletedAt(itemB);
 
-      const timeA = new Date(headerA?.stats?.completed_at || 0);
-      const timeB = new Date(headerB?.stats?.completed_at || 0);
+      const timeA = new Date(completedA || 0);
+      const timeB = new Date(completedB || 0);
       return timeA.getTime() - timeB.getTime();
     },
 
@@ -59,4 +45,9 @@ export const completedDateColumn = (
     maxSize: 300,
     enableResizing: true,
   });
+};
+
+const itemCompletedAt = (item: FileLogItem | FolderLogItem) => {
+  if (item.type !== "file") return undefined;
+  return item.header?.stats?.completed_at;
 };

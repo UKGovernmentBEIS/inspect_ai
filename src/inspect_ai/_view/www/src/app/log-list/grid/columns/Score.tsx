@@ -1,4 +1,3 @@
-import { EvalLogHeader } from "../../../../client/api/types";
 import { firstMetric } from "../../../../scoring/metrics";
 import { formatPrettyDecimal } from "../../../../utils/format";
 import { FileLogItem, FolderLogItem } from "../../LogItem";
@@ -7,52 +6,33 @@ import { EmptyCell } from "./EmptyCell";
 
 import styles from "./Score.module.css";
 
-export const scoreColumn = (logHeaders: Record<string, EvalLogHeader>) => {
-  return columnHelper.accessor("name", {
+export const scoreColumn = () => {
+  return columnHelper.accessor((row) => itemMetric(row)?.value ?? null, {
     id: "score",
     header: "Score",
     cell: (info) => {
-      const item = info.row.original;
-      const header =
-        item.type === "file"
-          ? logHeaders[item?.logFile?.name || ""]
-          : undefined;
-
-      const metric =
-        header && header.results ? firstMetric(header.results) : undefined;
-      if (!metric) {
+      const metric = itemMetric(info.row.original);
+      if (metric === undefined) {
         return <EmptyCell />;
       }
       return (
         <div className={styles.scoreCell}>
-          {metric ? formatPrettyDecimal(metric.value) : ""}
+          {formatPrettyDecimal(metric.value)}
         </div>
       );
     },
     sortingFn: (rowA, rowB) => {
-      const itemA = rowA.original as FileLogItem | FolderLogItem;
-      const itemB = rowB.original as FileLogItem | FolderLogItem;
+      const itemA = rowA.original;
+      const itemB = rowB.original;
 
-      const headerA =
-        itemA.type === "file"
-          ? logHeaders[itemA.logFile?.name || ""]
-          : undefined;
-      const headerB =
-        itemB.type === "file"
-          ? logHeaders[itemB.logFile?.name || ""]
-          : undefined;
+      const metricA = itemMetric(itemA);
+      const metricB = itemMetric(itemB);
 
-      const metricA =
-        headerA && headerA.results ? firstMetric(headerA.results) : undefined;
-      const metricB =
-        headerB && headerB.results ? firstMetric(headerB.results) : undefined;
-
-      // Sort files without scores before files with scores (empty values at top when ascending)
-      if (!metricA && metricB) return -1;
-      if (metricA && !metricB) return 1;
       if (!metricA && !metricB) return 0;
+      if (!metricA) return -1;
+      if (!metricB) return 1;
 
-      return (metricA?.value || 0) - (metricB?.value || 0);
+      return (metricA.value || 0) - (metricB.value || 0);
     },
     enableSorting: true,
     enableGlobalFilter: true,
@@ -61,4 +41,13 @@ export const scoreColumn = (logHeaders: Record<string, EvalLogHeader>) => {
     maxSize: 120,
     enableResizing: true,
   });
+};
+
+const itemMetric = (item: FileLogItem | FolderLogItem) => {
+  if (item.type !== "file") {
+    return undefined;
+  }
+
+  const header = item.header;
+  return header?.results ? firstMetric(header.results) : undefined;
 };

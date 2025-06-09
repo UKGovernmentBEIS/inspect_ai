@@ -17,12 +17,12 @@ export const getColumns = (
 ) => {
   const allColumns = [
     iconColumn(),
-    taskColumn(logHeaders),
+    taskColumn(),
     fileNameColumn(),
-    completedDateColumn(logHeaders),
-    modelColumn(logHeaders),
-    scoreColumn(logHeaders),
-    statusColumn(logHeaders),
+    completedDateColumn(),
+    modelColumn(),
+    scoreColumn(),
+    statusColumn(),
   ];
   if (columnIds) {
     return allColumns.filter((col) => columnIds.includes(col.id || ""));
