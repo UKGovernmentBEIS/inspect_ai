@@ -5,13 +5,10 @@ listing:
   contents: 
     - integrations.yml
   type: table
-  categories: unnumbered
   fields: 
     - name
     - description
-    - categories
     - author
-  field-display-names: { "categories": "Category" }
 ---
 
 Inspect integrations include packages that provide tools, agents, scorers, and sandboxes; orchestration and observability tools; and systems which view and analyze Inspect logs.
