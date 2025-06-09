@@ -171,19 +171,24 @@ async def subprocess(
                 f"Yielding result for process {process.pid} with return code {returncode}."
             )
             if text:
+                logger.info("Yielding result as text.")
                 yield ExecResult[str](
                     success=success,
                     returncode=returncode,
                     stdout=stdout.decode() if capture_output else "",
                     stderr=stderr.decode() if capture_output else "",
                 )
+                logger.info("Result yielded as text.")
             else:
+                logger.info("Yielding result as bytes.")
                 yield ExecResult[bytes](
                     success=success,
                     returncode=returncode,
                     stdout=stdout if capture_output else bytes(),
                     stderr=stderr if capture_output else bytes(),
                 )
+                logger.info("Result yielded as bytes.")
+            logger.info("Result yielded.")
         finally:
             try:
                 logger.info(f"Awaiting process {process.pid} to close.")
@@ -200,14 +205,16 @@ async def subprocess(
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
         # run the command and capture the process handle
         async with aclosing(run_command()) as rc:
+            logger.info("anext rc to get process handle")
             proc = cast(Process, await anext(rc))
+            logger.info(f"Got PID {proc.pid}.")
 
             # await result wrapped in timeout handler if requested
             if timeout is not None:
                 try:
-                    logger.info(f"Started subprocess {proc.pid} {args}")
                     with anyio.fail_after(timeout):
                         logger.info(f"Entered timeout scope for subprocess {proc.pid}.")
+                        logger.info("Anexting rc to get result.")
                         result = await anext(rc)
                         logger.info(
                             f"Subprocess {proc.pid} completed, returning exec result {result}"

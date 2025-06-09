@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import os
 
@@ -62,7 +63,8 @@ def exec_hang_mre():
 
 if __name__ == "__main__":
     os.environ["INSPECT_DOCKER_CLI_CONCURRENCY"] = "500"
-    os.environ["INSPECT_PY_LOGGER_FILE"] = "log.log"
+    os.makedirs("logs", exist_ok=True)
+    os.environ["INSPECT_PY_LOGGER_FILE"] = f"logs/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
     os.environ["INSPECT_PY_LOGGER_LEVEL"] = "INFO"
     eval(
         exec_hang_mre(),
