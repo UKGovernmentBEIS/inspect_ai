@@ -3,7 +3,7 @@ from typing import Any, Literal, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
-from ijson.backends.python import UnexpectedSymbol
+from ijson.backends.python import UnexpectedSymbol  # type: ignore
 from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
