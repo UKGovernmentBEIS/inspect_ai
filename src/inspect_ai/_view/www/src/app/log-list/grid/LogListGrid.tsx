@@ -131,6 +131,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     enableColumnResizing: true,
+    autoResetPageIndex: false,
   });
 
   // Update filtered count in store when table filtering changes
