@@ -225,36 +225,36 @@ async def subprocess(
                         # )
                         return cast(Union[ExecResult[str], ExecResult[bytes]], result)
                 except TimeoutError:
-                    logger.warning(f"Subprocess timed out {proc.pid}")
+                    # logger.warning(f"Subprocess timed out {proc.pid}")
                     # terminate timed out process -- try for graceful termination
                     # then be more forceful if requied
                     with anyio.CancelScope(shield=True):
                         try:
-                            logger.warning(
-                                f"Sending terminate signal to subprocess {proc.pid}."
-                            )
+                            # logger.warning(
+                            #     f"Sending terminate signal to subprocess {proc.pid}."
+                            # )
                             proc.terminate()
-                            logger.warning(
-                                f"Sent terminate signal to subprocess {proc.pid}."
-                            )
+                            # logger.warning(
+                            #     f"Sent terminate signal to subprocess {proc.pid}."
+                            # )
                             await anyio.sleep(2)
-                            logger.warning(
-                                f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
-                            )
+                            # logger.warning(
+                            #     f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
+                            # )
                             if proc.returncode is None:
-                                logger.warning(
-                                    f"Subprocess did not terminate, sending kill signal to {proc.pid}."
-                                )
+                                # logger.warning(
+                                #     f"Subprocess did not terminate, sending kill signal to {proc.pid}."
+                                # )
                                 proc.kill()
-                                logger.warning(
-                                    f"Sent kill signal to subprocess {proc.pid}."
-                                )
+                                # logger.warning(
+                                #     f"Sent kill signal to subprocess {proc.pid}."
+                                # )
                         except Exception as e:
-                            logger.warning(
-                                f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
-                            )
+                            # logger.warning(
+                            #     f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
+                            # )
                             pass
-                    logger.warning(f"Re-raising {sys.exc_info()[0]} after timeout.")
+                    # logger.warning(f"Re-raising {sys.exc_info()[0]} after timeout.")
                     raise
 
             # await result without timeout
