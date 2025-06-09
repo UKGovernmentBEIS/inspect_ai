@@ -91,14 +91,14 @@ class OpenAIAPI(ModelAPI):
         )
 
         # is this a model we use responses api by default for?
-        responses_model = (
-            (self.is_o_series() and not self.is_o1_early())
-            or self.is_computer_use_preview()
-            or self.is_codex()
-        )
+        responses_preferred = (
+            self.is_o_series() and not self.is_o1_early()
+        ) or self.is_codex()
 
         # resolve whether we are forcing the responses api
-        self.responses_api = responses_api or responses_model
+        self.responses_api = self.is_computer_use_preview() or (
+            responses_api if responses_api is not None else responses_preferred
+        )
 
         # resolve whether we are using the responses store
         if isinstance(responses_store, bool):

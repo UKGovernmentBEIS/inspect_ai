@@ -61,7 +61,8 @@ class OpenAICompatibleAPI(ModelAPI):
             self.service = service
 
         # compute api key
-        api_key_var = f"{self.service.upper()}_API_KEY"
+        service_env_name = self.service.upper().replace("-", "_")
+        api_key_var = f"{service_env_name}_API_KEY"
 
         super().__init__(
             model_name=model_name,
@@ -82,7 +83,7 @@ class OpenAICompatibleAPI(ModelAPI):
 
         # use service prefix to lookup base_url
         if not self.base_url:
-            base_url_var = f"{self.service.upper()}_BASE_URL"
+            base_url_var = f"{service_env_name}_BASE_URL"
             self.base_url = model_base_url(base_url, [base_url_var]) or service_base_url
             if not self.base_url:
                 raise environment_prerequisite_error(

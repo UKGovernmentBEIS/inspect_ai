@@ -92,7 +92,7 @@ class AccessibilityTreeNode:
                 else None
             )
 
-        if node_has_property(ax_node, "editable"):
+        if node_has_property(ax_node, "editable") or self.role == "combobox":
             # Sometimes a node will have it's input stored as 'value' other times we
             # need to go looking through the DOM tree to find its matching string.
             self._input = (

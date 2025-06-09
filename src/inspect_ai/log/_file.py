@@ -198,7 +198,10 @@ def write_log_dir_manifest(
     fs = filesystem(output_dir)
     manifest = f"{output_dir}{fs.sep}{filename}"
     manifest_json = to_json(
-        value=manifest_logs, indent=2, exclude_none=True, fallback=lambda _x: None
+        value=jsonable_python(manifest_logs),
+        indent=2,
+        exclude_none=True,
+        fallback=lambda _x: None,
     )
     with file(manifest, mode="wb", fs_options=fs_options) as f:
         f.write(manifest_json)
