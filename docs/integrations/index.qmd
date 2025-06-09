@@ -1,0 +1,21 @@
+---
+title: "Inspect Integrations"
+listing:
+  id: integrations
+  contents: 
+    - integrations.yml
+  type: table
+  fields: 
+    - name
+    - description
+    - author
+  field-display-names: { "name": "Name" }
+---
+
+```{=html}
+<style type="text/css">
+td:nth-child(1) { width: 155px; }
+</style>
+```
+
+Inspect integrations include packages that provide tools, agents, scorers, and sandboxes; orchestration and observability tools; and systems which view and analyze Inspect logs.

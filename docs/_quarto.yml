@@ -42,6 +42,8 @@ website:
             href: index.qmd
           - text: "Reference"
             href: reference/index.qmd
+          - text: "Integrations"
+            href: integrations/index.qmd
           - text: "Evals"
             href: evals/index.qmd
       right: 

@@ -88,12 +88,14 @@ The sandbox is also available to custom scorers.
 
 ## Environment Binding
 
-There are two sandbox environments built in to Inspect:
+There are two sandbox environments built in to Inspect and two available as external packages:
 
-| Environment Type | Description                                                                                                                                                      |
+| Environment Type | Description |
 |---------------------------|---------------------------------------------|
-| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| `k8s` | Run `sandbox()` methods within a Kubernetes cluster (see the [K8s Sandbox](https://k8s-sandbox.aisi.org.uk/) package documentation for additional details). |
+| `proxmox` | Run `sandbox()` methods within a virtual machine (see the [Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) package documentation for additional details). |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
@@ -151,11 +153,11 @@ You can use the Docker sandbox environment without any special configuration, ho
 
 Here is how Docker sandbox environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files   | Behavior                                                                                                                                |
+| Config Files | Behavior |
 |---------------------------|---------------------------------------------|
-| None           | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
-| `Dockerfile`   | Creates a sandbox environment by building the image.                                                                                    |
-| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                                                 |
+| None | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| `Dockerfile` | Creates a sandbox environment by building the image. |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you'll need to provide your own `compose.yaml` file.
 
