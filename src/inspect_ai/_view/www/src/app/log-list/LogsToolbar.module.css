@@ -1,0 +1,24 @@
+.toolbar {
+  border-bottom: solid var(--bs-border-color) 1px;
+  background: var(--bs-light);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.right {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+.left {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+  column-gap: 0.5em;
+}

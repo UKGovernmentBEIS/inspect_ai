@@ -97,7 +97,12 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         typeof updater === "function" ? updater(filtering || []) : updater,
       );
     },
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: async (updater: Updater<string>) => {
+      await loadAllHeaders();
+      setGlobalFilter(
+        typeof updater === "function" ? updater(globalFilter || "") : updater,
+      );
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

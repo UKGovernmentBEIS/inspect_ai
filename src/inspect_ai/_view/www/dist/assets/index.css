@@ -16321,17 +16321,41 @@ a._citationLink_t2k1z_9:hover {
 ._item_as2da_8:not(.disabled) {
   cursor: pointer;
 }
-._panel_18nhs_1 {
+._panel_1mqvl_1 {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template-rows: max-content max-content 1fr max-content;
+  grid-template-rows: max-content max-content max-content 1fr max-content;
 }
 
-._list_18nhs_8 {
+._list_1mqvl_8 {
   overflow: hidden;
   height: 100%;
   min-height: 0;
+}
+._toolbar_baz21_1 {
+  border-bottom: solid var(--bs-border-color) 1px;
+  background: var(--bs-light);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+._right_baz21_8 {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+._left_baz21_17 {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+  column-gap: 0.5em;
 }
 .findBand {
   position: absolute;

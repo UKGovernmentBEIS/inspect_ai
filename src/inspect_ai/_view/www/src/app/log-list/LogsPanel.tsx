@@ -12,6 +12,7 @@ import { LogListGrid } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import styles from "./LogsPanel.module.css";
+import { LogsToolbar } from "./LogsToolbar";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -146,6 +147,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   return (
     <div className={clsx(styles.panel)}>
       <Navbar />
+      <LogsToolbar />
       <ProgressBar animating={loading || headersLoading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
         <LogListGrid items={logItems} />
