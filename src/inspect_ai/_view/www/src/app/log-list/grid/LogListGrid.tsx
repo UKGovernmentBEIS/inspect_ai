@@ -68,8 +68,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   }, [logHeaders]);
 
   const columns = useMemo(() => {
-    return getColumns(logHeaders);
-  }, [logHeaders]);
+    return getColumns();
+  }, []);
 
   const table = useReactTable({
     data: items,
