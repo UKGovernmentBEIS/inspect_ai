@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.63
+
+- Improve support for linking to wrapped evaluation paths in the terminal.
+
 ## 0.3.62
 
 - Add support for viewing live samples in the Inspect viewer (requires Inspect 0.3.84 or later)
