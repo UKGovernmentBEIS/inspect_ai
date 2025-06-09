@@ -5,6 +5,7 @@
 - Content: Added `ContentData` for model specific content blocks.
 - Citations: Added `Citation` suite of types and included citations in `ContentText` (supported for OpenAI and Anthropic models).
 - Eval log: `task_args` now includes defaulted args (formerly it only included explicitly passed args).
+- Eval set: `retry_connections` now defaults to 1.0 (resulting in no reduction in connections across passes).
 - Added development container (`.devcontainer`) configuration.
 - `trim_messages()` now removes any trailing assistant message after compaction.
 - Task display: Ensure that full path to log file is always displayed (wrap as required).

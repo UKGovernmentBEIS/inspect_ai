@@ -641,7 +641,7 @@ def eval_command(
 @click.option(
     "--retry-connections",
     type=float,
-    help="Reduce max_connections at this rate with each retry (defaults to 0.5)",
+    help="Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction).",
     envvar="INSPECT_EVAL_RETRY_CONNECTIONS",
 )
 @click.option(
