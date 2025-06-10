@@ -43,7 +43,7 @@ export const AppRouter = createHashRouter(
       children: [
         {
           index: true, // This will match exactly the "/" path
-          element: <LogViewContainer />,
+          element: <LogsPanel />,
         },
         {
           path: kLogsRouteUrlPattern,
