@@ -453,7 +453,6 @@ Exa supports the following options:
 |------------------------------------|------------------------------------|
 | `text` | Whether to include text content in citations (defaults to true) |
 | `model` | LLM model to use for generating the answer ("exa" or "exa-pro") |
-| `stream` | Whether to stream the response (not used in our implementation) |
 | `max_connections` | Maximum number of concurrent connections |
 
 For more details, see the [Exa API Documentation](https://docs.exa.ai/reference/answer).

@@ -25,8 +25,6 @@ class ExaOptions(BaseModel):
     # See https://docs.exa.ai/reference/answer
     text: bool | None = None
     """Whether to include text content in citations"""
-    stream: bool | None = None
-    """Whether to stream the response (not used in our implementation)"""
     model: Literal["exa", "exa-pro"] | None = None
     """LLM model to use for generating the answer"""
     max_connections: int | None = None
