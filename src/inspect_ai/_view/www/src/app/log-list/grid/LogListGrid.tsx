@@ -150,10 +150,12 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   // Load headers for files on the current page (demand loading)
   useEffect(() => {
     const exec = async () => {
-      const currentPageRows = table.getRowModel().rows;
-      const fileItems = currentPageRows
-        .map((row) => row.original)
-        .filter((item) => item.type === "file");
+      // Get current page items directly from pagination state
+      const startIndex = page * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const currentPageItems = items.slice(startIndex, endIndex);
+      
+      const fileItems = currentPageItems.filter((item) => item.type === "file");
 
       const logFiles = fileItems
         .map((item) => item.logFile)
@@ -168,7 +170,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       }
     };
     exec();
-  }, [table.getRowModel().rows, loadHeaders, logHeaders]);
+  }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
 
   return (
     <div className={styles.gridContainer}>
@@ -193,9 +195,6 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
                   [styles.resizing]: header.column.getIsResizing(),
                 })}
                 onClick={(event) => {
-                  console.log(
-                    `Column ${header.id} canSort: ${header.column.getCanSort()}`,
-                  );
                   header.column.getToggleSortingHandler()?.(event);
                 }}
                 style={{

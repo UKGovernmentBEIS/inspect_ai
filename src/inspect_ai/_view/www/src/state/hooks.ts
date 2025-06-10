@@ -599,7 +599,8 @@ export const useLogs = () => {
             result[logFile.name] = logHeader as EvalLogHeader;
           }
         }
-        setHeaders({ ...existingHeaders, ...result });
+        const updatedHeaders = { ...existingHeaders, ...result };
+        setHeaders(updatedHeaders);
       } catch (e) {
         log.error("Error loading log headers", e);
         setHeaders({ ...existingHeaders });
@@ -683,7 +684,9 @@ export const useLogsListing = () => {
   const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
 
   const filteredCount = useStore((state) => state.logs.listing.filteredCount);
-  const setFilteredCount = useStore((state) => state.logsActions.setFilteredCount);
+  const setFilteredCount = useStore(
+    (state) => state.logsActions.setFilteredCount,
+  );
 
   return {
     sorting,

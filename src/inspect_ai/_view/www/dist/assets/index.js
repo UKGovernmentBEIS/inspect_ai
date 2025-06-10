@@ -47674,7 +47674,8 @@ categories: ${categories.join(" ")}`;
                 result2[logFile.name] = logHeader;
               }
             }
-            setHeaders({ ...existingHeaders, ...result2 });
+            const updatedHeaders = { ...existingHeaders, ...result2 };
+            setHeaders(updatedHeaders);
           } catch (e) {
             log.error("Error loading log headers", e);
             setHeaders({ ...existingHeaders });
@@ -47750,7 +47751,9 @@ categories: ${categories.join(" ")}`;
       const columnSizes = useStore((state) => state.logs.listing.columnSizes);
       const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
       const filteredCount = useStore((state) => state.logs.listing.filteredCount);
-      const setFilteredCount = useStore((state) => state.logsActions.setFilteredCount);
+      const setFilteredCount = useStore(
+        (state) => state.logsActions.setFilteredCount
+      );
       return {
         sorting,
         setSorting,
@@ -51387,8 +51390,10 @@ categories: ${categories.join(" ")}`;
       }, [globalFilter, maybeLoadAllHeaders]);
       reactExports.useEffect(() => {
         const exec2 = async () => {
-          const currentPageRows = table2.getRowModel().rows;
-          const fileItems = currentPageRows.map((row2) => row2.original).filter((item2) => item2.type === "file");
+          const startIndex2 = page * itemsPerPage;
+          const endIndex2 = startIndex2 + itemsPerPage;
+          const currentPageItems = items.slice(startIndex2, endIndex2);
+          const fileItems = currentPageItems.filter((item2) => item2.type === "file");
           const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
             return logHeaders[logFile.name] === void 0;
           });
@@ -51397,7 +51402,7 @@ categories: ${categories.join(" ")}`;
           }
         };
         exec2();
-      }, [table2.getRowModel().rows, loadHeaders, logHeaders]);
+      }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1f.grid, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
@@ -51416,9 +51421,6 @@ categories: ${categories.join(" ")}`;
                   }),
                   onClick: (event) => {
                     var _a3;
-                    console.log(
-                      `Column ${header2.id} canSort: ${header2.column.getCanSort()}`
-                    );
                     (_a3 = header2.column.getToggleSortingHandler()) == null ? void 0 : _a3(event);
                   },
                   style: {
