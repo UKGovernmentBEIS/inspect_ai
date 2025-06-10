@@ -1,7 +1,5 @@
-interface NavbarProps {}
-
 import clsx from "clsx";
-import { FC, useEffect, useRef, useState } from "react";
+import { FC, ReactNode, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
@@ -9,7 +7,11 @@ import { ApplicationIcons } from "../appearance/icons";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import styles from "./Navbar.module.css";
 
-export const Navbar: FC<NavbarProps> = () => {
+interface NavbarProps {
+  children?: ReactNode;
+}
+
+export const Navbar: FC<NavbarProps> = ({ children }) => {
   const { logPath } = useLogRouteParams();
   const logs = useStore((state) => state.logs.logs);
   const baseLogDir = dirname(logs.log_dir || "");
@@ -172,6 +174,7 @@ export const Navbar: FC<NavbarProps> = () => {
           })}
         </ol>
       </div>
+      <div className={clsx(styles.right)}>{children}</div>
     </nav>
   );
 };

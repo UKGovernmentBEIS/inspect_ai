@@ -2,9 +2,9 @@
   border-bottom: solid var(--bs-border-color) 1px;
   background: var(--bs-light);
   display: grid;
-  grid-template-columns: max-content max-content;
+  grid-template-columns: 1fr max-content;
   justify-content: space-between;
-  padding: 0.2em 1em;
+  padding: 0.2em 0.5em;
   --bs-breadcrumb-divider: ">";
   overflow: hidden;
 }
@@ -25,6 +25,15 @@
   overflow: hidden;
   min-width: 0;
   max-width: 100%;
+}
+
+.right {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
 }
 
 .toolbarButton {

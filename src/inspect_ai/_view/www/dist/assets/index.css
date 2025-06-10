@@ -16042,18 +16042,18 @@ a._citationLink_t2k1z_9:hover {
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
-._header_1vgl6_1 {
+._header_1rhat_1 {
   border-bottom: solid var(--bs-border-color) 1px;
   background: var(--bs-light);
   display: grid;
-  grid-template-columns: max-content max-content;
+  grid-template-columns: 1fr max-content;
   justify-content: space-between;
-  padding: 0.2em 1em;
+  padding: 0.2em 0.5em;
   --bs-breadcrumb-divider: ">";
   overflow: hidden;
 }
 
-._breadcrumbs_1vgl6_12 {
+._breadcrumbs_1rhat_12 {
   border-left: solid var(--bs-border-color) 1px;
   padding-left: 0.5em;
   margin-bottom: 0;
@@ -16061,7 +16061,7 @@ a._citationLink_t2k1z_9:hover {
   overflow: hidden;
 }
 
-._left_1vgl6_20 {
+._left_1rhat_20 {
   display: grid;
   grid-template-columns: max-content max-content 1fr;
   align-items: center;
@@ -16071,11 +16071,20 @@ a._citationLink_t2k1z_9:hover {
   max-width: 100%;
 }
 
-._toolbarButton_1vgl6_30 {
+._right_1rhat_30 {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+._toolbarButton_1rhat_39 {
   color: var(--bs-body);
 }
 
-._toolbarButton_1vgl6_30:hover {
+._toolbarButton_1rhat_39:hover {
   color: var(--bs-link-hover-color);
 }
 ._gridContainer_vl3ih_1 {
@@ -16360,18 +16369,6 @@ a._citationLink_t2k1z_9:hover {
   margin-top: -2px;
   font-size: 0.8em;
 }
-._panel_1mqvl_1 {
-  height: 100vh;
-  width: 100vw;
-  display: grid;
-  grid-template-rows: max-content max-content max-content 1fr max-content;
-}
-
-._list_1mqvl_8 {
-  overflow: hidden;
-  height: 100%;
-  min-height: 0;
-}
 ._container_15z3g_1 {
   display: grid;
   grid-template-columns: max-content max-content;
@@ -16416,35 +16413,22 @@ a._citationLink_t2k1z_9:hover {
 ._hidden_15z3g_39 {
   opacity: 0 !important;
 }
-._toolbar_qelde_1 {
-  border-bottom: solid var(--bs-border-color) 1px;
-  background: var(--bs-light);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-._right_qelde_8 {
-  display: grid;
-  grid-auto-columns: max-content;
-  grid-auto-flow: column;
-  justify-content: end;
-  align-items: center;
-  column-gap: 0.5em;
-}
-
-._left_qelde_17 {
-  display: grid;
-  grid-auto-columns: max-content;
-  grid-auto-flow: column;
-  justify-content: start;
-  align-items: center;
-  column-gap: 0.5em;
-}
-
-._filterInput_qelde_26 {
+._filterInput_gv8bt_1 {
   font-size: 0.8em;
-  margin: 0.3em;
+  margin: 0em;
   color: var(--bs-secondary);
+}
+._panel_18nhs_1 {
+  height: 100vh;
+  width: 100vw;
+  display: grid;
+  grid-template-rows: max-content max-content 1fr max-content;
+}
+
+._list_18nhs_8 {
+  overflow: hidden;
+  height: 100%;
+  min-height: 0;
 }
 .findBand {
   position: absolute;

@@ -47814,17 +47814,19 @@ categories: ${categories.join(" ")}`;
       }
       return path.endsWith("/") ? path : path + "/";
     };
-    const header$3 = "_header_1vgl6_1";
-    const breadcrumbs = "_breadcrumbs_1vgl6_12";
-    const left$3 = "_left_1vgl6_20";
-    const toolbarButton = "_toolbarButton_1vgl6_30";
+    const header$3 = "_header_1rhat_1";
+    const breadcrumbs = "_breadcrumbs_1rhat_12";
+    const left$2 = "_left_1rhat_20";
+    const right$2 = "_right_1rhat_30";
+    const toolbarButton = "_toolbarButton_1rhat_39";
     const styles$1g = {
       header: header$3,
       breadcrumbs,
-      left: left$3,
+      left: left$2,
+      right: right$2,
       toolbarButton
     };
-    const Navbar = () => {
+    const Navbar = ({ children: children2 }) => {
       const { logPath } = useLogRouteParams();
       const logs = useStore((state) => state.logs.logs);
       const baseLogDir = dirname(logs.log_dir || "");
@@ -47885,64 +47887,67 @@ categories: ${categories.join(" ")}`;
         resizeObserver.observe(navElement);
         return () => resizeObserver.disconnect();
       }, [segments.length, isCollapsed]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "nav",
         {
           ref: navRef,
           className: clsx("text-size-smaller", styles$1g.header),
           "aria-label": "breadcrumb",
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1g.left), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: backUrl, className: clsx(styles$1g.toolbarButton), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.back) }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              Link,
-              {
-                to: logUrl("", logs.log_dir),
-                className: clsx(styles$1g.toolbarButton),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.home) })
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "ol",
-              {
-                className: clsx("breadcrumb", styles$1g.breadcrumbs),
-                ref: breadcrumbRef,
-                children: segments == null ? void 0 : segments.map((segment, index2) => {
-                  if (!isCollapsed) {
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1g.left), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: backUrl, className: clsx(styles$1g.toolbarButton), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.back) }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                Link,
+                {
+                  to: logUrl("", logs.log_dir),
+                  className: clsx(styles$1g.toolbarButton),
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.home) })
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "ol",
+                {
+                  className: clsx("breadcrumb", styles$1g.breadcrumbs),
+                  ref: breadcrumbRef,
+                  children: segments == null ? void 0 : segments.map((segment, index2) => {
+                    if (!isCollapsed) {
+                      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        "li",
+                        {
+                          className: clsx(
+                            styles$1g.pathLink,
+                            "breadcrumb-item",
+                            index2 === segments.length - 1 ? "active" : void 0
+                          ),
+                          children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
+                        },
+                        index2
+                      );
+                    }
+                    const isLastSegment = index2 === segments.length - 1;
+                    const isInMiddleRange = index2 > 0 && index2 < segments.length - 1;
+                    const shouldShowEllipsis = index2 === 1 && collapsedCount > 0;
+                    if (isInMiddleRange && !shouldShowEllipsis) {
+                      return null;
+                    }
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "li",
                       {
                         className: clsx(
                           styles$1g.pathLink,
                           "breadcrumb-item",
-                          index2 === segments.length - 1 ? "active" : void 0
+                          isLastSegment ? "active" : void 0
                         ),
-                        children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
+                        children: shouldShowEllipsis ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: "..." }) : segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
                       },
                       index2
                     );
-                  }
-                  const isLastSegment = index2 === segments.length - 1;
-                  const isInMiddleRange = index2 > 0 && index2 < segments.length - 1;
-                  const shouldShowEllipsis = index2 === 1 && collapsedCount > 0;
-                  if (isInMiddleRange && !shouldShowEllipsis) {
-                    return null;
-                  }
-                  return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "li",
-                    {
-                      className: clsx(
-                        styles$1g.pathLink,
-                        "breadcrumb-item",
-                        isLastSegment ? "active" : void 0
-                      ),
-                      children: shouldShowEllipsis ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: "..." }) : segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
-                    },
-                    index2
-                  );
-                })
-              }
-            )
-          ] })
+                  })
+                }
+              )
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.right), children: children2 })
+          ]
         }
       );
     };
@@ -51583,16 +51588,16 @@ categories: ${categories.join(" ")}`;
     const spinnerContainer$1 = "_spinnerContainer_14uod_11";
     const spinner$2 = "_spinner_14uod_11";
     const label$8 = "_label_14uod_25";
-    const right$2 = "_right_14uod_30";
-    const left$2 = "_left_14uod_39";
+    const right$1 = "_right_14uod_30";
+    const left$1 = "_left_14uod_39";
     const center$1 = "_center_14uod_48";
     const styles$16 = {
       footer: footer$1,
       spinnerContainer: spinnerContainer$1,
       spinner: spinner$2,
       label: label$8,
-      right: right$2,
-      left: left$2,
+      right: right$1,
+      left: left$1,
       center: center$1
     };
     const pager = "_pager_jzegk_1";
@@ -51737,19 +51742,13 @@ categories: ${categories.join(" ")}`;
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: filteredCount !== void 0 && filteredCount !== itemCount ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)` : `${startItem} - ${endItem} / ${effectiveItemCount}` }) })
       ] });
     };
-    const panel$3 = "_panel_1mqvl_1";
-    const list = "_list_1mqvl_8";
-    const styles$14 = {
-      panel: panel$3,
-      list
-    };
     const container$h = "_container_15z3g_1";
     const input$1 = "_input_15z3g_16";
     const withIcon = "_withIcon_15z3g_22";
     const icon$3 = "_icon_15z3g_26";
     const clearText = "_clearText_15z3g_30";
     const hidden$2 = "_hidden_15z3g_39";
-    const styles$13 = {
+    const styles$14 = {
       container: container$h,
       input: input$1,
       withIcon,
@@ -51763,12 +51762,12 @@ categories: ${categories.join(" ")}`;
           "div",
           {
             className: clsx(
-              styles$13.container,
+              styles$14.container,
               className2,
-              icon2 ? styles$13.withIcon : ""
+              icon2 ? styles$14.withIcon : ""
             ),
             children: [
-              icon2 && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$13.icon) }),
+              icon2 && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$14.icon) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "input",
                 {
@@ -51777,15 +51776,15 @@ categories: ${categories.join(" ")}`;
                   onChange,
                   ref,
                   placeholder,
-                  className: clsx(styles$13.input)
+                  className: clsx(styles$14.input)
                 }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "i",
                 {
                   className: clsx(
-                    styles$13.clearText,
-                    value2 === "" ? styles$13.hidden : "",
+                    styles$14.clearText,
+                    value2 === "" ? styles$14.hidden : "",
                     ApplicationIcons["clear-text"]
                   ),
                   onClick: () => {
@@ -51803,17 +51802,11 @@ categories: ${categories.join(" ")}`;
         );
       }
     );
-    const toolbar = "_toolbar_qelde_1";
-    const right$1 = "_right_qelde_8";
-    const left$1 = "_left_qelde_17";
-    const filterInput = "_filterInput_qelde_26";
-    const styles$12 = {
-      toolbar,
-      right: right$1,
-      left: left$1,
+    const filterInput = "_filterInput_gv8bt_1";
+    const styles$13 = {
       filterInput
     };
-    const LogsToolbar = () => {
+    const LogsFilterInput = () => {
       const { globalFilter, setGlobalFilter } = useLogsListing();
       const debouncedUpdate = reactExports.useCallback(
         async (value2) => {
@@ -51821,21 +51814,24 @@ categories: ${categories.join(" ")}`;
         },
         [setGlobalFilter]
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.toolbar, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$12.left, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          TextInput,
-          {
-            icon: ApplicationIcons.filter,
-            value: globalFilter || "",
-            onChange: (e) => {
-              debouncedUpdate(e.target.value);
-            },
-            placeholder: "Filter...",
-            className: clsx(styles$12.filterInput)
-          }
-        ) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$12.right })
-      ] });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        TextInput,
+        {
+          icon: ApplicationIcons.filter,
+          value: globalFilter || "",
+          onChange: (e) => {
+            debouncedUpdate(e.target.value);
+          },
+          placeholder: "Filter...",
+          className: clsx(styles$13.filterInput)
+        }
+      );
+    };
+    const panel$3 = "_panel_18nhs_1";
+    const list = "_list_18nhs_8";
+    const styles$12 = {
+      panel: panel$3,
+      list
     };
     const rootName = (relativePath) => {
       const parts = relativePath.split("/");
@@ -51906,11 +51902,10 @@ categories: ${categories.join(" ")}`;
         };
         exec2();
       }, [loadLogs]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$14.panel), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(LogsToolbar, {}),
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$12.panel), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsFilterInput, {}) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading || headersLoading }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.list, "text-size-smaller"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListGrid, { items: logItems }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.list, "text-size-smaller"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListGrid, { items: logItems }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           LogListFooter,
           {
