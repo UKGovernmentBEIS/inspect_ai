@@ -17,6 +17,7 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
+    DocumentBlockParam,
     ImageBlockParam,
     Message,
     MessageParam,
@@ -779,6 +780,39 @@ def message_tool_choice(
         return {"type": "auto"}
 
 
+AnthropicContentBlockType = (
+    TextBlockParam
+    | ImageBlockParam
+    | ThinkingBlockParam
+    | RedactedThinkingBlockParam
+    | ServerToolUseBlockParam
+    | WebSearchToolResultBlockParam
+    | DocumentBlockParam
+)
+
+
+def _split_tool_result_content_blocks(
+    content: str | list[AnthropicContentBlockType],
+) -> tuple[
+    str | list[AnthropicContentBlockType], str | list[AnthropicContentBlockType]
+]:
+    # The document API doesn't work in the tool response content block,
+    # and it instead needs to be in the outer layer, adjacent the tool_results content block.
+    # This function splits the content blocks based on where they need to appear in the API payload.
+
+    if isinstance(content, str):
+        return content, []
+
+    root_level_content: list[AnthropicContentBlockType] = []
+    tool_result_content: list[AnthropicContentBlockType] = []
+    for content_item in content:
+        if content_item["type"] == "document":
+            root_level_content.append(content_item)
+        else:
+            tool_result_content.append(content_item)
+    return root_level_content, tool_result_content
+
+
 async def message_param(message: ChatMessage) -> MessageParam:
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
@@ -794,17 +828,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
         if message.error is not None:
-            content: (
-                str
-                | list[
-                    TextBlockParam
-                    | ImageBlockParam
-                    | ThinkingBlockParam
-                    | RedactedThinkingBlockParam
-                    | ServerToolUseBlockParam
-                    | WebSearchToolResultBlockParam
-                ]
-            ) = message.error.message
+            content: str | list[AnthropicContentBlockType] = message.error.message
             # anthropic requires that content be populated when
             # is_error is true (throws bad_request_error when not)
             # so make sure this precondition is met
@@ -819,30 +843,29 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 await message_param_content(content) for content in message.content
             ]
 
+        root_level_content, tool_result_content = _split_tool_result_content_blocks(
+            content
+        )
+
         return MessageParam(
             role="user",
             content=[
                 ToolResultBlockParam(
                     tool_use_id=str(message.tool_call_id),
                     type="tool_result",
-                    content=cast(list[TextBlockParam | ImageBlockParam], content),
+                    content=cast(
+                        list[TextBlockParam | ImageBlockParam], tool_result_content
+                    ),
                     is_error=message.error is not None,
-                )
+                ),
+                *root_level_content,
             ],
         )
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant" and message.tool_calls:
         # first include content (claude <thinking>)
-        tools_content: list[
-            TextBlockParam
-            | ThinkingBlockParam
-            | RedactedThinkingBlockParam
-            | ImageBlockParam
-            | ToolUseBlockParam
-            | ServerToolUseBlockParam
-            | WebSearchToolResultBlockParam
-        ] = (
+        tools_content: list[AnthropicContentBlockType] = (
             [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
             else (
@@ -1048,14 +1071,7 @@ def split_system_messages(
 
 async def message_param_content(
     content: Content,
-) -> (
-    TextBlockParam
-    | ImageBlockParam
-    | ThinkingBlockParam
-    | RedactedThinkingBlockParam
-    | ServerToolUseBlockParam
-    | WebSearchToolResultBlockParam
-):
+) -> AnthropicContentBlockType:
     if isinstance(content, ContentText):
         citations = (
             [to_anthropic_citation(citation) for citation in content.citations]
@@ -1105,6 +1121,8 @@ async def message_param_content(
                     WebSearchToolResultBlockParam,
                     WebSearchToolResultBlock.model_validate(content.data).model_dump(),
                 )
+            case "document":
+                return content.data
         raise NotImplementedError()
     else:
         raise RuntimeError(
