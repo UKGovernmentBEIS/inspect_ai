@@ -21,7 +21,6 @@ from ._web_search_provider import SearchProvider
 
 
 class ExaOptions(BaseModel):
-    # Exa /answer endpoint options based on their API documentation
     # See https://docs.exa.ai/reference/answer
     text: bool | None = None
     """Whether to include text content in citations"""
@@ -71,7 +70,6 @@ def exa_search_provider(
     client = httpx.AsyncClient(timeout=30)
 
     async def search(query: str) -> str | ContentText | None:
-        # Use Exa's answer endpoint for LLM-generated answers with citations
         # See https://docs.exa.ai/reference/answer
         search_url = "https://api.exa.ai/answer"
         headers = {
