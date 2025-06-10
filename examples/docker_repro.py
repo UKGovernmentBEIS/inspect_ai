@@ -1,6 +1,6 @@
-from datetime import datetime
 import logging
 import os
+from datetime import datetime
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import MemoryDataset, Sample
@@ -64,14 +64,17 @@ def exec_hang_mre():
 if __name__ == "__main__":
     os.environ["INSPECT_DOCKER_CLI_CONCURRENCY"] = "500"
     os.makedirs("logs", exist_ok=True)
-    os.environ["INSPECT_PY_LOGGER_FILE"] = f"logs/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+    os.environ["INSPECT_PY_LOGGER_FILE"] = (
+        f"logs/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+    )
     os.environ["INSPECT_PY_LOGGER_LEVEL"] = "INFO"
     eval(
         exec_hang_mre(),
         model="mockllm/model",
-        epochs=1,  # Can always repro with 500, but 1 seems to often do the trick.
+        epochs=500,  # Can always repro with 500, but 1 seems to often do the trick.
         max_sandboxes=500,
         max_connections=500,
         max_subprocesses=500,
         log_level="INFO",
+        # display="plain",
     )

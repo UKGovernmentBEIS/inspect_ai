@@ -2,7 +2,6 @@ import functools
 import io
 import os
 import shlex
-import sys
 from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -147,16 +146,16 @@ async def subprocess(
                     buffer.write(chunk)
                     written += len(chunk)
                     if output_limit is not None and written > output_limit:
-                        logger.warning(
-                            f"Output limit exceeded: {written} bytes (limit: {output_limit} bytes). Killing process {process.pid}."
-                        )
+                        # logger.warning(
+                        #     f"Output limit exceeded: {written} bytes (limit: {output_limit} bytes). Killing process {process.pid}."
+                        # )
                         process.kill()
-                        logger.warning(f"Killed process {process.pid}.")
+                        # logger.warning(f"Killed process {process.pid}.")
                         break
 
                 return buffer.getvalue()
 
-            logger.info(f"Awaiting stdout and stderr for process {process.pid}.")
+            # logger.info(f"Awaiting stdout and stderr for process {process.pid}.")
             stdout, stderr = await tg_collect(
                 [
                     functools.partial(read_stream, process.stdout),
@@ -164,12 +163,12 @@ async def subprocess(
                 ]
             )
 
-            logger.info(f"Awaiting return code for process {process.pid}.")
+            # logger.info(f"Awaiting return code for process {process.pid}.")
             returncode = await process.wait()
             success = returncode == 0
-            logger.info(
-                f"Yielding result for process {process.pid} with return code {returncode}."
-            )
+            # logger.info(
+            #     f"Yielding result for process {process.pid} with return code {returncode}."
+            # )
             if text:
                 # logger.info("Yielding result as text.")
                 yield ExecResult[str](
@@ -188,12 +187,12 @@ async def subprocess(
                     stderr=stderr if capture_output else bytes(),
                 )
                 # logger.info("Result yielded as bytes.")
-            logger.info(f"Result for {process.pid} yielded.")
+            # logger.info(f"Result for {process.pid} yielded.")
         finally:
             try:
-                logger.info(f"Awaiting process {process.pid} to close.")
+                # logger.info(f"Awaiting process {process.pid} to close.")
                 await process.aclose()
-                logger.info(f"Process {process.pid} closed.")
+                # logger.info(f"Process {process.pid} closed.")
             except ProcessLookupError:
                 # the anyio ansycio backend calls process.kill() from within
                 # its aclose() method without an enclosing exception handler
@@ -205,19 +204,19 @@ async def subprocess(
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
         # run the command and capture the process handle
         async with aclosing(run_command()) as rc:
-            logger.info("anext rc to get process handle")
+            # logger.info("anext rc to get process handle")
             proc = cast(Process, await anext(rc))
-            logger.info(f"Got PID {proc.pid}.")
+            # logger.info(f"Got PID {proc.pid}.")
 
             # await result wrapped in timeout handler if requested
             if timeout is not None:
                 try:
                     with anyio.fail_after(timeout):
-                        logger.info(f"Entered timeout scope for subprocess {proc.pid}.")
+                        # logger.info(f"Entered timeout scope for subprocess {proc.pid}.")
                         # logger.info("Anexting rc to get result.")
                         result = await anext(rc)
                         # logger.info("Got result after anext.")
-                        assert isinstance(result, ExecResult)
+                        # assert isinstance(result, ExecResult)
                         # logger.info("Is instance of ExecResult.")
                         # logger.info(f"Return code: {result.returncode}.")
                         # logger.info(f"Success: {result.success}.")
@@ -227,9 +226,9 @@ async def subprocess(
                         # logger.info(
                         #     f"Subprocess completed, returning exec result {result}"
                         # )
-                        logger.info(
-                            f"Subprocess {proc.pid} completed, returning exec result {str(result)[:100]}..."
-                        )
+                        # logger.info(
+                        #     f"Subprocess {proc.pid} completed, returning exec result {str(result)[:100]}..."
+                        # )
                         return cast(Union[ExecResult[str], ExecResult[bytes]], result)
                 except TimeoutError:
                     # logger.warning(f"Subprocess timed out {proc.pid}")
@@ -237,37 +236,37 @@ async def subprocess(
                     # then be more forceful if requied
                     with anyio.CancelScope(shield=True):
                         try:
-                            logger.warning(
-                                f"Sending terminate signal to subprocess {proc.pid}."
-                            )
+                            # logger.warning(
+                            #     f"Sending terminate signal to subprocess {proc.pid}."
+                            # )
                             proc.terminate()
-                            logger.warning(
-                                f"Sent terminate signal to subprocess {proc.pid}."
-                            )
+                            # logger.warning(
+                            #     f"Sent terminate signal to subprocess {proc.pid}."
+                            # )
                             await anyio.sleep(2)
-                            logger.warning(
-                                f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
-                            )
+                            # logger.warning(
+                            #     f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
+                            # )
                             if proc.returncode is None:
-                                logger.warning(
-                                    f"Subprocess did not terminate, sending kill signal to {proc.pid}."
-                                )
+                                # logger.warning(
+                                #     f"Subprocess did not terminate, sending kill signal to {proc.pid}."
+                                # )
                                 proc.kill()
-                                logger.warning(
-                                    f"Sent kill signal to subprocess {proc.pid}."
-                                )
-                        except Exception as e:
-                            logger.warning(
-                                f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
-                            )
+                                # logger.warning(
+                                #     f"Sent kill signal to subprocess {proc.pid}."
+                                # )
+                        except Exception:
+                            # logger.warning(
+                            #     f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
+                            # )
                             pass
-                    logger.warning(f"Re-raising {sys.exc_info()[0]} after timeout.")
+                    # logger.warning(f"Re-raising {sys.exc_info()[0]} after timeout.")
                     raise
-                except Exception as e:
-                    logger.error(
-                        f"Exception while waiting for subprocess {proc.pid}: {e}."
-                    )
-                    raise e
+                # except Exception as e:
+                #     # logger.error(
+                #     #     f"Exception while waiting for subprocess {proc.pid}: {e}."
+                #     # )
+                #     raise e
             # await result without timeout
             else:
                 result = await anext(rc)
