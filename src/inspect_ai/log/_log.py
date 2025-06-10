@@ -2,7 +2,9 @@ import asyncio
 import os
 import sys
 import traceback
+from decimal import Decimal
 from logging import getLogger
+from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal, Tuple, Type, TypedDict
 
@@ -105,7 +107,13 @@ class EvalConfig(BaseModel):
     """Maximum clock time per sample."""
 
     working_limit: int | None = Field(default=None)
-    """Meximum working time per sample."""
+    """Maximum working time per sample."""
+
+    cost_limit: Decimal | None = Field(default=None)
+    """Maximum cost (USD) per sample."""
+
+    cost_file: Path | None = Field(default=None)
+    """Path to a JSON file mapping model names to pricing info."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
@@ -161,7 +169,7 @@ class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
     type: Literal[
-        "context", "time", "working", "message", "token", "operator", "custom"
+        "context", "time", "working", "message", "token", "operator", "cost", "custom"
     ]
     """The type of limit"""
 

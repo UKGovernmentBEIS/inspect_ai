@@ -1,6 +1,8 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
 from typing import AsyncGenerator, Iterator, Literal
 
 from shortuuid import uuid
@@ -25,6 +27,8 @@ class ActiveSample:
         token_limit: int | None,
         time_limit: int | None,
         working_limit: int | None,
+        cost_limit: Decimal | None,
+        cost_file: Path | None,
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
@@ -41,9 +45,12 @@ class ActiveSample:
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
+        self.cost_limit = cost_limit
+        self.cost_file = cost_file
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
+        self.total_cost = Decimal(0)
         self.transcript = transcript
         self.sandboxes = sandboxes
         self._interrupt_action: Literal["score", "error"] | None = None
@@ -84,6 +91,8 @@ async def active_sample(
     token_limit: int | None,
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: Decimal | None,
+    cost_file: Path | None,
     fails_on_error: bool,
     transcript: Transcript,
 ) -> AsyncGenerator[ActiveSample, None]:
@@ -98,6 +107,8 @@ async def active_sample(
         token_limit=token_limit,
         time_limit=time_limit,
         working_limit=working_limit,
+        cost_limit=cost_limit,
+        cost_file=cost_file,
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
@@ -147,6 +158,18 @@ def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:
         active.total_messages = total_messages
+
+
+def set_active_sample_cost_limit(cost_limit: Decimal | None) -> None:
+    active = sample_active()
+    if active:
+        active.cost_limit = cost_limit
+
+
+def set_active_sample_total_cost(total_cost: Decimal) -> None:
+    active = sample_active()
+    if active:
+        active.total_cost = total_cost
 
 
 _active_model_event: ContextVar[ModelEvent | None] = ContextVar(

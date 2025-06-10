@@ -59,9 +59,12 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
+    calculate_model_usage_cost,
+    check_cost_limit,
     check_message_limit,
     check_token_limit,
     record_model_usage,
+    record_model_usage_cost,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
@@ -614,6 +617,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # Cost limits should still be updated on cache hits
+                    if existing.usage:
+                        total_cost = calculate_model_usage_cost(
+                            {cache_entry.model: existing.usage}
+                        )
+                        record_model_usage_cost(total_cost)
                     return existing, event
             else:
                 cache_entry = None
@@ -1457,20 +1466,30 @@ def init_sample_model_usage() -> None:
 
 
 def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
-    from inspect_ai.log._samples import set_active_sample_total_tokens
+    from inspect_ai.log._samples import (
+        set_active_sample_total_cost,
+        set_active_sample_total_tokens,
+    )
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
     record_model_usage(usage)
 
+    # Using the total usage info for this sample (potentially spanning multiple
+    # models), calculate the cost for the sample
+    total_cost = calculate_model_usage_cost(sample_model_usage_context_var.get())
+    record_model_usage_cost(total_cost)
+
     # compute total tokens
     total_tokens = sample_total_tokens()
 
     # update active sample
     set_active_sample_total_tokens(total_tokens)
+    set_active_sample_total_cost(total_cost)
 
     check_token_limit()
+    check_cost_limit()
 
 
 def set_model_usage(
