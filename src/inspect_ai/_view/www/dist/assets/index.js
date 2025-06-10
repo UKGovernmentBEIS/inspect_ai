@@ -47814,17 +47814,19 @@ categories: ${categories.join(" ")}`;
       }
       return path.endsWith("/") ? path : path + "/";
     };
-    const header$3 = "_header_1rhat_1";
-    const breadcrumbs = "_breadcrumbs_1rhat_12";
-    const left$2 = "_left_1rhat_20";
-    const right$2 = "_right_1rhat_30";
-    const toolbarButton = "_toolbarButton_1rhat_39";
+    const header$3 = "_header_wu9zj_1";
+    const breadcrumbs = "_breadcrumbs_wu9zj_12";
+    const left$2 = "_left_wu9zj_21";
+    const right$2 = "_right_wu9zj_31";
+    const toolbarButton = "_toolbarButton_wu9zj_40";
+    const pathContainer = "_pathContainer_wu9zj_48";
     const styles$1g = {
       header: header$3,
       breadcrumbs,
       left: left$2,
       right: right$2,
-      toolbarButton
+      toolbarButton,
+      pathContainer
     };
     const Navbar = ({ children: children2 }) => {
       const { logPath } = useLogRouteParams();
@@ -47870,7 +47872,7 @@ categories: ${categories.join(" ")}`;
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.home) })
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.pathContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "ol",
                 {
                   className: clsx("breadcrumb", styles$1g.breadcrumbs),
@@ -47890,7 +47892,7 @@ categories: ${categories.join(" ")}`;
                     );
                   })
                 }
-              )
+              ) })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.right), children: children2 })
           ]

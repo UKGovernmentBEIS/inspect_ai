@@ -59,33 +59,34 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
         >
           <i className={clsx(ApplicationIcons.navbar.home)} />
         </Link>
-
-        <ol
-          className={clsx("breadcrumb", styles.breadcrumbs)}
-          ref={breadcrumbRef}
-        >
-          {segments?.map((segment, index) => {
-            // Show all segments when not collapsed
-            return (
-              <li
-                className={clsx(
-                  styles.pathLink,
-                  "breadcrumb-item",
-                  index === segments.length - 1 ? "active" : undefined,
-                )}
-                key={index}
-              >
-                {segment.url ? (
-                  <Link to={segment.url}>{segment.text}</Link>
-                ) : (
-                  <span className={clsx(styles.pathSegment)}>
-                    {segment.text}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+        <div className={clsx(styles.pathContainer)}>
+          <ol
+            className={clsx("breadcrumb", styles.breadcrumbs)}
+            ref={breadcrumbRef}
+          >
+            {segments?.map((segment, index) => {
+              // Show all segments when not collapsed
+              return (
+                <li
+                  className={clsx(
+                    styles.pathLink,
+                    "breadcrumb-item",
+                    index === segments.length - 1 ? "active" : undefined,
+                  )}
+                  key={index}
+                >
+                  {segment.url ? (
+                    <Link to={segment.url}>{segment.text}</Link>
+                  ) : (
+                    <span className={clsx(styles.pathSegment)}>
+                      {segment.text}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
       </div>
       <div className={clsx(styles.right)}>{children}</div>
     </nav>

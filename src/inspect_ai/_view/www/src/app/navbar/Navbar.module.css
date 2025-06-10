@@ -15,6 +15,7 @@
   margin-bottom: 0;
   min-width: 0;
   overflow: hidden;
+  width: max-content;
 }
 
 .left {
@@ -42,4 +43,8 @@
 
 .toolbarButton:hover {
   color: var(--bs-link-hover-color);
+}
+
+.pathContainer {
+  overflow-x: hidden;
 }
