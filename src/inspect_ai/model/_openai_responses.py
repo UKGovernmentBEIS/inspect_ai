@@ -369,7 +369,6 @@ def _openai_input_items_from_chat_message_assistant(
         str | None, list[ResponseOutputTextParam | ResponseOutputRefusalParam]
     ] = {}
 
-    # Filter consecutive ContentReasoning blocks, keeping only the last one in each sequence
     all_content = (
         list[ContentText | ContentReasoning]([ContentText(text=message.content)])
         if isinstance(message.content, str)
