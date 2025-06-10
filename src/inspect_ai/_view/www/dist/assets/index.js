@@ -47834,8 +47834,6 @@ categories: ${categories.join(" ")}`;
       const pathSegments = logPath ? logPath.split("/") : void 0;
       const navRef = reactExports.useRef(null);
       const breadcrumbRef = reactExports.useRef(null);
-      const [isCollapsed, setIsCollapsed] = reactExports.useState(false);
-      const [collapsedCount, setCollapsedCount] = reactExports.useState(0);
       const backUrl = logUrl(
         ensureTrailingSlash(dirname(logPath || "")),
         logs.log_dir
@@ -47855,42 +47853,6 @@ categories: ${categories.join(" ")}`;
         { text: baseLogName, url: logUrl("", logs.log_dir) },
         ...dirSegments
       ];
-      reactExports.useEffect(() => {
-        const navElement = navRef.current;
-        const breadcrumbElement = breadcrumbRef.current;
-        if (!navElement || !breadcrumbElement) {
-          return;
-        }
-        const checkOverflow = () => {
-          const navWidth = navElement.clientWidth;
-          const breadcrumbRect = breadcrumbElement.getBoundingClientRect();
-          const navRect = navElement.getBoundingClientRect();
-          const breadcrumbLeftPosition = breadcrumbRect.left - navRect.left;
-          const availableWidth = navWidth - breadcrumbLeftPosition - 16;
-          const breadcrumbWidth = breadcrumbElement.scrollWidth;
-          if (breadcrumbWidth > availableWidth && segments.length > 3 && !isCollapsed) {
-            let toCollapse = 1;
-            if (segments.length > 5) {
-              toCollapse = Math.min(
-                segments.length - 3,
-                Math.ceil((segments.length - 2) / 2)
-              );
-            }
-            setCollapsedCount(toCollapse);
-            setIsCollapsed(true);
-          } else if (isCollapsed) {
-            const estimatedFullWidth = breadcrumbWidth * (segments.length / (segments.length - collapsedCount + 1));
-            if (estimatedFullWidth < availableWidth * 0.8) {
-              setIsCollapsed(false);
-              setCollapsedCount(0);
-            }
-          }
-        };
-        requestAnimationFrame(checkOverflow);
-        const resizeObserver = new ResizeObserver(checkOverflow);
-        resizeObserver.observe(navElement);
-        return () => resizeObserver.disconnect();
-      }, [segments.length, isCollapsed]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "nav",
         {
@@ -47914,35 +47876,15 @@ categories: ${categories.join(" ")}`;
                   className: clsx("breadcrumb", styles$1g.breadcrumbs),
                   ref: breadcrumbRef,
                   children: segments == null ? void 0 : segments.map((segment, index2) => {
-                    if (!isCollapsed) {
-                      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                        "li",
-                        {
-                          className: clsx(
-                            styles$1g.pathLink,
-                            "breadcrumb-item",
-                            index2 === segments.length - 1 ? "active" : void 0
-                          ),
-                          children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
-                        },
-                        index2
-                      );
-                    }
-                    const isLastSegment = index2 === segments.length - 1;
-                    const isInMiddleRange = index2 > 0 && index2 < segments.length - 1;
-                    const shouldShowEllipsis = index2 === 1 && collapsedCount > 0;
-                    if (isInMiddleRange && !shouldShowEllipsis) {
-                      return null;
-                    }
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "li",
                       {
                         className: clsx(
                           styles$1g.pathLink,
                           "breadcrumb-item",
-                          isLastSegment ? "active" : void 0
+                          index2 === segments.length - 1 ? "active" : void 0
                         ),
-                        children: shouldShowEllipsis ? /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: "..." }) : segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
+                        children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
                       },
                       index2
                     );
