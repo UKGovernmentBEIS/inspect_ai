@@ -579,9 +579,9 @@ def _should_keep_content(
     content: ContentText | ContentReasoning,
     content_list: list[ContentText | ContentReasoning],
 ) -> bool:
-    if not isinstance(content, ContentReasoning):
-        return True
-    # Keep ContentReasoning only if it's the last in a consecutive sequence
-    return i == len(content_list) - 1 or not isinstance(
-        content_list[i + 1], ContentReasoning
+    return (
+        True
+        if not isinstance(content, ContentReasoning)
+        else i == len(content_list) - 1
+        or not isinstance(content_list[i + 1], ContentReasoning)
     )
