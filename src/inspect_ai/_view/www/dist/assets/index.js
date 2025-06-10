@@ -47965,7 +47965,7 @@ categories: ${categories.join(" ")}`;
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.home) })
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.pathContainer), ref: pathContainerRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1g.breadcrumbs), children: visibleSegments == null ? void 0 : visibleSegments.map((segment, index2) => {
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.pathContainer), ref: pathContainerRef, children: logs.log_dir ? /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1g.breadcrumbs), children: visibleSegments == null ? void 0 : visibleSegments.map((segment, index2) => {
                 const isLast = index2 === visibleSegments.length - 1;
                 const shouldShowEllipsis = showEllipsis && index2 === 1 && visibleSegments.length > 2;
                 return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -47982,7 +47982,7 @@ categories: ${categories.join(" ")}`;
                     }
                   )
                 ] }, index2);
-              }) }) })
+              }) }) : "" })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.right), children: children2 })
           ]
@@ -51886,6 +51886,12 @@ categories: ${categories.join(" ")}`;
       const logs = useStore((state) => state.logs.logs);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const headersLoading = useStore((state) => state.logs.headersLoading);
+      const clearSelectedLogSummary = useStore(
+        (state) => state.logActions.clearSelectedLogSummary
+      );
+      reactExports.useEffect(() => {
+        clearSelectedLogSummary();
+      }, []);
       const { logPath } = useLogRouteParams();
       const currentDir = join(logPath || "", logs.log_dir);
       const logItems = reactExports.useMemo(() => {
@@ -91724,7 +91730,6 @@ Supported expressions:
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             TitleView,
             {
@@ -91802,6 +91807,7 @@ Supported expressions:
           onKeyDown: handleKeyboard,
           children: [
             !nativeFind && showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
             /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appStatus.loading }),
             appStatus.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               ErrorPanel,

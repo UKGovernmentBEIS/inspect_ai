@@ -65,6 +65,7 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
           <i className={clsx(ApplicationIcons.navbar.home)} />
         </Link>
         <div className={clsx(styles.pathContainer)} ref={pathContainerRef}>
+          {logs.log_dir ? (
           <ol className={clsx("breadcrumb", styles.breadcrumbs)}>
             {visibleSegments?.map((segment, index) => {
               const isLast = index === visibleSegments.length - 1;
@@ -95,7 +96,7 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
                 </Fragment>
               );
             })}
-          </ol>
+          </ol>) : ""}
         </div>
       </div>
       <div className={clsx(styles.right)}>{children}</div>

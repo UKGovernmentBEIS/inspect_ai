@@ -5,6 +5,7 @@ import { FindBand } from "../../components/FindBand";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useStore } from "../../state/store";
 import { LogView } from "./LogView";
+import { Navbar } from "../navbar/Navbar";
 
 /**
  * AppContent component with the main UI layout
@@ -57,6 +58,7 @@ export const LogViewLayout: FC = () => {
         onKeyDown={handleKeyboard}
       >
         {!nativeFind && showFind ? <FindBand /> : ""}
+        <Navbar />
         <ProgressBar animating={appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel

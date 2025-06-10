@@ -35,6 +35,13 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   const logs = useStore((state) => state.logs.logs);
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const headersLoading = useStore((state) => state.logs.headersLoading);
+  const clearSelectedLogSummary = useStore(
+    (state) => state.logActions.clearSelectedLogSummary,
+  );
+  useEffect(() => {
+    clearSelectedLogSummary();
+  }, []);
+
 
   const { logPath } = useLogRouteParams();
 

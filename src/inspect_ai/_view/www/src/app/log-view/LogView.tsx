@@ -110,7 +110,6 @@ export const LogView: FC = () => {
 
     return (
       <Fragment>
-        <Navbar />
         <TitleView
           evalSpec={evalSpec}
           evalPlan={selectedLogSummary?.plan}
