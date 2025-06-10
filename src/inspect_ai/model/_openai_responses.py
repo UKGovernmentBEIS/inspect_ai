@@ -369,13 +369,23 @@ def _openai_input_items_from_chat_message_assistant(
         str | None, list[ResponseOutputTextParam | ResponseOutputRefusalParam]
     ] = {}
 
-    for content in (
+    # Filter consecutive ContentReasoning blocks, keeping only the last one in each sequence
+    all_content = (
         list[ContentText | ContentReasoning]([ContentText(text=message.content)])
         if isinstance(message.content, str)
         else [
             c for c in message.content if isinstance(c, ContentText | ContentReasoning)
         ]
-    ):
+    )
+
+    # Filter consecutive ContentReasoning blocks, keeping only the last one in each sequence
+    filtered_content = [
+        content
+        for i, content in enumerate(all_content)
+        if _should_keep_content(i, content, all_content)
+    ]
+
+    for content in filtered_content:
         match content:
             case ContentReasoning(reasoning=reasoning):
                 assert content.signature is not None, (
@@ -560,3 +570,22 @@ def _to_inspect_citation(input: Annotation) -> Citation:
         ):
             return DocumentCitation(internal={"file_id": file_id, "index": index})
     assert False, f"Unexpected citation type: {input.type}"
+
+
+def _should_keep_content(
+    i: int,
+    content: ContentText | ContentReasoning,
+    content_list: list[ContentText | ContentReasoning],
+) -> bool:
+    """
+    Determine if a content item should be kept when filtering consecutive ContentReasoning blocks.
+
+    Keep all ContentText items and only keep ContentReasoning items that are the last
+    in a consecutive sequence of ContentReasoning items.
+    """
+    if not isinstance(content, ContentReasoning):
+        return True
+    # Keep ContentReasoning only if it's the last in a consecutive sequence
+    return i == len(content_list) - 1 or not isinstance(
+        content_list[i + 1], ContentReasoning
+    )
