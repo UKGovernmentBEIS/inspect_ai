@@ -47840,12 +47840,16 @@ categories: ${categories.join(" ")}`;
         ensureTrailingSlash(dirname(logPath || "")),
         logs.log_dir
       );
-      const dirSegments = pathSegments ? pathSegments.map((segment) => {
-        return {
-          text: segment,
-          url: logUrl(segment, logs.log_dir)
-        };
-      }) : [];
+      const dirSegments = [];
+      const currentSegment = [];
+      for (const pathSegment of pathSegments || []) {
+        currentSegment.push(pathSegment);
+        const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
+        dirSegments.push({
+          text: pathSegment,
+          url: segmentUrl
+        });
+      }
       const segments = [
         { text: prettyDirUri(baseLogDir) },
         { text: baseLogName, url: logUrl("", logs.log_dir) },

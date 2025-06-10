@@ -28,14 +28,16 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
     logs.log_dir,
   );
 
-  const dirSegments = pathSegments
-    ? pathSegments.map((segment) => {
-        return {
-          text: segment,
-          url: logUrl(segment, logs.log_dir),
-        };
-      })
-    : [];
+  const dirSegments: Array<{ text: string; url: string }> = [];
+  const currentSegment = [];
+  for (const pathSegment of pathSegments || []) {
+    currentSegment.push(pathSegment);
+    const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
+    dirSegments.push({
+      text: pathSegment,
+      url: segmentUrl,
+    });
+  }
 
   const segments: Array<{ text: string; url?: string }> = [
     { text: prettyDirUri(baseLogDir) },
