@@ -42,6 +42,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     kLogsPaginationId,
     kDefaultPageSize,
   );
+  const headersLoading = useStore((state) => state.logs.headersLoading);
+  const loading = useStore((state) => state.app.status.loading);
 
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const sortingRef = useRef(sorting);
@@ -172,6 +174,22 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     exec();
   }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
 
+  const placeholderText = useMemo(() => {
+    if (headersLoading || loading) {
+      if (globalFilter) {
+        return "searching...";
+      } else {
+        return "loading...";
+      }
+    } else {
+      if (globalFilter) {
+        return "no matching logs";
+      } else {
+        return "no logs";
+      }
+    }
+  }, [headersLoading, loading, globalFilter]);
+
   return (
     <div className={styles.gridContainer}>
       <div className={styles.grid}>
@@ -241,6 +259,9 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
         {/* Body */}
         <div className={styles.bodyContainer}>
+          {table.getRowModel().rows.length === 0 && (
+            <div className={styles.emptyMessage}>{placeholderText}</div>
+          )}
           {table.getRowModel().rows.map((row) => (
             <div
               key={row.id}

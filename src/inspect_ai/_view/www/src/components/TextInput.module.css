@@ -4,7 +4,7 @@
   column-gap: 0.3em;
   border: solid var(--bs-border-color) 1px;
   border-radius: var(--bs-border-radius);
-  background-color: var(--bs-form-control-bg);
+  background-color: var(--inspect-input-background);
   align-items: center;
 }
 

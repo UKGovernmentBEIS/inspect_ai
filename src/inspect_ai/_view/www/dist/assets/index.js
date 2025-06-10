@@ -50938,17 +50938,18 @@ categories: ${categories.join(" ")}`;
       }));
       return tableRef.current;
     }
-    const gridContainer = "_gridContainer_jc8ap_1";
-    const grid$7 = "_grid_jc8ap_1";
-    const headerRow = "_headerRow_jc8ap_15";
-    const headerCell = "_headerCell_jc8ap_26";
-    const sortable = "_sortable_jc8ap_42";
-    const sortIndicator = "_sortIndicator_jc8ap_51";
-    const resizer = "_resizer_jc8ap_58";
-    const isResizing = "_isResizing_jc8ap_73";
-    const bodyContainer$1 = "_bodyContainer_jc8ap_82";
-    const bodyRow = "_bodyRow_jc8ap_87";
-    const bodyCell = "_bodyCell_jc8ap_95";
+    const gridContainer = "_gridContainer_vl3ih_1";
+    const grid$7 = "_grid_vl3ih_1";
+    const headerRow = "_headerRow_vl3ih_15";
+    const headerCell = "_headerCell_vl3ih_26";
+    const sortable = "_sortable_vl3ih_42";
+    const sortIndicator = "_sortIndicator_vl3ih_51";
+    const resizer = "_resizer_vl3ih_58";
+    const isResizing = "_isResizing_vl3ih_73";
+    const bodyContainer$1 = "_bodyContainer_vl3ih_82";
+    const bodyRow = "_bodyRow_vl3ih_87";
+    const bodyCell = "_bodyCell_vl3ih_95";
+    const emptyMessage = "_emptyMessage_vl3ih_107";
     const styles$1f = {
       gridContainer,
       grid: grid$7,
@@ -50960,7 +50961,8 @@ categories: ${categories.join(" ")}`;
       isResizing,
       bodyContainer: bodyContainer$1,
       bodyRow,
-      bodyCell
+      bodyCell,
+      emptyMessage
     };
     const dateCell = "_dateCell_1f2i9_1";
     const styles$1e = {
@@ -51374,6 +51376,8 @@ categories: ${categories.join(" ")}`;
         kLogsPaginationId,
         kDefaultPageSize
       );
+      const headersLoading = useStore((state) => state.logs.headersLoading);
+      const loading = useStore((state) => state.app.status.loading);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const sortingRef = reactExports.useRef(sorting);
       const loadingHeadersRef = reactExports.useRef(false);
@@ -51472,6 +51476,21 @@ categories: ${categories.join(" ")}`;
         };
         exec2();
       }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
+      const placeholderText = reactExports.useMemo(() => {
+        if (headersLoading || loading) {
+          if (globalFilter) {
+            return "searching...";
+          } else {
+            return "loading...";
+          }
+        } else {
+          if (globalFilter) {
+            return "no matching logs";
+          } else {
+            return "no logs";
+          }
+        }
+      }, [headersLoading, loading, globalFilter]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1f.grid, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
@@ -51531,30 +51550,33 @@ categories: ${categories.join(" ")}`;
             )
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.bodyContainer, children: table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: styles$1f.bodyRow,
-            style: {
-              gridTemplateColumns: row2.getVisibleCells().map((cell2) => `${cell2.column.getSize()}px`).join(" ")
-            },
-            children: row2.getVisibleCells().map((cell2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx(
-                  styles$1f.bodyCell,
-                  styles$1f[`${cell2.column.id}Cell`]
-                ),
-                style: {
-                  width: cell2.column.getSize()
-                },
-                children: flexRender(cell2.column.columnDef.cell, cell2.getContext())
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1f.bodyContainer, children: [
+          table2.getRowModel().rows.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.emptyMessage, children: placeholderText }),
+          table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: styles$1f.bodyRow,
+              style: {
+                gridTemplateColumns: row2.getVisibleCells().map((cell2) => `${cell2.column.getSize()}px`).join(" ")
               },
-              cell2.id
-            ))
-          },
-          row2.id
-        )) })
+              children: row2.getVisibleCells().map((cell2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: clsx(
+                    styles$1f.bodyCell,
+                    styles$1f[`${cell2.column.id}Cell`]
+                  ),
+                  style: {
+                    width: cell2.column.getSize()
+                  },
+                  children: flexRender(cell2.column.columnDef.cell, cell2.getContext())
+                },
+                cell2.id
+              ))
+            },
+            row2.id
+          ))
+        ] })
       ] }) });
     };
     const footer$1 = "_footer_14uod_1";
@@ -51721,12 +51743,12 @@ categories: ${categories.join(" ")}`;
       panel: panel$3,
       list
     };
-    const container$h = "_container_14g4k_1";
-    const input$1 = "_input_14g4k_16";
-    const withIcon = "_withIcon_14g4k_22";
-    const icon$3 = "_icon_14g4k_26";
-    const clearText = "_clearText_14g4k_30";
-    const hidden$2 = "_hidden_14g4k_39";
+    const container$h = "_container_15z3g_1";
+    const input$1 = "_input_15z3g_16";
+    const withIcon = "_withIcon_15z3g_22";
+    const icon$3 = "_icon_15z3g_26";
+    const clearText = "_clearText_15z3g_30";
+    const hidden$2 = "_hidden_15z3g_39";
     const styles$13 = {
       container: container$h,
       input: input$1,
