@@ -154,7 +154,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       const startIndex = page * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
       const currentPageItems = items.slice(startIndex, endIndex);
-      
+
       const fileItems = currentPageItems.filter((item) => item.type === "file");
 
       const logFiles = fileItems

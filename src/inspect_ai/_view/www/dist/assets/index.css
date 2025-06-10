@@ -15449,6 +15449,16 @@ pre[class*="language-"] {
   -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg id%3D%22Layer_2%22 xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 5.77 9.73%22%3E  %3Crect class%3D%22cls-1%22 x%3D%22-.82%22 y%3D%221.97%22 width%3D%227.07%22 height%3D%221.5%22 rx%3D%22.75%22 ry%3D%22.75%22 transform%3D%22translate(-1.13 2.72) rotate(-45)%22%2F%3E  %3Crect class%3D%22cls-1%22 x%3D%222.14%22 y%3D%223.08%22 width%3D%221.5%22 height%3D%227.54%22 rx%3D%22.75%22 ry%3D%22.75%22 transform%3D%22translate(-4 4.05) rotate(-45)%22%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
 }
 
+.inspect-icon-forward::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+  mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg id%3D%22Layer_2%22 xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 5.77 9.73%22%3E  %3Cg transform%3D%22scale(-1%2C 1) translate(-5.77%2C 0)%22%3E    %3Crect class%3D%22cls-1%22 x%3D%22-.82%22 y%3D%221.97%22 width%3D%227.07%22 height%3D%221.5%22 rx%3D%22.75%22 ry%3D%22.75%22 transform%3D%22translate(-1.13 2.72) rotate(-45)%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%222.14%22 y%3D%223.08%22 width%3D%221.5%22 height%3D%227.54%22 rx%3D%22.75%22 ry%3D%22.75%22 transform%3D%22translate(-4 4.05) rotate(-45)%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg id%3D%22Layer_2%22 xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 5.77 9.73%22%3E  %3Cg transform%3D%22scale(-1%2C 1) translate(-5.77%2C 0)%22%3E    %3Crect class%3D%22cls-1%22 x%3D%22-.82%22 y%3D%221.97%22 width%3D%227.07%22 height%3D%221.5%22 rx%3D%22.75%22 ry%3D%22.75%22 transform%3D%22translate(-1.13 2.72) rotate(-45)%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%222.14%22 y%3D%223.08%22 width%3D%221.5%22 height%3D%227.54%22 rx%3D%22.75%22 ry%3D%22.75%22 transform%3D%22translate(-4 4.05) rotate(-45)%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
+}
+
 .inspect-icon-file::before {
   content: "";
   width: 1em;
@@ -16315,15 +16325,34 @@ a._citationLink_t2k1z_9:hover {
   align-items: center;
   column-gap: 0.5em;
 }
-._pager_as2da_1 {
+._pager_jzegk_1 {
   --bs-pagination-padding-x: 0.5em;
   --bs-pagination-padding-y: 0.15em;
   --bs-pagination-font-size: 0.8rem;
+  --bs-pagination-padding-x: 0.5em;
+  --bs-pagination-padding-y: 0;
+  --bs-pagination-border-radius: var(--bs-border-radius);
   margin-bottom: 0;
 }
 
-._item_as2da_8:not(.disabled) {
+._item_jzegk_11:not(.disabled) {
   cursor: pointer;
+}
+
+._item_jzegk_11 {
+  margin-left: 0.2em;
+  margin-right: 0.2em;
+}
+
+._item_jzegk_11:first-child,
+._item_jzegk_11:last-child {
+  --bs-pagination-padding-x: 0.3em;
+}
+
+._item_jzegk_11:first-child .ii:before,
+._item_jzegk_11:last-child .ii:before {
+  margin-top: -2px;
+  font-size: 0.8em;
 }
 ._panel_1mqvl_1 {
   height: 100vh;

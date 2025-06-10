@@ -84,6 +84,7 @@ export const ApplicationIcons = {
   navbar: {
     home: "ii inspect-icon-home",
     back: "ii inspect-icon-back",
+    forward: "ii inspect-icon-forward",
     inspectLogo: "ii inspect-icon-16",
   },
 

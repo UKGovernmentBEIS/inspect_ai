@@ -31,7 +31,6 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   // Get the logs from the store
   const loading = useStore((state) => state.app.status.loading);
 
-
   const { loadLogs } = useLogs();
   const logs = useStore((state) => state.logs.logs);
   const logHeaders = useStore((state) => state.logs.logHeaders);
@@ -114,7 +113,6 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
     };
     exec();
   }, [loadLogs]);
-
 
   return (
     <div className={clsx(styles.panel)}>

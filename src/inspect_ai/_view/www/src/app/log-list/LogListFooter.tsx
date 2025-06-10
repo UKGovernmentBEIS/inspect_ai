@@ -57,8 +57,7 @@ export const LogListFooter: FC<LogListFooterProps> = ({
         <div>
           {filteredCount !== undefined && filteredCount !== itemCount
             ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)`
-            : `${startItem} - ${endItem} / ${effectiveItemCount}`
-          }
+            : `${startItem} - ${endItem} / ${effectiveItemCount}`}
         </div>
       </div>
     </div>

@@ -24506,7 +24506,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       model: "bi bi-grid-3x3-gap",
       navbar: {
         home: "ii inspect-icon-home",
-        back: "ii inspect-icon-back"
+        back: "ii inspect-icon-back",
+        forward: "ii inspect-icon-forward"
       },
       next: "bi bi-chevron-right",
       noSamples: "bi bi-ban",
@@ -51572,8 +51573,8 @@ categories: ${categories.join(" ")}`;
       left: left$2,
       center: center$1
     };
-    const pager = "_pager_as2da_1";
-    const item$2 = "_item_as2da_8";
+    const pager = "_pager_jzegk_1";
+    const item$2 = "_item_jzegk_11";
     const styles$15 = {
       pager,
       item: item$2
@@ -51584,14 +51585,57 @@ categories: ${categories.join(" ")}`;
         kDefaultPageSize
       );
       const pageCount = Math.ceil(itemCount / itemsPerPage);
+      if (pageCount <= 1) {
+        return null;
+      }
       const currentPage = page || 0;
+      const generatePaginationSegments = () => {
+        const segments2 = [];
+        if (pageCount <= 5) {
+          for (let i2 = 0; i2 < pageCount; i2++) {
+            segments2.push({ type: "page", page: i2, key: `page-${i2}` });
+          }
+        } else {
+          segments2.push({ type: "page", page: 0, key: "page-0" });
+          const startPage = Math.max(1, currentPage - 1);
+          const endPage = Math.min(pageCount - 2, currentPage + 1);
+          if (startPage > 1) {
+            segments2.push({ type: "ellipsis", key: "ellipsis-start" });
+          }
+          for (let i2 = startPage; i2 <= endPage; i2++) {
+            segments2.push({ type: "page", page: i2, key: `page-${i2}` });
+          }
+          if (endPage < pageCount - 2) {
+            segments2.push({ type: "ellipsis", key: "ellipsis-end" });
+          }
+          segments2.push({
+            type: "page",
+            page: pageCount - 1,
+            key: `page-${pageCount - 1}`
+          });
+        }
+        return segments2;
+      };
+      const segments = generatePaginationSegments();
       return /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { "aria-label": "Log Pagination", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: clsx("pagination", styles$15.pager), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: clsx(currentPage === 0 ? "disabled" : "", styles$15.item), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "a",
+          {
+            className: clsx("page-link"),
+            onClick: () => {
+              if (currentPage > 0) {
+                setPage(currentPage - 1);
+              }
+            },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.back) })
+          }
+        ) }),
+        segments.map((segment) => /* @__PURE__ */ jsxRuntimeExports.jsx(
           "li",
           {
             className: clsx(
-              "page-item",
-              currentPage === 0 ? "disabled" : "",
+              segment.type === "page" && segment.page === currentPage ? "active" : void 0,
+              segment.type === "ellipsis" ? "disabled" : void 0,
               styles$15.item
             ),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51599,41 +51643,20 @@ categories: ${categories.join(" ")}`;
               {
                 className: clsx("page-link"),
                 onClick: () => {
-                  if (currentPage > 0) {
-                    setPage(currentPage - 1);
+                  if (segment.type === "page" && segment.page !== void 0) {
+                    setPage(segment.page);
                   }
                 },
-                children: "Previous"
-              }
-            )
-          }
-        ),
-        Array.from({ length: pageCount }, (_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "li",
-          {
-            className: clsx(
-              "page-item",
-              index2 === currentPage ? "active" : void 0,
-              styles$15.item
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "a",
-              {
-                className: clsx("page-link"),
-                onClick: () => {
-                  setPage(index2);
-                },
-                children: index2 + 1
+                children: segment.type === "page" ? segment.page + 1 : "..."
               }
             )
           },
-          index2
+          segment.key
         )),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "li",
           {
             className: clsx(
-              "page-item",
               currentPage + 1 >= pageCount ? "disabled" : "",
               styles$15.item
             ),
@@ -51646,7 +51669,7 @@ categories: ${categories.join(" ")}`;
                     setPage(currentPage + 1);
                   }
                 },
-                children: "Next"
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.forward) })
               }
             )
           }
