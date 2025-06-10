@@ -188,6 +188,34 @@ class TestCreateExternalProvider:
     def test_google_provider_with_none(self, mock_google_api_keys) -> None:
         assert callable(_create_external_provider({"google": {}}))
 
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "EXA_API_KEY"
+        else default,
+    )
+    def test_exa_provider_with_normal_config(self, mock_environ_get) -> None:
+        assert callable(_create_external_provider({"exa": {"text": True}}))
+
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "EXA_API_KEY"
+        else default,
+    )
+    def test_exa_provider_with_none(self, mock_environ_get) -> None:
+        assert callable(_create_external_provider({"exa": {}}))
+
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "EXA_API_KEY"
+        else default,
+    )
+    def test_exa_provider_with_bogus_config(self, mock_environ_get) -> None:
+        with pytest.raises(ValidationError):
+            _create_external_provider({"exa": {"text": "bogus"}})
+
 
 class TestOldSignatureVariants:
     """Tests for the old signature variants of web_search function."""
