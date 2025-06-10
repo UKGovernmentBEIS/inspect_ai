@@ -61,10 +61,10 @@ class TavilySearchProvider(BaseHttpProvider):
         }
 
     def set_default_options(self, options: dict[str, Any]) -> dict[str, Any]:
-        # Default to including answer if not specified
-        if not options.get("include_answer", False):
-            options["include_answer"] = True
-        return options
+        # Force inclusion of answer if not specified
+        new_options = options.copy()
+        new_options["include_answer"] = True
+        return new_options
 
     def parse_response(self, response_data: dict[str, Any]) -> ContentText | None:
         tavily_search_response = TavilySearchResponse.model_validate(response_data)

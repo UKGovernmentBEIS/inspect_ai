@@ -34,8 +34,6 @@ class ExaSearchResponse(BaseModel):
 
 
 class ExaSearchProvider(BaseHttpProvider):
-    """Exa-specific implementation of HttpSearchProvider."""
-
     def __init__(self, options: dict[str, Any] | None = None):
         super().__init__(
             env_key_name="EXA_API_KEY",
@@ -52,9 +50,6 @@ class ExaSearchProvider(BaseHttpProvider):
         }
 
     def set_default_options(self, options: dict[str, Any]) -> dict[str, Any]:
-        # Default to including text if not specified
-        if "text" not in options:
-            options["text"] = True
         return options
 
     def parse_response(self, response_data: dict[str, Any]) -> ContentText | None:
