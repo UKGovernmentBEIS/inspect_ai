@@ -47814,15 +47814,104 @@ categories: ${categories.join(" ")}`;
       }
       return path.endsWith("/") ? path : path + "/";
     };
-    const header$3 = "_header_wu9zj_1";
-    const breadcrumbs = "_breadcrumbs_wu9zj_12";
-    const left$2 = "_left_wu9zj_21";
-    const right$2 = "_right_wu9zj_31";
-    const toolbarButton = "_toolbarButton_wu9zj_40";
-    const pathContainer = "_pathContainer_wu9zj_48";
+    const useBreadcrumbTruncation = (segments, containerRef) => {
+      const [truncatedData, setTruncatedData] = reactExports.useState({
+        visibleSegments: segments,
+        hiddenCount: 0,
+        showEllipsis: false
+      });
+      const measureAndTruncate = reactExports.useCallback(() => {
+        if (!containerRef.current || segments.length <= 3) {
+          setTruncatedData({
+            visibleSegments: segments,
+            hiddenCount: 0,
+            showEllipsis: false
+          });
+          return;
+        }
+        const container2 = containerRef.current;
+        const containerWidth = container2.offsetWidth;
+        const testElement = document.createElement("ol");
+        testElement.className = "breadcrumb";
+        testElement.style.position = "absolute";
+        testElement.style.visibility = "hidden";
+        testElement.style.whiteSpace = "nowrap";
+        testElement.style.margin = "0";
+        testElement.style.padding = "0";
+        container2.appendChild(testElement);
+        testElement.innerHTML = segments.map(
+          (segment) => `<li class="breadcrumb-item">${segment.text}</li>`
+        ).join("");
+        if (testElement.scrollWidth <= containerWidth) {
+          container2.removeChild(testElement);
+          setTruncatedData({
+            visibleSegments: segments,
+            hiddenCount: 0,
+            showEllipsis: false
+          });
+          return;
+        }
+        const firstSegment = segments[0];
+        const lastSegment = segments[segments.length - 1];
+        let maxVisible = 2;
+        for (let endCount = 1; endCount < segments.length - 1; endCount++) {
+          const candidateSegments = [
+            firstSegment,
+            ...segments.slice(segments.length - 1 - endCount, -1),
+            lastSegment
+          ];
+          const testHTML = [
+            `<li class="breadcrumb-item">${firstSegment.text}</li>`,
+            `<li class="breadcrumb-item">...</li>`,
+            ...segments.slice(segments.length - 1 - endCount, -1).map(
+              (s) => `<li class="breadcrumb-item">${s.text}</li>`
+            ),
+            `<li class="breadcrumb-item">${lastSegment.text}</li>`
+          ].join("");
+          testElement.innerHTML = testHTML;
+          if (testElement.scrollWidth <= containerWidth) {
+            maxVisible = candidateSegments.length;
+            setTruncatedData({
+              visibleSegments: candidateSegments,
+              hiddenCount: segments.length - candidateSegments.length,
+              showEllipsis: true
+            });
+          } else {
+            break;
+          }
+        }
+        if (maxVisible === 2) {
+          setTruncatedData({
+            visibleSegments: [firstSegment, lastSegment],
+            hiddenCount: segments.length - 2,
+            showEllipsis: true
+          });
+        }
+        container2.removeChild(testElement);
+      }, [segments, containerRef]);
+      reactExports.useEffect(() => {
+        measureAndTruncate();
+        const resizeObserver = new ResizeObserver(measureAndTruncate);
+        if (containerRef.current) {
+          resizeObserver.observe(containerRef.current);
+        }
+        return () => {
+          resizeObserver.disconnect();
+        };
+      }, [measureAndTruncate]);
+      return truncatedData;
+    };
+    const header$3 = "_header_1fu9w_1";
+    const breadcrumbs = "_breadcrumbs_1fu9w_12";
+    const ellipsis = "_ellipsis_1fu9w_23";
+    const left$2 = "_left_1fu9w_28";
+    const right$2 = "_right_1fu9w_38";
+    const toolbarButton = "_toolbarButton_1fu9w_47";
+    const pathContainer = "_pathContainer_1fu9w_55";
     const styles$1g = {
       header: header$3,
       breadcrumbs,
+      ellipsis,
       left: left$2,
       right: right$2,
       toolbarButton,
@@ -47833,32 +47922,36 @@ categories: ${categories.join(" ")}`;
       const logs = useStore((state) => state.logs.logs);
       const baseLogDir = dirname(logs.log_dir || "");
       const baseLogName = basename(logs.log_dir || "");
-      const pathSegments = logPath ? logPath.split("/") : void 0;
-      const navRef = reactExports.useRef(null);
-      const breadcrumbRef = reactExports.useRef(null);
+      const pathContainerRef = reactExports.useRef(null);
       const backUrl = logUrl(
         ensureTrailingSlash(dirname(logPath || "")),
         logs.log_dir
       );
-      const dirSegments = [];
-      const currentSegment = [];
-      for (const pathSegment of pathSegments || []) {
-        currentSegment.push(pathSegment);
-        const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
-        dirSegments.push({
-          text: pathSegment,
-          url: segmentUrl
-        });
-      }
-      const segments = [
-        { text: prettyDirUri(baseLogDir) },
-        { text: baseLogName, url: logUrl("", logs.log_dir) },
-        ...dirSegments
-      ];
+      const segments = reactExports.useMemo(() => {
+        const pathSegments = logPath ? logPath.split("/") : [];
+        const dirSegments = [];
+        const currentSegment = [];
+        for (const pathSegment of pathSegments) {
+          currentSegment.push(pathSegment);
+          const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
+          dirSegments.push({
+            text: pathSegment,
+            url: segmentUrl
+          });
+        }
+        return [
+          { text: prettyDirUri(baseLogDir) },
+          { text: baseLogName, url: logUrl("", logs.log_dir) },
+          ...dirSegments
+        ];
+      }, [baseLogDir, baseLogName, logPath, logs.log_dir]);
+      const { visibleSegments, showEllipsis } = useBreadcrumbTruncation(
+        segments,
+        pathContainerRef
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "nav",
         {
-          ref: navRef,
           className: clsx("text-size-smaller", styles$1g.header),
           "aria-label": "breadcrumb",
           children: [
@@ -47872,27 +47965,24 @@ categories: ${categories.join(" ")}`;
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.home) })
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.pathContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "ol",
-                {
-                  className: clsx("breadcrumb", styles$1g.breadcrumbs),
-                  ref: breadcrumbRef,
-                  children: segments == null ? void 0 : segments.map((segment, index2) => {
-                    return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      "li",
-                      {
-                        className: clsx(
-                          styles$1g.pathLink,
-                          "breadcrumb-item",
-                          index2 === segments.length - 1 ? "active" : void 0
-                        ),
-                        children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
-                      },
-                      index2
-                    );
-                  })
-                }
-              ) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.pathContainer), ref: pathContainerRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1g.breadcrumbs), children: visibleSegments == null ? void 0 : visibleSegments.map((segment, index2) => {
+                const isLast = index2 === visibleSegments.length - 1;
+                const shouldShowEllipsis = showEllipsis && index2 === 1 && visibleSegments.length > 2;
+                return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+                  shouldShowEllipsis && /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: clsx("breadcrumb-item", styles$1g.ellipsis), children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "..." }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "li",
+                    {
+                      className: clsx(
+                        styles$1g.pathLink,
+                        "breadcrumb-item",
+                        isLast ? "active" : void 0
+                      ),
+                      children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
+                    }
+                  )
+                ] }, index2);
+              }) }) })
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.right), children: children2 })
           ]

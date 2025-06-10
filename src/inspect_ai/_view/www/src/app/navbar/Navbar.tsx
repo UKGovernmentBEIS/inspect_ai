@@ -1,10 +1,11 @@
 import clsx from "clsx";
-import { FC, ReactNode, useRef } from "react";
+import { FC, Fragment, ReactNode, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
 import { ApplicationIcons } from "../appearance/icons";
 import { logUrl, useLogRouteParams } from "../routing/url";
+import { useBreadcrumbTruncation } from "./useBreadcrumbTruncation";
 import styles from "./Navbar.module.css";
 
 interface NavbarProps {
@@ -16,36 +17,40 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
   const logs = useStore((state) => state.logs.logs);
   const baseLogDir = dirname(logs.log_dir || "");
   const baseLogName = basename(logs.log_dir || "");
-  const pathSegments = logPath ? logPath.split("/") : undefined;
-
-  const navRef = useRef<HTMLElement>(null);
-  const breadcrumbRef = useRef<HTMLOListElement>(null);
+  const pathContainerRef = useRef<HTMLDivElement>(null);
 
   const backUrl = logUrl(
     ensureTrailingSlash(dirname(logPath || "")),
     logs.log_dir,
   );
 
-  const dirSegments: Array<{ text: string; url: string }> = [];
-  const currentSegment = [];
-  for (const pathSegment of pathSegments || []) {
-    currentSegment.push(pathSegment);
-    const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
-    dirSegments.push({
-      text: pathSegment,
-      url: segmentUrl,
-    });
-  }
+  const segments = useMemo(() => {
+    const pathSegments = logPath ? logPath.split("/") : [];
+    const dirSegments: Array<{ text: string; url: string }> = [];
+    const currentSegment = [];
+    for (const pathSegment of pathSegments) {
+      currentSegment.push(pathSegment);
+      const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
+      dirSegments.push({
+        text: pathSegment,
+        url: segmentUrl,
+      });
+    }
 
-  const segments: Array<{ text: string; url?: string }> = [
-    { text: prettyDirUri(baseLogDir) },
-    { text: baseLogName, url: logUrl("", logs.log_dir) },
-    ...dirSegments,
-  ];
+    return [
+      { text: prettyDirUri(baseLogDir) },
+      { text: baseLogName, url: logUrl("", logs.log_dir) },
+      ...dirSegments,
+    ];
+  }, [baseLogDir, baseLogName, logPath, logs.log_dir]);
+
+  const { visibleSegments, showEllipsis } = useBreadcrumbTruncation(
+    segments,
+    pathContainerRef
+  );
 
   return (
     <nav
-      ref={navRef}
       className={clsx("text-size-smaller", styles.header)}
       aria-label="breadcrumb"
     >
@@ -59,30 +64,35 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
         >
           <i className={clsx(ApplicationIcons.navbar.home)} />
         </Link>
-        <div className={clsx(styles.pathContainer)}>
-          <ol
-            className={clsx("breadcrumb", styles.breadcrumbs)}
-            ref={breadcrumbRef}
-          >
-            {segments?.map((segment, index) => {
-              // Show all segments when not collapsed
+        <div className={clsx(styles.pathContainer)} ref={pathContainerRef}>
+          <ol className={clsx("breadcrumb", styles.breadcrumbs)}>
+            {visibleSegments?.map((segment, index) => {
+              const isLast = index === visibleSegments.length - 1;
+              const shouldShowEllipsis = showEllipsis && index === 1 && visibleSegments.length > 2;
+              
               return (
-                <li
-                  className={clsx(
-                    styles.pathLink,
-                    "breadcrumb-item",
-                    index === segments.length - 1 ? "active" : undefined,
+                <Fragment key={index}>
+                  {shouldShowEllipsis && (
+                    <li className={clsx("breadcrumb-item", styles.ellipsis)}>
+                      <span>...</span>
+                    </li>
                   )}
-                  key={index}
-                >
-                  {segment.url ? (
-                    <Link to={segment.url}>{segment.text}</Link>
-                  ) : (
-                    <span className={clsx(styles.pathSegment)}>
-                      {segment.text}
-                    </span>
-                  )}
-                </li>
+                  <li
+                    className={clsx(
+                      styles.pathLink,
+                      "breadcrumb-item",
+                      isLast ? "active" : undefined,
+                    )}
+                  >
+                    {segment.url ? (
+                      <Link to={segment.url}>{segment.text}</Link>
+                    ) : (
+                      <span className={clsx(styles.pathSegment)}>
+                        {segment.text}
+                      </span>
+                    )}
+                  </li>
+                </Fragment>
               );
             })}
           </ol>

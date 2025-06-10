@@ -16,6 +16,13 @@
   min-width: 0;
   overflow: hidden;
   width: max-content;
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.ellipsis {
+  color: var(--bs-secondary);
+  font-weight: normal;
 }
 
 .left {
