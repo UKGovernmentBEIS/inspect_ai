@@ -369,15 +369,7 @@ def _openai_input_items_from_chat_message_assistant(
         str | None, list[ResponseOutputTextParam | ResponseOutputRefusalParam]
     ] = {}
 
-    all_content = (
-        list[ContentText | ContentReasoning]([ContentText(text=message.content)])
-        if isinstance(message.content, str)
-        else [
-            c for c in message.content if isinstance(c, ContentText | ContentReasoning)
-        ]
-    )
-
-    for content in _filter_consecutive_reasoning_blocks(all_content):
+    for content in _filter_consecutive_reasoning_blocks(content_items):
         match content:
             case ContentReasoning(reasoning=reasoning):
                 assert content.signature is not None, (
