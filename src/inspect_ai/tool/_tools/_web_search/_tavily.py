@@ -1,22 +1,11 @@
-import os
-from typing import Literal
+from typing import Any, Literal
 
-import httpx
 from pydantic import BaseModel, Field
-from tenacity import (
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    stop_after_delay,
-    wait_exponential_jitter,
-)
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
-from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
-from inspect_ai.util._concurrency import concurrency
 
+from ._base_http_provider import BaseHttpProvider
 from ._web_search_provider import SearchProvider
 
 
@@ -54,67 +43,50 @@ class TavilySearchResponse(BaseModel):
     response_time: float
 
 
+class TavilySearchProvider(BaseHttpProvider):
+    """Tavily-specific implementation of HttpSearchProvider."""
+
+    def __init__(self, options: dict[str, Any] | None = None):
+        super().__init__(
+            env_key_name="TAVILY_API_KEY",
+            api_endpoint="https://api.tavily.com/search",
+            provider_name="Tavily",
+            concurrency_key="tavily_web_search",
+            options=options,
+        )
+
+    def prepare_headers(self, api_key: str) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {api_key}",
+        }
+
+    def set_default_options(self, options: dict[str, Any]) -> dict[str, Any]:
+        # Default to including answer if not specified
+        if not options.get("include_answer", False):
+            options["include_answer"] = True
+        return options
+
+    def parse_response(self, response_data: dict[str, Any]) -> ContentText | None:
+        tavily_search_response = TavilySearchResponse.model_validate(response_data)
+
+        if not tavily_search_response.results and not tavily_search_response.answer:
+            return None
+
+        return ContentText(
+            text=tavily_search_response.answer or "No answer found.",
+            citations=[
+                UrlCitation(
+                    cited_text=result.content, title=result.title, url=result.url
+                )
+                for result in tavily_search_response.results
+            ],
+        )
+
+
 def tavily_search_provider(
     in_options: dict[str, object] | None = None,
 ) -> SearchProvider:
     options = TavilyOptions.model_validate(in_options) if in_options else None
-    # Separate max_connections (which is an inspect thing) from the rest of the
-    # options which will be passed in the request body
-    max_connections = (options.max_connections if options else None) or 10
-    api_options = (
-        options.model_dump(exclude={"max_connections"}, exclude_none=True)
-        if options
-        else {}
-    )
-    if not api_options.get("include_answer", False):
-        api_options["include_answer"] = True
-
-    tavily_api_key = os.environ.get("TAVILY_API_KEY", None)
-    if not tavily_api_key:
-        raise PrerequisiteError(
-            "TAVILY_API_KEY not set in the environment. Please ensure ths variable is defined to use Tavily with the web_search tool.\n\nLearn more about the Tavily web search provider at https://inspect.aisi.org.uk/tools.html#tavily-provider"
-        )
-
-    # Create the client within the provider
-    client = httpx.AsyncClient(timeout=30)
-
-    async def search(query: str) -> str | ContentText | None:
-        # See https://docs.tavily.com/documentation/api-reference/endpoint/search
-        search_url = "https://api.tavily.com/search"
-        headers = {
-            "Authorization": f"Bearer {tavily_api_key}",
-        }
-
-        body = {"query": query, **api_options}
-
-        # retry up to 5 times over a period of up to 1 minute
-        @retry(
-            wait=wait_exponential_jitter(),
-            stop=stop_after_attempt(5) | stop_after_delay(60),
-            retry=retry_if_exception(httpx_should_retry),
-            before_sleep=log_httpx_retry_attempt(search_url),
-        )
-        async def _search() -> httpx.Response:
-            response = await client.post(search_url, headers=headers, json=body)
-            response.raise_for_status()
-            return response
-
-        async with concurrency("tavily_web_search", max_connections):
-            tavily_search_response = TavilySearchResponse.model_validate(
-                (await _search()).json()
-            )
-
-            if not tavily_search_response.results and not tavily_search_response.answer:
-                return None
-
-            return ContentText(
-                text=tavily_search_response.answer or "No answer found.",
-                citations=[
-                    UrlCitation(
-                        cited_text=result.content, title=result.title, url=result.url
-                    )
-                    for result in tavily_search_response.results
-                ],
-            )
-
-    return search
+    return TavilySearchProvider(
+        options.model_dump(exclude_none=True) if options else None
+    ).search
