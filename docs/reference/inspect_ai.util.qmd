@@ -50,6 +50,7 @@ title: "inspect_ai.util"
 ### SandboxEnvironment
 ### SandboxConnection
 ### sandboxenv
+### sandbox_service
 
 ## Registry
 
