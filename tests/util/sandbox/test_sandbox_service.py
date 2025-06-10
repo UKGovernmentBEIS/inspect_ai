@@ -1,13 +1,13 @@
 from pathlib import Path
 from textwrap import dedent
 
-import anyio
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
+from inspect_ai.util._background import background
 from inspect_ai.util._sandbox.service import sandbox_service
 
 
@@ -56,27 +56,20 @@ def math_service(user: str | None) -> Solver:
 
         asyncio.run(run())
         """)
+        # run the math service in the background
+        background(run_math_service, state, user)
+
+        # run a script in the sandbox that talks to the service
         await sandbox().write_file(run_script, run_script_code)
-
-        # run the script and the math service
-        async with anyio.create_task_group() as tg:
-
-            async def run_service_script() -> None:
-                script_error = ""
-                try:
-                    result = await sandbox().exec(["python3", run_script], user=user)
-                    if not result.success:
-                        script_error = (
-                            f"Error running script '{run_script}': {result.stderr}"
-                        )
-                except Exception as e:
-                    script_error = f"Exception in script: {str(e)}"
-                if script_error:
-                    print(script_error)
-                    tg.cancel_scope.cancel()
-
-            tg.start_soon(run_math_service, state, user)
-            tg.start_soon(run_service_script)
+        script_error = ""
+        try:
+            result = await sandbox().exec(["python3", run_script], user=user)
+            if not result.success:
+                script_error = f"Error running script '{run_script}': {result.stderr}"
+        except Exception as e:
+            script_error = f"Exception in script: {str(e)}"
+        if script_error:
+            print(script_error)
 
         return state
 

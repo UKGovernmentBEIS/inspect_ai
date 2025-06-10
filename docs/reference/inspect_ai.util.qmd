@@ -38,6 +38,7 @@ title: "inspect_ai.util"
 ### collect
 ### resource
 ### throttle
+### background
 ### trace_action
 ### trace_message
 

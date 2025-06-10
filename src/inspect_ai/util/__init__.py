@@ -11,6 +11,7 @@ from inspect_ai.util._limit import (
     working_limit,
 )
 
+from ._background import background
 from ._collect import collect
 from ._concurrency import concurrency
 from ._console import input_screen
@@ -84,6 +85,7 @@ __all__ = [
     "Subtask",
     "subtask",
     "throttle",
+    "background",
     "token_limit",
     "time_limit",
     "working_limit",
