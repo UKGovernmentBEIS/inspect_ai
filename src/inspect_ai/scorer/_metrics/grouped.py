@@ -12,6 +12,10 @@ from inspect_ai.scorer._metric import (
     value_to_float,
 )
 
+from inspect_ai._util.registry import (
+    registry_info
+)
+
 
 @metric
 def grouped(
@@ -21,6 +25,8 @@ def grouped(
     all: Literal["samples", "groups"] | Literal[False] = "samples",
     all_label: str = "all",
     value_to_float: ValueToFloat = value_to_float(),
+    verbose: bool = True,
+    add_metric_name_to_group: bool = True,
 ) -> Metric:
     """
     Creates a grouped metric that applies the given metric to subgroups of samples.
@@ -34,6 +40,8 @@ def grouped(
           - False: Don't calculate an aggregate score
       all_label: The label for the "all" key in the returned dictionary.
       value_to_float: Function to convert metric values to floats, used when all="groups".
+      verbose: show or hide metrics for each group in order to handle when "all" metrics are only useful to report.
+      add_metric_name_to_group: Adjust reported group name to include the metric used. Important if the grouped function is used multiple times on the same field in the metadata for different metrics i.e. accuracy and stderr
 
     Returns:
         A new metric function that returns a dictionary mapping group names to their scores,
@@ -61,7 +69,7 @@ def grouped(
 
         # Compute the per group metric
         grouped_scores = {
-            group_name: metric_protocol(values)
+            f'{group_name}_{registry_info(metric).name.split('/')[-1]}' if add_metric_name_to_group else group_name: metric_protocol(values)
             for group_name, values in scores_dict.items()
         }
 
@@ -79,6 +87,9 @@ def grouped(
                     [value_to_float(val) for val in grouped_scores.values()]
                 ).item()
 
-            return cast(Value, {**grouped_scores, all_label: all_group_metric})
+            if verbose:
+                return cast(Value, {**grouped_scores, all_label: all_group_metric})
+            else:
+                return cast(Value, {all_label: all_group_metric})
 
     return grouped_metric
