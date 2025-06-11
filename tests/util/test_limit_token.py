@@ -158,6 +158,33 @@ def test_outermost_limit_raises_error_when_multiple_limits_exceeded() -> None:
     assert exc_info.value.source is outer
 
 
+def test_can_get_limit_value() -> None:
+    limit = token_limit(10)
+
+    assert limit.limit == 10
+
+
+def test_can_update_limit_value() -> None:
+    limit = token_limit(10)
+
+    with limit:
+        _consume_tokens(5)
+
+        limit.limit = 20
+        _consume_tokens(15)
+
+        limit.limit = 10
+
+        with pytest.raises(LimitExceededError) as exc_info:
+            check_token_limit()
+            assert exc_info.value.value == 20
+
+        limit.limit = None
+        _consume_tokens(5)
+
+    assert limit.limit is None
+
+
 def test_can_get_usage_while_context_manager_open() -> None:
     with token_limit(10) as limit:
         _consume_tokens(5)
@@ -194,6 +221,15 @@ def test_can_get_usage_after_limit_error() -> None:
             _consume_tokens(15)
 
     assert limit.usage == 15
+
+
+async def test_can_get_remaining() -> None:
+    limit = token_limit(10)
+    with limit:
+        _consume_tokens(4)
+
+        assert limit.remaining is not None
+        assert limit.remaining == 6
 
 
 def test_cannot_reuse_context_manager() -> None:
@@ -241,27 +277,6 @@ async def test_same_context_manager_across_async_contexts():
 
     # This will result in 3 distinct "trees" each with 1 root node.
     await asyncio.gather(*(async_task() for _ in range(3)))
-
-
-def test_can_update_limit_value() -> None:
-    limit = token_limit(10)
-
-    with limit:
-        _consume_tokens(5)
-
-        limit.limit = 20
-        _consume_tokens(15)
-
-        limit.limit = 10
-
-        with pytest.raises(LimitExceededError) as exc_info:
-            check_token_limit()
-            assert exc_info.value.value == 20
-
-        limit.limit = None
-        _consume_tokens(5)
-
-    assert limit.limit is None
 
 
 def test_parallel_nested_forks(model: Model):

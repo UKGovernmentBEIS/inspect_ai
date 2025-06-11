@@ -90,9 +90,28 @@ class Limit(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def limit(self) -> float | None:
+        """The value of the limit being applied.
+
+        Can be None which represents no limit.
+        """
+        pass
+
+    @property
+    @abc.abstractmethod
     def usage(self) -> float:
         """The current usage of the resource being limited."""
         pass
+
+    @property
+    def remaining(self) -> float | None:
+        """The remaining "unused" amount of the resource being limited.
+
+        Returns None if the limit is None.
+        """
+        if self.limit is None:
+            return None
+        return self.limit - self.usage
 
     def _check_reuse(self) -> None:
         if self._entered:
@@ -150,6 +169,24 @@ class LimitScope:
 
     def __init__(self) -> None:
         self.limit_error: LimitExceededError | None = None
+
+
+def get_sample_limits() -> dict[Literal["token", "message", "working", "time"], Limit]:
+    """Get the top-level limits applied to the current `Sample`."""
+
+    def ensure_not_none(limit: Limit | None, name: str) -> Limit:
+        if limit is None:
+            raise RuntimeError(
+                f"No {name} limit node found. Is there a running sample?"
+            )
+        return limit
+
+    return {
+        "token": ensure_not_none(token_limit_tree.get(), "token"),
+        "message": ensure_not_none(message_limit_tree.get(), "message"),
+        "working": ensure_not_none(working_limit_tree.get(), "working"),
+        "time": ensure_not_none(time_limit_tree.get(), "time"),
+    }
 
 
 def token_limit(limit: int | None) -> _TokenLimit:
@@ -319,10 +356,9 @@ class _Tree(Generic[TNode]):
 
 
 token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
-# Store the message limit leaf node so that we know which limit to check in
-# check_message_limit().
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
 working_limit_tree: _Tree[_WorkingLimit] = _Tree("working_limit_tree")
+time_limit_tree: _Tree[_TimeLimit] = _Tree("time_limit_tree")
 
 
 class _Node:
@@ -497,7 +533,7 @@ class _MessageLimit(Limit, _Node):
             )
 
 
-class _TimeLimit(Limit):
+class _TimeLimit(Limit, _Node):
     def __init__(self, limit: float | None) -> None:
         super().__init__()
         _validate_time_limit("Time", limit)
@@ -507,8 +543,7 @@ class _TimeLimit(Limit):
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
-        # Unlike the other limits, this one is not stored in a tree. Anyio handles all
-        # of the state.
+        time_limit_tree.push(self)
         self._cancel_scope = anyio.move_on_after(self._limit)
         self._cancel_scope.__enter__()
         self._start_time = anyio.current_time()
@@ -524,6 +559,7 @@ class _TimeLimit(Limit):
 
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         self._end_time = anyio.current_time()
+        self._pop_and_check_identity(time_limit_tree)
         if self._cancel_scope.cancel_called and self._limit is not None:
             message = f"Time limit exceeded. limit: {self._limit} seconds"
             assert self._start_time is not None
@@ -540,6 +576,10 @@ class _TimeLimit(Limit):
                 message=message,
                 source=self,
             ) from exc_val
+
+    @property
+    def limit(self) -> float | None:
+        return self._limit
 
     @property
     def usage(self) -> float:
@@ -574,6 +614,10 @@ class _WorkingLimit(Limit, _Node):
     ) -> None:
         self._end_time = anyio.current_time()
         self._pop_and_check_identity(working_limit_tree)
+
+    @property
+    def limit(self) -> float | None:
+        return self._limit
 
     @property
     def usage(self) -> float:

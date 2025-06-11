@@ -205,7 +205,19 @@ raise LimitExceededError(
 )
 ```
 
-## Scoped Limits
+### Query Usage
+
+We can determine how much of a sample limit has been used, what the limit is, and how much of the resource is remaining:
+
+``` python
+sample_time_limit = get_sample_limits()["time"]
+print(f"{sample_time_limit.remaining:.0f} seconds remaining")
+```
+
+Note that `get_sample_limits()` only retrieves the sample-level limits, not [scoped limits](#scoped-limits) or [agent limits](#agent-limits).
+
+
+## Scoped Limits {#scoped-limits}
 
 You can also apply limits at arbitrary scopes, independent of the sample or agent-scoped limits. For instance, applied to a specific block of code. For example:
 
@@ -341,6 +353,6 @@ def myagent() -> Solver:
 It's important to note that `token_limit()` is for all tokens used *while the context manager is open*. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
 
-## Agent Limits
+## Agent Limits {#agent-limits}
 
 {{< include _agent_limits.md >}}
