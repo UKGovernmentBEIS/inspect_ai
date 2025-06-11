@@ -58,7 +58,7 @@ def background(
         try:
             await func(*args)
         except Exception as ex:
-            logger.error(f"Background service error: {ex}")
+            logger.error(f"Background worker error: {ex}")
             raise
 
     # kick it off
