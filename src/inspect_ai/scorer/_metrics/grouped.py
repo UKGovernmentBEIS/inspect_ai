@@ -2,6 +2,7 @@ from typing import Literal, cast
 
 import numpy as np
 
+from inspect_ai._util.registry import registry_info
 from inspect_ai.scorer._metric import (
     Metric,
     MetricProtocol,
@@ -10,10 +11,6 @@ from inspect_ai.scorer._metric import (
     ValueToFloat,
     metric,
     value_to_float,
-)
-
-from inspect_ai._util.registry import (
-    registry_info
 )
 
 
@@ -26,7 +23,7 @@ def grouped(
     all_label: str = "all",
     value_to_float: ValueToFloat = value_to_float(),
     verbose: bool = True,
-    add_metric_name_to_group: bool = True,
+    add_metric_name_to_group: bool = False,
 ) -> Metric:
     """
     Creates a grouped metric that applies the given metric to subgroups of samples.
@@ -69,7 +66,9 @@ def grouped(
 
         # Compute the per group metric
         grouped_scores = {
-            f'{group_name}_{registry_info(metric).name.split('/')[-1]}' if add_metric_name_to_group else group_name: metric_protocol(values)
+            f"{group_name}_{registry_info(metric).name.split('/')[-1]}"
+            if add_metric_name_to_group
+            else group_name: metric_protocol(values)
             for group_name, values in scores_dict.items()
         }
 
