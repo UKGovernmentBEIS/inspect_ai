@@ -8,10 +8,11 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
+import sys
 from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
 
 import anyio
-from anyio import open_process
+from anyio import ClosedResourceError, create_task_group, open_process
 from anyio.abc import ByteReceiveStream, Process
 
 from inspect_ai._util._async import tg_collect
@@ -39,6 +40,17 @@ class ExecResult(Generic[T]):
 
     stderr: T
     """Contents of stderr."""
+
+
+async def drain(stream: ByteReceiveStream | None) -> None:
+    if stream is None:
+        return
+    try:
+        # drain the stream to avoid deadlocks
+        async for _ in stream:
+            pass
+    except ClosedResourceError:
+        pass
 
 
 @overload
@@ -155,7 +167,7 @@ async def subprocess(
 
                 return buffer.getvalue()
 
-            # logger.info(f"Awaiting stdout and stderr for process {process.pid}.")
+            logger.info(f"Awaiting stdout and stderr for process {process.pid}.")
             stdout, stderr = await tg_collect(
                 [
                     functools.partial(read_stream, process.stdout),
@@ -163,12 +175,12 @@ async def subprocess(
                 ]
             )
 
-            # logger.info(f"Awaiting return code for process {process.pid}.")
+            logger.info(f"Awaiting return code for process {process.pid}.")
             returncode = await process.wait()
             success = returncode == 0
-            # logger.info(
-            #     f"Yielding result for process {process.pid} with return code {returncode}."
-            # )
+            logger.info(
+                f"Yielding result for process {process.pid} with return code {returncode}."
+            )
             if text:
                 # logger.info("Yielding result as text.")
                 yield ExecResult[str](
@@ -187,12 +199,35 @@ async def subprocess(
                     stderr=stderr if capture_output else bytes(),
                 )
                 # logger.info("Result yielded as bytes.")
-            # logger.info(f"Result for {process.pid} yielded.")
+            logger.info(f"Result for {process.pid} yielded.")
+        except Exception as e:
+            logger.error(f"Exception in subprocess {process.pid}: {repr(e)}.")
+            raise e
         finally:
+            logger.info(
+                f"Finally block for process {process.pid}; {sys.exc_info()[0]}."
+            )
             try:
-                # logger.info(f"Awaiting process {process.pid} to close.")
-                await process.aclose()
-                # logger.info(f"Process {process.pid} closed.")
+                with anyio.move_on_after(2, shield=True):
+                    logger.info(f"Awaiting process {process.pid} to drain streams.")
+                    try:
+                        async with create_task_group() as tg:
+                            tg.start_soon(drain, process.stdout)
+                            tg.start_soon(drain, process.stderr)
+                        await process.aclose()
+                    except* Exception as e:
+                        logger.error(
+                            f"Exception while draining streams for process {process.pid}: {repr(e)}."
+                        )
+                        raise e
+                    # await process.stdout.aclose()
+                    # await process.stderr.aclose()
+                    logger.info(f"Awaiting process {process.pid} to close.")
+                    # await process.aclose()
+                    # process.terminate()
+                    # logger.info(f"Process {process.pid} closed.")
+                    pass
+                logger.info(f"Process {process.pid} closed or moved on after.")
             except ProcessLookupError:
                 # the anyio ansycio backend calls process.kill() from within
                 # its aclose() method without an enclosing exception handler
@@ -234,32 +269,32 @@ async def subprocess(
                     # logger.warning(f"Subprocess timed out {proc.pid}")
                     # terminate timed out process -- try for graceful termination
                     # then be more forceful if requied
-                    with anyio.CancelScope(shield=True):
-                        try:
-                            # logger.warning(
-                            #     f"Sending terminate signal to subprocess {proc.pid}."
-                            # )
-                            proc.terminate()
-                            # logger.warning(
-                            #     f"Sent terminate signal to subprocess {proc.pid}."
-                            # )
-                            await anyio.sleep(2)
-                            # logger.warning(
-                            #     f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
-                            # )
-                            if proc.returncode is None:
-                                # logger.warning(
-                                #     f"Subprocess did not terminate, sending kill signal to {proc.pid}."
-                                # )
-                                proc.kill()
-                                # logger.warning(
-                                #     f"Sent kill signal to subprocess {proc.pid}."
-                                # )
-                        except Exception:
-                            # logger.warning(
-                            #     f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
-                            # )
-                            pass
+                    # with anyio.CancelScope(shield=True):
+                    #     try:
+                    #         logger.warning(
+                    #             f"Sending terminate signal to subprocess {proc.pid}."
+                    #         )
+                    #         proc.terminate()
+                    #         logger.warning(
+                    #             f"Sent terminate signal to subprocess {proc.pid}."
+                    #         )
+                    #         await anyio.sleep(2)
+                    #         logger.warning(
+                    #             f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
+                    #         )
+                    #         if proc.returncode is None:
+                    #             logger.warning(
+                    #                 f"Subprocess did not terminate, sending kill signal to {proc.pid}."
+                    #             )
+                    #             proc.kill()
+                    #             logger.warning(
+                    #                 f"Sent kill signal to subprocess {proc.pid}."
+                    #             )
+                    #     except Exception as e:
+                    #         logger.warning(
+                    #             f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
+                    #         )
+                    #         pass
                     # logger.warning(f"Re-raising {sys.exc_info()[0]} after timeout.")
                     raise
                 # except Exception as e:
