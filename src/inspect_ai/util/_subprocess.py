@@ -2,17 +2,16 @@ import functools
 import io
 import os
 import shlex
-from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
-from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
+from typing import Generic, Literal, TypeVar, Union, overload
 
 import anyio
 from anyio import ClosedResourceError, create_task_group, open_process
-from anyio.abc import ByteReceiveStream, Process
+from anyio.abc import ByteReceiveStream
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.trace import trace_action
@@ -114,9 +113,7 @@ async def subprocess(
         else None
     )
 
-    async def run_command() -> AsyncGenerator[
-        Union[Process, ExecResult[str], ExecResult[bytes]], None
-    ]:
+    async def run_command() -> Union[ExecResult[str], ExecResult[bytes]]:
         process = await open_process(
             args,
             stdin=PIPE if input else DEVNULL,
@@ -126,9 +123,6 @@ async def subprocess(
             env={**os.environ, **env},
         )
         try:
-            # yield the process so the caller has a handle to it
-            yield process
-
             # write to stdin (convert input to bytes)
             if process.stdin and input:
                 await process.stdin.send(input)
@@ -161,14 +155,14 @@ async def subprocess(
             returncode = await process.wait()
             success = returncode == 0
             if text:
-                yield ExecResult[str](
+                return ExecResult[str](
                     success=success,
                     returncode=returncode,
                     stdout=stdout.decode() if capture_output else "",
                     stderr=stderr.decode() if capture_output else "",
                 )
             else:
-                yield ExecResult[bytes](
+                return ExecResult[bytes](
                     success=success,
                     returncode=returncode,
                     stdout=stdout if capture_output else bytes(),
@@ -177,6 +171,9 @@ async def subprocess(
         finally:
             try:
                 with anyio.CancelScope(shield=True):
+                    # With asyncio, aclose() can deadlock if the process generates so
+                    # much output that it fills the pipe buffers, waiting on the OS pipe
+                    # buffer to accept more data. Drain the streams.
                     async with create_task_group() as tg:
                         tg.start_soon(drain_stream, process.stdout)
                         tg.start_soon(drain_stream, process.stderr)
@@ -190,33 +187,15 @@ async def subprocess(
 
     # wrapper for run command that implements timeout
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
-        # run the command and capture the process handle
-        async with aclosing(run_command()) as rc:
-            proc = cast(Process, await anext(rc))
+        # await result wrapped in timeout handler if requested
+        if timeout is not None:
+            with anyio.fail_after(timeout):
+                # run_command()'s finally block handles killing the process.
+                return await run_command()
 
-            # await result wrapped in timeout handler if requested
-            if timeout is not None:
-                try:
-                    with anyio.fail_after(timeout):
-                        result = await anext(rc)
-                        return cast(Union[ExecResult[str], ExecResult[bytes]], result)
-                except TimeoutError:
-                    logger.warning("Timed out!")
-                    # terminate timed out process -- try for graceful termination
-                    # then be more forceful if requied
-                    # with anyio.CancelScope(shield=True):
-                    #     try:
-                    #         proc.terminate()
-                    #         await anyio.sleep(2)
-                    #         if proc.returncode is None:
-                    #             proc.kill()
-                    #     except Exception as e:
-                    #         pass
-                    raise
-            # await result without timeout
-            else:
-                result = await anext(rc)
-                return cast(Union[ExecResult[str], ExecResult[bytes]], result)
+        # await result without timeout
+        else:
+            return await run_command()
 
     # run command
     async with concurrency("subprocesses", max_subprocesses_context_var.get()):
