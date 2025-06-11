@@ -1,7 +1,7 @@
 import inspect
 import json
 import types
-from copy import copy
+from copy import copy, deepcopy
 from dataclasses import is_dataclass
 from datetime import date, datetime, time
 from enum import EnumMeta
@@ -478,7 +478,9 @@ async def agent_handoff(
     limit_error: LimitExceededError | None = None
     agent_state = AgentState(messages=copy(agent_conversation))
     try:
-        with apply_limits(agent_tool.limits):
+        # The agent_tool's limits will be applied multiple times if the agent is handed
+        # off to multiple times which is not supported, so create a copy of each limit.
+        with apply_limits(deepcopy(agent_tool.limits)):
             async with span(name=agent_name, type="agent"):
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
