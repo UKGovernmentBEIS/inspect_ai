@@ -12,7 +12,6 @@ import { TabPanel, TabSet } from "../../components/TabSet";
 
 import { useEvalSpec, useRefreshLog } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { Navbar } from "../navbar/Navbar";
 import { useLogNavigation } from "../routing/logNavigation";
 import styles from "./LogView.module.css";
 import { useInfoTabConfig } from "./tabs/InfoTab";

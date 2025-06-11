@@ -47839,9 +47839,7 @@ categories: ${categories.join(" ")}`;
         testElement.style.margin = "0";
         testElement.style.padding = "0";
         container2.appendChild(testElement);
-        testElement.innerHTML = segments.map(
-          (segment) => `<li class="breadcrumb-item">${segment.text}</li>`
-        ).join("");
+        testElement.innerHTML = segments.map((segment) => `<li class="breadcrumb-item">${segment.text}</li>`).join("");
         if (testElement.scrollWidth <= containerWidth) {
           container2.removeChild(testElement);
           setTruncatedData({
@@ -47863,9 +47861,7 @@ categories: ${categories.join(" ")}`;
           const testHTML = [
             `<li class="breadcrumb-item">${firstSegment.text}</li>`,
             `<li class="breadcrumb-item">...</li>`,
-            ...segments.slice(segments.length - 1 - endCount, -1).map(
-              (s) => `<li class="breadcrumb-item">${s.text}</li>`
-            ),
+            ...segments.slice(segments.length - 1 - endCount, -1).map((s) => `<li class="breadcrumb-item">${s.text}</li>`),
             `<li class="breadcrumb-item">${lastSegment.text}</li>`
           ].join("");
           testElement.innerHTML = testHTML;

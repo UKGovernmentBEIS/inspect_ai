@@ -13,7 +13,7 @@ interface TruncatedBreadcrumbs {
 
 export const useBreadcrumbTruncation = (
   segments: BreadcrumbSegment[],
-  containerRef: RefObject<HTMLElement | null>
+  containerRef: RefObject<HTMLElement | null>,
 ): TruncatedBreadcrumbs => {
   const [truncatedData, setTruncatedData] = useState<TruncatedBreadcrumbs>({
     visibleSegments: segments,
@@ -33,23 +33,23 @@ export const useBreadcrumbTruncation = (
 
     const container = containerRef.current;
     const containerWidth = container.offsetWidth;
-    
+
     // Create a test element to measure breadcrumb widths
-    const testElement = document.createElement('ol');
-    testElement.className = 'breadcrumb';
-    testElement.style.position = 'absolute';
-    testElement.style.visibility = 'hidden';
-    testElement.style.whiteSpace = 'nowrap';
-    testElement.style.margin = '0';
-    testElement.style.padding = '0';
-    
+    const testElement = document.createElement("ol");
+    testElement.className = "breadcrumb";
+    testElement.style.position = "absolute";
+    testElement.style.visibility = "hidden";
+    testElement.style.whiteSpace = "nowrap";
+    testElement.style.margin = "0";
+    testElement.style.padding = "0";
+
     container.appendChild(testElement);
 
     // Test if all segments fit
-    testElement.innerHTML = segments.map(segment => 
-      `<li class="breadcrumb-item">${segment.text}</li>`
-    ).join('');
-    
+    testElement.innerHTML = segments
+      .map((segment) => `<li class="breadcrumb-item">${segment.text}</li>`)
+      .join("");
+
     if (testElement.scrollWidth <= containerWidth) {
       container.removeChild(testElement);
       setTruncatedData({
@@ -64,9 +64,9 @@ export const useBreadcrumbTruncation = (
     // Always keep first and last segments
     const firstSegment = segments[0];
     const lastSegment = segments[segments.length - 1];
-    
+
     let maxVisible = 2; // Start with just first and last
-    
+
     // Try adding segments from the end (most recent path) first
     for (let endCount = 1; endCount < segments.length - 1; endCount++) {
       const candidateSegments = [
@@ -74,19 +74,19 @@ export const useBreadcrumbTruncation = (
         ...segments.slice(segments.length - 1 - endCount, -1),
         lastSegment,
       ];
-      
+
       // Test with ellipsis
       const testHTML = [
         `<li class="breadcrumb-item">${firstSegment.text}</li>`,
         `<li class="breadcrumb-item">...</li>`,
-        ...segments.slice(segments.length - 1 - endCount, -1).map(s => 
-          `<li class="breadcrumb-item">${s.text}</li>`
-        ),
+        ...segments
+          .slice(segments.length - 1 - endCount, -1)
+          .map((s) => `<li class="breadcrumb-item">${s.text}</li>`),
         `<li class="breadcrumb-item">${lastSegment.text}</li>`,
-      ].join('');
-      
+      ].join("");
+
       testElement.innerHTML = testHTML;
-      
+
       if (testElement.scrollWidth <= containerWidth) {
         maxVisible = candidateSegments.length;
         setTruncatedData({
@@ -113,12 +113,12 @@ export const useBreadcrumbTruncation = (
 
   useEffect(() => {
     measureAndTruncate();
-    
+
     const resizeObserver = new ResizeObserver(measureAndTruncate);
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }
-    
+
     return () => {
       resizeObserver.disconnect();
     };

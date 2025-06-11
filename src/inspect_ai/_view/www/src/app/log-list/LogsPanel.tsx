@@ -42,7 +42,6 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
     clearSelectedLogSummary();
   }, []);
 
-
   const { logPath } = useLogRouteParams();
 
   const currentDir = join(logPath || "", logs.log_dir);
