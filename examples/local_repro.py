@@ -40,7 +40,7 @@ def exec_hang_solver():
 
 
 setup_script = f"""
-dd if=/dev/zero bs=1M count=11 > {FILE_PATH} 2>/dev/null
+dd if=/dev/zero bs=1M count=9 > {FILE_PATH} 2>/dev/null
 """
 
 
@@ -70,10 +70,10 @@ if __name__ == "__main__":
     eval(
         exec_hang_mre(),
         model="mockllm/model",
-        epochs=40,
+        epochs=100,
         max_sandboxes=500,
         max_connections=500,
         max_subprocesses=500,
         log_level="INFO",
-        display="full",
+        display="plain",
     )
