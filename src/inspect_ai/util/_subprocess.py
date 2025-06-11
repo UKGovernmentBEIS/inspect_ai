@@ -2,7 +2,6 @@ import functools
 import io
 import os
 import shlex
-import sys
 from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -40,17 +39,6 @@ class ExecResult(Generic[T]):
 
     stderr: T
     """Contents of stderr."""
-
-
-async def drain(stream: ByteReceiveStream | None) -> None:
-    if stream is None:
-        return
-    try:
-        # drain the stream to avoid deadlocks
-        async for _ in stream:
-            pass
-    except ClosedResourceError:
-        pass
 
 
 @overload
@@ -186,15 +174,12 @@ async def subprocess(
                     stdout=stdout if capture_output else bytes(),
                     stderr=stderr if capture_output else bytes(),
                 )
-        except Exception as e:
-            logger.error(f"Exception in subprocess {process.pid}: {repr(e)}.")
-            raise e
         finally:
             try:
                 with anyio.CancelScope(shield=True):
                     async with create_task_group() as tg:
-                        tg.start_soon(drain, process.stdout)
-                        tg.start_soon(drain, process.stderr)
+                        tg.start_soon(drain_stream, process.stdout)
+                        tg.start_soon(drain_stream, process.stderr)
                     await process.aclose()
             except ProcessLookupError:
                 # the anyio ansycio backend calls process.kill() from within
@@ -207,7 +192,6 @@ async def subprocess(
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
         # run the command and capture the process handle
         async with aclosing(run_command()) as rc:
-            # logger.info("anext rc to get process handle")
             proc = cast(Process, await anext(rc))
 
             # await result wrapped in timeout handler if requested
@@ -217,34 +201,16 @@ async def subprocess(
                         result = await anext(rc)
                         return cast(Union[ExecResult[str], ExecResult[bytes]], result)
                 except TimeoutError:
-                    # logger.warning(f"Subprocess timed out {proc.pid}")
+                    logger.warning("Timed out!")
                     # terminate timed out process -- try for graceful termination
                     # then be more forceful if requied
                     # with anyio.CancelScope(shield=True):
                     #     try:
-                    #         logger.warning(
-                    #             f"Sending terminate signal to subprocess {proc.pid}."
-                    #         )
                     #         proc.terminate()
-                    #         logger.warning(
-                    #             f"Sent terminate signal to subprocess {proc.pid}."
-                    #         )
                     #         await anyio.sleep(2)
-                    #         logger.warning(
-                    #             f"Slept 2 seconds after terminate signal to {proc.pid}; return code: {proc.returncode}."
-                    #         )
                     #         if proc.returncode is None:
-                    #             logger.warning(
-                    #                 f"Subprocess did not terminate, sending kill signal to {proc.pid}."
-                    #             )
                     #             proc.kill()
-                    #             logger.warning(
-                    #                 f"Sent kill signal to subprocess {proc.pid}."
-                    #             )
                     #     except Exception as e:
-                    #         logger.warning(
-                    #             f"Exception while trying to terminate/kill subprocess {e} - {proc.pid} - {proc} - {proc.returncode}."
-                    #         )
                     #         pass
                     raise
             # await result without timeout
@@ -269,6 +235,16 @@ def init_max_subprocesses(max_subprocesses: int | None = None) -> None:
 def default_max_subprocesses() -> int:
     cpus = os.cpu_count()
     return cpus if cpus else 1
+
+
+async def drain_stream(stream: ByteReceiveStream | None) -> None:
+    if stream is None:
+        return
+    try:
+        async for _ in stream:
+            pass
+    except ClosedResourceError:
+        pass
 
 
 max_subprocesses_context_var = ContextVar[int](
