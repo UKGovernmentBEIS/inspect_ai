@@ -2,13 +2,13 @@ import functools
 import io
 import os
 import shlex
+import sys
 from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
-import sys
 from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
 
 import anyio
@@ -204,30 +204,12 @@ async def subprocess(
             logger.error(f"Exception in subprocess {process.pid}: {repr(e)}.")
             raise e
         finally:
-            logger.info(
-                f"Finally block for process {process.pid}; {sys.exc_info()[0]}."
-            )
             try:
-                with anyio.move_on_after(2, shield=True):
-                    logger.info(f"Awaiting process {process.pid} to drain streams.")
-                    try:
-                        async with create_task_group() as tg:
-                            tg.start_soon(drain, process.stdout)
-                            tg.start_soon(drain, process.stderr)
-                        await process.aclose()
-                    except* Exception as e:
-                        logger.error(
-                            f"Exception while draining streams for process {process.pid}: {repr(e)}."
-                        )
-                        raise e
-                    # await process.stdout.aclose()
-                    # await process.stderr.aclose()
-                    logger.info(f"Awaiting process {process.pid} to close.")
-                    # await process.aclose()
-                    # process.terminate()
-                    # logger.info(f"Process {process.pid} closed.")
-                    pass
-                logger.info(f"Process {process.pid} closed or moved on after.")
+                with anyio.CancelScope(shield=True):
+                    async with create_task_group() as tg:
+                        tg.start_soon(drain, process.stdout)
+                        tg.start_soon(drain, process.stderr)
+                    await process.aclose()
             except ProcessLookupError:
                 # the anyio ansycio backend calls process.kill() from within
                 # its aclose() method without an enclosing exception handler
