@@ -370,7 +370,7 @@ The `web_search()` tool provides models the ability to enhance their context win
 
 -   Internal providers: "openai" and "anthropic" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
 
--   External providers: "tavily" and "google". These are external services that work with any model and require separate accounts and API keys.
+-   External providers: "tavily", "exa", and "google". These are external services that work with any model and require separate accounts and API keys.
 
 Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
 
@@ -388,6 +388,12 @@ web_search(["openai", "tavily"])
 # provider with specific options
 web_search({"tavily": {"max_results": 5}})
 
+# using exa provider
+web_search("exa")
+
+# exa with specific options
+web_search({"exa": {"model": "exa-pro"}})
+
 # multiple providers with options
 web_search([{"openai": True}, {"google": {"num_results": 5}}])
 ```
@@ -398,7 +404,7 @@ The `web_search()` tool can use OpenAI's built-in search capability when running
 
 For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
-Note that when using the "openai" provider, you should also specify a fallback external provider (like "tavily" or "google") if you are also running the evaluation with non-OpenAI model.
+Note that when using the "openai" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-OpenAI model.
 
 ### Anthropic Options
 
@@ -414,7 +420,7 @@ The `web_search()` tool can use Anthropic's built-in search capability when runn
 
 For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
 
-Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily" or "google") if you are also running the evaluation with non-Anthropic model.
+Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Anthropic model.
 
 ### Tavily Options
 
@@ -434,6 +440,22 @@ Tavily supports the following options:
 | `max_connections` | Maximum number of concurrent connections |
 
 For more options, see the [Tavily API Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
+
+### Exa Options
+
+The `web_search()` tool can use [Exa](https://exa.ai/)'s Answer API. To use it you will need to set up your own Exa account. Then, ensure that the following environment variable is defined:
+
+-   `EXA_API_KEY` — Exa API key
+
+Exa supports the following options:
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `text` | Whether to include text content in citations (defaults to true) |
+| `model` | LLM model to use for generating the answer ("exa" or "exa-pro") |
+| `max_connections` | Maximum number of concurrent connections |
+
+For more details, see the [Exa API Documentation](https://docs.exa.ai/reference/answer).
 
 #### Google Options
 
