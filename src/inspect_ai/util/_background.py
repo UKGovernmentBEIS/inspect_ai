@@ -15,6 +15,14 @@ def background(
 ) -> None:
     """Run an async function in the background of the current sample.
 
+    ::: callout-note
+    The `background()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
     Background functions must be run from an executing sample.
     The function will run as long as the current sample is running.
 

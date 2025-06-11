@@ -205,7 +205,6 @@ Limits are often applied at the sample level or using a context manager. It is a
 
 {{< include _agent_limits.md >}}
 
-
 ## Parameters
 
 The `web_surfer` agent used an example above doesn't take any parameters, however, like tools, agents can accept arbitrary parameters.
@@ -324,7 +323,15 @@ There are two reasons that you might want to create spans:
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
 
-## Parallel Execution
+## Parallelism
+
+There are two ways to run code in parallel within an agent:
+
+1.  The `collect()` function which runs an abritrary list of functions in parallel (returning the results as a list).
+
+2.  The `background()` function which runs a task in the background of the current sample (the task terminates when the sample terminates).
+
+### collect()
 
 You can execute subtasks in parallel using the `collect()` function. For example, to run 3 `web_search()` coroutines in parallel:
 
@@ -343,3 +350,36 @@ Note that `collect()` is similar to [`asyncio.gather()`](https://docs.python.org
 The Inspect `collect()` function also automatically includes each task in a `span()`, which ensures that its events are grouped together in the transcript.
 
 Using `collect()` in preference to `asyncio.gather()` is highly recommended for both Trio compatibility and more legible transcript output.
+
+### background()
+
+::: callout-note
+The `background()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `background()` function enables you to execute an async task in the background of the current sample. The task terminates when the sample terminates. For example:
+
+``` python
+import anyio
+from inspect_ai.util import background
+
+async def worker():
+    try:
+        while True:
+            # background work
+            anyio.sleep(1.0)
+    finally:
+        # cleanup
+
+background(worker)
+```
+
+The above code demonstrates a couple of important characteristics of a sample background worker:
+
+1.  Background workers typically operate in a loop, often polling a a sandbox or other endpoint for activity. In a loop like this it's important to sleep at regular intervals so your background work doesn't monopolise CPU resources.
+
+2.  When the sample ends, background workers are cancelled (which results in a cancelled error being raised in the worker). Therefore, if you need to do cleanup in your worker it should occur in a `finally` block.
