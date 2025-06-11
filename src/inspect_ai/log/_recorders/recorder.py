@@ -51,12 +51,21 @@ class Recorder(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog: ...
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+        validate: bool = False,
+    ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
     async def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
+        cls,
+        location: str,
+        id: str | int,
+        epoch: int = 1,
+        validate: bool = False,
     ) -> EvalSample: ...
 
     @classmethod
