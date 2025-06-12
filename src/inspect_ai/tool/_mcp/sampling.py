@@ -111,7 +111,7 @@ def as_inspect_content(
         else:
             raise ValueError(f"Unsupported audio mime type: {content.mimeType}")
         return ContentAudio(
-            audio=f"data:image/{content.mimeType};base64,{content.data}",
+            audio=f"data:audio/{content.mimeType};base64,{content.data}",
             format=format,
         )
     elif isinstance(content.resource, TextResourceContents):
