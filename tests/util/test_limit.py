@@ -13,9 +13,9 @@ from inspect_ai.util._limit import (
     apply_limits,
     check_message_limit,
     check_token_limit,
-    sample_limits,
     message_limit,
     record_model_usage,
+    sample_limits,
     time_limit,
     token_limit,
 )
