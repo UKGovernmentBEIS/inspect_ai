@@ -43335,7 +43335,8 @@ ${citation.url}`,
         role: "system",
         content: systemContent,
         source: "input",
-        internal: null
+        internal: null,
+        metadata: null
       };
       if (systemMessage && systemMessage.content.length > 0) {
         collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
@@ -87079,7 +87080,7 @@ Supported expressions:
       }
     };
     const ghCommitUrl = (origin, commit) => {
-      const baseUrl2 = origin.replace(/\.git$/, "");
+      const baseUrl2 = origin.replace(/\.git$/, "").replace(/^git@github.com:/, "https://github.com/");
       return `${baseUrl2}/commit/${commit}`;
     };
     const grid = "_grid_er9fb_1";

@@ -369,13 +369,7 @@ def _openai_input_items_from_chat_message_assistant(
         str | None, list[ResponseOutputTextParam | ResponseOutputRefusalParam]
     ] = {}
 
-    for content in (
-        list[ContentText | ContentReasoning]([ContentText(text=message.content)])
-        if isinstance(message.content, str)
-        else [
-            c for c in message.content if isinstance(c, ContentText | ContentReasoning)
-        ]
-    ):
+    for content in _filter_consecutive_reasoning_blocks(content_items):
         match content:
             case ContentReasoning(reasoning=reasoning):
                 assert content.signature is not None, (
@@ -560,3 +554,26 @@ def _to_inspect_citation(input: Annotation) -> Citation:
         ):
             return DocumentCitation(internal={"file_id": file_id, "index": index})
     assert False, f"Unexpected citation type: {input.type}"
+
+
+def _filter_consecutive_reasoning_blocks(
+    content_list: list[ContentText | ContentReasoning],
+) -> list[ContentText | ContentReasoning]:
+    return [
+        content
+        for i, content in enumerate(content_list)
+        if _should_keep_content(i, content, content_list)
+    ]
+
+
+def _should_keep_content(
+    i: int,
+    content: ContentText | ContentReasoning,
+    content_list: list[ContentText | ContentReasoning],
+) -> bool:
+    return (
+        True
+        if not isinstance(content, ContentReasoning)
+        else i == len(content_list) - 1
+        or not isinstance(content_list[i + 1], ContentReasoning)
+    )

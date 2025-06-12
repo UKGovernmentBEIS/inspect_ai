@@ -26,6 +26,7 @@ from google.genai.types import (
     GenerateContentResponse,
     GenerateContentResponsePromptFeedback,
     GenerateContentResponseUsageMetadata,
+    GoogleSearch,
     HarmBlockThreshold,
     HarmCategory,
     HttpOptions,
@@ -75,6 +76,7 @@ from inspect_ai.model import (
     TopLogprob,
 )
 from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._providers._google_citations import get_candidate_citations
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -248,7 +250,7 @@ class GoogleGenAIAPI(ModelAPI):
 
         # Create google-genai types.
         gemini_contents = await as_chat_messages(client, input)
-        gemini_tools = chat_tools(tools) if len(tools) > 0 else None
+        gemini_tools = self.chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
         parameters = GenerateContentConfig(
             http_options=HttpOptions(headers={HttpHooks.REQUEST_ID_HEADER: request_id}),
@@ -362,6 +364,61 @@ class GoogleGenAIAPI(ModelAPI):
             )
         else:
             return None
+
+    def _use_native_search(self, tool: ToolInfo) -> bool:
+        return (
+            tool.name == "web_search"
+            and tool.options is not None
+            and "gemini" in tool.options
+            # Support "starts with" Gemini 2.0
+            and (self.is_gemini() and not self.is_gemini_1_5())
+        )
+
+    def _categorize_tool(
+        self, acc: tuple[bool, list[FunctionDeclaration]], tool: ToolInfo
+    ) -> tuple[bool, list[FunctionDeclaration]]:
+        """Reducer function that categorizes tools into native search vs function declarations.
+
+        Returns:
+            Tuple of (has_native_search, function_declarations) where has_native_search
+            is True if any tool uses native search, and function_declarations contains
+            all non-native-search tools converted to FunctionDeclaration objects.
+        """
+        return (
+            (True, acc[1])
+            if self._use_native_search(tool)
+            else (
+                acc[0],
+                acc[1]
+                + [
+                    FunctionDeclaration(
+                        name=tool.name,
+                        description=tool.description,
+                        parameters=schema_from_param(tool.parameters)
+                        if len(tool.parameters.properties) > 0
+                        else None,
+                    )
+                ],
+            )
+        )
+
+    def chat_tools(self, tools: list[ToolInfo]) -> ToolListUnion:
+        has_native_search, function_declarations = functools.reduce(
+            self._categorize_tool, tools, (False, list[FunctionDeclaration]())
+        )
+
+        # TODO: Google doesn't yet support native search concurrently with other tools.
+        # Revisit this from time to time to adapt when they fix it.
+        if has_native_search and function_declarations:
+            raise ValueError(
+                "Gemini does not yet support native search concurrently with other tools."
+            )
+
+        return (
+            [Tool(google_search=GoogleSearch())]
+            if has_native_search
+            else [Tool(function_declarations=function_declarations)]
+        )
 
 
 def safety_settings_to_list(
@@ -541,20 +598,6 @@ async def extract_system_message_as_parts(
     return system_parts or None
 
 
-def chat_tools(tools: list[ToolInfo]) -> ToolListUnion:
-    declarations = [
-        FunctionDeclaration(
-            name=tool.name,
-            description=tool.description,
-            parameters=schema_from_param(tool.parameters)
-            if len(tool.parameters.properties) > 0
-            else None,
-        )
-        for tool in tools
-    ]
-    return [Tool(function_declarations=declarations)]
-
-
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
 def schema_from_param(
     param: ToolParam | ToolParams, nullable: bool | None = False
@@ -666,13 +709,29 @@ def completion_choice_from_candidate(
     elif candidate.content.parts is None:
         content = ""
     else:
-        content = []
-        for part in candidate.content.parts:
-            if part.text is not None:
-                if part.thought is True:
-                    content.append(ContentReasoning(reasoning=part.text))
-                else:
-                    content.append(ContentText(text=part.text))
+        # Google's grounded search metadata provides start/end indices for cited
+        # text based on the joining of all separate text parts (despite the doc
+        # suggesting that they provide part_index). Thankfully, the doc also says:
+        #
+        #   Exactly one field within a Part should be set, representing the specific type
+        #   of content being conveyed. Using multiple fields within the same `Part`
+        #   instance is considered invalid.
+        #
+        # That means that we can safely collapse adjacent parts with a `text` field
+        # and not fear that we're breaking other types of content parts
+        parts = functools.reduce(
+            _combine_text_parts, candidate.content.parts, list[Part]()
+        )
+
+        content = [
+            ContentReasoning(reasoning=part.text)
+            if part.thought is True
+            else ContentText(
+                text=part.text, citations=get_candidate_citations(candidate)
+            )
+            for part in parts
+            if part.text is not None
+        ]
 
     # now tool calls
     tool_calls: list[ToolCall] = []
@@ -926,3 +985,12 @@ async def file_for_content(
         files_db.put(content_sha256, str(upload.name))
         # return the file
         return upload
+
+
+def _combine_text_parts(acc: list[Part], part: Part) -> list[Part]:
+    """Combine adjacent text parts into a single part."""
+    return (
+        acc + [part]
+        if part.text is None or len(acc) == 0 or acc[-1].text is None
+        else acc[:-1] + [Part(text=acc[-1].text + part.text)]
+    )

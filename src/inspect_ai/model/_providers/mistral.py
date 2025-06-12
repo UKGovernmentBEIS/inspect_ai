@@ -44,9 +44,15 @@ from typing_extensions import override
 # TODO: Migration guide:
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
 from inspect_ai._util.constants import NO_CONTENT
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
@@ -481,26 +487,33 @@ def completion_content(content: str | list[ContentChunk]) -> str | list[Content]
     if isinstance(content, str):
         return content
     else:
-        return [completion_content_chunk(c) for c in content]
+        return [item for c in content for item in completion_content_chunks(c)]
 
 
-def completion_content_chunk(content: ContentChunk) -> Content:
+def completion_content_chunks(content: ContentChunk) -> list[Content]:
     if isinstance(content, ReferenceChunk):
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
-        return ContentText(text=content.text)
+        parsed = parse_content_with_reasoning(content.text)
+        if parsed:
+            return [
+                ContentReasoning(reasoning=parsed.reasoning),
+                ContentText(text=parsed.content),
+            ]
+        else:
+            return [ContentText(text=content.text)]
     elif isinstance(content, DocumentURLChunk):
-        return ContentText(text=content.document_url)
+        return [ContentText(text=content.document_url)]
     else:
         if isinstance(content.image_url, str):
-            return ContentImage(image=content.image_url)
+            return [ContentImage(image=content.image_url)]
         else:
             match content.image_url.detail:
                 case "low" | "high":
                     detail: Literal["auto", "low", "high"] = content.image_url.detail
                 case _:
                     detail = "auto"
-            return ContentImage(image=content.image_url.url, detail=detail)
+            return [ContentImage(image=content.image_url.url, detail=detail)]
 
 
 def completion_choices_from_response(
