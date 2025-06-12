@@ -1,3 +1,8 @@
+## Unreleased
+
+- Agent handoff: Ensure that handoff tool call responses immediately follow the call.
+- Agent handoff: Only print handoff agent prefix if there is assistant message content.
+
 ## v0.3.104 (12 June 2025)
 
 - Web Search: Added provider for Anthropic's internal web search tool.
