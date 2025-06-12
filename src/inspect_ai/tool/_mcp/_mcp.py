@@ -12,6 +12,7 @@ from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.types import (
+    AudioContent,
     EmbeddedResource,
     ImageContent,
     TextContent,
@@ -282,14 +283,16 @@ def create_server_sandbox(
 
 
 def tool_result_as_text(
-    content: list[TextContent | ImageContent | EmbeddedResource],
+    content: list[TextContent | ImageContent | AudioContent | EmbeddedResource],
 ) -> str:
     content_list: list[str] = []
     for c in content:
         if isinstance(c, TextContent):
             content_list.append(c.text)
         elif isinstance(c, ImageContent):
-            content_list.append("(base64 encoded image ommitted)")
+            content_list.append("(base64 encoded image omitted)")
+        elif isinstance(c, AudioContent):
+            content_list.append("(base64 encoded audio omitted)")
         elif isinstance(c.resource, TextResourceContents):
             content_list.append(c.resource.text)
 

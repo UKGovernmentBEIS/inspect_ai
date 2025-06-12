@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Any, Literal
 
 from mcp.client.session import ClientSession
 from mcp.shared.context import RequestContext
 from mcp.types import (
     INTERNAL_ERROR,
+    AudioContent,
     CreateMessageRequestParams,
     CreateMessageResult,
     EmbeddedResource,
@@ -16,7 +17,7 @@ from mcp.types import (
     StopReason as MCPStopReason,
 )
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 
@@ -93,13 +94,25 @@ async def sampling_fn(
 
 
 def as_inspect_content(
-    content: TextContent | ImageContent | EmbeddedResource,
+    content: TextContent | ImageContent | AudioContent | EmbeddedResource,
 ) -> Content:
     if isinstance(content, TextContent):
         return ContentText(text=content.text)
     elif isinstance(content, ImageContent):
         return ContentImage(
             image=f"data:image/{content.mimeType};base64,{content.data}"
+        )
+    elif isinstance(content, AudioContent):
+        format: Literal["wav", "mp3"]
+        if content.mimeType in ("audio/wav", "audio/x-wav"):
+            format = "wav"
+        elif content.mimeType == "audio/mpeg":
+            format = "mp3"
+        else:
+            raise ValueError(f"Unsupported audio mime type: {content.mimeType}")
+        return ContentAudio(
+            audio=f"data:image/{content.mimeType};base64,{content.data}",
+            format=format,
         )
     elif isinstance(content.resource, TextResourceContents):
         return ContentText(text=content.resource.text)
