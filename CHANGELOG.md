@@ -3,6 +3,7 @@
 - Anthropic: Support for binding to internal `web search()` tool.
 - Mistral: Support for capturing reasoning blocks for magistral models.
 - Add [Perplexity](https://inspect.aisi.org.uk/providers.html#perplexity) model provider.
+- ChatMessage: Add `metadata` field for arbitrary additional metadata.
 - Content: Added `ContentData` for model specific content blocks.
 - Citations: Added `Citation` suite of types and included citations in `ContentText` (supported for OpenAI and Anthropic models).
 - Eval log: `task_args` now includes defaulted args (formerly it only included explicitly passed args).
