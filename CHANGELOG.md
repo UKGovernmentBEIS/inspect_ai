@@ -15,7 +15,10 @@
 - Fix error writing Nan values to the `logs.json` summary file during bundling.
 - Inspect View: Add support for displaying citations for web searches in the transcript.
 - Inspect View: Correctly update browser URL when navigation between samples.
+- Web Search: Added provider for [Exa](https://exa.ai/exa-api) Search API.
+- OpenAI: Work around OpenAI Responses API issue by filtering out leading consecutive reasoning blocks.
 - Bugfix: Properly honor `responses_api=False` when pass as an OpenAI model config arg.
+- Bugfix: Limits passed to handoffs can be used multiple times (if agent is handed off to multiple times).
 
 ## v0.3.103 (06 June 2025)
 

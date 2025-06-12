@@ -12,11 +12,14 @@ from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai.tool._tool_def import ToolDef
 
 from ..._tool import Tool, ToolResult, tool
+from ._exa import ExaOptions, exa_search_provider
 from ._google import GoogleOptions, google_search_provider
 from ._tavily import TavilyOptions, tavily_search_provider
 from ._web_search_provider import SearchProvider
 
-Provider: TypeAlias = Literal["openai", "anthropic", "tavily", "google"]  # , "gemini"
+Provider: TypeAlias = Literal[
+    "openai", "anthropic", "tavily", "google", "exa"
+]  # , "gemini"
 valid_providers = set(get_args(Provider))
 
 
@@ -33,6 +36,7 @@ class Providers(TypedDict, total=False):
     anthropic: dict[str, Any] | Literal[True]
     tavily: dict[str, Any] | Literal[True]
     google: dict[str, Any] | Literal[True]
+    exa: dict[str, Any] | Literal[True]
 
 
 class _NormalizedProviders(TypedDict, total=False):
@@ -40,6 +44,7 @@ class _NormalizedProviders(TypedDict, total=False):
     anthropic: dict[str, Any]
     tavily: dict[str, Any]
     google: dict[str, Any]
+    exa: dict[str, Any]
 
 
 class WebSearchDeprecatedArgs(TypedDict, total=False):
@@ -65,8 +70,8 @@ def web_search(
       their respective model provider (e.g. the "openai" search provider
       works only for `openai/*` models).
 
-    - External providers: "tavily" and "google". These are external services
-      that work with any m odel and require separate accounts and API keys.
+    - External providers: "tavily", "google", and "exa". These are external services
+      that work with any model and require separate accounts and API keys.
 
     Internal providers will be prioritized if running on the corresponding model
     (e.g., "openai" provider will be used when running on `openai` models). If an
@@ -77,12 +82,12 @@ def web_search(
 
     Args:
       providers: Configuration for the search providers to use. Currently supported
-        providers are "openai", "anthropic", "tavily", and "google", The `providers`
-        parameter supports several formats based on either a `str` specifying a
-        provider or a `dict` whose keys are the provider names and whose values
-        are the provider-specific options. A single value or a list of these can
-        be passed. This arg is optional just for backwards compatibility. New code
-        should always provide this argument.
+        providers are "openai", "anthropic", "tavily", "google", and "exa". The
+        `providers` parameter supports several formats based on either a `str`
+        specifying a provider or a `dict` whose keys are the provider names and
+        whose values are the provider-specific options. A single value or a list
+        of these can be passed. This arg is optional just for backwards compatibility.
+        New code should always provide this argument.
 
         Single provider:
         ```
@@ -116,6 +121,9 @@ def web_search(
 
         - tavily: Supports options like `max_results`, `search_depth`, etc.
           See https://docs.tavily.com/documentation/api-reference/endpoint/search
+
+        - exa: Supports options like `text`, `model`, etc.
+          See https://docs.exa.ai/reference/answer
 
         - google: Supports options like `num_results`, `max_provider_calls`,
           `max_connections`, and `model`
@@ -229,7 +237,7 @@ def _normalize_config(
 
 
 def _get_config_via_back_compat(
-    provider: Literal["tavily", "google"],
+    provider: Literal["tavily", "google", "exa"],
     num_results: int | None,
     max_provider_calls: int | None,
     max_connections: int | None,
@@ -241,7 +249,12 @@ def _get_config_via_back_compat(
         and max_connections is None
         and model is None
     ):
-        return {"google": {}} if provider == "google" else {"tavily": {}}
+        if provider == "google":
+            return {"google": {}}
+        elif provider == "exa":
+            return {"exa": {}}
+        else:
+            return {"tavily": {}}
 
     # If we get here, we have at least one old school parameter
     deprecation_warning(
@@ -257,6 +270,12 @@ def _get_config_via_back_compat(
                 model=model,
             ).model_dump(exclude_none=True)
         }
+    elif provider == "exa":
+        return {
+            "exa": ExaOptions(max_connections=max_connections).model_dump(
+                exclude_none=True
+            )
+        }
     else:
         return {
             "tavily": TavilyOptions(
@@ -270,6 +289,9 @@ def _create_external_provider(
 ) -> SearchProvider:
     if "tavily" in providers:
         return tavily_search_provider(providers.get("tavily"))
+
+    if "exa" in providers:
+        return exa_search_provider(providers.get("exa"))
 
     if "google" in providers:
         return google_search_provider(providers.get("google"))
