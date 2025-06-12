@@ -1,5 +1,12 @@
+import sys
 from logging import getLogger
-from typing import Any, Awaitable, Callable, TypeVarTuple
+from typing import Any, Awaitable, Callable
+
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple
+else:
+    from typing_extensions import TypeVarTuple
+
 
 from typing_extensions import Unpack
 
