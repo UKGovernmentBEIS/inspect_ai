@@ -1,3 +1,8 @@
+## Unreleased
+
+- [background()](https://inspect.aisi.org.uk/agent-custom.html#background) function for executing work in the background of the current sample.
+- [sandbox_service()](https://inspect.aisi.org.uk/agent-custom.html#sandbox-service) function for making available methods to a sandbox for calling back into the main Inspect process.
+
 ## v0.3.104 (12 June 2025)
 
 - Web Search: Added provider for Anthropic's internal web search tool.
