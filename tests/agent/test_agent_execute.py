@@ -287,6 +287,28 @@ def test_agent_handoff_respects_limits():
     check_limit_event(log, "message")
 
 
+def test_agent_handoff_does_not_reuse_limits():
+    agent_tool = handoff(looping_agent(), limits=[message_limit(10)])
+
+    log = eval(
+        Task(
+            solver=[
+                use_tools(agent_tool),
+                call_looping_agent("transfer_to_looping_agent", arguments={}),
+                call_looping_agent("transfer_to_looping_agent", arguments={}),
+            ]
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert (
+        log.samples[0].messages[-1].content
+        == "The looping_agent exceeded its message limit of 10."
+    )
+    check_limit_event(log, "message")
+
+
 def test_agent_handoff_respects_sample_limits():
     agent_tool = handoff(looping_agent())
 
