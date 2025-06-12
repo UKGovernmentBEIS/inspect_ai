@@ -8,18 +8,18 @@
 - Citations: Added `Citation` suite of types and included citations in `ContentText` (supported for OpenAI and Anthropic models).
 - Eval log: `task_args` now includes defaulted args (formerly it only included explicitly passed args).
 - Eval set: `retry_connections` now defaults to 1.0 (resulting in no reduction in connections across passes).
+  OpenAI: Work around OpenAI Responses API issue by filtering out leading consecutive reasoning blocks.
 - OpenAI compatible provider: Substitute `-` with `_` when looking up provider environment variables.
 - MCP: Update to types in latest release (1.9.4, which is now required).
 - Added development container (`.devcontainer`) configuration.
 - `trim_messages()` now removes any trailing assistant message after compaction.
+- Web Search: Added provider for [Exa](https://exa.ai/exa-api) Search API.
+- Web Search: Added provider for Google's [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/grounding) .
 - Task display: Ensure that full path to log file is always displayed (wrap as required).
 - Task display: Wrap scorers and scores in the task detail display.
 - Fix error writing Nan values to the `logs.json` summary file during bundling.
 - Inspect View: Add support for displaying citations for web searches in the transcript.
 - Inspect View: Correctly update browser URL when navigation between samples.
-- Web Search: Added provider for [Exa](https://exa.ai/exa-api) Search API.
-- OpenAI: Work around OpenAI Responses API issue by filtering out leading consecutive reasoning blocks.
-- Web Search: Added provider for Google's [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/grounding) .
 - Bugfix: Properly honor `responses_api=False` when pass as an OpenAI model config arg.
 - Bugfix: Limits passed to handoffs can be used multiple times (if agent is handed off to multiple times).
 - Bugfix: Replace invalid surrogate characters when serializing strings to JSON.
