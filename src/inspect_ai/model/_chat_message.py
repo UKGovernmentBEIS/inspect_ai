@@ -26,6 +26,9 @@ class ChatMessageBase(BaseModel):
     source: Literal["input", "generate"] | None = Field(default=None)
     """Source of message."""
 
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional message metadata."""
+
     internal: JsonValue | None = Field(default=None)
     """Model provider specific payload - typically used to aid transformation back to model types."""
 
