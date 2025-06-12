@@ -11,7 +11,7 @@ from typing import Generic, Literal, TypeVar, Union, overload
 
 import anyio
 from anyio import ClosedResourceError, create_task_group, open_process
-from anyio.abc import ByteReceiveStream
+from anyio.abc import ByteReceiveStream, Process
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.trace import trace_action
@@ -168,16 +168,13 @@ async def subprocess(
                     stdout=stdout if capture_output else bytes(),
                     stderr=stderr if capture_output else bytes(),
                 )
+        # Handle cancellation before aclose() is called (which can result in deadlock).
+        except anyio.get_cancelled_exc_class():
+            await gracefully_terminate_cancelled_subprocesses(process)
+            raise
         finally:
             try:
-                with anyio.CancelScope(shield=True):
-                    # With asyncio, aclose() can deadlock if the process generates so
-                    # much output that it fills the pipe buffers, waiting on the OS pipe
-                    # buffer to accept more data. Drain the streams.
-                    async with create_task_group() as tg:
-                        tg.start_soon(drain_stream, process.stdout)
-                        tg.start_soon(drain_stream, process.stderr)
-                    await process.aclose()
+                await process.aclose()
             except ProcessLookupError:
                 # the anyio ansycio backend calls process.kill() from within
                 # its aclose() method without an enclosing exception handler
@@ -190,7 +187,7 @@ async def subprocess(
         # await result wrapped in timeout handler if requested
         if timeout is not None:
             with anyio.fail_after(timeout):
-                # run_command()'s finally block handles killing the process.
+                # run_command() handles terminating the process if it is cancelled.
                 return await run_command()
 
         # await result without timeout
@@ -214,6 +211,33 @@ def init_max_subprocesses(max_subprocesses: int | None = None) -> None:
 def default_max_subprocesses() -> int:
     cpus = os.cpu_count()
     return cpus if cpus else 1
+
+
+async def gracefully_terminate_cancelled_subprocesses(process: Process) -> None:
+    with anyio.CancelScope(shield=True):
+        # With anyio's asyncio backend, process.aclose() calls process.wait() which can
+        # deadlock if the process generates so much output that it blocks waiting for
+        # the OS pipe buffer to accept more data. See
+        # https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.wait
+        # Therefore, we need to ensure that the process's stdout and stderr streams are
+        # drained before we call process.wait() in aclose().
+
+        try:
+            # Terminate timed out process -- try for graceful termination then kill if
+            # required.
+            process.terminate()
+            await anyio.sleep(2)
+            if process.returncode is None:
+                process.kill()
+            # Drain the streams to avoid deadlocks when calling process.wait().
+            async with create_task_group() as tg:
+                tg.start_soon(drain_stream, process.stdout)
+                tg.start_soon(drain_stream, process.stderr)
+            # Wait for the process to exit. Will be called again by aclose().
+            await process.wait()
+        # The process may have already exited, in which case we can ignore the error.
+        except ProcessLookupError:
+            pass
 
 
 async def drain_stream(stream: ByteReceiveStream | None) -> None:
