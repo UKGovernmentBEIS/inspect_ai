@@ -43335,7 +43335,8 @@ ${citation.url}`,
         role: "system",
         content: systemContent,
         source: "input",
-        internal: null
+        internal: null,
+        metadata: null
       };
       if (systemMessage && systemMessage.content.length > 0) {
         collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
