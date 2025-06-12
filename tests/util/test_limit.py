@@ -13,7 +13,7 @@ from inspect_ai.util._limit import (
     apply_limits,
     check_message_limit,
     check_token_limit,
-    get_sample_limits,
+    sample_limits,
     message_limit,
     record_model_usage,
     time_limit,
@@ -146,7 +146,7 @@ async def test_apply_limits_handles_time_limit() -> None:
 
 def test_get_sample_limits_when_no_sample_running() -> None:
     with pytest.raises(RuntimeError):
-        get_sample_limits()
+        sample_limits()
 
 
 def test_get_sample_limits_within_eval() -> None:
@@ -154,19 +154,19 @@ def test_get_sample_limits_within_eval() -> None:
     def test_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             record_model_usage(ModelUsage(total_tokens=40))
-            sample_limits = get_sample_limits()
-            assert sample_limits["message"].limit == 10
-            assert sample_limits["token"].limit == 100
-            assert sample_limits["token"].remaining == 60
-            assert sample_limits["token"].usage == 40
-            assert sample_limits["time"].limit == 1_000
-            assert sample_limits["time"].usage > 0
-            assert sample_limits["working"].limit == 10_000
-            assert sample_limits["working"].usage > 0
+            limits = sample_limits()
+            assert limits["message"].limit == 10
+            assert limits["token"].limit == 100
+            assert limits["token"].remaining == 60
+            assert limits["token"].usage == 40
+            assert limits["time"].limit == 1_000
+            assert limits["time"].usage > 0
+            assert limits["working"].limit == 10_000
+            assert limits["working"].usage > 0
 
             # Verify that we still get the sample level limits when a scoped limit is active
             with token_limit(1):
-                assert get_sample_limits()["token"].limit == 10
+                assert sample_limits()["token"].limit == 10
 
             return state
 

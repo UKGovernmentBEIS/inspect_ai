@@ -171,7 +171,7 @@ class LimitScope:
         self.limit_error: LimitExceededError | None = None
 
 
-def get_sample_limits() -> dict[Literal["token", "message", "working", "time"], Limit]:
+def sample_limits() -> dict[Literal["token", "message", "working", "time"], Limit]:
     """Get the top-level limits applied to the current `Sample`."""
 
     def ensure_not_none(limit: Limit | None, name: str) -> Limit:

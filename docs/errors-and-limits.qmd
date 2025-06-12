@@ -210,11 +210,11 @@ raise LimitExceededError(
 We can determine how much of a sample limit has been used, what the limit is, and how much of the resource is remaining:
 
 ``` python
-sample_time_limit = get_sample_limits()["time"]
+sample_time_limit = sample_limits()["time"]
 print(f"{sample_time_limit.remaining:.0f} seconds remaining")
 ```
 
-Note that `get_sample_limits()` only retrieves the sample-level limits, not [scoped limits](#scoped-limits) or [agent limits](#agent-limits).
+Note that `sample_limits()` only retrieves the sample-level limits, not [scoped limits](#scoped-limits) or [agent limits](#agent-limits).
 
 
 ## Scoped Limits {#scoped-limits}

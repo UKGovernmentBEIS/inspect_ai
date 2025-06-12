@@ -16,7 +16,7 @@ title: "inspect_ai.util"
 ### time_limit
 ### working_limit
 ### apply_limits
-### get_sample_limits
+### sample_limits
 ### Limit
 ### LimitExceededError
 

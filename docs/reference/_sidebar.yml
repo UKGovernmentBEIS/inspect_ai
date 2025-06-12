@@ -555,8 +555,6 @@ website:
           href: reference/inspect_ai.util.qmd#working_limit
         - text: apply_limits
           href: reference/inspect_ai.util.qmd#apply_limits
-        - text: get_sample_limits
-          href: reference/inspect_ai.util.qmd#get_sample_limits
         - text: Limit
           href: reference/inspect_ai.util.qmd#limit
         - text: LimitExceededError
