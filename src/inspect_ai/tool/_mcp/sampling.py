@@ -103,16 +103,9 @@ def as_inspect_content(
             image=f"data:image/{content.mimeType};base64,{content.data}"
         )
     elif isinstance(content, AudioContent):
-        format: Literal["wav", "mp3"]
-        if content.mimeType in ("audio/wav", "audio/x-wav"):
-            format = "wav"
-        elif content.mimeType == "audio/mpeg":
-            format = "mp3"
-        else:
-            raise ValueError(f"Unsupported audio mime type: {content.mimeType}")
         return ContentAudio(
             audio=f"data:audio/{content.mimeType};base64,{content.data}",
-            format=format,
+            format=_get_audio_format(content.mimeType),
         )
     elif isinstance(content.resource, TextResourceContents):
         return ContentText(text=content.resource.text)
@@ -129,3 +122,13 @@ def as_mcp_content(content: ContentText | ContentImage) -> TextContent | ImageCo
             mimeType=data_uri_mime_type(content.image) or "image/png",
             data=data_uri_to_base64(content.image),
         )
+
+
+def _get_audio_format(mime_type: str) -> Literal["wav", "mp3"]:
+    """Helper function to determine audio format from MIME type."""
+    if mime_type in ("audio/wav", "audio/x-wav"):
+        return "wav"
+    elif mime_type == "audio/mpeg":
+        return "mp3"
+    else:
+        raise ValueError(f"Unsupported audio mime type: {mime_type}")
