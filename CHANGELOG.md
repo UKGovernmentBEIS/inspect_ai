@@ -19,6 +19,7 @@
 - OpenAI: Work around OpenAI Responses API issue by filtering out leading consecutive reasoning blocks.
 - Bugfix: Properly honor `responses_api=False` when pass as an OpenAI model config arg.
 - Bugfix: Limits passed to handoffs can be used multiple times (if agent is handed off to multiple times).
+- Bugfix: Replace invalid surrogate characters when serializing strings to JSON.
 
 ## v0.3.103 (06 June 2025)
 
