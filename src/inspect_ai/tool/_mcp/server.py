@@ -102,7 +102,7 @@ def mcp_server_sandbox(
 def verfify_mcp_package() -> None:
     FEATURE = "MCP tools"
     PACKAGE = "mcp"
-    MIN_VERSION = "1.8.0"
+    MIN_VERSION = "1.9.4"
 
     # verify we have the package
     try:

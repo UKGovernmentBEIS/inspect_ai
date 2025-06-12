@@ -9,6 +9,7 @@
 - Eval log: `task_args` now includes defaulted args (formerly it only included explicitly passed args).
 - Eval set: `retry_connections` now defaults to 1.0 (resulting in no reduction in connections across passes).
 - OpenAI compatible provider: Substitute `-` with `_` when looking up provider environment variables.
+- MCP: Update to types in latest release (1.9.4, which is now required).
 - Added development container (`.devcontainer`) configuration.
 - `trim_messages()` now removes any trailing assistant message after compaction.
 - Task display: Ensure that full path to log file is always displayed (wrap as required).
