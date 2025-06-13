@@ -534,11 +534,11 @@ def prepend_agent_name(
         content = copy(message.content)
         for i in range(0, len(content)):
             if isinstance(content[i], ContentText):
-                content[i] = content[i].model_copy(
-                    update=dict(
-                        text=f"[{agent_name}] {cast(ContentText, content[i]).text}"
+                text = cast(ContentText, content[i]).text
+                if text:
+                    content[i] = content[i].model_copy(
+                        update=dict(text=f"[{agent_name}] {text}")
                     )
-                )
                 break
         return message.model_copy(update=dict(content=content))
 

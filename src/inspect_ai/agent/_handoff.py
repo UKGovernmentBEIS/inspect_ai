@@ -6,7 +6,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
     set_registry_info,
 )
-from inspect_ai.tool._tool import Tool, ToolResult, ToolSource
+from inspect_ai.tool._tool import TOOL_PARALLEL, Tool, ToolResult, ToolSource
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_description import ToolDescription, set_tool_description
 from inspect_ai.util._limit import Limit
@@ -61,7 +61,10 @@ def handoff(
         agent, tool_info.name, input_filter, output_filter, limits, **agent_kwargs
     )
     tool_name = tool_name or f"transfer_to_{tool_info.name}"
-    set_registry_info(agent_tool, RegistryInfo(type="tool", name=tool_name))
+    set_registry_info(
+        agent_tool,
+        RegistryInfo(type="tool", name=tool_name, metadata={TOOL_PARALLEL: False}),
+    )
     set_tool_description(
         agent_tool,
         ToolDescription(
