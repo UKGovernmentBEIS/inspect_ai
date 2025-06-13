@@ -1,4 +1,6 @@
 import os
+import shutil
+import time
 from pathlib import Path
 from random import random
 
@@ -62,22 +64,44 @@ async def test_subprocess_env():
 
 @pytest.mark.anyio
 async def test_subprocess_timeout():
-    def process_found(pattern: str) -> bool:
-        return any(
-            pattern in " ".join(p.info["cmdline"] or [])
-            for p in psutil.process_iter(["cmdline"])
-        )
+    # The random() serves as adding a unique "signature" to the subprocess command
+    timeout_duration = 10 + random()
+    subprocess_cmds = ["sleep", str(timeout_duration)]
+    subprocess_pattern = " ".join(subprocess_cmds)
+    assert not _process_found(subprocess_pattern), (
+        f"There is already a process matching {subprocess_cmds}; the test isn't going to work"
+    )
 
-    timeout_length = random() * 60
-    subprocess_cmds = ["sleep", f"{2 + timeout_length}"]
-
-    if process_found(" ".join(subprocess_cmds)):
-        raise Exception(
-            f"There is already a process matching {subprocess_cmds}; the test isn't going to work"
-        )
-    try:
+    with pytest.raises(TimeoutError):
         await subprocess(subprocess_cmds, timeout=1)
-        assert False
-    except TimeoutError:
-        if process_found(" ".join(subprocess_cmds)):
-            assert False, "Process was not killed"
+
+    assert not _process_found(subprocess_pattern), "Process is still running"
+
+
+@pytest.mark.anyio
+@pytest.mark.slow
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+async def test_subprocess_which_ignores_sigterm_timeout():
+    timeout_duration = 10 + random()
+    subprocess_cmds = ["bash", "-c", f"trap '' TERM; sleep {timeout_duration}"]
+    subprocess_pattern = " ".join(subprocess_cmds)
+    assert not _process_found(subprocess_pattern), (
+        f"There is already a process matching {subprocess_cmds}; the test isn't going to work"
+    )
+    start_time = time.time()
+
+    with pytest.raises(TimeoutError):
+        await subprocess(subprocess_cmds, timeout=1)
+
+    assert not _process_found(subprocess_pattern), "Process is still running"
+    # process takes ~10s. subprocess() should return well within 5s
+    # (1s + 2s grace period + 2s tolerance). If not, it is likely that it was not killed
+    # and the process ran to completion.
+    assert time.time() - start_time < 5, "Process was not killed in time"
+
+
+def _process_found(pattern: str) -> bool:
+    return any(
+        pattern in " ".join(p.info["cmdline"] or [])
+        for p in psutil.process_iter(["cmdline"])
+    )
