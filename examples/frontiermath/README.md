@@ -15,6 +15,13 @@ To run the evaluation:
 inspect eval examples/frontiermath/project_euler.py --model <model-name>
 ```
 
-Replace `<model-name>` with the ID of the model you want to evaluate. The model
-will receive the problem statement along with instructions on how to use the
+Replace `<model-name>` with the ID of the model you want to evaluate. For example, to use Gemini 2.5 Pro, you might run:
+
+```bash
+inspect eval examples/frontiermath/project_euler.py --model google/gemini-2.5-pro-latest
+```
+
+**Note:** Ensure that the model ID (e.g., `google/gemini-2.5-pro-latest`) matches how Gemini 2.5 Pro is configured in your `inspect-ai` environment and that you have the necessary access and API keys set up.
+
+The model will receive the problem statement along with instructions on how to use the
 `python` and `submit_answer` tools.
