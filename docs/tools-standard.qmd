@@ -3,9 +3,129 @@ title: Standard Tools
 tbl-colwidths: [40,60]
 ---
 
-## Overview
+## Overview 
 
 {{< include _tools-standard.md >}}
+
+
+## Web Search {#sec-web-search}
+
+The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
+
+-   Internal providers: `"openai"`, `"anthropic"`, and `"gemini"` - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
+
+-   External providers: `"tavily"`, `"exa"`, and `"google"`. These are external services that work with any model and require separate accounts and API keys. Note that "google" is different from "gemini" - "google" refers to Google's Programmable Search Engine service, while "gemini" refers to Google's built-in search capability for Gemini models.
+
+Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
+
+You can configure the `web_search()` tool in various ways:
+
+``` python
+from inspect_ai.tool import web_search
+
+# single provider
+web_search("tavily")
+
+# internal provider and fallback
+web_search(["openai", "tavily"])
+
+# multiple internal providers and fallback
+web_search(["openai", "anthropic", "gemini", "tavily"])
+
+# provider with specific options
+web_search({"tavily": {"max_results": 5}})
+
+# multiple providers with options
+web_search({
+    "openai": True, 
+    "google": {"num_results": 5}, 
+    "tavily": {"max_results": 5}
+})
+```
+
+### OpenAI Options
+
+The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", and "gpt-4.1"). This provider does not require any API keys beyond what's needed for the model itself.
+
+For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
+
+Note that when using the "openai" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-OpenAI model.
+
+### Anthropic Options
+
+The `web_search()` tool can use Anthropic's built-in search capability when running on a limited number of Anthropic models (currently "claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"). This provider does not require any API keys beyond what's needed for the model itself.
+
+For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
+
+Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Anthropic model.
+
+### Gemini Options
+
+The `web_search()` tool can use Google's built-in search capability (called grounding) when running on Gemini 2.0 models and later. This provider does not require any API keys beyond what's needed for the model itself.
+
+This is distinct from the "google" provider (described below), which uses Google's external Programmable Search Engine service and requires separate API keys.
+
+For more details, see [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/grounding).
+
+Note that when using the "gemini" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Gemini models.
+
+::: callout-warning
+Google's search grounding does not currently support use with other tools. Attempting to use `web_search("gemini")` alongside other tools will result in an error.
+:::
+
+### Tavily Options
+
+The `web_search()` tool can use [Tavily](https://tavily.com/)'s Research API. To use it you will need to set up your own Tavily account. Then, ensure that the following environment variable is defined:
+
+-   `TAVILY_API_KEY` — Tavily Research API key
+
+Tavily supports the following options:
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `max_results` | Number of results to return |
+| `search_depth` | Can be "basic" or "advanced" |
+| `topic` | Can be "general" or "news" |
+| `include_domains` / `exclude_domains` | Lists of domains to include or exclude |
+| `time_range` | Time range for search results (e.g., "day", "week", "month") |
+| `max_connections` | Maximum number of concurrent connections |
+
+For more options, see the [Tavily API Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
+
+### Exa Options
+
+The `web_search()` tool can use [Exa](https://exa.ai/)'s Answer API. To use it you will need to set up your own Exa account. Then, ensure that the following environment variable is defined:
+
+-   `EXA_API_KEY` — Exa API key
+
+Exa supports the following options:
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `text` | Whether to include text content in citations (defaults to true) |
+| `model` | LLM model to use for generating the answer ("exa" or "exa-pro") |
+| `max_connections` | Maximum number of concurrent connections |
+
+For more details, see the [Exa API Documentation](https://docs.exa.ai/reference/answer).
+
+### Google Options
+
+The `web_search()` tool can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/) as an external provider. This is different from the "gemini" provider (described above), which uses Google's built-in search capability for Gemini models.
+
+To use the "google" provider you will need to set up your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+
+-   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
+-   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+
+Google supports the following options: 
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `num_results` | The number of relevant webpages whose contents are returned  |
+| `max_provider_calls` | Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3)  |
+| `max_connections` | Maximum number of concurrent connections (defaults to 10) |
+| `model` | Model to use to determine if search results are relevant (defaults to the model being evaluated) |
 
 ## Bash and Python {#sec-bash-and-python}
 
@@ -364,115 +484,6 @@ If you want to experiment with bypassing the native computer tool types and just
 inspect eval computer.py --no-internal-tools
 ```
 
-## Web Search {#sec-web-search}
-
-The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
-
--   Internal providers: "openai" and "anthropic" - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
-
--   External providers: "tavily", "exa", and "google". These are external services that work with any model and require separate accounts and API keys.
-
-Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
-
-You can configure the `web_search()` tool in various ways:
-
-``` python
-from inspect_ai.tool import web_search
-
-# single provider
-web_search("tavily")
-
-# with internal provider and fallback
-web_search(["openai", "tavily"])
-
-# provider with specific options
-web_search({"tavily": {"max_results": 5}})
-
-# using exa provider
-web_search("exa")
-
-# exa with specific options
-web_search({"exa": {"model": "exa-pro"}})
-
-# multiple providers with options
-web_search([{"openai": True}, {"google": {"num_results": 5}}])
-```
-
-### OpenAI Options
-
-The `web_search()` tool can use OpenAI's built-in search capability when running on a limited number of OpenAI models (currently "gpt-4o", "gpt-4o-mini", and "gpt-4.1"). This provider does not require any API keys beyond what's needed for the model itself.
-
-For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
-
-Note that when using the "openai" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-OpenAI model.
-
-### Anthropic Options
-
-::: callout-note
-Anthropic internal web search is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-The `web_search()` tool can use Anthropic's built-in search capability when running on a limited number of Anthropic models (currently "claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"). This provider does not require any API keys beyond what's needed for the model itself.
-
-For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
-
-Note that when using the "anthropic" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Anthropic model.
-
-### Tavily Options
-
-The `web_search()` tool can use [Tavily](https://tavily.com/)'s Research API. To use it you will need to set up your own Tavily account. Then, ensure that the following environment variable is defined:
-
--   `TAVILY_API_KEY` — Tavily Research API key
-
-Tavily supports the following options:
-
-| Option | Description |
-|------------------------------------|------------------------------------|
-| `max_results` | Number of results to return |
-| `search_depth` | Can be "basic" or "advanced" |
-| `topic` | Can be "general" or "news" |
-| `include_domains` / `exclude_domains` | Lists of domains to include or exclude |
-| `time_range` | Time range for search results (e.g., "day", "week", "month") |
-| `max_connections` | Maximum number of concurrent connections |
-
-For more options, see the [Tavily API Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
-
-### Exa Options
-
-The `web_search()` tool can use [Exa](https://exa.ai/)'s Answer API. To use it you will need to set up your own Exa account. Then, ensure that the following environment variable is defined:
-
--   `EXA_API_KEY` — Exa API key
-
-Exa supports the following options:
-
-| Option | Description |
-|------------------------------------|------------------------------------|
-| `text` | Whether to include text content in citations (defaults to true) |
-| `model` | LLM model to use for generating the answer ("exa" or "exa-pro") |
-| `max_connections` | Maximum number of concurrent connections |
-
-For more details, see the [Exa API Documentation](https://docs.exa.ai/reference/answer).
-
-#### Google Options
-
-The `web_search()` can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will need to set up your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
-
--   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
--   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
-
-
-Google supports the following options: 
-
-| Option | Description |
-|------------------------------------|------------------------------------|
-| `num_results` | The number of relevant webpages whose contents are returned  |
-| `max_provider_calls` | Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3)  |
-| `max_connections` | Maximum number of concurrent connections (defaults to 10) |
-| `model` | Model to use to determine if search results are relevant (defaults to the model being evaluated) |
 
 ## Think {#sec-think}
 

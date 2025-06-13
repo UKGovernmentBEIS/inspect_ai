@@ -44,14 +44,43 @@ async def sandbox_service(
 ) -> None:
     """Run a service that is callable from within a sandbox.
 
+    ::: callout-note
+    The `sandbox_service()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
+    The service makes available a set of methods to a sandbox
+    for calling back into the main Inspect process.
+
+    To use the service from within a sandbox, either add it to the sys path
+    or use importlib. For example, if the service is named 'foo':
+
+    ```python
+    import sys
+    sys.path.append("/var/tmp/sandbox-services/foo")
+    import foo
+    ```
+
+    Or:
+
+    ```python
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "foo", "/var/tmp/sandbox-services/foo/foo.py"
+    )
+    foo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(foo)
+    ```
+
     Args:
-        name (str): Service name
-        methods (dict[str, SandboxServiceMethod]): Service methods.
-        until (Callable[[], bool]): Function used to check whether
-          the service should stop.
-        sandbox (SandboxEnvironment): Sandbox to publish service to.
-        user (str | None): User to login as. Defaults to the sandbox environment's
-          default user.
+        name: Service name
+        methods: Service methods.
+        until: Function used to check whether the service should stop.
+        sandbox: Sandbox to publish service to.
+        user: User to login as. Defaults to the sandbox environment's default user.
     """
     # setup and start service
     service = SandboxService(name, sandbox, user)

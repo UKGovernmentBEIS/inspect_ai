@@ -2,16 +2,15 @@ import functools
 import io
 import os
 import shlex
-from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
-from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
+from typing import Generic, Literal, TypeVar, Union, overload
 
 import anyio
-from anyio import open_process
+from anyio import ClosedResourceError, create_task_group, open_process
 from anyio.abc import ByteReceiveStream, Process
 
 from inspect_ai._util._async import tg_collect
@@ -114,9 +113,7 @@ async def subprocess(
         else None
     )
 
-    async def run_command() -> AsyncGenerator[
-        Union[Process, ExecResult[str], ExecResult[bytes]], None
-    ]:
+    async def run_command() -> Union[ExecResult[str], ExecResult[bytes]]:
         process = await open_process(
             args,
             stdin=PIPE if input else DEVNULL,
@@ -126,9 +123,6 @@ async def subprocess(
             env={**os.environ, **env},
         )
         try:
-            # yield the process so the caller has a handle to it
-            yield process
-
             # write to stdin (convert input to bytes)
             if process.stdin and input:
                 await process.stdin.send(input)
@@ -161,19 +155,23 @@ async def subprocess(
             returncode = await process.wait()
             success = returncode == 0
             if text:
-                yield ExecResult[str](
+                return ExecResult[str](
                     success=success,
                     returncode=returncode,
                     stdout=stdout.decode() if capture_output else "",
                     stderr=stderr.decode() if capture_output else "",
                 )
             else:
-                yield ExecResult[bytes](
+                return ExecResult[bytes](
                     success=success,
                     returncode=returncode,
                     stdout=stdout if capture_output else bytes(),
                     stderr=stderr if capture_output else bytes(),
                 )
+        # Handle cancellation before aclose() is called to avoid deadlock.
+        except anyio.get_cancelled_exc_class():
+            await gracefully_terminate_cancelled_subprocess(process)
+            raise
         finally:
             try:
                 await process.aclose()
@@ -186,33 +184,13 @@ async def subprocess(
 
     # wrapper for run command that implements timeout
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
-        # run the command and capture the process handle
-        async with aclosing(run_command()) as rc:
-            proc = cast(Process, await anext(rc))
-
-            # await result wrapped in timeout handler if requested
-            if timeout is not None:
-                try:
-                    with anyio.fail_after(timeout):
-                        result = await anext(rc)
-                        return cast(Union[ExecResult[str], ExecResult[bytes]], result)
-                except TimeoutError:
-                    # terminate timed out process -- try for graceful termination
-                    # then be more forceful if requied
-                    with anyio.CancelScope(shield=True):
-                        try:
-                            proc.terminate()
-                            await anyio.sleep(2)
-                            if proc.returncode is None:
-                                proc.kill()
-                        except Exception:
-                            pass
-                    raise
-
-            # await result without timeout
-            else:
-                result = await anext(rc)
-                return cast(Union[ExecResult[str], ExecResult[bytes]], result)
+        # wrap in timeout handler if requested
+        if timeout is not None:
+            with anyio.fail_after(timeout):
+                # run_command() handles terminating the process if it is cancelled.
+                return await run_command()
+        else:
+            return await run_command()
 
     # run command
     async with concurrency("subprocesses", max_subprocesses_context_var.get()):
@@ -231,6 +209,41 @@ def init_max_subprocesses(max_subprocesses: int | None = None) -> None:
 def default_max_subprocesses() -> int:
     cpus = os.cpu_count()
     return cpus if cpus else 1
+
+
+async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
+    with anyio.CancelScope(shield=True):
+        try:
+            # Terminate timed out process -- try for graceful termination then kill if
+            # required.
+            process.terminate()
+            await anyio.sleep(2)
+            if process.returncode is None:
+                process.kill()
+            # With anyio's asyncio backend, process.aclose() calls process.wait() which
+            # can deadlock if the process generates so much output that it blocks
+            # waiting for the OS pipe buffer to accept more data. See
+            # https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.wait
+            # Therefore, we need to ensure that the process's stdout and stderr streams
+            # are drained before we call process.wait() in aclose().
+            async with create_task_group() as tg:
+                tg.start_soon(drain_stream, process.stdout)
+                tg.start_soon(drain_stream, process.stderr)
+            # Wait for the process to exit. Will be called again by aclose().
+            await process.wait()
+        # The process may have already exited, in which case we can ignore the error.
+        except ProcessLookupError:
+            pass
+
+
+async def drain_stream(stream: ByteReceiveStream | None) -> None:
+    if stream is None:
+        return
+    try:
+        async for _ in stream:
+            pass
+    except ClosedResourceError:
+        pass
 
 
 max_subprocesses_context_var = ContextVar[int](

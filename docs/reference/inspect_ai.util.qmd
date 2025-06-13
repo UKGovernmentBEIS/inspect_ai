@@ -39,6 +39,7 @@ title: "inspect_ai.util"
 ### collect
 ### resource
 ### throttle
+### background
 ### trace_action
 ### trace_message
 
@@ -51,6 +52,7 @@ title: "inspect_ai.util"
 ### SandboxEnvironment
 ### SandboxConnection
 ### sandboxenv
+### sandbox_service
 
 ## Registry
 
