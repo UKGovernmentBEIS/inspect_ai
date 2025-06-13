@@ -155,18 +155,18 @@ def test_get_sample_limits_within_eval() -> None:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             record_model_usage(ModelUsage(total_tokens=40))
             limits = sample_limits()
-            assert limits["message"].limit == 10
-            assert limits["token"].limit == 100
-            assert limits["token"].remaining == 60
-            assert limits["token"].usage == 40
-            assert limits["time"].limit == 1_000
-            assert limits["time"].usage > 0
-            assert limits["working"].limit == 10_000
-            assert limits["working"].usage > 0
+            assert limits.message.limit == 10
+            assert limits.token.limit == 100
+            assert limits.token.remaining == 60
+            assert limits.token.usage == 40
+            assert limits.time.limit == 1_000
+            assert limits.time.usage > 0
+            assert limits.working.limit == 10_000
+            assert limits.working.usage > 0
 
             # Verify that we still get the sample level limits when a scoped limit is active
             with token_limit(1):
-                assert sample_limits()["token"].limit == 10
+                assert sample_limits().token.limit == 100
 
             return state
 
@@ -181,4 +181,7 @@ def test_get_sample_limits_within_eval() -> None:
         working_limit=10_000,
     )
 
-    eval(task, model="mockllm/model")
+    log = eval(task, model="mockllm/model")[0]
+
+    # Assertion failures in the solver will manifest as a failed eval.
+    assert log.status == "success"

@@ -210,7 +210,7 @@ raise LimitExceededError(
 We can determine how much of a sample limit has been used, what the limit is, and how much of the resource is remaining:
 
 ``` python
-sample_time_limit = sample_limits()["time"]
+sample_time_limit = sample_limits().time
 print(f"{sample_time_limit.remaining:.0f} seconds remaining")
 ```
 

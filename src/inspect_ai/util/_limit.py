@@ -4,6 +4,7 @@ import abc
 import logging
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
 
@@ -171,22 +172,37 @@ class LimitScope:
         self.limit_error: LimitExceededError | None = None
 
 
-def sample_limits() -> dict[Literal["token", "message", "working", "time"], Limit]:
+@dataclass
+class SampleLimits:
+    """Data class to hold the limits applied to a Sample.
+
+    This is used to return the limits from `sample_limits()`.
+    """
+
+    token: Limit
+    message: Limit
+    working: Limit
+    time: Limit
+
+
+def sample_limits() -> SampleLimits:
     """Get the top-level limits applied to the current `Sample`."""
 
-    def ensure_not_none(limit: Limit | None, name: str) -> Limit:
-        if limit is None:
+    def get_root_node(node: TNode | None, name: str) -> TNode:
+        if node is None:
             raise RuntimeError(
                 f"No {name} limit node found. Is there a running sample?"
             )
-        return limit
+        while node.parent is not None:
+            node = node.parent
+        return node
 
-    return {
-        "token": ensure_not_none(token_limit_tree.get(), "token"),
-        "message": ensure_not_none(message_limit_tree.get(), "message"),
-        "working": ensure_not_none(working_limit_tree.get(), "working"),
-        "time": ensure_not_none(time_limit_tree.get(), "time"),
-    }
+    return SampleLimits(
+        token=get_root_node(token_limit_tree.get(), "token"),
+        message=get_root_node(message_limit_tree.get(), "message"),
+        working=get_root_node(working_limit_tree.get(), "working"),
+        time=get_root_node(time_limit_tree.get(), "time"),
+    )
 
 
 def token_limit(limit: int | None) -> _TokenLimit:
