@@ -361,13 +361,13 @@ def _prompt_to_system_message(
                 and ("{submit}" not in prompt.assistant_prompt)
                 and prompt.submit_prompt
             ):
-                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt}"
+                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt.format(submit=submit_tool)}"
             else:
-                assistant_prompt = prompt.assistant_prompt
+                assistant_prompt = prompt.assistant_prompt.format(
+                    submit=submit_tool or "submit"
+                )
             prompt_lines.append(assistant_prompt)
-        prompt_content = "\n\n".join(prompt_lines).format(
-            submit=submit_tool or "submit"
-        )
+        prompt_content = "\n\n".join(prompt_lines)
         system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
     else:
         system_message = None
