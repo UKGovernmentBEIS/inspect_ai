@@ -2,6 +2,7 @@
 
 - [background()](https://inspect.aisi.org.uk/agent-custom.html#background) function for executing work in the background of the current sample.
 - [sandbox_service()](https://inspect.aisi.org.uk/agent-custom.html#sandbox-service) function for making available methods to a sandbox for calling back into the main Inspect process.
+- [sample_limits()](https://inspect.aisi.org.uk/errors-and-limits.html#query-usage) function for determining the current status of sample limits.
 - Agent handoff: Ensure that handoff tool call responses immediately follow the call.
 - Agent handoff: Only print handoff agent prefix if there is assistant message content.
 - Subprocess: Ensure that streams are drained when a cancellation occurs (prevent hanging on calls with large output payloads).
