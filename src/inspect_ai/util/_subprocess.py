@@ -168,9 +168,9 @@ async def subprocess(
                     stdout=stdout if capture_output else bytes(),
                     stderr=stderr if capture_output else bytes(),
                 )
-        # Handle cancellation before aclose() is called (which can result in deadlock).
+        # Handle cancellation before aclose() is called to avoid deadlock.
         except anyio.get_cancelled_exc_class():
-            await gracefully_terminate_cancelled_subprocesses(process)
+            await gracefully_terminate_cancelled_subprocess(process)
             raise
         finally:
             try:
@@ -184,13 +184,11 @@ async def subprocess(
 
     # wrapper for run command that implements timeout
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
-        # await result wrapped in timeout handler if requested
+        # wrap in timeout handler if requested
         if timeout is not None:
             with anyio.fail_after(timeout):
                 # run_command() handles terminating the process if it is cancelled.
                 return await run_command()
-
-        # await result without timeout
         else:
             return await run_command()
 
@@ -213,15 +211,8 @@ def default_max_subprocesses() -> int:
     return cpus if cpus else 1
 
 
-async def gracefully_terminate_cancelled_subprocesses(process: Process) -> None:
+async def gracefully_terminate_cancelled_subprocess(process: Process) -> None:
     with anyio.CancelScope(shield=True):
-        # With anyio's asyncio backend, process.aclose() calls process.wait() which can
-        # deadlock if the process generates so much output that it blocks waiting for
-        # the OS pipe buffer to accept more data. See
-        # https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.wait
-        # Therefore, we need to ensure that the process's stdout and stderr streams are
-        # drained before we call process.wait() in aclose().
-
         try:
             # Terminate timed out process -- try for graceful termination then kill if
             # required.
@@ -229,7 +220,12 @@ async def gracefully_terminate_cancelled_subprocesses(process: Process) -> None:
             await anyio.sleep(2)
             if process.returncode is None:
                 process.kill()
-            # Drain the streams to avoid deadlocks when calling process.wait().
+            # With anyio's asyncio backend, process.aclose() calls process.wait() which
+            # can deadlock if the process generates so much output that it blocks
+            # waiting for the OS pipe buffer to accept more data. See
+            # https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.wait
+            # Therefore, we need to ensure that the process's stdout and stderr streams
+            # are drained before we call process.wait() in aclose().
             async with create_task_group() as tg:
                 tg.start_soon(drain_stream, process.stdout)
                 tg.start_soon(drain_stream, process.stderr)
