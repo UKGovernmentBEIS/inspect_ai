@@ -418,6 +418,42 @@ def test_grouped_mean_multiple():
     assert result["all"] == 4.0
 
 
+def test_grouped_mean_multiple_not_verbose():
+    metric = grouped(mean(), group_key="group", verbose=False)
+    result = metric(
+        [
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=2), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=6), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=10), sample_metadata={"group": "B"}),
+        ]
+    )
+    assert result.get("A") is None
+    assert result.get("B") is None
+    assert result["all"] == 4.0
+
+
+def test_grouped_mean_multiple_add_metric_name_to_group():
+    metric = grouped(mean(), group_key="group", add_metric_name_to_group=True)
+    result = metric(
+        [
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=2), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=6), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=10), sample_metadata={"group": "B"}),
+        ]
+    )
+    assert result["A_mean"] == 2.0
+    assert result["B_mean"] == 6.0
+    assert result.get("A") is None
+    assert result.get("B") is None
+    assert result["all"] == 4.0
+
+
 def test_grouped_mean_error():
     metric = grouped(mean(), group_key="group")
     with pytest.raises(ValueError):
