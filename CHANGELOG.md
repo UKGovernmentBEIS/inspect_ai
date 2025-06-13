@@ -7,6 +7,7 @@
 - Agent handoff: Ensure that handoff tool call responses immediately follow the call.
 - Agent handoff: Only print handoff agent prefix if there is assistant message content.
 - Subprocess: Ensure that streams are drained when a cancellation occurs (prevent hanging on calls with large output payloads).
+- Eval log: Capture only limits that terminated the sample as `sample.limit` (as opposed to ones bound to context managers or agents).
 
 ## v0.3.104 (12 June 2025)
 

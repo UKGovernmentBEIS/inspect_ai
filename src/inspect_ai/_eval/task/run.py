@@ -640,6 +640,7 @@ async def task_run_sample(
         error: EvalError | None = None
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
+        limit: EvalSampleLimit | None = None
         try:
             # begin init
             init_span = span("init", type="init")
@@ -727,9 +728,17 @@ async def task_run_sample(
                         # handle the cancel exception
                         raise
 
-                except (LimitExceededError, TerminateSampleError):
+                except LimitExceededError as ex:
                     # capture most recent state for scoring
                     state = sample_state() or state
+                    limit = EvalSampleLimit(
+                        type=ex.type, limit=ex.limit if ex.limit is not None else -1
+                    )
+
+                except TerminateSampleError:
+                    # capture most recent state for scoring
+                    state = sample_state() or state
+                    limit = EvalSampleLimit(type="operator", limit=1)
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)
@@ -838,6 +847,7 @@ async def task_run_sample(
                     state=state,
                     scores=results,
                     error=error,
+                    limit=limit,
                     error_retries=error_retries,
                     log_images=log_images,
                 )
@@ -903,6 +913,7 @@ async def log_sample(
     state: TaskState,
     scores: dict[str, SampleScore],
     error: EvalError | None,
+    limit: EvalSampleLimit | None,
     error_retries: list[EvalError],
     log_images: bool,
 ) -> None:
@@ -917,15 +928,6 @@ async def log_sample(
 
     # compute total time if we can
     total_time = time.monotonic() - start_time if start_time is not None else None
-
-    # if a limit was hit, note that in the Eval Sample
-    limit = None
-    for e in transcript().events:
-        if e.event == "sample_limit":
-            limit = EvalSampleLimit(
-                type=e.type, limit=e.limit if e.limit is not None else -1
-            )
-            break
 
     eval_sample = EvalSample(
         id=id,
