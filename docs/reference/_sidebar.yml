@@ -555,6 +555,10 @@ website:
           href: reference/inspect_ai.util.qmd#working_limit
         - text: apply_limits
           href: reference/inspect_ai.util.qmd#apply_limits
+        - text: sample_limits
+          href: reference/inspect_ai.util.qmd#sample_limits
+        - text: SampleLimits
+          href: reference/inspect_ai.util.qmd#samplelimits
         - text: Limit
           href: reference/inspect_ai.util.qmd#limit
         - text: LimitExceededError
@@ -581,6 +585,8 @@ website:
           href: reference/inspect_ai.util.qmd#resource
         - text: throttle
           href: reference/inspect_ai.util.qmd#throttle
+        - text: background
+          href: reference/inspect_ai.util.qmd#background
         - text: trace_action
           href: reference/inspect_ai.util.qmd#trace_action
         - text: trace_message
@@ -597,6 +603,8 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxconnection
         - text: sandboxenv
           href: reference/inspect_ai.util.qmd#sandboxenv
+        - text: sandbox_service
+          href: reference/inspect_ai.util.qmd#sandbox_service
         - text: registry_create
           href: reference/inspect_ai.util.qmd#registry_create
         - text: RegistryType
