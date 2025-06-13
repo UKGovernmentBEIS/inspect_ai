@@ -66,7 +66,7 @@ web_search("tavily")
 # internal provider and fallback
 web_search(["openai", "tavily"])
 
-# multiple interal providers and fallback
+# multiple internal providers and fallback
 web_search(["openai", "anthropic", "gemini", "tavily"])
 
 # provider with specific options

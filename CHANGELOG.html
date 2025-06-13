@@ -263,8 +263,10 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li><a href="https://inspect.aisi.org.uk/agent-custom.html#background">background()</a> function for executing work in the background of the current sample.</li>
 <li><a href="https://inspect.aisi.org.uk/agent-custom.html#sandbox-service">sandbox_service()</a> function for making available methods to a sandbox for calling back into the main Inspect process.</li>
+<li><a href="https://inspect.aisi.org.uk/errors-and-limits.html#query-usage">sample_limits()</a> function for determining the current status of sample limits.</li>
 <li>Agent handoff: Ensure that handoff tool call responses immediately follow the call.</li>
 <li>Agent handoff: Only print handoff agent prefix if there is assistant message content.</li>
+<li>Subprocess: Ensure that streams are drained when a cancellation occurs (prevent hanging on calls with large output payloads).</li>
 </ul>
 </section>
 <section id="v0.3.104-12-june-2025" class="level2">
