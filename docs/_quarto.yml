@@ -114,9 +114,10 @@ website:
                  href: errors-and-limits.qmd
                - typing.qmd
                - tracing.qmd
-               - parallelism.qmd
-               - interactivity.qmd
-               - extensions.qmd
+              - parallelism.qmd
+              - interactivity.qmd
+              - extensions.qmd
+              - project_euler.qmd
 
    page-footer: 
       left: 
