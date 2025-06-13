@@ -543,15 +543,6 @@ provider:
 
 ## Perplexity
 
-> [!NOTE]
->
-> The Perplexity model provider is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 To use the [Perplexity](https://www.perplexity.ai/) provider, install
 the `openai` package (if not already installed), set your credentials,
 and specify a model using the `--model` option:

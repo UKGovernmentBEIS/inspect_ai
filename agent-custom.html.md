@@ -457,7 +457,7 @@ There are two reasons that you might want to create spans:
 Spans are automatically created for sample initialisation, solvers,
 scorers, subtasks, tool calls, and agent execution.
 
-## Parallel Execution
+## Parallelism
 
 You can execute subtasks in parallel using the `collect()` function. For
 example, to run 3 `web_search()` coroutines in parallel:
@@ -484,3 +484,109 @@ transcript.
 Using `collect()` in preference to `asyncio.gather()` is highly
 recommended for both Trio compatibility and more legible transcript
 output.
+
+## Background Work
+
+> [!NOTE]
+>
+> The `background()` function is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `background()` function enables you to execute an async task in the
+background of the current sample. The task terminates when the sample
+terminates. For example:
+
+``` python
+import anyio
+from inspect_ai.util import background
+
+async def worker():
+    try:
+        while True:
+            # background work
+            anyio.sleep(1.0)
+    finally:
+        # cleanup
+
+background(worker)
+```
+
+The above code demonstrates a couple of important characteristics of a
+sample background worker:
+
+1.  Background workers typically operate in a loop, often polling a a
+    sandbox or other endpoint for activity. In a loop like this it’s
+    important to sleep at regular intervals so your background work
+    doesn’t monopolise CPU resources.
+
+2.  When the sample ends, background workers are cancelled (which
+    results in a cancelled error being raised in the worker). Therefore,
+    if you need to do cleanup in your worker it should occur in a
+    `finally` block.
+
+## Sandbox Service
+
+> [!NOTE]
+>
+> The `sandbox_service()` function is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Sandbox services make available a set of methods to a sandbox for
+calling back into the main Inspect process. For example, the [Human
+Agent](human-agent.qmd) uses a sandbox service to enable the human agent
+to start, stop, score, and submit tasks.
+
+Sandbox service are often run using the `background()` function to make
+them available for the lifetime of a sample.
+
+For example, here’s a simple calculator service that provides add and
+subtract methods to Python code within a sandbox:
+
+``` python
+from inspect_ai.util import background, sandbox_service
+
+async def calculator_service():
+    async def add(x: int, y: int) -> int:
+        return x + y
+
+    async def subtract(x: int, y: int) -> int:
+        return x - y
+
+    await sandbox_service(
+        name="calculator",
+        methods=[add, subtract],
+        until=lambda: True,
+        sandbox=sandbox()
+    )
+
+background(calculator_service)
+```
+
+To use the service from within a sandbox, either add it to the sys path
+or use importlib. For example, if the service is named ‘calculator’:
+
+``` python
+import sys
+sys.path.append("/var/tmp/sandbox-services/calculator")
+import calculator
+```
+
+Or:
+
+``` python
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "calculator", 
+    "/var/tmp/sandbox-services/calculator/calculator.py"
+)
+calculator = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(calculator)
+```

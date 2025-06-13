@@ -146,6 +146,7 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#v0.3.104-12-june-2025" id="toc-v0.3.104-12-june-2025" class="nav-link" data-scroll-target="#v0.3.104-12-june-2025">v0.3.104 (12 June 2025)</a></li>
   <li><a href="#v0.3.103-06-june-2025" id="toc-v0.3.103-06-june-2025" class="nav-link" data-scroll-target="#v0.3.103-06-june-2025">v0.3.103 (06 June 2025)</a></li>
   <li><a href="#v0.3.102-05-june-2025" id="toc-v0.3.102-05-june-2025" class="nav-link" data-scroll-target="#v0.3.102-05-june-2025">v0.3.102 (05 June 2025)</a></li>
   <li><a href="#v0.3.101-05-june-2025" id="toc-v0.3.101-05-june-2025" class="nav-link" data-scroll-target="#v0.3.101-05-june-2025">v0.3.101 (05 June 2025)</a></li>
@@ -260,21 +261,37 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>Anthropic: Support for binding to internal <code>web search()</code> tool.</li>
+<li><a href="https://inspect.aisi.org.uk/agent-custom.html#background">background()</a> function for executing work in the background of the current sample.</li>
+<li><a href="https://inspect.aisi.org.uk/agent-custom.html#sandbox-service">sandbox_service()</a> function for making available methods to a sandbox for calling back into the main Inspect process.</li>
+<li>Agent handoff: Ensure that handoff tool call responses immediately follow the call.</li>
+<li>Agent handoff: Only print handoff agent prefix if there is assistant message content.</li>
+</ul>
+</section>
+<section id="v0.3.104-12-june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.104-12-june-2025">v0.3.104 (12 June 2025)</h2>
+<ul>
+<li>Web Search: Added provider for Anthropic’s internal web search tool.</li>
+<li>Web Search: Added provider for <a href="https://exa.ai/exa-api">Exa</a> Search API.</li>
+<li>Web Search: Added provider for Google’s <a href="https://ai.google.dev/gemini-api/docs/grounding">Grounding with Google Search</a> .</li>
+<li>Mistral: Support for capturing reasoning blocks for magistral models.</li>
 <li>Add <a href="https://inspect.aisi.org.uk/providers.html#perplexity">Perplexity</a> model provider.</li>
+<li>ChatMessage: Add <code>metadata</code> field for arbitrary additional metadata.</li>
 <li>Content: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentdata">ContentData</a></span> for model specific content blocks.</li>
 <li>Citations: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#citation">Citation</a></span> suite of types and included citations in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttext">ContentText</a></span> (supported for OpenAI and Anthropic models).</li>
 <li>Eval log: <code>task_args</code> now includes defaulted args (formerly it only included explicitly passed args).</li>
-<li>Eval set: <code>retry_connections</code> now defaults to 1.0 (resulting in no reduction in connections across passes).</li>
+<li>Eval set: <code>retry_connections</code> now defaults to 1.0 (resulting in no reduction in connections across passes). OpenAI: Work around OpenAI Responses API issue by filtering out leading consecutive reasoning blocks.</li>
 <li>OpenAI compatible provider: Substitute <code>-</code> with <code>_</code> when looking up provider environment variables.</li>
+<li>MCP: Update to types in latest release (1.9.4, which is now required).</li>
 <li>Added development container (<code>.devcontainer</code>) configuration.</li>
 <li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#trim_messages">trim_messages()</a></span> now removes any trailing assistant message after compaction.</li>
 <li>Task display: Ensure that full path to log file is always displayed (wrap as required).</li>
 <li>Task display: Wrap scorers and scores in the task detail display.</li>
-<li>Fix error writing Nan values to the <code>logs.json</code> summary file during bundling.</li>
 <li>Inspect View: Add support for displaying citations for web searches in the transcript.</li>
 <li>Inspect View: Correctly update browser URL when navigation between samples.</li>
 <li>Bugfix: Properly honor <code>responses_api=False</code> when pass as an OpenAI model config arg.</li>
+<li>Bugfix: Limits passed to handoffs can be used multiple times (if agent is handed off to multiple times).</li>
+<li>Bugfix: Replace invalid surrogate characters when serializing strings to JSON.</li>
+<li>Bugfix: Prevent error writing Nan values to the <code>logs.json</code> summary file during bundling.</li>
 </ul>
 </section>
 <section id="v0.3.103-06-june-2025" class="level2">

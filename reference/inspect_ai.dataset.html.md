@@ -7,7 +7,7 @@
 
 Read dataset from CSV file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_sources/csv.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_sources/csv.py#L20)
 
 ``` python
 def csv_dataset(
@@ -89,7 +89,7 @@ a JSON Lines file containing one object per line. These objects may
 already be formatted as `Sample` instances, or may require some mapping
 using the `sample_fields` argument.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_sources/json.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_sources/json.py#L22)
 
 ``` python
 def json_dataset(
@@ -153,7 +153,7 @@ Datasets read using the Hugging Face `datasets` package.
 The `hf_dataset` function supports reading datasets using the Hugging
 Face `datasets` package, including remote datasets on Hugging Face Hub.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_sources/hf.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_sources/hf.py#L22)
 
 ``` python
 def hf_dataset(
@@ -238,7 +238,7 @@ the `datasets` package.
 
 Sample for an evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L30)
 
 ``` python
 class Sample(BaseModel)
@@ -276,7 +276,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 \_\_init\_\_  
 Create a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L33)
 
 ``` python
 def __init__(
@@ -324,7 +324,7 @@ SandboxEnvironment).
 metadata_as  
 Metadata as a Pydantic model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L86)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -337,7 +337,7 @@ BaseModel derived class.
 
 Specification for mapping data source fields to sample fields.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L209)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L209)
 
 ``` python
 @dataclass
@@ -374,7 +374,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 
 Callable that maps raw dictionary record to a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L238)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L238)
 
 ``` python
 RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
@@ -387,7 +387,7 @@ A sequence of Sample objects.
 Datasets provide sequential access (via conventional indexes or slicing)
 to a collection of Sample objects.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L130)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L130)
 
 ``` python
 class Dataset(Sequence[Sample], abc.ABC)
@@ -404,7 +404,7 @@ them, ascending or descending, according to their function values.
 The key function defaults to measuring the length of the sample’s input
 field.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L161)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L161)
 
 ``` python
 @abc.abstractmethod
@@ -425,7 +425,7 @@ sample_input_len).
 filter  
 Filter the dataset using a predicate.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L178)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L178)
 
 ``` python
 @abc.abstractmethod
@@ -443,7 +443,7 @@ Name for filtered dataset (optional).
 shuffle  
 Shuffle the order of the dataset (in place).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L192)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L192)
 
 ``` python
 @abc.abstractmethod
@@ -456,7 +456,7 @@ Random seed for shuffling (optional).
 shuffle_choices  
 Shuffle the order of the choices with each sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L200)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L200)
 
 ``` python
 @abc.abstractmethod
@@ -470,7 +470,7 @@ Random seed for shuffling (optional).
 
 A Dataset stored in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L242)
 
 ``` python
 class MemoryDataset(Dataset)
@@ -496,7 +496,7 @@ Datasets provide sequential access (via conventional indexes or slicing)
 to a collection of Sample objects. The ListDataset is explicitly
 initialized with a list that is held in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6f08e96a9c4c4dd373995a4cf780f13a171dd0cb/src/inspect_ai/dataset/_dataset.py#L245)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1b2945428214a0b6de42efe735cb4ebb6bfee5a/src/inspect_ai/dataset/_dataset.py#L245)
 
 ``` python
 def __init__(
