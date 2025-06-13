@@ -4,6 +4,7 @@ from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
     LimitScope,
+    SampleLimits,
     apply_limits,
     message_limit,
     sample_limits,
@@ -48,6 +49,7 @@ from ._throttle import throttle
 __all__ = [
     "apply_limits",
     "sample_limits",
+    "SampleLimits",
     "ExecResult",
     "concurrency",
     "DisplayType",
