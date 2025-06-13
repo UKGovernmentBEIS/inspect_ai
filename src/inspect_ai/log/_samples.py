@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from datetime import datetime
 from typing import AsyncGenerator, Iterator, Literal
 
+from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
@@ -28,6 +29,7 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
+        tg: TaskGroup,
     ) -> None:
         self.id = uuid()
         self.started: float | None = None
@@ -47,6 +49,7 @@ class ActiveSample:
         self.transcript = transcript
         self.sandboxes = sandboxes
         self._interrupt_action: Literal["score", "error"] | None = None
+        self.tg = tg
 
     @property
     def running_time(self) -> float:
@@ -86,6 +89,7 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
+    tg: TaskGroup,
 ) -> AsyncGenerator[ActiveSample, None]:
     # create the sample
     active = ActiveSample(
@@ -101,6 +105,7 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
+        tg=tg,
     )
 
     _active_samples.append(active)
