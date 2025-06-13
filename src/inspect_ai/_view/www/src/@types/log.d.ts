@@ -240,6 +240,9 @@ export type Video = string;
 export type Format2 = "mp4" | "mpeg" | "mov";
 export type Type12 = "data";
 export type Source = ("input" | "generate") | null;
+export type Metadata5 = {
+  [k: string]: unknown;
+} | null;
 export type Role = "system";
 export type Id2 = string | null;
 export type Content1 =
@@ -253,6 +256,9 @@ export type Content1 =
       | ContentData
     )[];
 export type Source1 = ("input" | "generate") | null;
+export type Metadata6 = {
+  [k: string]: unknown;
+} | null;
 export type Role1 = "user";
 export type ToolCallId = string[] | null;
 export type Id3 = string | null;
@@ -267,6 +273,9 @@ export type Content2 =
       | ContentData
     )[];
 export type Source2 = ("input" | "generate") | null;
+export type Metadata7 = {
+  [k: string]: unknown;
+} | null;
 export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id4 = string;
@@ -289,6 +298,9 @@ export type Content4 =
       | ContentData
     )[];
 export type Source3 = ("input" | "generate") | null;
+export type Metadata8 = {
+  [k: string]: unknown;
+} | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
@@ -332,7 +344,7 @@ export type Bytes1 = number[] | null;
 export type Content5 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
 export type Time = number | null;
-export type Metadata5 = {
+export type Metadata9 = {
   [k: string]: unknown;
 } | null;
 export type Error = string | null;
@@ -349,7 +361,7 @@ export type Value1 =
     };
 export type Answer = string | null;
 export type Explanation = string | null;
-export type Metadata6 = {
+export type Metadata10 = {
   [k: string]: unknown;
 } | null;
 export type SpanId = string | null;
@@ -368,7 +380,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id6 = number | string | null;
-export type Metadata8 = {
+export type Metadata12 = {
   [k: string]: unknown;
 } | null;
 export type Files1 = {
@@ -654,7 +666,7 @@ export type Value2 =
     };
 export type Answer1 = string | null;
 export type Explanation2 = string | null;
-export type Metadata9 = {
+export type Metadata13 = {
   [k: string]: unknown;
 } | null;
 export type SampleId1 = string | number | null;
@@ -1020,7 +1032,7 @@ export interface EvalSample {
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
-  metadata: Metadata7;
+  metadata: Metadata11;
   store: Store;
   events: Events;
   model_usage: ModelUsage2;
@@ -1039,6 +1051,7 @@ export interface ChatMessageSystem {
   id: Id1;
   content: Content;
   source: Source;
+  metadata: Metadata5;
   internal: unknown;
   role: Role;
 }
@@ -1146,6 +1159,7 @@ export interface ChatMessageUser {
   id: Id2;
   content: Content1;
   source: Source1;
+  metadata: Metadata6;
   internal: unknown;
   role: Role1;
   tool_call_id: ToolCallId;
@@ -1157,6 +1171,7 @@ export interface ChatMessageAssistant {
   id: Id3;
   content: Content2;
   source: Source2;
+  metadata: Metadata7;
   internal: unknown;
   role: Role2;
   tool_calls: ToolCalls;
@@ -1189,6 +1204,7 @@ export interface ChatMessageTool {
   id: Id5;
   content: Content4;
   source: Source3;
+  metadata: Metadata8;
   internal: unknown;
   role: Role3;
   tool_call_id: ToolCallId1;
@@ -1207,7 +1223,7 @@ export interface ModelOutput {
   choices: Choices1;
   usage: ModelUsage1 | null;
   time: Time;
-  metadata: Metadata5;
+  metadata: Metadata9;
   error: Error;
 }
 /**
@@ -1248,9 +1264,9 @@ export interface Score {
   value: Value1;
   answer: Answer;
   explanation: Explanation;
-  metadata: Metadata6;
+  metadata: Metadata10;
 }
-export interface Metadata7 {
+export interface Metadata11 {
   [k: string]: unknown;
 }
 export interface Store {
@@ -1276,7 +1292,7 @@ export interface Sample {
   choices: Choices2;
   target: Target1;
   id: Id6;
-  metadata: Metadata8;
+  metadata: Metadata12;
   sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
   setup: Setup1;
@@ -1649,6 +1665,6 @@ export interface EvalSampleScore {
   value: Value2;
   answer: Answer1;
   explanation: Explanation2;
-  metadata: Metadata9;
+  metadata: Metadata13;
   sample_id: SampleId1;
 }

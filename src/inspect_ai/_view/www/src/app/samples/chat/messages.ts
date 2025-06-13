@@ -80,6 +80,7 @@ export const resolveMessages = (messages: Messages) => {
     content: systemContent,
     source: "input",
     internal: null,
+    metadata: null,
   };
 
   // Converge them

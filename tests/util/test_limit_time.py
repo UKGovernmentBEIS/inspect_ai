@@ -69,6 +69,12 @@ async def test_inner_limits_are_enforced() -> None:
     assert exc_info.value.limit == 0.1
 
 
+def test_can_get_limit_value() -> None:
+    limit = time_limit(10)
+
+    assert limit.limit == 10
+
+
 async def test_can_get_usage_while_context_manager_open() -> None:
     with time_limit(10) as limit:
         await asyncio.sleep(0.1)
@@ -108,6 +114,13 @@ async def test_can_get_usage_after_limit_error() -> None:
             await asyncio.sleep(0.5)
 
     assert 0.05 < limit.usage < 1.0  # approx. 0.1
+
+
+async def test_can_get_remaining() -> None:
+    limit = time_limit(10)
+    with limit:
+        assert limit.remaining is not None
+        assert limit.remaining >= 9
 
 
 @pytest.mark.anyio

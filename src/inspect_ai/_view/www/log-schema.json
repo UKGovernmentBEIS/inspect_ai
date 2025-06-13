@@ -274,6 +274,19 @@
           "default": null,
           "title": "Source"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "internal": {
           "anyOf": [
             {
@@ -323,6 +336,7 @@
         "id",
         "content",
         "source",
+        "metadata",
         "internal",
         "role",
         "tool_calls",
@@ -396,6 +410,19 @@
           "default": null,
           "title": "Source"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "internal": {
           "anyOf": [
             {
@@ -418,6 +445,7 @@
         "id",
         "content",
         "source",
+        "metadata",
         "internal",
         "role"
       ],
@@ -489,6 +517,19 @@
           "default": null,
           "title": "Source"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "internal": {
           "anyOf": [
             {
@@ -546,6 +587,7 @@
         "id",
         "content",
         "source",
+        "metadata",
         "internal",
         "role",
         "tool_call_id",
@@ -620,6 +662,19 @@
           "default": null,
           "title": "Source"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "internal": {
           "anyOf": [
             {
@@ -657,6 +712,7 @@
         "id",
         "content",
         "source",
+        "metadata",
         "internal",
         "role",
         "tool_call_id"

@@ -6,7 +6,7 @@ from typing import (
 
 import jsonpatch
 from pydantic import BaseModel, Field, JsonValue
-from pydantic_core import to_json, to_jsonable_python
+from pydantic_core import PydanticSerializationError, to_json, to_jsonable_python
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
@@ -27,7 +27,22 @@ def jsonable_dict(x: Any) -> dict[str, JsonValue]:
 
 
 def to_json_safe(x: Any) -> bytes:
-    return to_json(value=x, indent=2, exclude_none=True, fallback=lambda _x: None)
+    def clean_utf8_json(obj: Any) -> Any:
+        if isinstance(obj, str):
+            return obj.encode("utf-8", errors="replace").decode("utf-8")
+        elif isinstance(obj, dict):
+            return {k: clean_utf8_json(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [clean_utf8_json(item) for item in obj]
+        return obj
+
+    try:
+        return to_json(value=x, indent=2, exclude_none=True, fallback=lambda _x: None)
+    except PydanticSerializationError as ex:
+        if "surrogates not allowed" in str(ex):
+            cleaned = clean_utf8_json(x)
+            return to_json(cleaned)
+        raise
 
 
 def to_json_str_safe(x: Any) -> str:

@@ -10,6 +10,7 @@ from pathlib import PurePath
 from typing import Callable, Literal
 
 import anyio
+from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._display import (
@@ -306,37 +307,57 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     task.metrics,
                 )
 
+                async def run_sample(
+                    sample: Sample, state: TaskState
+                ) -> dict[str, SampleScore] | None:
+                    result: dict[str, SampleScore] | None = None
+
+                    async def run(tg: TaskGroup) -> None:
+                        try:
+                            nonlocal result
+                            result = await task_run_sample(
+                                tg=tg,
+                                task_name=task.name,
+                                log_location=profile.log_location,
+                                sample=sample,
+                                state=state,
+                                sandbox=sandbox,
+                                max_sandboxes=config.max_sandboxes,
+                                sandbox_cleanup=sandbox_cleanup,
+                                plan=plan,
+                                scorers=scorers,
+                                generate=generate,
+                                progress=progress,
+                                logger=logger if log_samples else None,
+                                log_images=log_images,
+                                sample_source=sample_source,
+                                sample_error=sample_error_handler,
+                                sample_complete=sample_complete,
+                                fails_on_error=(
+                                    config.fail_on_error is None
+                                    or config.fail_on_error is True
+                                ),
+                                retry_on_error=config.retry_on_error or 0,
+                                error_retries=[],
+                                time_limit=config.time_limit,
+                                working_limit=config.working_limit,
+                                semaphore=sample_semaphore,
+                            )
+                        finally:
+                            tg.cancel_scope.cancel()
+
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(run, tg)
+
+                    return result
+
                 sample_results = await tg_collect(
                     [
-                        functools.partial(
-                            task_run_sample,
-                            task_name=task.name,
-                            log_location=profile.log_location,
-                            sample=sample,
-                            state=state,
-                            sandbox=sandbox,
-                            max_sandboxes=config.max_sandboxes,
-                            sandbox_cleanup=sandbox_cleanup,
-                            plan=plan,
-                            scorers=scorers,
-                            generate=generate,
-                            progress=progress,
-                            logger=logger if log_samples else None,
-                            log_images=log_images,
-                            sample_source=sample_source,
-                            sample_error=sample_error_handler,
-                            sample_complete=sample_complete,
-                            fails_on_error=(
-                                config.fail_on_error is None
-                                or config.fail_on_error is True
-                            ),
-                            retry_on_error=config.retry_on_error or 0,
-                            error_retries=[],
-                            time_limit=config.time_limit,
-                            working_limit=config.working_limit,
-                            semaphore=sample_semaphore,
+                        functools.partial(run_sample, sample, state)
+                        for (sample, state) in zip(
+                            samples,
+                            states,
                         )
-                        for (sample, state) in zip(samples, states)
                     ]
                 )
 
@@ -492,6 +513,7 @@ def update_metrics_display_fn(
 
 async def task_run_sample(
     *,
+    tg: TaskGroup,
     task_name: str,
     log_location: str,
     sample: Sample,
@@ -611,6 +633,7 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            tg=tg,
         ) as active,
     ):
         start_time: float | None = None
@@ -864,6 +887,7 @@ async def task_run_sample(
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
+            tg=tg,
         )
 
     # no error

@@ -2,7 +2,12 @@ import asyncio
 
 import pytest
 
+from inspect_ai._eval.eval import eval
+from inspect_ai._eval.task.task import Task
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.solver._solver import Generate, solver
+from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._limit import (
     LimitExceededError,
     apply_limits,
@@ -10,6 +15,7 @@ from inspect_ai.util._limit import (
     check_token_limit,
     message_limit,
     record_model_usage,
+    sample_limits,
     time_limit,
     token_limit,
 )
@@ -136,3 +142,46 @@ async def test_apply_limits_handles_time_limit() -> None:
         await asyncio.sleep(0.5)
 
     assert limit_scope.limit_error is not None
+
+
+def test_get_sample_limits_when_no_sample_running() -> None:
+    with pytest.raises(RuntimeError):
+        sample_limits()
+
+
+def test_get_sample_limits_within_eval() -> None:
+    @solver
+    def test_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            record_model_usage(ModelUsage(total_tokens=40))
+            limits = sample_limits()
+            assert limits.message.limit == 10
+            assert limits.token.limit == 100
+            assert limits.token.remaining == 60
+            assert limits.token.usage == 40
+            assert limits.time.limit == 1_000
+            assert limits.time.usage > 0
+            assert limits.working.limit == 10_000
+            assert limits.working.usage > 0
+
+            # Verify that we still get the sample level limits when a scoped limit is active
+            with token_limit(1):
+                assert sample_limits().token.limit == 100
+
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Say Hello")],
+        solver=test_solver(),
+        message_limit=10,
+        token_limit=100,
+        time_limit=1_000,
+        working_limit=10_000,
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    # Assertion failures in the solver will manifest as a failed eval.
+    assert log.status == "success"

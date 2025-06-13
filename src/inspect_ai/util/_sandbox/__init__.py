@@ -13,6 +13,7 @@ from .environment import (
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .local import LocalSandboxEnvironment  # noqa: F401
 from .registry import sandboxenv
+from .service import sandbox_service
 
 __all__ = [
     "OutputLimitExceededError",
@@ -27,4 +28,5 @@ __all__ = [
     "sandbox",
     "sandbox_with",
     "sandbox_default",
+    "sandbox_service",
 ]
