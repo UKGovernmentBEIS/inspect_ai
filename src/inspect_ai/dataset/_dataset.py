@@ -308,7 +308,7 @@ class MemoryDataset(Dataset):
 
     @override
     def shuffle(self, seed: int | None = None) -> None:
-        if seed:
+        if seed is not None:
             random.Random(seed).shuffle(self.samples)
         else:
             random.shuffle(self.samples)
