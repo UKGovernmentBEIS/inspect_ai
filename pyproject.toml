@@ -163,6 +163,8 @@ dev = [
   "pytest-asyncio",
   "pytest-cov",
   "pytest-dotenv",
+  "pytest-mock",
+  "pytest-watcher",
   "pytest-xdist",
   "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
   "textual-dev>=0.86.2",
