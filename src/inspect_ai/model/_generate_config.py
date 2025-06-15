@@ -109,6 +109,12 @@ class GenerateConfigArgs(TypedDict, total=False):
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
+    batch_size: int | None
+    """Batch size. OpenAI and Anthropic only."""
+
+    batch_max_send_delay: float | None
+    """Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only."""
+
 
 class GenerateConfig(BaseModel):
     """Model generation options."""
@@ -197,6 +203,18 @@ class GenerateConfig(BaseModel):
 
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    batch: bool | None = Field(default=None)
+    """Use batch API. Set to False to disable batching for a specific request."""
+
+    batch_size: int | None = Field(default=None)
+    """Batch size. OpenAI and Anthropic only."""
+
+    batch_max_send_delay: float | None = Field(default=None)
+    """Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only."""
+
+    batch_tick: float = Field(default=1)
+    """Time between checking for new batch requests. OpenAI and Anthropic only."""
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
