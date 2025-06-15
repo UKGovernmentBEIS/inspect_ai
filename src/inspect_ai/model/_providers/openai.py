@@ -1,15 +1,11 @@
 import asyncio
-import dataclasses
 import json
 import os
 import tempfile
-import time
-import uuid
 from collections import deque
 from logging import getLogger
 from typing import Any, Literal
 
-import anyio
 from openai import (
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -26,6 +22,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
+from inspect_ai.model._providers.util.batch import Batcher, BatchRequest, BatchResult
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -65,13 +62,92 @@ AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
 
 
-@dataclasses.dataclass
-class BatchRequest:
-    request: dict[str, Any]
-    future: asyncio.Future[ChatCompletion] = dataclasses.field(
-        default_factory=asyncio.Future
-    )
-    custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
+class OpenAIBatcher(Batcher[ChatCompletion]):
+    def __init__(self, client: AsyncOpenAI, config: GenerateConfig):
+        super().__init__(config)
+        self.client = client
+
+    async def _create_batch(self, batch: deque[BatchRequest[ChatCompletion]]) -> str:
+        # TODO: support other endpoints
+        endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
+        extra_headers: dict[str, str] = {}
+        with tempfile.NamedTemporaryFile(
+            delete=True, suffix=".jsonl", mode="w+b"
+        ) as temp_file:
+            for request in batch:
+                extra_headers = request.request.pop("extra_headers", {})
+                request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+                if request_id is not None:
+                    request.custom_id = request_id
+                temp_file.write(
+                    json.dumps(
+                        {
+                            "custom_id": request.custom_id,
+                            "method": "POST",
+                            "url": endpoint,
+                            "body": {
+                                k: v
+                                for k, v in request.request.items()
+                                if v is not NOT_GIVEN
+                            },
+                        },
+                    ).encode()
+                    + b"\n"
+                )
+            temp_file.flush()
+            temp_file.seek(0)
+
+            batch_file = await self.client.files.create(
+                file=temp_file.file,
+                purpose="batch",
+                extra_headers=extra_headers or None,
+            )
+        batch_info = await self.client.batches.create(
+            input_file_id=batch_file.id,
+            completion_window="24h",
+            endpoint=endpoint,
+            extra_headers=extra_headers or None,
+        )
+        return batch_info.id
+
+    async def _check_batch(self, batch_id: str) -> BatchResult:
+        batch_info = await self.client.batches.retrieve(batch_id)
+        batch_file_ids: list[str] = []
+        if batch_info.status in {"completed", "failed", "cancelled", "expired"}:
+            if batch_info.output_file_id is not None:
+                batch_file_ids.append(batch_info.output_file_id)
+            if batch_info.error_file_id is not None:
+                batch_file_ids.append(batch_info.error_file_id)
+
+        return BatchResult(
+            id=batch_id,
+            status=batch_info.status,
+            result_uris=batch_file_ids,
+        )
+
+    async def _handle_batch_result(
+        self,
+        batch_result: BatchResult,
+        idx_result_uri: int,
+        batch: dict[str, asyncio.Future[ChatCompletion]],
+    ) -> None:
+        batch_file = await self.client.files.content(
+            batch_result.result_uris[idx_result_uri]
+        )
+        for line in (await batch_file.aread()).decode().splitlines():
+            result: dict[str, Any] = json.loads(line)
+            request_id = result.pop("custom_id")
+            if not request_id:
+                continue
+
+            request_future = batch.pop(request_id)
+            if error := result.get("error"):
+                request_future.set_exception(RuntimeError(json.dumps(error)))
+                continue
+
+            request_future.set_result(
+                ChatCompletion.model_validate(result["response"]["body"])
+            )
 
 
 class OpenAIAPI(ModelAPI):
@@ -194,10 +270,7 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
-        self._batch_inflight: dict[str, dict[str, asyncio.Future[ChatCompletion]]] = {}
-        self._batch_queue: deque[BatchRequest] = deque()
-        self._batch_queue_timeout: float | None = None
-        self._batch_worker_task: asyncio.Task[None] | None = None
+        self._batcher = OpenAIBatcher(self.client, config)
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -351,144 +424,7 @@ class OpenAIAPI(ModelAPI):
         if config.batch is False or not self.config.batch_size:
             return await self.client.chat.completions.create(**request)
 
-        batch_request = BatchRequest(request=request)
-        self._batch_queue.append(batch_request)
-        self._batch_queue_timeout = min(
-            time.time()
-            + (config.batch_max_send_delay or self.config.batch_max_send_delay or 60),
-            self._batch_queue_timeout or float("inf"),
-        )
-
-        if self._batch_worker_task is None:
-            self._batch_worker_task = asyncio.create_task(self._batch_worker())
-
-        return await batch_request.future
-
-    async def _batch_worker(self) -> None:
-        assert self.config.batch_size is not None
-        assert self._batch_queue_timeout is not None
-
-        while self._batch_inflight or len(self._batch_queue):
-            if self._batch_inflight:
-                await self._check_batch_inflight()
-
-            num_queued = len(self._batch_queue)
-            if num_queued and (
-                num_queued >= self.config.batch_size
-                or time.time() > self._batch_queue_timeout
-            ):
-                await self._send_batch()
-
-            await anyio.sleep(self.config.batch_tick)
-
-        self._batch_worker_task = None
-
-    async def _check_batch_inflight(self) -> None:
-        try:
-            async with anyio.create_task_group() as tg:
-                for batch_id in self._batch_inflight:
-                    tg.start_soon(self._check_batch_inflight_single, batch_id)
-        except Exception as e:
-            logger.error(f"Error checking batch inflight: {e}")
-
-    async def _check_batch_inflight_single(self, batch_id: str) -> None:
-        batch_info = await self.client.batches.retrieve(batch_id)
-        if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
-            return
-
-        batch = self._batch_inflight.pop(batch_id)
-        batch_file_ids: list[str] = []
-        if batch_info.output_file_id is not None:
-            batch_file_ids.append(batch_info.output_file_id)
-        if batch_info.error_file_id is not None:
-            batch_file_ids.append(batch_info.error_file_id)
-
-        if not batch_file_ids:
-            return
-
-        async with anyio.create_task_group() as tg:
-            for batch_file_id in batch_file_ids:
-                tg.start_soon(self._handle_batch_file, batch, batch_file_id)
-
-        for request_id, request_future in batch.items():
-            request_future.set_exception(
-                RuntimeError(
-                    f"Request {request_id} failed, batch {batch_id} in status {batch_info.status}"
-                )
-            )
-
-    async def _handle_batch_file(
-        self, batch: dict[str, asyncio.Future[ChatCompletion]], batch_file_id: str
-    ) -> None:
-        batch_file = await self.client.files.content(batch_file_id)
-        for line in (await batch_file.aread()).decode().splitlines():
-            result: dict[str, Any] = json.loads(line)
-            request_id = result.pop("custom_id")
-            if not request_id:
-                continue
-
-            request_future = batch.pop(request_id)
-            if error := result.get("error"):
-                request_future.set_exception(RuntimeError(json.dumps(error)))
-                continue
-
-            request_future.set_result(
-                ChatCompletion.model_validate(result["response"]["body"])
-            )
-
-    async def _send_batch(self) -> None:
-        # TODO: allow multiple endpoints
-        endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
-        batch = self._batch_queue
-        self._batch_queue = deque()
-
-        extra_headers: dict[str, str] = {}
-        try:
-            with tempfile.NamedTemporaryFile(
-                delete=True, suffix=".jsonl", mode="w+b"
-            ) as temp_file:
-                for request in batch:
-                    extra_headers = request.request.pop("extra_headers", {})
-                    request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-                    if request_id is not None:
-                        request.custom_id = request_id
-                    temp_file.write(
-                        json.dumps(
-                            {
-                                "custom_id": request.custom_id,
-                                "method": "POST",
-                                "url": endpoint,
-                                "body": {
-                                    k: v
-                                    for k, v in request.request.items()
-                                    if v is not NOT_GIVEN
-                                },
-                            },
-                        ).encode()
-                        + b"\n"
-                    )
-                temp_file.flush()
-                temp_file.seek(0)
-
-                batch_file = await self.client.files.create(
-                    file=temp_file.file,
-                    purpose="batch",
-                    extra_headers=extra_headers or None,
-                )
-            batch_info = await self.client.batches.create(
-                input_file_id=batch_file.id,
-                completion_window="24h",
-                endpoint=endpoint,
-                extra_headers=extra_headers or None,
-            )
-        except Exception as e:
-            logger.error(f"Error sending batch: {e}")
-            # TODO: implement retry logic?
-            return
-
-        self._batch_inflight[batch_info.id] = {
-            request.custom_id: request.future for request in batch
-        }
+        return await self._batcher.generate(request, config)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
