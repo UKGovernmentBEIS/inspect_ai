@@ -1,3 +1,7 @@
+export const kSampleIdVariable = "id";
+export const kSampleMetadataVariable = "metadata";
+export const kSampleMetadataPrefix = kSampleMetadataVariable + ".";
+
 export const KEYWORDS: string[] = ["and", "or", "not", "in", "not in", "mod"];
 
 export const MATH_FUNCTIONS: [string, string][] = [
@@ -16,6 +20,8 @@ export const MATH_FUNCTIONS: [string, string][] = [
 export const SAMPLE_VARIABLES: [string, string][] = [
   ["has_error", "Checks if the sample has an error"],
   ["has_retries", "Checks if the sample has been retried"],
+  [kSampleIdVariable, "The unique identifier of the sample"],
+  [kSampleMetadataVariable, "Metadata associated with the sample"],
 ];
 
 export const SAMPLE_FUNCTIONS: [string, string][] = [
