@@ -1,6 +1,8 @@
+import asyncio
 import functools
 import os
 import re
+from collections import deque
 from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, cast
@@ -42,6 +44,10 @@ from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
 )
+from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
+from anthropic.types.messages.batch_create_params import (
+    Request as AnthropicBatchRequest,
+)
 from pydantic import JsonValue
 from typing_extensions import override
 
@@ -59,6 +65,7 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
+from inspect_ai.model._providers.util.batch import Batcher, BatchRequest, BatchResult
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
@@ -87,6 +94,68 @@ WEB_SEARCH_COMPATIBLE_MODELS = [
     "claude-3-5-sonnet-latest",
     "claude-3-5-haiku-latest",
 ]
+
+
+class AnthropicBatcher(Batcher[Message]):
+    def __init__(
+        self,
+        client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
+        config: GenerateConfig,
+    ):
+        super().__init__(config)
+        self.client = client
+
+    async def _create_batch(self, batch: deque[BatchRequest[Message]]) -> str:
+        requests: list[AnthropicBatchRequest] = []
+        extra_headers: dict[str, str] = {}
+        for request in batch:
+            extra_headers = request.request.pop("extra_headers", {})
+            request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+            if request_id is not None:
+                request.custom_id = request_id
+            requests.append(
+                AnthropicBatchRequest(
+                    custom_id=request.custom_id,
+                    params=MessageCreateParamsNonStreaming(**request.request),
+                )
+            )
+
+        batch_info = await self.client.messages.batches.create(
+            requests=requests,
+            extra_headers=extra_headers or None,
+        )
+        return batch_info.id
+
+    async def _check_batch(self, batch_id: str) -> BatchResult:
+        batch_info = await self.client.messages.batches.retrieve(batch_id)
+        return BatchResult(
+            id=batch_id,
+            status=batch_info.processing_status,
+            result_uris=list(
+                filter(
+                    None,
+                    [batch_info.results_url]
+                    if batch_info.processing_status == "ended"
+                    else [],
+                )
+            ),
+        )
+
+    async def _handle_batch_result(
+        self,
+        batch_result: BatchResult,
+        idx_result_uri: int,
+        batch: dict[str, asyncio.Future[Message]],
+    ) -> None:
+        async for result in await self.client.messages.batches.results(batch_result.id):
+            custom_id = result.custom_id
+            request_future = batch.pop(custom_id)
+            if result.result.type == "succeeded":
+                request_future.set_result(result.result.message)
+            else:
+                request_future.set_exception(
+                    RuntimeError(result.result.model_dump_json())
+                )
 
 
 class AnthropicAPI(ModelAPI):
@@ -171,6 +240,8 @@ class AnthropicAPI(ModelAPI):
                 api_key=self.api_key,
                 **model_args,
             )
+
+        self._batcher = AnthropicBatcher(self.client, config)
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -258,7 +329,7 @@ class AnthropicAPI(ModelAPI):
             )
 
             message, output = await self._perform_request_and_continuations(
-                request, streaming, tools
+                request, streaming, tools, config
             )
 
             response = message.model_dump()
@@ -284,6 +355,7 @@ class AnthropicAPI(ModelAPI):
         request: dict[str, Any],
         streaming: bool,
         tools: list[ToolInfo],
+        config: GenerateConfig,
     ) -> tuple[Message, ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -294,6 +366,8 @@ class AnthropicAPI(ModelAPI):
         if streaming:
             async with self.client.messages.stream(**request) as stream:
                 head_message = await stream.get_final_message()
+        elif config.batch is not False and self.config.batch_size:
+            head_message = await self._batcher.generate(request, config)
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
@@ -307,7 +381,7 @@ class AnthropicAPI(ModelAPI):
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
             _, tail_model_output = await self._perform_request_and_continuations(
-                tail_request, streaming, tools
+                tail_request, streaming, tools, config
             )
 
             head_content = _content_list(head_model_output.message.content)
