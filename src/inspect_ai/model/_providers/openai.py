@@ -1,4 +1,8 @@
+import asyncio
+import json
 import os
+import tempfile
+from collections import deque
 from logging import getLogger
 from typing import Any, Literal
 
@@ -18,6 +22,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
+from inspect_ai.model._providers.util.batch import Batcher, BatchRequest, BatchResult
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -55,6 +60,94 @@ AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
+
+
+class OpenAIBatcher(Batcher[ChatCompletion]):
+    def __init__(self, client: AsyncOpenAI, config: GenerateConfig):
+        super().__init__(config)
+        self.client = client
+
+    async def _create_batch(self, batch: deque[BatchRequest[ChatCompletion]]) -> str:
+        # TODO: support other endpoints
+        endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
+        extra_headers: dict[str, str] = {}
+        with tempfile.NamedTemporaryFile(
+            delete=True, suffix=".jsonl", mode="w+b"
+        ) as temp_file:
+            for request in batch:
+                extra_headers = request.request.pop("extra_headers", {})
+                request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+                if request_id is not None:
+                    request.custom_id = request_id
+                temp_file.write(
+                    json.dumps(
+                        {
+                            "custom_id": request.custom_id,
+                            "method": "POST",
+                            "url": endpoint,
+                            "body": {
+                                k: v
+                                for k, v in request.request.items()
+                                if v is not NOT_GIVEN
+                            },
+                        },
+                    ).encode()
+                    + b"\n"
+                )
+            temp_file.flush()
+            temp_file.seek(0)
+
+            batch_file = await self.client.files.create(
+                file=temp_file.file,
+                purpose="batch",
+                extra_headers=extra_headers or None,
+            )
+        batch_info = await self.client.batches.create(
+            input_file_id=batch_file.id,
+            completion_window="24h",
+            endpoint=endpoint,
+            extra_headers=extra_headers or None,
+        )
+        return batch_info.id
+
+    async def _check_batch(self, batch_id: str) -> BatchResult:
+        batch_info = await self.client.batches.retrieve(batch_id)
+        batch_file_ids: list[str] = []
+        if batch_info.status in {"completed", "failed", "cancelled", "expired"}:
+            if batch_info.output_file_id is not None:
+                batch_file_ids.append(batch_info.output_file_id)
+            if batch_info.error_file_id is not None:
+                batch_file_ids.append(batch_info.error_file_id)
+
+        return BatchResult(
+            id=batch_id,
+            status=batch_info.status,
+            result_uris=batch_file_ids,
+        )
+
+    async def _handle_batch_result(
+        self,
+        batch_result: BatchResult,
+        idx_result_uri: int,
+        batch: dict[str, asyncio.Future[ChatCompletion]],
+    ) -> None:
+        batch_file = await self.client.files.content(
+            batch_result.result_uris[idx_result_uri]
+        )
+        for line in (await batch_file.aread()).decode().splitlines():
+            result: dict[str, Any] = json.loads(line)
+            request_id = result.pop("custom_id")
+            if not request_id:
+                continue
+
+            request_future = batch.pop(request_id)
+            if error := result.get("error"):
+                request_future.set_exception(RuntimeError(json.dumps(error)))
+                continue
+
+            request_future.set_result(
+                ChatCompletion.model_validate(result["response"]["body"])
+            )
 
 
 class OpenAIAPI(ModelAPI):
@@ -176,6 +269,8 @@ class OpenAIAPI(ModelAPI):
                 timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
+
+        self._batcher = OpenAIBatcher(self.client, config)
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -312,10 +407,7 @@ class OpenAIAPI(ModelAPI):
         )
 
         try:
-            # generate completion
-            completion: ChatCompletion = await self.client.chat.completions.create(
-                **request
-            )
+            completion: ChatCompletion = await self._get_completion(request, config)
 
             # save response for model_call
             response = completion.model_dump()
@@ -325,6 +417,14 @@ class OpenAIAPI(ModelAPI):
             return model_output_from_openai(completion, choices), model_call()
         except (BadRequestError, UnprocessableEntityError) as e:
             return openai_handle_bad_request(self.service_model_name(), e), model_call()
+
+    async def _get_completion(
+        self, request: dict[str, Any], config: GenerateConfig
+    ) -> ChatCompletion:
+        if config.batch is False or not self.config.batch_size:
+            return await self.client.chat.completions.create(**request)
+
+        return await self._batcher.generate(request, config)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
