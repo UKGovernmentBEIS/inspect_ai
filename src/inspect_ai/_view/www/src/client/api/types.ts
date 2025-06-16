@@ -149,6 +149,7 @@ export interface LogViewAPI {
     end: number,
   ) => Promise<Uint8Array>;
   eval_log_headers: (log_files: string[]) => Promise<EvalLog[]>;
+  log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (
     filename: string,
     filecontents: string | Blob | ArrayBuffer | ArrayBufferView,
@@ -177,6 +178,7 @@ export interface ClientAPI {
     id: string | number,
     epoch: number,
   ) => Promise<EvalSample | undefined>;
+  log_message?: (log_file: string, message: string) => Promise<void>;
   download_file: (
     file_name: string,
     file_contents: string | Blob | ArrayBuffer | ArrayBufferView,

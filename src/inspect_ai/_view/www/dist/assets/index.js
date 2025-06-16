@@ -23937,7 +23937,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               processAttachments(sampleDataResponse.sampleData, pollingState);
               const processedEvents = processEvents(
                 sampleDataResponse.sampleData,
-                pollingState
+                pollingState,
+                api2,
+                logFile
               );
               if (sampleDataResponse.sampleData.attachments.length > 0) {
                 const maxAttachment = findMaxId(
@@ -24001,7 +24003,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         pollingState.attachments[v2.hash] = v2.content;
       });
     }
-    function processEvents(sampleData, pollingState) {
+    function processEvents(sampleData, pollingState, api2, log_file) {
       log$4.debug(`Processing ${sampleData.events.length} events`);
       if (sampleData.events.length === 0) {
         return false;
@@ -24017,6 +24019,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               attachmentId,
               available_attachments: Object.keys(pollingState.attachments)
             };
+            if (api2.log_message) {
+              api2.log_message(
+                log_file,
+                `Unable to resolve attachment ${attachmentId}
+` + JSON.stringify(snapshot)
+              );
+            }
             console.warn(`Unable to resolve attachment ${attachmentId}`, snapshot);
           }
         );
@@ -49710,6 +49719,27 @@ self.onmessage = function (e) {
       )).parsed;
       return result2;
     }
+    async function log_message$1(log_file, message2) {
+      const params2 = new URLSearchParams();
+      params2.append("log_file", log_file);
+      params2.append("message", message2);
+      const request = {
+        headers: {
+          "Content-Type": "text/plain"
+        },
+        parse: async (text2) => {
+          if (text2 !== "") {
+            throw new Error(`Unexpected response from log_message: ${text2}`);
+          }
+          return;
+        }
+      };
+      await apiRequest(
+        "GET",
+        `/api/log-message?${params2.toString()}`,
+        request
+      );
+    }
     async function apiRequest(method, path, request) {
       const responseHeaders = {
         Accept: "application/json",
@@ -49803,6 +49833,7 @@ self.onmessage = function (e) {
       eval_log_size: eval_log_size$1,
       eval_log_bytes: eval_log_bytes$1,
       eval_log_headers: eval_log_headers$1,
+      log_message: log_message$1,
       download_file: download_file$1,
       open_log_file: open_log_file$1,
       eval_pending_samples: eval_pending_samples$1,
@@ -50626,6 +50657,9 @@ self.onmessage = function (e) {
           }
           return void 0;
         },
+        log_message: async (log_file, message2) => {
+          console.log(`[CLIENT MESSAGE] (${log_file}): ${message2}`);
+        },
         eval_log: async (log_file, _headerOnly, _capabilities) => {
           const response = await fetchLogFile(log_file);
           if (response) {
@@ -50742,6 +50776,7 @@ self.onmessage = function (e) {
     const kMethodEvalLogHeaders = "eval_log_headers";
     const kMethodPendingSamples = "eval_log_pending_samples";
     const kMethodSampleData = "eval_log_sample_data";
+    const kMethodLogMessage = "log_message";
     const kJsonRpcVersion = "2.0";
     function webViewJsonRpcClient(vscode2) {
       const target2 = {
@@ -50910,6 +50945,9 @@ self.onmessage = function (e) {
         throw new Error(`Unable to load live sample data ${log_file}.`);
       }
     }
+    async function log_message(log_file, message2) {
+      await vscodeClient(kMethodLogMessage, [log_file, message2]);
+    }
     async function download_file() {
       throw Error("Downloading files is not supported in VS Code");
     }
@@ -50929,6 +50967,7 @@ self.onmessage = function (e) {
       eval_log_size,
       eval_log_bytes,
       eval_log_headers,
+      log_message,
       download_file,
       open_log_file,
       eval_pending_samples,
@@ -51356,6 +51395,9 @@ self.onmessage = function (e) {
         },
         download_file: (download_file2, file_contents) => {
           return api2.download_file(download_file2, file_contents);
+        },
+        log_message: (log_file2, message2) => {
+          return api2.log_message(log_file2, message2);
         },
         get_log_pending_samples: api2.eval_pending_samples ? get_log_pending_samples : void 0,
         get_log_sample_data: api2.eval_log_sample_data ? get_log_sample_data : void 0
