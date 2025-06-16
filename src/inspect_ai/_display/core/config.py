@@ -8,9 +8,9 @@ from inspect_ai.log._log import eval_config_defaults
 from .display import TaskProfile
 
 
-def task_config(
-    profile: TaskProfile, generate_config: bool = True, style: str = ""
-) -> RenderableType:
+def task_config_str(
+    profile: TaskProfile, generate_config: bool = True
+) -> str:
     # merge config
     # wind params back for display
     task_args = dict(profile.task_args)
@@ -51,6 +51,13 @@ def task_config(
                 value = value.replace("[", "\\[")
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
+    return values
+
+
+def task_config(
+    profile: TaskProfile, generate_config: bool = True, style: str = ""
+) -> RenderableType:
+    values = task_config_str(profile, generate_config)
     if values:
         values_text = Text(values, style=style)
         values_text.truncate(500, overflow="ellipsis")

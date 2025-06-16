@@ -144,6 +144,12 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
     # init logging handler on demand
     global _logHandler
     if not _logHandler:
+        root_logger = getLogger()
+        if root_logger.hasHandlers():
+            # someone else has already set up logging
+            _logHandler = True
+            return
+
         _logHandler = LogHandler(
             capture_levelno=capture_level,
             display_levelno=levelno,
@@ -151,7 +157,7 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
         )
 
         # set the global log level
-        getLogger().setLevel(log_level)
+        root_logger.setLevel(log_level)
 
         # set the log level for our package
         getLogger(PKG_NAME).setLevel(capture_level)
@@ -159,7 +165,7 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
         getLogger(PKG_NAME).propagate = False
 
         # add our logger to the global handlers
-        getLogger().addHandler(_logHandler)
+        root_logger.addHandler(_logHandler)
 
         # httpx currently logs all requests at the INFO level
         # this is a bit aggressive and we already do this at
