@@ -35,3 +35,7 @@
 .copyLink:hover {
   opacity: 1;
 }
+
+.metadataLabel {
+  padding-top: 1em;
+}
