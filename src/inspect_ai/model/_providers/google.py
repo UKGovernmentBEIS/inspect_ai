@@ -991,6 +991,10 @@ def _combine_text_parts(acc: list[Part], part: Part) -> list[Part]:
     """Combine adjacent text parts into a single part."""
     return (
         acc + [part]
-        if part.text is None or len(acc) == 0 or acc[-1].text is None
+        if part.text is None
+        or part.thought is not None
+        or len(acc) == 0
+        or acc[-1].text is None
+        or acc[-1].thought is not None
         else acc[:-1] + [Part(text=acc[-1].text + part.text)]
     )
