@@ -86049,7 +86049,12 @@ ${events}
           const metadataValues = Array.from(
             getMetadataPropertyValues(samples, metadataPropertyPath)
           );
-          const metadataValueCompletions = metadataValues.map(
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredValues = currentQuery ? metadataValues.filter((value2) => {
+            const label2 = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "boolean" ? value2 ? "True" : "False" : value2 === null ? "None" : String(value2);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : metadataValues;
+          const metadataValueCompletions = filteredValues.map(
             makeMetadataValueCompletion
           );
           return makeCompletions(metadataValueCompletions, {
@@ -86058,7 +86063,12 @@ ${events}
         }
         if (varName === kSampleIdVariable && samples) {
           const sampleIds = Array.from(getSampleIds(samples));
-          const sampleIdCompletions = sampleIds.map(makeSampleIdCompletion);
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredIds = currentQuery ? sampleIds.filter((id) => {
+            const label2 = typeof id === "string" ? `"${id}"` : String(id);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : sampleIds;
+          const sampleIdCompletions = filteredIds.map(makeSampleIdCompletion);
           return makeCompletions(sampleIdCompletions, {
             includeDefault: false
           });

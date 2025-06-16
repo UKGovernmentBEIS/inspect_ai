@@ -649,7 +649,21 @@ export function getCompletions(
       const metadataValues = Array.from(
         getMetadataPropertyValues(samples, metadataPropertyPath),
       );
-      const metadataValueCompletions = metadataValues.map(
+      
+      // Get the current query for prefix filtering
+      const currentQuery = currentToken?.text || "";
+      
+      // Pre-filter values to only show prefix matches
+      const filteredValues = currentQuery 
+        ? metadataValues.filter(value => {
+            const label = typeof value === "string" ? `"${value}"` : 
+                         typeof value === "boolean" ? (value ? "True" : "False") :
+                         value === null ? "None" : String(value);
+            return label.toLowerCase().startsWith(currentQuery.toLowerCase());
+          })
+        : metadataValues;
+      
+      const metadataValueCompletions = filteredValues.map(
         makeMetadataValueCompletion,
       );
       return makeCompletions(metadataValueCompletions, {
@@ -660,7 +674,19 @@ export function getCompletions(
     // Sample ID completions
     if (varName === kSampleIdVariable && samples) {
       const sampleIds = Array.from(getSampleIds(samples));
-      const sampleIdCompletions = sampleIds.map(makeSampleIdCompletion);
+      
+      // Get the current query for prefix filtering
+      const currentQuery = currentToken?.text || "";
+      
+      // Pre-filter IDs to only show prefix matches
+      const filteredIds = currentQuery 
+        ? sampleIds.filter(id => {
+            const label = typeof id === "string" ? `"${id}"` : String(id);
+            return label.toLowerCase().startsWith(currentQuery.toLowerCase());
+          })
+        : sampleIds;
+      
+      const sampleIdCompletions = filteredIds.map(makeSampleIdCompletion);
       return makeCompletions(sampleIdCompletions, {
         includeDefault: false,
       });
