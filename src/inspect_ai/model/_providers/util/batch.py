@@ -1,4 +1,3 @@
-import asyncio
 import dataclasses
 import time
 import uuid
@@ -9,6 +8,7 @@ from typing import Any, Generic, TypeVar
 
 import anyio
 
+from inspect_ai._util.eval_task_group import eval_task_group
 from inspect_ai.model._generate_config import GenerateConfig
 
 logger = getLogger(__name__)
@@ -19,7 +19,7 @@ T = TypeVar("T")
 @dataclasses.dataclass
 class BatchRequest(Generic[T]):
     request: dict[str, Any]
-    future: asyncio.Future[T] = dataclasses.field(default_factory=asyncio.Future)
+    result_stream: anyio.abc.ObjectSendStream[T | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
 
 
@@ -35,11 +35,16 @@ class Batcher(Generic[T]):
         self.config = config
         self._queue: deque[BatchRequest[T]] = deque()
         self.queue_timeout: float | None = None
-        self._inflight_batches: dict[str, dict[str, asyncio.Future[T]]] = {}
-        self._worker_task: asyncio.Task[None] | None = None
+        self._inflight_batches: dict[
+            str, dict[str, anyio.abc.ObjectSendStream[T | Exception]]
+        ] = {}
+        self._task_group: anyio.abc.TaskGroup | None = None
 
     async def generate(self, request: dict[str, Any], config: GenerateConfig) -> T:
-        batch_request = BatchRequest[T](request=request)
+        send_stream, receive_stream = anyio.create_memory_object_stream[T | Exception](
+            1
+        )
+        batch_request = BatchRequest[T](request=request, result_stream=send_stream)
         self._queue.append(batch_request)
         self.queue_timeout = min(
             time.time()
@@ -47,10 +52,14 @@ class Batcher(Generic[T]):
             self.queue_timeout or float("inf"),
         )
 
-        if self._worker_task is None:
-            self._worker_task = asyncio.create_task(self._batch_worker())
+        if self._task_group is None:
+            self._task_group = eval_task_group()
+            self._task_group.start_soon(self._batch_worker)
 
-        return await batch_request.future
+        result = await receive_stream.receive()
+        if isinstance(result, Exception):
+            raise result
+        return result
 
     async def _batch_worker(self) -> None:
         assert self.config.batch_size is not None
@@ -68,7 +77,7 @@ class Batcher(Generic[T]):
 
             await anyio.sleep(self.config.batch_tick)
 
-        self._worker_task = None
+        self._task_group = None
 
     async def _check_inflight_batches(self) -> None:
         try:
@@ -91,12 +100,17 @@ class Batcher(Generic[T]):
                     self._handle_batch_result, batch_results, idx_result_uri, batch
                 )
 
-        for request_id, request_future in batch.items():
-            request_future.set_exception(
-                RuntimeError(
-                    f"Request {request_id} failed, batch {batch_id} in status {batch_results.status}"
+        # Send exceptions to any remaining streams that weren't handled
+        for request_id, result_stream in batch.items():
+            try:
+                await result_stream.send(
+                    RuntimeError(
+                        f"Request {request_id} failed, batch {batch_id} in status {batch_results.status}"
+                    )
                 )
-            )
+            except anyio.BrokenResourceError:
+                # TODO: VERIFY Stream already closed, ignore
+                pass
 
     async def _send_batch(self) -> None:
         batch = self._queue
@@ -110,7 +124,7 @@ class Batcher(Generic[T]):
             return
 
         self._inflight_batches[batch_id] = {
-            request.custom_id: request.future for request in batch
+            request.custom_id: request.result_stream for request in batch
         }
 
     @abstractmethod
@@ -126,6 +140,6 @@ class Batcher(Generic[T]):
         self,
         batch_result: BatchResult,
         idx_result_uri: int,
-        batch: dict[str, asyncio.Future[T]],
+        batch: dict[str, anyio.abc.ObjectSendStream[T | Exception]],
     ) -> None:
         pass
