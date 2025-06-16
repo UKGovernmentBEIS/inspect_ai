@@ -55282,7 +55282,7 @@ self.onmessage = function (e) {
           {
             className: clsx(
               styles$y.eventRow,
-              "text-size-smallest",
+              "text-size-smaller",
               selected2 ? styles$y.selected : ""
             ),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
