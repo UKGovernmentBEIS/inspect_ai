@@ -5,6 +5,7 @@ import { SampleSummary } from "../../../client/api/types";
 import { kScoreTypeBoolean } from "../../../constants";
 import { inputString } from "../../../utils/format";
 import { EvalDescriptor, ScoreDescriptor } from "../descriptor/types";
+import { kSampleMetadataPrefix } from "./sample-filter/language";
 
 export interface SampleFilterItem {
   shortName?: string;
@@ -100,10 +101,25 @@ const scoreVariables = (
   return variables;
 };
 
+const getNestedPropertyValue = (obj: any, path: string): any => {
+  const keys = path.split(".");
+  let current = obj;
+  for (const key of keys) {
+    if (current && typeof current === "object" && key in current) {
+      current = current[key];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+};
+
 const sampleVariables = (sample: SampleSummary): Record<string, unknown> => {
   return {
     has_error: !!sample.error,
     has_retries: sample.retries !== undefined && sample.retries > 0,
+    id: sample.id,
+    metadata: sample.metadata,
   };
 };
 
@@ -217,6 +233,12 @@ export const filterExpression = (
         const value = get(name);
         return value;
       }
+      // Handle metadata property access
+      if (name.startsWith(kSampleMetadataPrefix)) {
+        const propertyPath = name.substring(kSampleMetadataPrefix.length);
+        const metadata = sample.metadata || {};
+        return getNestedPropertyValue(metadata, propertyPath);
+      }
       // Score variables exist only if the sample completed successfully.
       return sample.error ? undefined : get(name);
     };
@@ -240,6 +262,10 @@ export const filterExpression = (
       const errorObj = error as any as Record<string, unknown>;
       const propertyName: string = (errorObj["propertyName"] as string) || "";
       if (propertyName) {
+        // Don't show errors for metadata properties - they might not exist in all samples
+        if (propertyName.startsWith(kSampleMetadataPrefix)) {
+          return { matches: false, error: undefined };
+        }
         const regex = new RegExp(`\\b${propertyName}\\b`);
         const match = regex.exec(filterValue);
         if (match) {

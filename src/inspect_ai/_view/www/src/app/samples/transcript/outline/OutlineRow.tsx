@@ -49,7 +49,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
       <div
         className={clsx(
           styles.eventRow,
-          "text-size-smallest",
+          "text-size-smaller",
           selected ? styles.selected : "",
         )}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}

@@ -8,7 +8,12 @@
 - Agent handoff: Only print handoff agent prefix if there is assistant message content.
 - Subprocess: Ensure that streams are drained when a cancellation occurs (prevent hanging on calls with large output payloads).
 - Eval log: Capture only limits that terminated the sample as `sample.limit` (as opposed to ones bound to context managers or agents).
+<<<<<<< feature/task-group
 - Eval: Wrap eval execution in TaskGroup.
+=======
+- Inspect View: Increase transcript outline font size.
+- Inspect View: Add support for filtering by sample id, sample metadata.
+>>>>>>> main
 - Bugfix: Dataset shuffling now works correctly with `seed` of 0.
 
 ## v0.3.104 (12 June 2025)
