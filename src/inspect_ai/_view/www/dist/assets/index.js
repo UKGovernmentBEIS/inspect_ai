@@ -38587,149 +38587,37 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       );
     };
-    const directoryRelativeUrl = (file, dir) => {
-      if (!dir) {
-        return encodeURIComponent(file);
-      }
-      const normalizedFile = file.replace(/\\/g, "/");
-      const normalizedLogDir = dir.replace(/\\/g, "/");
-      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-      if (normalizedFile.startsWith(dirWithSlash)) {
-        const relativePath = normalizedFile.substring(dirWithSlash.length);
-        const segments = relativePath.split("/");
-        const encodedSegments = segments.map(
-          (segment) => encodeURIComponent(segment)
-        );
-        return encodedSegments.join("/");
-      }
-      return encodeURIComponent(file);
-    };
-    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
-    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
-    const baseUrl = (logPath, sampleId, sampleEpoch) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return sampleUrl(logPath, sampleId, sampleEpoch);
-      } else {
-        return logUrl(logPath);
-      }
-    };
-    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
-      } else {
-        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
-      }
-    };
-    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleTranscriptTabId
+    const LabeledValue = ({
+      layout = "column",
+      style: style2,
+      label: label2,
+      children: children2,
+      valueStyle,
+      className: className2
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: clsx(
+            "labeled-value",
+            layout === "column" ? "column" : "row",
+            className2
+          ),
+          style: {
+            ...style2
+          },
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "labeled-value-label text-style-label text-style-secondary",
+                children: label2
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "labeled-value-value", style: { ...valueStyle }, children: children2 })
+          ]
+        }
       );
-      return `${baseUrl2}?event=${eventId}`;
-    };
-    const useSampleMessageUrl = (messageId, sampleId, sampleEpoch) => {
-      const {
-        logPath: urlLogPath,
-        sampleId: urlSampleId,
-        epoch: urlEpoch
-      } = useParams();
-      const log_file = useStore((state) => state.logs.selectedLogFile);
-      const log_dir = useStore((state) => state.logs.logs.log_dir);
-      let targetLogPath = urlLogPath;
-      if (!targetLogPath && log_file) {
-        targetLogPath = makeLogPath(log_file, log_dir);
-      }
-      const eventUrl = reactExports.useMemo(() => {
-        return messageId && targetLogPath ? sampleMessageUrl(
-          messageId,
-          targetLogPath,
-          urlSampleId,
-          urlEpoch
-        ) : void 0;
-      }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-      return eventUrl;
-    };
-    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
-      const {
-        logPath: urlLogPath,
-        sampleId: urlSampleId,
-        epoch: urlEpoch
-      } = useParams();
-      const log_file = useStore((state) => state.logs.selectedLogFile);
-      const log_dir = useStore((state) => state.logs.logs.log_dir);
-      let targetLogPath = urlLogPath;
-      if (!targetLogPath && log_file) {
-        targetLogPath = makeLogPath(log_file, log_dir);
-      }
-      const eventUrl = reactExports.useMemo(() => {
-        return targetLogPath ? sampleEventUrl(
-          eventId,
-          targetLogPath,
-          urlSampleId,
-          urlEpoch
-        ) : void 0;
-      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-      return eventUrl;
-    };
-    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleMessagesTabId
-      );
-      return `${baseUrl2}?message=${messageId}`;
-    };
-    const logUrl = (log_file, log_dir, tabId) => {
-      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
-    };
-    const makeLogPath = (log_file, log_dir) => {
-      const pathSegment = directoryRelativeUrl(log_file, log_dir);
-      return pathSegment;
-    };
-    const logUrlRaw = (log_segment, tabId) => {
-      if (tabId) {
-        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
-      } else {
-        return `/logs/${encodeURIComponent(log_segment)}`;
-      }
-    };
-    const supportsLinking = () => {
-      return (
-        //location.hostname !== "localhost" &&
-        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
-      );
-    };
-    const toFullUrl = (path) => {
-      return `${window.location.origin}${window.location.pathname}#${path}`;
-    };
-    const message$1 = "_message_17kai_1";
-    const systemRole = "_systemRole_17kai_8";
-    const messageGrid = "_messageGrid_17kai_12";
-    const messageContents = "_messageContents_17kai_20";
-    const indented = "_indented_17kai_25";
-    const copyLink$1 = "_copyLink_17kai_29";
-    const styles$1p = {
-      message: message$1,
-      systemRole,
-      messageGrid,
-      messageContents,
-      indented,
-      copyLink: copyLink$1
-    };
-    const webSearch = "_webSearch_1376z_1";
-    const query$1 = "_query_1376z_8";
-    const styles$1o = {
-      webSearch,
-      query: query$1
-    };
-    const WebSearch = ({ query: query2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.webSearch, "text-size-smaller"), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1o.query, "text-size-smallest"), children: query2 })
-      ] });
     };
     const we = 0, zt = 1, qt = 2, En = 4;
     function ln(t2) {
@@ -42049,7 +41937,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const key = "_key_1ltuo_1";
     const pre = "_pre_1ltuo_16";
     const treeIcon = "_treeIcon_1ltuo_20";
-    const styles$1n = {
+    const styles$1p = {
       keyPairContainer,
       key,
       pre,
@@ -42231,7 +42119,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$1n.keyPairContainer, "text-size-small"),
+            className: clsx(styles$1p.keyPairContainer, "text-size-small"),
             style: {
               paddingLeft: `${item2.depth * 20}px`
             },
@@ -42242,7 +42130,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   "data-index": index2,
                   className: clsx(
                     kRecordTreeKey,
-                    styles$1n.key,
+                    styles$1p.key,
                     "font-monospace",
                     "text-style-secondary"
                   ),
@@ -42252,16 +42140,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1n.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1p.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
-                          styles$1n.treeIcon
+                          styles$1p.treeIcon
                         )
                       }
                     ) }) : void 0 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1n.pre), children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1p.pre), children: [
                       item2.key,
                       ":"
                     ] })
@@ -42412,6 +42300,152 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const isPrimitiveOrNull = (value2) => {
       return value2 === null || value2 === void 0 || typeof value2 === "string" || typeof value2 === "number" || typeof value2 === "boolean";
+    };
+    const directoryRelativeUrl = (file, dir) => {
+      if (!dir) {
+        return encodeURIComponent(file);
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      if (normalizedFile.startsWith(dirWithSlash)) {
+        const relativePath = normalizedFile.substring(dirWithSlash.length);
+        const segments = relativePath.split("/");
+        const encodedSegments = segments.map(
+          (segment) => encodeURIComponent(segment)
+        );
+        return encodedSegments.join("/");
+      }
+      return encodeURIComponent(file);
+    };
+    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
+    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+    const baseUrl = (logPath, sampleId, sampleEpoch) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return sampleUrl(logPath, sampleId, sampleEpoch);
+      } else {
+        return logUrl(logPath);
+      }
+    };
+    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+      } else {
+        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
+      }
+    };
+    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleTranscriptTabId
+      );
+      return `${baseUrl2}?event=${eventId}`;
+    };
+    const useSampleMessageUrl = (messageId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return messageId && targetLogPath ? sampleMessageUrl(
+          messageId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
+        ) : void 0;
+      }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return targetLogPath ? sampleEventUrl(
+          eventId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
+        ) : void 0;
+      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleMessagesTabId
+      );
+      return `${baseUrl2}?message=${messageId}`;
+    };
+    const logUrl = (log_file, log_dir, tabId) => {
+      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
+    };
+    const makeLogPath = (log_file, log_dir) => {
+      const pathSegment = directoryRelativeUrl(log_file, log_dir);
+      return pathSegment;
+    };
+    const logUrlRaw = (log_segment, tabId) => {
+      if (tabId) {
+        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+      } else {
+        return `/logs/${encodeURIComponent(log_segment)}`;
+      }
+    };
+    const supportsLinking = () => {
+      return (
+        //location.hostname !== "localhost" &&
+        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
+      );
+    };
+    const toFullUrl = (path) => {
+      return `${window.location.origin}${window.location.pathname}#${path}`;
+    };
+    const message$1 = "_message_1ivu3_1";
+    const systemRole = "_systemRole_1ivu3_8";
+    const messageGrid = "_messageGrid_1ivu3_12";
+    const messageContents = "_messageContents_1ivu3_20";
+    const indented = "_indented_1ivu3_25";
+    const copyLink$1 = "_copyLink_1ivu3_29";
+    const metadataLabel = "_metadataLabel_1ivu3_39";
+    const styles$1o = {
+      message: message$1,
+      systemRole,
+      messageGrid,
+      messageContents,
+      indented,
+      copyLink: copyLink$1,
+      metadataLabel
+    };
+    const webSearch = "_webSearch_1376z_1";
+    const query$1 = "_query_1376z_8";
+    const styles$1n = {
+      webSearch,
+      query: query$1
+    };
+    const WebSearch = ({ query: query2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1n.webSearch, "text-size-smaller"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1n.query, "text-size-smallest"), children: query2 })
+      ] });
     };
     const contentData = "_contentData_1sd1z_1";
     const styles$1m = {
@@ -43170,47 +43204,64 @@ ${citation.url}`,
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1p.message,
-            message2.role === "system" ? styles$1p.systemRole : void 0,
-            message2.role === "user" ? styles$1p.userRole : void 0
+            styles$1o.message,
+            message2.role === "system" ? styles$1o.systemRole : void 0,
+            message2.role === "user" ? styles$1o.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1p.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.messageGrid, "text-style-label"), children: [
               message2.role,
               supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: toFullUrl(messageUrl),
-                  className: clsx(styles$1p.copyLink)
+                  className: clsx(styles$1o.copyLink)
                 }
               ) : ""
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
                 className: clsx(
-                  styles$1p.messageContents,
-                  indented2 ? styles$1p.indented : void 0
+                  styles$1o.messageContents,
+                  indented2 ? styles$1o.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ExpandablePanel,
-                  {
-                    id: `${id}-message`,
-                    collapse,
-                    lines: collapse ? 15 : 25,
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      MessageContents,
-                      {
-                        id: `${id}-contents`,
-                        message: message2,
-                        toolMessages,
-                        toolCallStyle
-                      },
-                      `${id}-contents`
-                    )
-                  }
-                )
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    ExpandablePanel,
+                    {
+                      id: `${id}-message`,
+                      collapse,
+                      lines: collapse ? 15 : 25,
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        MessageContents,
+                        {
+                          id: `${id}-contents`,
+                          message: message2,
+                          toolMessages,
+                          toolCallStyle
+                        },
+                        `${id}-contents`
+                      )
+                    }
+                  ),
+                  message2.metadata && Object.keys(message2.metadata).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    LabeledValue,
+                    {
+                      label: "Metadata",
+                      className: clsx(styles$1o.metadataLabel, "text-size-smaller"),
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        RecordTree,
+                        {
+                          record: message2.metadata,
+                          id: `${id}-metadata`,
+                          defaultExpandLevel: 1
+                        }
+                      )
+                    }
+                  ) : ""
+                ]
               }
             )
           ]
@@ -48793,38 +48844,6 @@ categories: ${categories.join(" ")}`;
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
       ] });
-    };
-    const LabeledValue = ({
-      layout = "column",
-      style: style2,
-      label: label2,
-      children: children2,
-      valueStyle,
-      className: className2
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx(
-            "labeled-value",
-            layout === "column" ? "column" : "row",
-            className2
-          ),
-          style: {
-            ...style2
-          },
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: "labeled-value-label text-style-label text-style-secondary",
-                children: label2
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "labeled-value-value", style: { ...valueStyle }, children: children2 })
-          ]
-        }
-      );
     };
     const staticCol = "_staticCol_xzzhl_1";
     const justifyLeft = "_justifyLeft_xzzhl_5";
