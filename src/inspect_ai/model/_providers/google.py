@@ -992,9 +992,9 @@ def _combine_text_parts(acc: list[Part], part: Part) -> list[Part]:
     return (
         acc + [part]
         if part.text is None
-        or part.thought is not None
+        or part.thought is True
         or len(acc) == 0
         or acc[-1].text is None
-        or acc[-1].thought is not None
+        or acc[-1].thought is True
         else acc[:-1] + [Part(text=acc[-1].text + part.text)]
     )
