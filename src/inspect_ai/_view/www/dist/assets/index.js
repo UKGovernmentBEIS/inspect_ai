@@ -46592,6 +46592,33 @@ ${citation.url}`,
         }
       };
     }
+    const kSampleIdVariable = "id";
+    const kSampleMetadataVariable = "metadata";
+    const kSampleMetadataPrefix = kSampleMetadataVariable + ".";
+    const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
+    const MATH_FUNCTIONS = [
+      ["min", "Minimum of two or more values"],
+      ["max", "Maximum of two or more values"],
+      ["abs", "Absolute value"],
+      ["round", "Round to the nearest integer"],
+      ["floor", "Round down to the nearest integer"],
+      ["ceil", "Round up to the nearest integer"],
+      ["sqrt", "Square root"],
+      ["log", "Natural logarithm"],
+      ["log2", "Base 2 logarithm"],
+      ["log10", "Base 10 logarithm"]
+    ];
+    const SAMPLE_VARIABLES = [
+      ["has_error", "Checks if the sample has an error"],
+      ["has_retries", "Checks if the sample has been retried"],
+      [kSampleIdVariable, "The unique identifier of the sample"],
+      [kSampleMetadataVariable, "Metadata associated with the sample"]
+    ];
+    const SAMPLE_FUNCTIONS = [
+      ["input_contains", "Checks if input contains a regular expression"],
+      ["target_contains", "Checks if target contains a regular expression"],
+      ["error_contains", "Checks if error contains a regular expression"]
+    ];
     const coerceValue = (value2, descriptor) => {
       if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
         return Boolean(value2);
@@ -46643,10 +46670,24 @@ ${citation.url}`,
       }
       return variables;
     };
+    const getNestedPropertyValue = (obj, path) => {
+      const keys = path.split(".");
+      let current2 = obj;
+      for (const key2 of keys) {
+        if (current2 && typeof current2 === "object" && key2 in current2) {
+          current2 = current2[key2];
+        } else {
+          return void 0;
+        }
+      }
+      return current2;
+    };
     const sampleVariables = (sample2) => {
       return {
         has_error: !!sample2.error,
-        has_retries: sample2.retries !== void 0 && sample2.retries > 0
+        has_retries: sample2.retries !== void 0 && sample2.retries > 0,
+        id: sample2.id,
+        metadata: sample2.metadata
       };
     };
     const sampleFilterItems = (evalDescriptor) => {
@@ -46737,6 +46778,11 @@ categories: ${categories.join(" ")}`;
             const value2 = get2(name2);
             return value2;
           }
+          if (name2.startsWith(kSampleMetadataPrefix)) {
+            const propertyPath = name2.substring(kSampleMetadataPrefix.length);
+            const metadata2 = sample2.metadata || {};
+            return getNestedPropertyValue(metadata2, propertyPath);
+          }
           return sample2.error ? void 0 : get2(name2);
         };
         const expression = compileExpression(filterValue, {
@@ -46759,6 +46805,9 @@ categories: ${categories.join(" ")}`;
           const errorObj = error2;
           const propertyName2 = errorObj["propertyName"] || "";
           if (propertyName2) {
+            if (propertyName2.startsWith(kSampleMetadataPrefix)) {
+              return { matches: false, error: void 0 };
+            }
             const regex2 = new RegExp(`\\b${propertyName2}\\b`);
             const match = regex2.exec(filterValue);
             if (match) {
@@ -55233,7 +55282,7 @@ self.onmessage = function (e) {
           {
             className: clsx(
               styles$y.eventRow,
-              "text-size-smallest",
+              "text-size-smaller",
               selected2 ? styles$y.selected : ""
             ),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
@@ -85542,28 +85591,6 @@ ${events}
         ...historyKeymap
       ])
     ])();
-    const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
-    const MATH_FUNCTIONS = [
-      ["min", "Minimum of two or more values"],
-      ["max", "Maximum of two or more values"],
-      ["abs", "Absolute value"],
-      ["round", "Round to the nearest integer"],
-      ["floor", "Round down to the nearest integer"],
-      ["ceil", "Round up to the nearest integer"],
-      ["sqrt", "Square root"],
-      ["log", "Natural logarithm"],
-      ["log2", "Base 2 logarithm"],
-      ["log10", "Base 10 logarithm"]
-    ];
-    const SAMPLE_VARIABLES = [
-      ["has_error", "Checks if the sample has an error"],
-      ["has_retries", "Checks if the sample has been retried"]
-    ];
-    const SAMPLE_FUNCTIONS = [
-      ["input_contains", "Checks if input contains a regular expression"],
-      ["target_contains", "Checks if target contains a regular expression"],
-      ["error_contains", "Checks if error contains a regular expression"]
-    ];
     const TOKEN_PATTERNS = {
       STRING: /^"[^"]*"/,
       UNTERMINATED_STRING: /^"[^"]*/,
@@ -85640,6 +85667,20 @@ ${events}
         selection: { anchor: from + completion.label.length + 1 }
       });
     };
+    const applyWithDot = (view, completion, from, to2) => {
+      view.dispatch({
+        changes: { from, to: to2, insert: `${completion.label}.` },
+        selection: { anchor: from + completion.label.length + 1 }
+      });
+      setTimeout(() => startCompletion(view), 0);
+    };
+    const applyWithSpace = (view, completion, from, to2) => {
+      view.dispatch({
+        changes: { from, to: to2, insert: `${completion.label} ` },
+        selection: { anchor: from + completion.label.length + 1 }
+      });
+      setTimeout(() => startCompletion(view), 0);
+    };
     const makeKeywordCompletion = (k) => ({
       label: k,
       type: "keyword",
@@ -85663,6 +85704,7 @@ ${events}
       label: label2,
       type: "variable",
       info,
+      apply: label2 === kSampleMetadataVariable ? applyWithDot : label2 === kSampleIdVariable ? applyWithSpace : void 0,
       boost: 10
     });
     const makeLiteralCompletion = (k) => ({
@@ -85689,8 +85731,139 @@ ${events}
       var _a2;
       return (_a2 = item2 == null ? void 0 : item2.qualifiedName) == null ? void 0 : _a2.startsWith(`${scorer2}.`);
     });
-    function getCompletions(context, filterItems) {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
+    const getSampleIds = (samples) => {
+      const ids = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        ids.add(sample2.id);
+      }
+      return ids;
+    };
+    const getMetadataPropertyValues = (samples, propertyPath) => {
+      const values = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        if (sample2.metadata) {
+          const value2 = getNestedProperty(sample2.metadata, propertyPath);
+          if (value2 !== void 0 && value2 !== null) {
+            values.add(value2);
+          }
+        }
+      }
+      return values;
+    };
+    const getNestedProperty = (obj, path) => {
+      const keys = path.split(".");
+      let current2 = obj;
+      for (const key2 of keys) {
+        if (current2 && typeof current2 === "object" && key2 in current2) {
+          current2 = current2[key2];
+        } else {
+          return void 0;
+        }
+      }
+      return current2;
+    };
+    const buildMetadataPath = (tokens, currentTokenIndex) => {
+      var _a2;
+      const parts = [];
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if ((token2 == null ? void 0 : token2.text) === kSampleMetadataVariable) {
+          return parts.reverse().join(".");
+        } else if ((token2 == null ? void 0 : token2.type) === "variable") {
+          parts.push(token2.text);
+          index2++;
+          if (((_a2 = tokens[currentTokenIndex - index2]) == null ? void 0 : _a2.text) === ".") {
+            index2++;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      return null;
+    };
+    const getMetadataKeysForPath = (samples, parentPath) => {
+      const keys = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        if (sample2.metadata) {
+          const parentObj = parentPath ? getNestedProperty(sample2.metadata, parentPath) : sample2.metadata;
+          if (parentObj && typeof parentObj === "object" && !Array.isArray(parentObj)) {
+            for (const key2 of Object.keys(parentObj)) {
+              keys.add(key2);
+            }
+          }
+        }
+      }
+      return keys;
+    };
+    const buildMetadataPropertyPath = (tokens, currentTokenIndex) => {
+      const parts = [];
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if (!token2) break;
+        if (token2.type === "variable") {
+          if (token2.text === kSampleMetadataVariable) {
+            return parts.reverse().join(".");
+          } else {
+            parts.push(token2.text);
+          }
+        } else if (token2.text !== ".") {
+          break;
+        }
+        index2++;
+      }
+      return null;
+    };
+    const isMetadataProperty = (tokens, currentTokenIndex) => {
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if (!token2) break;
+        if (token2.text === kSampleMetadataVariable) {
+          return true;
+        } else if (token2.text === "." || token2.type === "variable") {
+          index2++;
+        } else {
+          break;
+        }
+      }
+      return false;
+    };
+    const makeMetadataKeyCompletion = (key2) => ({
+      label: key2,
+      type: "property",
+      info: `Metadata property: ${key2}`,
+      boost: 25
+    });
+    const makeSampleIdCompletion = (id) => ({
+      label: typeof id === "string" ? `"${id}"` : String(id),
+      type: "text",
+      info: `Sample ID: ${id}`,
+      boost: 25
+    });
+    const makeMetadataValueCompletion = (value2) => {
+      let label2;
+      if (typeof value2 === "string") {
+        label2 = `"${value2}"`;
+      } else if (typeof value2 === "boolean") {
+        label2 = value2 ? "True" : "False";
+      } else if (value2 === null) {
+        label2 = "None";
+      } else {
+        label2 = String(value2);
+      }
+      return {
+        label: label2,
+        type: "text",
+        info: `Metadata value: ${value2}`,
+        boost: 25
+      };
+    };
+    function getCompletions(context, filterItems, samples) {
+      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k, _l, _m;
       const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
       const mathFunctionCompletionItems = MATH_FUNCTIONS.map(
         makeMathFunctionCompletion
@@ -85698,7 +85871,15 @@ ${events}
       const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
         makeSampleFunctionCompletion
       );
-      const sampleVariableCompletionItems = SAMPLE_VARIABLES.map(
+      const availableSampleVariables = SAMPLE_VARIABLES.filter(([label2]) => {
+        if (label2 === kSampleMetadataVariable) {
+          return samples && samples.some(
+            (sample2) => sample2.metadata && Object.keys(sample2.metadata).length > 0
+          );
+        }
+        return true;
+      });
+      const sampleVariableCompletionItems = availableSampleVariables.map(
         makeSampleVariableCompletion
       );
       const variableCompletionItems = filterItems.map(
@@ -85793,7 +85974,7 @@ ${events}
         enforceOrder: true,
         autoSpaceAfter: completingAtEnd
       });
-      const descreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
+      const discreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
         enforceOrder: true,
         autoSpaceAfter: completingAtEnd
       });
@@ -85808,9 +85989,19 @@ ${events}
       const rhsCompletions = (options2) => makeCompletions(options2.map(makeLiteralCompletion));
       if (!prevToken(1)) return newExpressionCompletions();
       if (((_a2 = prevToken(1)) == null ? void 0 : _a2.text) === ".") {
-        const scorer2 = (_b2 = prevToken(2)) == null ? void 0 : _b2.text;
-        if (scorer2) {
-          return memberAccessCompletions(getMemberScoreItems(filterItems, scorer2));
+        const varName = (_b2 = prevToken(2)) == null ? void 0 : _b2.text;
+        const metadataPath = buildMetadataPath(tokens, currentTokenIndex);
+        if (metadataPath !== null && samples) {
+          const metadataKeys = Array.from(
+            getMetadataKeysForPath(samples, metadataPath)
+          );
+          const metadataCompletions = metadataKeys.map(makeMetadataKeyCompletion);
+          return makeCompletions(metadataCompletions, {
+            autocompleteInTheMiddle: true,
+            includeDefault: false
+          });
+        } else if (varName) {
+          return memberAccessCompletions(getMemberScoreItems(filterItems, varName));
         }
       }
       if (((_c = prevToken(1)) == null ? void 0 : _c.text) === "(") {
@@ -85820,11 +86011,24 @@ ${events}
       }
       if (((_f = prevToken(1)) == null ? void 0 : _f.text) === ")") return noCompletions();
       if (((_g = prevToken(1)) == null ? void 0 : _g.type) === "variable") {
-        const scoreType = ((_h = findFilterItem(1)) == null ? void 0 : _h.scoreType) || "";
+        const varName = (_h = prevToken(1)) == null ? void 0 : _h.text;
+        if (isMetadataProperty(tokens, currentTokenIndex)) {
+          return customRelationCompletions();
+        }
+        if (varName === kSampleIdVariable) {
+          return discreteRelationCompletions();
+        }
+        if (varName === kSampleMetadataVariable) {
+          return customRelationCompletions();
+        }
+        if (varName === "has_error" || varName === "has_retries") {
+          return logicalOpCompletions();
+        }
+        const scoreType = ((_i = findFilterItem(1)) == null ? void 0 : _i.scoreType) || "";
         switch (scoreType) {
           case kScoreTypePassFail:
           case kScoreTypeCategorical:
-            return descreteRelationCompletions();
+            return discreteRelationCompletions();
           case kScoreTypeNumeric:
             return continuousRelationCompletions();
           case kScoreTypeOther:
@@ -85835,14 +86039,47 @@ ${events}
             return noCompletions();
         }
       }
-      if (((_i = prevToken(1)) == null ? void 0 : _i.type) === "relation") {
+      if (((_j = prevToken(1)) == null ? void 0 : _j.type) === "relation") {
+        const varName = (_k = prevToken(2)) == null ? void 0 : _k.text;
+        const metadataPropertyPath = buildMetadataPropertyPath(
+          tokens,
+          currentTokenIndex
+        );
+        if (metadataPropertyPath !== null && samples) {
+          const metadataValues = Array.from(
+            getMetadataPropertyValues(samples, metadataPropertyPath)
+          );
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredValues = currentQuery ? metadataValues.filter((value2) => {
+            const label2 = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "boolean" ? value2 ? "True" : "False" : value2 === null ? "None" : String(value2);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : metadataValues;
+          const metadataValueCompletions = filteredValues.map(
+            makeMetadataValueCompletion
+          );
+          return makeCompletions(metadataValueCompletions, {
+            includeDefault: false
+          });
+        }
+        if (varName === kSampleIdVariable && samples) {
+          const sampleIds = Array.from(getSampleIds(samples));
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredIds = currentQuery ? sampleIds.filter((id) => {
+            const label2 = typeof id === "string" ? `"${id}"` : String(id);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : sampleIds;
+          const sampleIdCompletions = filteredIds.map(makeSampleIdCompletion);
+          return makeCompletions(sampleIdCompletions, {
+            includeDefault: false
+          });
+        }
         const item2 = findFilterItem(2);
-        if ((_j = item2 == null ? void 0 : item2.categories) == null ? void 0 : _j.length) {
+        if ((_l = item2 == null ? void 0 : item2.categories) == null ? void 0 : _l.length) {
           return rhsCompletions(item2.categories);
         }
         return variableCompletions();
       }
-      if (isLiteral(prevToken(1)) && ((_k = prevToken(2)) == null ? void 0 : _k.type) === "relation") {
+      if (isLiteral(prevToken(1)) && ((_m = prevToken(2)) == null ? void 0 : _m.type) === "relation") {
         return logicalOpCompletions();
       }
       if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
@@ -85916,6 +86153,12 @@ Supported expressions:
       },
       ".cm-scroller": {
         overflow: "hidden"
+      },
+      ".cm-line": {
+        "font-size": "var(--inspect-font-size-smallest) !important"
+      },
+      ".token": {
+        "font-size": "var(--inspect-font-size-smallest) !important"
       }
     });
     const ensureOneLine = (tr2) => {
@@ -85959,6 +86202,12 @@ Supported expressions:
       );
       const filter = useStore((state) => state.log.filter);
       const filterError = useStore((state) => state.log.filterError);
+      const samples = useStore(
+        (state) => {
+          var _a2;
+          return (_a2 = state.log.selectedLogSummary) == null ? void 0 : _a2.sampleSummaries;
+        }
+      );
       const setFilter = useStore((state) => state.logActions.setFilter);
       const handleFocus = reactExports.useCallback((event, view) => {
         if (event.isTrusted && view.state.doc.toString() === "") {
@@ -85967,10 +86216,10 @@ Supported expressions:
       }, []);
       const makeAutocompletion = reactExports.useCallback(
         () => autocompletion({
-          override: [(context) => getCompletions(context, filterItems)],
+          override: [(context) => getCompletions(context, filterItems, samples)],
           activateOnCompletion: (c2) => c2.label.endsWith(" ")
         }),
-        []
+        [filterItems, samples]
       );
       const makeLinter = reactExports.useCallback(
         () => linter((view) => getLints(view, filterError)),
@@ -86040,7 +86289,7 @@ Supported expressions:
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
           effects: autocompletionCompartment.current.reconfigure(makeAutocompletion())
         });
-      }, [filterItems]);
+      }, [filterItems, samples]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({

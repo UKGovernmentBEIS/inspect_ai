@@ -93,6 +93,12 @@ const editorTheme = EditorView.theme({
   ".cm-scroller": {
     overflow: "hidden",
   },
+  ".cm-line": {
+    "font-size": "var(--inspect-font-size-smallest) !important",
+  },
+  ".token": {
+    "font-size": "var(--inspect-font-size-smallest) !important",
+  },
 });
 
 const ensureOneLine = (tr: Transaction): TransactionSpec => {
@@ -145,6 +151,9 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
 
   const filter = useStore((state) => state.log.filter);
   const filterError = useStore((state) => state.log.filterError);
+  const samples = useStore(
+    (state) => state.log.selectedLogSummary?.sampleSummaries,
+  );
   const setFilter = useStore((state) => state.logActions.setFilter);
 
   const handleFocus = useCallback((event: FocusEvent, view: EditorView) => {
@@ -156,10 +165,10 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
   const makeAutocompletion = useCallback(
     () =>
       autocompletion({
-        override: [(context) => getCompletions(context, filterItems)],
+        override: [(context) => getCompletions(context, filterItems, samples)],
         activateOnCompletion: (c) => c.label.endsWith(" "),
       }),
-    [],
+    [filterItems, samples],
   );
 
   const makeLinter = useCallback(
@@ -240,7 +249,7 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
       effects:
         autocompletionCompartment.current.reconfigure(makeAutocompletion()),
     });
-  }, [filterItems]);
+  }, [filterItems, samples]);
 
   useEffect(() => {
     editorViewRef.current?.dispatch({

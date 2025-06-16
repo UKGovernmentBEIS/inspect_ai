@@ -3,8 +3,10 @@ import {
   CompletionContext,
   CompletionResult,
   CompletionSection,
+  startCompletion,
 } from "@codemirror/autocomplete";
 import { EditorView } from "codemirror";
+import { SampleSummary } from "../../../../client/api/types";
 import {
   kScoreTypeBoolean,
   kScoreTypeCategorical,
@@ -15,6 +17,8 @@ import {
 import { SampleFilterItem } from "../filters";
 import {
   KEYWORDS,
+  kSampleIdVariable,
+  kSampleMetadataVariable,
   MATH_FUNCTIONS,
   SAMPLE_FUNCTIONS,
   SAMPLE_VARIABLES,
@@ -53,6 +57,34 @@ const applyWithCall = (
   });
 };
 
+const applyWithDot = (
+  view: EditorView,
+  completion: Completion,
+  from: number,
+  to: number,
+): void => {
+  view.dispatch({
+    changes: { from, to, insert: `${completion.label}.` },
+    selection: { anchor: from + completion.label.length + 1 },
+  });
+  // trigger completion
+  setTimeout(() => startCompletion(view), 0);
+};
+
+const applyWithSpace = (
+  view: EditorView,
+  completion: Completion,
+  from: number,
+  to: number,
+): void => {
+  view.dispatch({
+    changes: { from, to, insert: `${completion.label} ` },
+    selection: { anchor: from + completion.label.length + 1 },
+  });
+  // trigger completion
+  setTimeout(() => startCompletion(view), 0);
+};
+
 const makeKeywordCompletion = (k: string): Completion => ({
   label: k,
   type: "keyword",
@@ -88,6 +120,12 @@ const makeSampleVariableCompletion = ([label, info]: [
   label,
   type: "variable",
   info,
+  apply:
+    label === kSampleMetadataVariable
+      ? applyWithDot
+      : label === kSampleIdVariable
+        ? applyWithSpace
+        : undefined,
   boost: 10,
 });
 
@@ -120,6 +158,210 @@ const getMemberScoreItems = (
 ): SampleFilterItem[] =>
   filterItems.filter((item) => item?.qualifiedName?.startsWith(`${scorer}.`));
 
+const getSampleIds = (samples: SampleSummary[]): Set<string | number> => {
+  const ids = new Set<string | number>();
+  for (const sample of samples) {
+    ids.add(sample.id);
+  }
+  return ids;
+};
+
+const getMetadataPropertyValues = (
+  samples: SampleSummary[],
+  propertyPath: string,
+): Set<any> => {
+  const values = new Set<any>();
+  for (const sample of samples) {
+    if (sample.metadata) {
+      const value = getNestedProperty(sample.metadata, propertyPath);
+      if (value !== undefined && value !== null) {
+        values.add(value);
+      }
+    }
+  }
+  return values;
+};
+
+const getNestedProperty = (obj: any, path: string): any => {
+  const keys = path.split(".");
+  let current = obj;
+  for (const key of keys) {
+    if (current && typeof current === "object" && key in current) {
+      current = current[key];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+};
+
+const buildMetadataPath = (
+  tokens: Token[],
+  currentTokenIndex: number,
+): string | null => {
+  // Walk backwards to build the metadata path
+  // For "metadata." return ""
+  // For "metadata.config." return "config"
+  // For "metadata.config.timeout." return "config.timeout"
+
+  const parts: string[] = [];
+
+  // Start after the first dot
+  let index = 2;
+
+  // Look for the metadata root by walking backwards
+  while (index <= currentTokenIndex) {
+    const token = tokens[currentTokenIndex - index];
+
+    if (token?.text === kSampleMetadataVariable) {
+      // Found metadata root, return the path
+      return parts.reverse().join(".");
+    } else if (token?.type === "variable") {
+      // Found a variable token, add to path
+      parts.push(token.text);
+      // Skip the expected dot
+      index++;
+      if (tokens[currentTokenIndex - index]?.text === ".") {
+        // Move past the dot
+        index++;
+      } else {
+        // No dot, not a valid path
+        break;
+      }
+    } else {
+      // Hit non-variable, non-metadata token
+      break;
+    }
+  }
+
+  // Didn't find metadata root
+  return null;
+};
+
+const getMetadataKeysForPath = (
+  samples: SampleSummary[],
+  parentPath: string,
+): Set<string> => {
+  const keys = new Set<string>();
+  for (const sample of samples) {
+    if (sample.metadata) {
+      const parentObj = parentPath
+        ? getNestedProperty(sample.metadata, parentPath)
+        : sample.metadata;
+      if (
+        parentObj &&
+        typeof parentObj === "object" &&
+        !Array.isArray(parentObj)
+      ) {
+        for (const key of Object.keys(parentObj)) {
+          keys.add(key);
+        }
+      }
+    }
+  }
+  return keys;
+};
+
+const buildMetadataPropertyPath = (
+  tokens: Token[],
+  currentTokenIndex: number,
+): string | null => {
+  // Walk backwards to build the full metadata property path
+  // e.g., for "metadata.difficulty ==" we want to return "difficulty"
+  // e.g., for "metadata.config.timeout ==" we want to return "config.timeout"
+  const parts: string[] = [];
+
+  // Start after the dot
+  let index = 2;
+
+  // Collect the property path by walking backwards
+  while (index <= currentTokenIndex) {
+    const token = tokens[currentTokenIndex - index];
+    if (!token) break;
+
+    if (token.type === "variable") {
+      if (token.text === kSampleMetadataVariable) {
+        // Found the metadata root, return the path
+        return parts.reverse().join(".");
+      } else {
+        parts.push(token.text);
+      }
+    } else if (token.text !== ".") {
+      // Hit a non-dot, non-variable token, not a metadata path
+      break;
+    }
+    index++;
+  }
+
+  return null;
+};
+
+const isMetadataProperty = (
+  tokens: Token[],
+  currentTokenIndex: number,
+): boolean => {
+  // Check if the current variable is part of a metadata property access
+  // e.g., for "metadata.difficulty" return true
+
+  // For metadata.difficulty, tokens are: [metadata, ., difficulty]
+  // currentTokenIndex points after difficulty, so prevToken(1) = difficulty
+  // We need to check if we can trace back to metadata
+
+  // Start by looking at prevToken(2) which should be "."
+  let index = 2;
+
+  // Walk backwards looking for metadata root
+  while (index <= currentTokenIndex) {
+    const token = tokens[currentTokenIndex - index];
+    if (!token) break;
+
+    if (token.text === kSampleMetadataVariable) {
+      return true;
+    } else if (token.text === "." || token.type === "variable") {
+      index++;
+    } else {
+      break; // Hit a non-metadata token
+    }
+  }
+
+  return false;
+};
+
+const makeMetadataKeyCompletion = (key: string): Completion => ({
+  label: key,
+  type: "property",
+  info: `Metadata property: ${key}`,
+  boost: 25,
+});
+
+const makeSampleIdCompletion = (id: string | number): Completion => ({
+  label: typeof id === "string" ? `"${id}"` : String(id),
+  type: "text",
+  info: `Sample ID: ${id}`,
+  boost: 25,
+});
+
+const makeMetadataValueCompletion = (value: any): Completion => {
+  let label: string;
+  if (typeof value === "string") {
+    label = `"${value}"`;
+  } else if (typeof value === "boolean") {
+    // Use filter expression constants for booleans
+    label = value ? "True" : "False";
+  } else if (value === null) {
+    label = "None";
+  } else {
+    label = String(value);
+  }
+
+  return {
+    label,
+    type: "text",
+    info: `Metadata value: ${value}`,
+    boost: 25,
+  };
+};
+
 /**
  * Generates completions for the filter expression. The main goal is to make the
  * sample filter intuitive for beginners and to provide a smooth experience for
@@ -137,6 +379,7 @@ const getMemberScoreItems = (
 export function getCompletions(
   context: CompletionContext,
   filterItems: SampleFilterItem[],
+  samples?: SampleSummary[],
 ): CompletionResult | null {
   const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
   const mathFunctionCompletionItems = MATH_FUNCTIONS.map(
@@ -145,7 +388,22 @@ export function getCompletions(
   const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
     makeSampleFunctionCompletion,
   );
-  const sampleVariableCompletionItems = SAMPLE_VARIABLES.map(
+  // Filter sample variables based on available data
+  const availableSampleVariables = SAMPLE_VARIABLES.filter(([label]) => {
+    if (label === kSampleMetadataVariable) {
+      // Only include metadata if at least one sample has metadata
+      return (
+        samples &&
+        samples.some(
+          (sample) =>
+            sample.metadata && Object.keys(sample.metadata).length > 0,
+        )
+      );
+    }
+    return true;
+  });
+
+  const sampleVariableCompletionItems = availableSampleVariables.map(
     makeSampleVariableCompletion,
   );
   const variableCompletionItems = filterItems.map((item) =>
@@ -279,7 +537,7 @@ export function getCompletions(
       autoSpaceAfter: completingAtEnd,
     });
 
-  const descreteRelationCompletions = () =>
+  const discreteRelationCompletions = () =>
     makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
       enforceOrder: true,
       autoSpaceAfter: completingAtEnd,
@@ -305,9 +563,22 @@ export function getCompletions(
 
   // Member access
   if (prevToken(1)?.text === ".") {
-    const scorer = prevToken(2)?.text;
-    if (scorer) {
-      return memberAccessCompletions(getMemberScoreItems(filterItems, scorer));
+    const varName = prevToken(2)?.text;
+
+    // Check if this is metadata property access (metadata.* or metadata.*.*)
+    const metadataPath = buildMetadataPath(tokens, currentTokenIndex);
+    if (metadataPath !== null && samples) {
+      // Get completions for the current metadata path
+      const metadataKeys = Array.from(
+        getMetadataKeysForPath(samples, metadataPath),
+      );
+      const metadataCompletions = metadataKeys.map(makeMetadataKeyCompletion);
+      return makeCompletions(metadataCompletions, {
+        autocompleteInTheMiddle: true,
+        includeDefault: false,
+      });
+    } else if (varName) {
+      return memberAccessCompletions(getMemberScoreItems(filterItems, varName));
     }
   }
 
@@ -328,12 +599,31 @@ export function getCompletions(
 
   // Variable type-based relation suggestions
   if (prevToken(1)?.type === "variable") {
-    const scoreType = findFilterItem(1)?.scoreType || "";
+    const varName = prevToken(1)?.text;
 
+    // Check if this is a metadata property access (metadata.property or metadata.nested.property)
+    if (isMetadataProperty(tokens, currentTokenIndex)) {
+      // This is metadata.property - provide custom relation completions
+      return customRelationCompletions();
+    }
+
+    // Handle sample variables specially
+    if (varName === kSampleIdVariable) {
+      return discreteRelationCompletions();
+    }
+    if (varName === kSampleMetadataVariable) {
+      return customRelationCompletions();
+    }
+    if (varName === "has_error" || varName === "has_retries") {
+      return logicalOpCompletions();
+    }
+
+    // Handle score variables
+    const scoreType = findFilterItem(1)?.scoreType || "";
     switch (scoreType) {
       case kScoreTypePassFail:
       case kScoreTypeCategorical:
-        return descreteRelationCompletions();
+        return discreteRelationCompletions();
       case kScoreTypeNumeric:
         return continuousRelationCompletions();
       case kScoreTypeOther:
@@ -347,6 +637,68 @@ export function getCompletions(
 
   // RHS comparison suggestions
   if (prevToken(1)?.type === "relation") {
+    const varName = prevToken(2)?.text;
+
+    // Check if this is a metadata property comparison (relation after metadata.property or metadata.nested.property)
+    const metadataPropertyPath = buildMetadataPropertyPath(
+      tokens,
+      currentTokenIndex,
+    );
+    if (metadataPropertyPath !== null && samples) {
+      // This is metadata.property == ... - provide value completions for this property
+      const metadataValues = Array.from(
+        getMetadataPropertyValues(samples, metadataPropertyPath),
+      );
+
+      // Get the current query for prefix filtering
+      const currentQuery = currentToken?.text || "";
+
+      // Pre-filter values to only show prefix matches
+      const filteredValues = currentQuery
+        ? metadataValues.filter((value) => {
+            const label =
+              typeof value === "string"
+                ? `"${value}"`
+                : typeof value === "boolean"
+                  ? value
+                    ? "True"
+                    : "False"
+                  : value === null
+                    ? "None"
+                    : String(value);
+            return label.toLowerCase().startsWith(currentQuery.toLowerCase());
+          })
+        : metadataValues;
+
+      const metadataValueCompletions = filteredValues.map(
+        makeMetadataValueCompletion,
+      );
+      return makeCompletions(metadataValueCompletions, {
+        includeDefault: false,
+      });
+    }
+
+    // Sample ID completions
+    if (varName === kSampleIdVariable && samples) {
+      const sampleIds = Array.from(getSampleIds(samples));
+
+      // Get the current query for prefix filtering
+      const currentQuery = currentToken?.text || "";
+
+      // Pre-filter IDs to only show prefix matches
+      const filteredIds = currentQuery
+        ? sampleIds.filter((id) => {
+            const label = typeof id === "string" ? `"${id}"` : String(id);
+            return label.toLowerCase().startsWith(currentQuery.toLowerCase());
+          })
+        : sampleIds;
+
+      const sampleIdCompletions = filteredIds.map(makeSampleIdCompletion);
+      return makeCompletions(sampleIdCompletions, {
+        includeDefault: false,
+      });
+    }
+
     const item = findFilterItem(2);
     if (item?.categories?.length) {
       return rhsCompletions(item.categories);
