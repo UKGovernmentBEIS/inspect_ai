@@ -628,6 +628,13 @@ class AnthropicAPI(ModelAPI):
     def text_editor_tool_param(
         self, tool: ToolInfo
     ) -> ToolTextEditor20250124Param | BetaToolTextEditor20241022Param | None:
+        # TODO: It would be great to enhance our `is_claude_xxx` functions to help here.
+        if any(
+            self.model_name.startswith(prefix)
+            for prefix in ["claude-3-5-haiku", "claude-3-opus"]
+        ):
+            return None
+
         # check for compatible 'text editor' tool
         if tool.name == "text_editor" and (
             sorted(tool.parameters.properties.keys())
@@ -643,6 +650,8 @@ class AnthropicAPI(ModelAPI):
                 ]
             )
         ):
+            # TODO: Add explicit handling for Claude 4 Opus & Sonnet models
+            # See: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool#before-using-the-text-editor-tool
             return (
                 BetaToolTextEditor20241022Param(
                     type="text_editor_20241022", name="str_replace_editor"
