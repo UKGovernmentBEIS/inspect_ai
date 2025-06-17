@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.105 (17 June 2025)
 
 - [background()](https://inspect.aisi.org.uk/agent-custom.html#background) function for executing work in the background of the current sample.
 - [sandbox_service()](https://inspect.aisi.org.uk/agent-custom.html#sandbox-service) function for making available methods to a sandbox for calling back into the main Inspect process.
