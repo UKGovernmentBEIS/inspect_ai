@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import tempfile
@@ -6,6 +5,8 @@ from collections import deque
 from logging import getLogger
 from typing import Any, Literal
 
+import anyio.abc
+import httpx
 from openai import (
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -129,7 +130,7 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
         self,
         batch_result: BatchResult,
         idx_result_uri: int,
-        batch: dict[str, asyncio.Future[ChatCompletion]],
+        batch: dict[str, anyio.abc.ObjectSendStream[ChatCompletion | Exception]],
     ) -> None:
         batch_file = await self.client.files.content(
             batch_result.result_uris[idx_result_uri]
@@ -140,13 +141,13 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
             if not request_id:
                 continue
 
-            request_future = batch.pop(request_id)
-            if error := result.get("error"):
-                request_future.set_exception(RuntimeError(json.dumps(error)))
-                continue
-
-            request_future.set_result(
+            send_stream = batch.pop(request_id)
+            await send_stream.send(
                 ChatCompletion.model_validate(result["response"]["body"])
+                if (error := result.get("error")) is None
+                else self.client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                    httpx.Response(status_code=error["code"], text=error["message"])
+                )
             )
 
 

@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import os
 import re
@@ -7,6 +6,8 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, cast
 
+import anyio.abc
+import httpx
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -19,9 +20,17 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
+    APIErrorObject,
+    AuthenticationError,
+    BillingError,
+    GatewayTimeoutError,
     ImageBlockParam,
+    InvalidRequestError,
     Message,
     MessageParam,
+    NotFoundError,
+    OverloadedError,
+    RateLimitError,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
     ServerToolUseBlock,
@@ -39,6 +48,9 @@ from anthropic.types import (
     WebSearchToolResultBlock,
     WebSearchToolResultBlockParam,
     message_create_params,
+)
+from anthropic.types import (
+    PermissionError as AnthropicPermissionError,
 )
 from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
@@ -146,17 +158,61 @@ class AnthropicBatcher(Batcher[Message]):
         self,
         batch_result: BatchResult,
         idx_result_uri: int,
-        batch: dict[str, asyncio.Future[Message]],
+        batch: dict[str, anyio.abc.ObjectSendStream[Message | Exception]],
     ) -> None:
+        import anthropic
+
         async for result in await self.client.messages.batches.results(batch_result.id):
             custom_id = result.custom_id
-            request_future = batch.pop(custom_id)
-            if result.result.type == "succeeded":
-                request_future.set_result(result.result.message)
-            else:
-                request_future.set_exception(
-                    RuntimeError(result.result.model_dump_json())
-                )
+            send_stream = batch.pop(custom_id)
+
+            match result.result.type:
+                case "succeeded":
+                    response = result.result.message
+                case "errored":
+                    # See anthropic._client.AsyncAnthropic._make_status_error
+                    message = result.result.error.error.message
+                    match result.result.error.error:
+                        case InvalidRequestError():
+                            error_class = anthropic.BadRequestError
+                        case AuthenticationError():
+                            error_class = anthropic.AuthenticationError
+                        case BillingError():
+                            error_class = anthropic.PermissionDeniedError
+                        case AnthropicPermissionError():
+                            error_class = anthropic.PermissionDeniedError
+                        case NotFoundError():
+                            error_class = anthropic.NotFoundError
+                        case RateLimitError():
+                            error_class = anthropic.RateLimitError
+                        case GatewayTimeoutError():
+                            error_class = anthropic.InternalServerError
+                        case APIErrorObject():
+                            error_class = anthropic.APIStatusError
+                        case OverloadedError():
+                            error_class = anthropic.InternalServerError
+                    response = error_class(
+                        message=message,
+                        response=httpx.Response(status_code=500, text=message),
+                        body=None,
+                    )
+                    response.response.status_code = response.status_code
+                case "canceled":
+                    response = APIConnectionError(
+                        request=httpx.Request(
+                            method="POST",
+                            url="https://api.anthropic.com/v1/messages/batches",
+                        )
+                    )
+                case "expired":
+                    response = APITimeoutError(
+                        request=httpx.Request(
+                            method="POST",
+                            url="https://api.anthropic.com/v1/messages/batches",
+                        )
+                    )
+
+            await send_stream.send(response)
 
 
 class AnthropicAPI(ModelAPI):

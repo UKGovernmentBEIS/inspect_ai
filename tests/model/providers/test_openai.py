@@ -15,6 +15,7 @@ from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
+from inspect_ai._util import eval_task_group
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -259,7 +260,7 @@ async def test_openai_batch(mocker: MockerFixture):
     mocker.patch.object(AsyncFiles, "content", mock_files_content)
 
     assert len(model._batcher._queue) == 0  # pyright: ignore[reportPrivateUsage]
-    assert model._batcher._worker_task is None  # pyright: ignore[reportPrivateUsage]
+    assert model._batcher._task_group is None  # pyright: ignore[reportPrivateUsage]
     assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
 
     generations: list[tuple[ModelOutput, ModelCall]] = []
@@ -275,6 +276,7 @@ async def test_openai_batch(mocker: MockerFixture):
         return generation
 
     async with anyio.create_task_group() as tg:
+        mocker.patch.object(eval_task_group, "_eval_task_group", tg)
         tg.start_soon(generate, 0)
         await anyio.sleep(2 * batch_tick)
 
@@ -282,7 +284,7 @@ async def test_openai_batch(mocker: MockerFixture):
 
         assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
         assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
-        assert model._batcher._worker_task is not None  # pyright: ignore[reportPrivateUsage]
+        assert model._batcher._task_group is not None  # pyright: ignore[reportPrivateUsage]
 
         mock_files_create.assert_not_awaited()
         mock_batches_create.assert_not_awaited()
@@ -292,42 +294,40 @@ async def test_openai_batch(mocker: MockerFixture):
 
         await anyio.sleep(2 * batch_tick)
 
-        mock_completions_create.assert_not_awaited()
-        mock_files_create.assert_awaited_once()
-        assert mock_files_create.call_args.kwargs["purpose"] == "batch"
+    mock_completions_create.assert_not_awaited()
+    mock_files_create.assert_awaited_once()
+    assert mock_files_create.call_args.kwargs["purpose"] == "batch"
 
-        mock_batches_create.assert_awaited_once()
-        assert mock_batches_create.call_args.kwargs["input_file_id"] == input_file_id
-        assert mock_batches_create.call_args.kwargs["completion_window"] == "24h"
-        assert (
-            mock_batches_create.call_args.kwargs["endpoint"] == "/v1/chat/completions"
-        )
+    mock_batches_create.assert_awaited_once()
+    assert mock_batches_create.call_args.kwargs["input_file_id"] == input_file_id
+    assert mock_batches_create.call_args.kwargs["completion_window"] == "24h"
+    assert mock_batches_create.call_args.kwargs["endpoint"] == "/v1/chat/completions"
 
-        assert len(input_file_contents) > 0
-        batch_content = [
-            json.loads(line) for line in input_file_contents.decode().splitlines()
+    assert len(input_file_contents) > 0
+    batch_content = [
+        json.loads(line) for line in input_file_contents.decode().splitlines()
+    ]
+    assert len(batch_content) == 10
+    assert (
+        batch_content
+        == [
+            {
+                "custom_id": mocker.ANY,
+                "method": "POST",
+                "url": "/v1/chat/completions",
+                "body": {
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": f"Hello, world {idx_call}!",
+                        }
+                    ],
+                },
+            }
         ]
-        assert len(batch_content) == 10
-        assert (
-            batch_content
-            == [
-                {
-                    "custom_id": mocker.ANY,
-                    "method": "POST",
-                    "url": "/v1/chat/completions",
-                    "body": {
-                        "model": "gpt-3.5-turbo",
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": f"Hello, world {idx_call}!",
-                            }
-                        ],
-                    },
-                }
-            ]
-            for idx_call in range(10)
-        )
+        for idx_call in range(10)
+    )
 
     assert len(generations) == 10
     for idx_call, generation in enumerate(generations):
@@ -345,4 +345,4 @@ async def test_openai_batch(mocker: MockerFixture):
 
     await anyio.sleep(2 * batch_tick)
 
-    assert model._batcher._worker_task is None  # pyright: ignore[reportPrivateUsage]
+    assert model._batcher._task_group is None  # pyright: ignore[reportPrivateUsage]

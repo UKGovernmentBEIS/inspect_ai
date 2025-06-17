@@ -17,6 +17,7 @@ from anthropic.types.messages import (
 )
 from test_helpers.utils import skip_if_no_anthropic
 
+from inspect_ai._util import eval_task_group
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -194,7 +195,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
     mocker.patch.object(AsyncBatches, "results", mock_batches_results)
 
     assert len(model._batcher._queue) == 0  # pyright: ignore[reportPrivateUsage]
-    assert model._batcher._worker_task is None  # pyright: ignore[reportPrivateUsage]
+    assert model._batcher._task_group is None  # pyright: ignore[reportPrivateUsage]
     assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
 
     generations: list[tuple[ModelOutput, ModelCall]] = []
@@ -210,6 +211,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
         return generation
 
     async with anyio.create_task_group() as tg:
+        mocker.patch.object(eval_task_group, "_eval_task_group", tg)
         with anyio.fail_after(2 * batch_max_send_delay):
             tg.start_soon(generate, 0)
             await anyio.sleep(2 * batch_tick)
@@ -218,7 +220,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
 
             assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
             assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
-            assert model._batcher._worker_task is not None  # pyright: ignore[reportPrivateUsage]
+            assert model._batcher._task_group is not None  # pyright: ignore[reportPrivateUsage]
 
             mock_batches_create.assert_not_awaited()
             mock_batches_retrieve.assert_not_awaited()
@@ -258,4 +260,4 @@ async def test_anthropic_batch(mocker: MockerFixture):
 
     await anyio.sleep(2 * batch_tick)
 
-    assert model._batcher._worker_task is None  # pyright: ignore[reportPrivateUsage]
+    assert model._batcher._task_group is None  # pyright: ignore[reportPrivateUsage]

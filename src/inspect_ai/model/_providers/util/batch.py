@@ -7,6 +7,7 @@ from logging import getLogger
 from typing import Any, Generic, TypeVar
 
 import anyio
+import anyio.abc
 
 from inspect_ai._util.eval_task_group import eval_task_group
 from inspect_ai.model._generate_config import GenerateConfig
