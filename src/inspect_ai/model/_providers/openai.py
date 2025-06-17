@@ -1,7 +1,6 @@
 import json
 import os
 import tempfile
-from collections import deque
 from logging import getLogger
 from typing import Any, Literal
 
@@ -68,7 +67,7 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
         super().__init__(config)
         self.client = client
 
-    async def _create_batch(self, batch: deque[BatchRequest[ChatCompletion]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
         # TODO: support other endpoints
         endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
         extra_headers: dict[str, str] = {}

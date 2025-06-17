@@ -2,7 +2,6 @@ import dataclasses
 import time
 import uuid
 from abc import abstractmethod
-from collections import deque
 from logging import getLogger
 from typing import Any, Generic, TypeVar
 
@@ -34,7 +33,7 @@ class BatchResult:
 class Batcher(Generic[T]):
     def __init__(self, config: GenerateConfig) -> None:
         self.config = config
-        self._queue: deque[BatchRequest[T]] = deque()
+        self._queue: list[BatchRequest[T]] = []
         self.queue_timeout: float | None = None
         self._inflight_batches: dict[
             str, dict[str, anyio.abc.ObjectSendStream[T | Exception]]
@@ -115,7 +114,7 @@ class Batcher(Generic[T]):
 
     async def _send_batch(self) -> None:
         batch = self._queue
-        self._queue = deque()
+        self._queue = []
 
         try:
             batch_id = await self._create_batch(batch)
@@ -129,7 +128,7 @@ class Batcher(Generic[T]):
         }
 
     @abstractmethod
-    async def _create_batch(self, batch: deque[BatchRequest[T]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[T]]) -> str:
         pass
 
     @abstractmethod

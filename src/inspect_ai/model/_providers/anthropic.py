@@ -1,7 +1,6 @@
 import functools
 import os
 import re
-from collections import deque
 from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, cast
@@ -118,7 +117,7 @@ class AnthropicBatcher(Batcher[Message]):
         super().__init__(config)
         self.client = client
 
-    async def _create_batch(self, batch: deque[BatchRequest[Message]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
         requests: list[AnthropicBatchRequest] = []
         extra_headers: dict[str, str] = {}
         for request in batch:
