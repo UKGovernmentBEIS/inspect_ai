@@ -51413,7 +51413,9 @@ categories: ${categories.join(" ")}`;
         globalFilter,
         setGlobalFilter,
         columnResizeMode,
-        setFilteredCount
+        setFilteredCount,
+        columnSizes,
+        setColumnSize
       } = useLogsListing();
       const { loadAllHeaders, loadHeaders } = useLogs();
       const { page, itemsPerPage, setPage } = usePagination(
@@ -51465,7 +51467,8 @@ categories: ${categories.join(" ")}`;
           pagination: {
             pageIndex: page,
             pageSize: itemsPerPage
-          }
+          },
+          columnSizing: columnSizes || {}
         },
         rowCount: items.length,
         onSortingChange: async (updater) => {
@@ -51488,6 +51491,12 @@ categories: ${categories.join(" ")}`;
         onPaginationChange: (updater) => {
           const newPagination = typeof updater === "function" ? updater({ pageIndex: page, pageSize: itemsPerPage }) : updater;
           setPage(newPagination.pageIndex);
+        },
+        onColumnSizingChange: (updater) => {
+          const newSizes = typeof updater === "function" ? updater(table2.getState().columnSizing || {}) : updater;
+          for (const [columnId, size] of Object.entries(newSizes)) {
+            setColumnSize(columnId, size);
+          }
         },
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),

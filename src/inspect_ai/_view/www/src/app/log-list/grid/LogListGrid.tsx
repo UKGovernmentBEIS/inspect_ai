@@ -34,6 +34,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     setGlobalFilter,
     columnResizeMode,
     setFilteredCount,
+    columnSizes,
+    setColumnSize,
   } = useLogsListing();
 
   const { loadAllHeaders, loadHeaders } = useLogs();
@@ -102,6 +104,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         pageIndex: page,
         pageSize: itemsPerPage,
       },
+      columnSizing: columnSizes || {},
     },
     rowCount: items.length,
     onSortingChange: async (updater: Updater<SortingState>) => {
@@ -127,6 +130,15 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
           ? updater({ pageIndex: page, pageSize: itemsPerPage })
           : updater;
       setPage(newPagination.pageIndex);
+    },
+    onColumnSizingChange: (updater: Updater<Record<string, number>>) => {
+      const newSizes =
+        typeof updater === "function"
+          ? updater(table.getState().columnSizing || {})
+          : updater;
+      for (const [columnId, size] of Object.entries(newSizes)) {
+        setColumnSize(columnId, size);
+      }
     },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
