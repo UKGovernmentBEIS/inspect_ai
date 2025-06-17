@@ -145,7 +145,7 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#v0.3.105-17-june-2025" id="toc-v0.3.105-17-june-2025" class="nav-link active" data-scroll-target="#v0.3.105-17-june-2025">v0.3.105 (17 June 2025)</a></li>
   <li><a href="#v0.3.104-12-june-2025" id="toc-v0.3.104-12-june-2025" class="nav-link" data-scroll-target="#v0.3.104-12-june-2025">v0.3.104 (12 June 2025)</a></li>
   <li><a href="#v0.3.103-06-june-2025" id="toc-v0.3.103-06-june-2025" class="nav-link" data-scroll-target="#v0.3.103-06-june-2025">v0.3.103 (06 June 2025)</a></li>
   <li><a href="#v0.3.102-05-june-2025" id="toc-v0.3.102-05-june-2025" class="nav-link" data-scroll-target="#v0.3.102-05-june-2025">v0.3.102 (05 June 2025)</a></li>
@@ -258,15 +258,25 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="v0.3.105-17-june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.105-17-june-2025">v0.3.105 (17 June 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/agent-custom.html#background">background()</a> function for executing work in the background of the current sample.</li>
 <li><a href="https://inspect.aisi.org.uk/agent-custom.html#sandbox-service">sandbox_service()</a> function for making available methods to a sandbox for calling back into the main Inspect process.</li>
 <li><a href="https://inspect.aisi.org.uk/errors-and-limits.html#query-usage">sample_limits()</a> function for determining the current status of sample limits.</li>
+<li>React agent: Only do substitution on parts of the prompt that may contain a {submit} reference.</li>
 <li>Agent handoff: Ensure that handoff tool call responses immediately follow the call.</li>
 <li>Agent handoff: Only print handoff agent prefix if there is assistant message content.</li>
 <li>Subprocess: Ensure that streams are drained when a cancellation occurs (prevent hanging on calls with large output payloads).</li>
+<li>Eval log: Capture only limits that terminated the sample as <code>sample.limit</code> (as opposed to ones bound to context managers or agents).</li>
+<li>Inspect View: Display metadata for Chat Messages.</li>
+<li>Inspect View: Increase transcript outline font size.</li>
+<li>Inspect View: Add support for filtering by sample id, sample metadata.</li>
+<li>Bugfix: Eval set now correctly handles retries for tasks with defaulted args (regressed in v0.3.104).</li>
+<li>Bugfix: Use correct bindings for Claude v4 native <code>text_editor</code> tool; don’t use native tool definition for Haiku 3.5 or Opus 3.0.<br>
+</li>
+<li>Bugfix: Restore preservation of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> blocks for Gemini (regressed in v0.3.104).</li>
+<li>Bugfix: Dataset shuffling now works correctly with <code>seed</code> of 0.</li>
 </ul>
 </section>
 <section id="v0.3.104-12-june-2025" class="level2">

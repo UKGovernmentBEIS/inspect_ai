@@ -487,15 +487,6 @@ output.
 
 ## Background Work
 
-> [!NOTE]
->
-> The `background()` function is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `background()` function enables you to execute an async task in the
 background of the current sample. The task terminates when the sample
 terminates. For example:
@@ -529,15 +520,6 @@ sample background worker:
     `finally` block.
 
 ## Sandbox Service
-
-> [!NOTE]
->
-> The `sandbox_service()` function is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 Sandbox services make available a set of methods to a sandbox for
 calling back into the main Inspect process. For example, the [Human

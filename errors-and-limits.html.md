@@ -333,16 +333,6 @@ raise LimitExceededError(
 
 ### Query Usage
 
-> [!NOTE]
->
-> The `sample_limits()` function described below is available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 We can determine how much of a sample limit has been used, what the
 limit is, and how much of the resource is remaining:
 
