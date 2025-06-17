@@ -4,11 +4,15 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import anyio
+from anyio.abc import TaskGroup
+
 from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.log._model import model_roles_config_to_model_roles
+from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -359,6 +363,112 @@ async def eval_async(
     Returns:
         List of EvalLog (one for each task)
     """
+    result: list[EvalLog] | None = None
+
+    async def run(tg: TaskGroup) -> None:
+        try:
+            nonlocal result
+            result = await _eval_async_inner(
+                tg=tg,
+                tasks=tasks,
+                model=model,
+                model_base_url=model_base_url,
+                model_args=model_args,
+                model_roles=model_roles,
+                task_args=task_args,
+                sandbox=sandbox,
+                sandbox_cleanup=sandbox_cleanup,
+                solver=solver,
+                tags=tags,
+                metadata=metadata,
+                approval=approval,
+                log_level=log_level,
+                log_level_transcript=log_level_transcript,
+                log_dir=log_dir,
+                log_format=log_format,
+                limit=limit,
+                sample_id=sample_id,
+                epochs=epochs,
+                fail_on_error=fail_on_error,
+                retry_on_error=retry_on_error,
+                debug_errors=debug_errors,
+                message_limit=message_limit,
+                token_limit=token_limit,
+                time_limit=time_limit,
+                working_limit=working_limit,
+                max_samples=max_samples,
+                max_tasks=max_tasks,
+                max_subprocesses=max_subprocesses,
+                max_sandboxes=max_sandboxes,
+                log_samples=log_samples,
+                log_realtime=log_realtime,
+                log_images=log_images,
+                log_buffer=log_buffer,
+                log_shared=log_shared,
+                log_header_only=log_header_only,
+                score=score,
+                score_display=score_display,
+                **kwargs,
+            )
+        finally:
+            tg.cancel_scope.cancel()
+
+    try:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run, tg)
+    except Exception as ex:
+        raise inner_exception(ex)
+    except anyio.get_cancelled_exc_class():
+        # Cancelled exceptions are expected and handled by _eval_async_inner
+        pass
+
+    assert result is not None, "Eval async did not return a result."
+
+    return result
+
+
+async def _eval_async_inner(
+    tg: TaskGroup,
+    tasks: Tasks,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
+    task_args: dict[str, Any] | str = dict(),
+    sandbox: SandboxEnvironmentType | None = None,
+    sandbox_cleanup: bool | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    log_level: str | None = None,
+    log_level_transcript: str | None = None,
+    log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
+    limit: int | tuple[int, int] | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    epochs: int | Epochs | None = None,
+    fail_on_error: bool | float | None = None,
+    retry_on_error: int | None = None,
+    debug_errors: bool | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
+    time_limit: int | None = None,
+    working_limit: int | None = None,
+    max_samples: int | None = None,
+    max_tasks: int | None = None,
+    max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
+    log_samples: bool | None = None,
+    log_realtime: bool | None = None,
+    log_images: bool | None = None,
+    log_buffer: int | None = None,
+    log_shared: bool | int | None = None,
+    log_header_only: bool | None = None,
+    score: bool = True,
+    score_display: bool | None = None,
+    **kwargs: Unpack[GenerateConfigArgs],
+) -> list[EvalLog]:
     # only a single call to eval_async can be active at a time, this used
     # to be due to running tasks switching to the task's directory, however
     # that feature no longer exists so we may be able to revisit this
@@ -387,6 +497,7 @@ async def eval_async(
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
+            task_group=tg,
             **kwargs,
         )
 
@@ -934,10 +1045,11 @@ def eval_init(
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
+    task_group: TaskGroup | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[Model]:
     # init eval context
-    init_eval_context(log_level, log_level_transcript, max_subprocesses)
+    init_eval_context(log_level, log_level_transcript, max_subprocesses, task_group)
 
     # resolve model and task args
     model_args = resolve_args(model_args)
