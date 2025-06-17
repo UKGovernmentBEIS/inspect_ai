@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.105 (17 June 2025)
 
 - [background()](https://inspect.aisi.org.uk/agent-custom.html#background) function for executing work in the background of the current sample.
 - [sandbox_service()](https://inspect.aisi.org.uk/agent-custom.html#sandbox-service) function for making available methods to a sandbox for calling back into the main Inspect process.
@@ -11,7 +11,8 @@
 - Inspect View: Display metadata for Chat Messages.
 - Inspect View: Increase transcript outline font size.
 - Inspect View: Add support for filtering by sample id, sample metadata.
-- Eval: Wrap eval execution in TaskGroup.
+- Bugfix: Eval set now correctly handles retries for tasks with defaulted args (regressed in v0.3.104).
+- Bugfix: Use correct bindings for Claude v4 native `text_editor` tool; don't use native tool definition for Haiku 3.5 or Opus 3.0.  
 - Bugfix: Restore preservation of `ContentReasoning` blocks for Gemini (regressed in v0.3.104). 
 - Bugfix: Dataset shuffling now works correctly with `seed` of 0.
 

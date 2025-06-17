@@ -193,16 +193,7 @@ class SampleLimits:
 
 
 def sample_limits() -> SampleLimits:
-    """Get the top-level limits applied to the current `Sample`.
-
-    ::: callout-note
-    The `sample_limits()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-    """
+    """Get the top-level limits applied to the current `Sample`."""
 
     def get_root_node(node: TNode | None, name: str) -> TNode:
         if node is None:

@@ -44,14 +44,6 @@ async def sandbox_service(
 ) -> None:
     """Run a service that is callable from within a sandbox.
 
-    ::: callout-note
-    The `sandbox_service()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     The service makes available a set of methods to a sandbox
     for calling back into the main Inspect process.
 
