@@ -39,7 +39,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from .list import task_files
 from .registry import task_create
 from .task import PreviousTask, Task, TaskInfo
-from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, TASK_ALL_PARAMS_ATTR
+from .task.constants import TASK_ALL_PARAMS_ATTR, TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.run import eval_log_sample_source
 from .task.tasks import Tasks
 

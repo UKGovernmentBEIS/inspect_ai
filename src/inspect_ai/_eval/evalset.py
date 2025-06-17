@@ -595,8 +595,8 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
             model
             + "/"
             + hashlib.sha256(
-            to_json(cleaned_model_roles, fallback=lambda _x: None)
-        ).hexdigest()
+                to_json(cleaned_model_roles, fallback=lambda _x: None)
+            ).hexdigest()
         )
 
     if task_file:

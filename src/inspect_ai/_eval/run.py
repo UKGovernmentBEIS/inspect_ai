@@ -3,7 +3,6 @@ import os
 import sys
 from typing import Any, Awaitable, Callable, Set, cast
 
-from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.trace import trace_action
