@@ -80,26 +80,6 @@ export const LogViewContainer: FC = () => {
 
           clearSelectedLogSummary();
         }
-      } else {
-        setStatus({
-          loading: true,
-          error: undefined,
-        });
-
-        // Reset the log/task tab
-        setSelectedLogIndex(-1);
-        setWorkspaceTab(kLogViewSamplesTabId);
-
-        // Refresh the list of logs
-        await refreshLogs();
-
-        // Select the first log in the list
-        setSelectedLogIndex(0);
-
-        setStatus({
-          loading: false,
-          error: undefined,
-        });
       }
     };
 

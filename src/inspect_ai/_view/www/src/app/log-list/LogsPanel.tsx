@@ -3,6 +3,7 @@ import { FC, useEffect, useMemo } from "react";
 
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs } from "../../state/hooks";
+import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -35,11 +36,13 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   const logs = useStore((state) => state.logs.logs);
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const headersLoading = useStore((state) => state.logs.headersLoading);
-  const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
-  );
+
+  // Unload the load when this is mounted. This prevents the old log
+  // data from being displayed when navigating back to the logs panel
+  // and also ensures that we reload logs when freshly navigating to them.
+  const { unloadLog } = useUnloadLog();
   useEffect(() => {
-    clearSelectedLogSummary();
+    unloadLog();
   }, []);
 
   const { logPath } = useLogRouteParams();
