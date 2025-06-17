@@ -1,3 +1,7 @@
+## Unreleased
+
+- Eval: Wrap eval execution in TaskGroup.
+
 ## v0.3.105 (17 June 2025)
 
 - [background()](https://inspect.aisi.org.uk/agent-custom.html#background) function for executing work in the background of the current sample.
