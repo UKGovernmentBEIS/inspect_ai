@@ -8,7 +8,9 @@ import {
 } from "../../../@types/log";
 import { CopyButton } from "../../../components/CopyButton";
 import ExpandablePanel from "../../../components/ExpandablePanel";
+import { LabeledValue } from "../../../components/LabeledValue";
 import { ApplicationIcons } from "../../appearance/icons";
+import { RecordTree } from "../../content/RecordTree";
 import {
   supportsLinking,
   toFullUrl,
@@ -77,6 +79,21 @@ export const ChatMessage: FC<ChatMessageProps> = ({
             toolCallStyle={toolCallStyle}
           />
         </ExpandablePanel>
+
+        {message.metadata && Object.keys(message.metadata).length > 0 ? (
+          <LabeledValue
+            label="Metadata"
+            className={clsx(styles.metadataLabel, "text-size-smaller")}
+          >
+            <RecordTree
+              record={message.metadata}
+              id={`${id}-metadata`}
+              defaultExpandLevel={1}
+            />
+          </LabeledValue>
+        ) : (
+          ""
+        )}
       </div>
     </div>
   );

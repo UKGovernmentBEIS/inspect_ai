@@ -38596,149 +38596,37 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       );
     };
-    const directoryRelativeUrl = (file, dir) => {
-      if (!dir) {
-        return encodeURIComponent(file);
-      }
-      const normalizedFile = file.replace(/\\/g, "/");
-      const normalizedLogDir = dir.replace(/\\/g, "/");
-      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-      if (normalizedFile.startsWith(dirWithSlash)) {
-        const relativePath = normalizedFile.substring(dirWithSlash.length);
-        const segments = relativePath.split("/");
-        const encodedSegments = segments.map(
-          (segment) => encodeURIComponent(segment)
-        );
-        return encodedSegments.join("/");
-      }
-      return encodeURIComponent(file);
-    };
-    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
-    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
-    const baseUrl = (logPath, sampleId, sampleEpoch) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return sampleUrl(logPath, sampleId, sampleEpoch);
-      } else {
-        return logUrl(logPath);
-      }
-    };
-    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
-      } else {
-        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
-      }
-    };
-    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleTranscriptTabId
+    const LabeledValue = ({
+      layout = "column",
+      style: style2,
+      label: label2,
+      children: children2,
+      valueStyle,
+      className: className2
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: clsx(
+            "labeled-value",
+            layout === "column" ? "column" : "row",
+            className2
+          ),
+          style: {
+            ...style2
+          },
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "labeled-value-label text-style-label text-style-secondary",
+                children: label2
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "labeled-value-value", style: { ...valueStyle }, children: children2 })
+          ]
+        }
       );
-      return `${baseUrl2}?event=${eventId}`;
-    };
-    const useSampleMessageUrl = (messageId, sampleId, sampleEpoch) => {
-      const {
-        logPath: urlLogPath,
-        sampleId: urlSampleId,
-        epoch: urlEpoch
-      } = useParams();
-      const log_file = useStore((state) => state.logs.selectedLogFile);
-      const log_dir = useStore((state) => state.logs.logs.log_dir);
-      let targetLogPath = urlLogPath;
-      if (!targetLogPath && log_file) {
-        targetLogPath = makeLogPath(log_file, log_dir);
-      }
-      const eventUrl = reactExports.useMemo(() => {
-        return messageId && targetLogPath ? sampleMessageUrl(
-          messageId,
-          targetLogPath,
-          urlSampleId,
-          urlEpoch
-        ) : void 0;
-      }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-      return eventUrl;
-    };
-    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
-      const {
-        logPath: urlLogPath,
-        sampleId: urlSampleId,
-        epoch: urlEpoch
-      } = useParams();
-      const log_file = useStore((state) => state.logs.selectedLogFile);
-      const log_dir = useStore((state) => state.logs.logs.log_dir);
-      let targetLogPath = urlLogPath;
-      if (!targetLogPath && log_file) {
-        targetLogPath = makeLogPath(log_file, log_dir);
-      }
-      const eventUrl = reactExports.useMemo(() => {
-        return targetLogPath ? sampleEventUrl(
-          eventId,
-          targetLogPath,
-          urlSampleId,
-          urlEpoch
-        ) : void 0;
-      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-      return eventUrl;
-    };
-    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleMessagesTabId
-      );
-      return `${baseUrl2}?message=${messageId}`;
-    };
-    const logUrl = (log_file, log_dir, tabId) => {
-      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
-    };
-    const makeLogPath = (log_file, log_dir) => {
-      const pathSegment = directoryRelativeUrl(log_file, log_dir);
-      return pathSegment;
-    };
-    const logUrlRaw = (log_segment, tabId) => {
-      if (tabId) {
-        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
-      } else {
-        return `/logs/${encodeURIComponent(log_segment)}`;
-      }
-    };
-    const supportsLinking = () => {
-      return (
-        //location.hostname !== "localhost" &&
-        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
-      );
-    };
-    const toFullUrl = (path) => {
-      return `${window.location.origin}${window.location.pathname}#${path}`;
-    };
-    const message$1 = "_message_17kai_1";
-    const systemRole = "_systemRole_17kai_8";
-    const messageGrid = "_messageGrid_17kai_12";
-    const messageContents = "_messageContents_17kai_20";
-    const indented = "_indented_17kai_25";
-    const copyLink$1 = "_copyLink_17kai_29";
-    const styles$1p = {
-      message: message$1,
-      systemRole,
-      messageGrid,
-      messageContents,
-      indented,
-      copyLink: copyLink$1
-    };
-    const webSearch = "_webSearch_1376z_1";
-    const query$1 = "_query_1376z_8";
-    const styles$1o = {
-      webSearch,
-      query: query$1
-    };
-    const WebSearch = ({ query: query2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.webSearch, "text-size-smaller"), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1o.query, "text-size-smallest"), children: query2 })
-      ] });
     };
     const we = 0, zt = 1, qt = 2, En = 4;
     function ln(t2) {
@@ -42058,7 +41946,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const key = "_key_1ltuo_1";
     const pre = "_pre_1ltuo_16";
     const treeIcon = "_treeIcon_1ltuo_20";
-    const styles$1n = {
+    const styles$1p = {
       keyPairContainer,
       key,
       pre,
@@ -42240,7 +42128,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$1n.keyPairContainer, "text-size-small"),
+            className: clsx(styles$1p.keyPairContainer, "text-size-small"),
             style: {
               paddingLeft: `${item2.depth * 20}px`
             },
@@ -42251,7 +42139,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   "data-index": index2,
                   className: clsx(
                     kRecordTreeKey,
-                    styles$1n.key,
+                    styles$1p.key,
                     "font-monospace",
                     "text-style-secondary"
                   ),
@@ -42261,16 +42149,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1n.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1p.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
-                          styles$1n.treeIcon
+                          styles$1p.treeIcon
                         )
                       }
                     ) }) : void 0 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1n.pre), children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1p.pre), children: [
                       item2.key,
                       ":"
                     ] })
@@ -42421,6 +42309,152 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const isPrimitiveOrNull = (value2) => {
       return value2 === null || value2 === void 0 || typeof value2 === "string" || typeof value2 === "number" || typeof value2 === "boolean";
+    };
+    const directoryRelativeUrl = (file, dir) => {
+      if (!dir) {
+        return encodeURIComponent(file);
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      if (normalizedFile.startsWith(dirWithSlash)) {
+        const relativePath = normalizedFile.substring(dirWithSlash.length);
+        const segments = relativePath.split("/");
+        const encodedSegments = segments.map(
+          (segment) => encodeURIComponent(segment)
+        );
+        return encodedSegments.join("/");
+      }
+      return encodeURIComponent(file);
+    };
+    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
+    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+    const baseUrl = (logPath, sampleId, sampleEpoch) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return sampleUrl(logPath, sampleId, sampleEpoch);
+      } else {
+        return logUrl(logPath);
+      }
+    };
+    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+      } else {
+        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
+      }
+    };
+    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleTranscriptTabId
+      );
+      return `${baseUrl2}?event=${eventId}`;
+    };
+    const useSampleMessageUrl = (messageId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return messageId && targetLogPath ? sampleMessageUrl(
+          messageId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
+        ) : void 0;
+      }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return targetLogPath ? sampleEventUrl(
+          eventId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
+        ) : void 0;
+      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleMessagesTabId
+      );
+      return `${baseUrl2}?message=${messageId}`;
+    };
+    const logUrl = (log_file, log_dir, tabId) => {
+      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
+    };
+    const makeLogPath = (log_file, log_dir) => {
+      const pathSegment = directoryRelativeUrl(log_file, log_dir);
+      return pathSegment;
+    };
+    const logUrlRaw = (log_segment, tabId) => {
+      if (tabId) {
+        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+      } else {
+        return `/logs/${encodeURIComponent(log_segment)}`;
+      }
+    };
+    const supportsLinking = () => {
+      return (
+        //location.hostname !== "localhost" &&
+        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
+      );
+    };
+    const toFullUrl = (path) => {
+      return `${window.location.origin}${window.location.pathname}#${path}`;
+    };
+    const message$1 = "_message_1ivu3_1";
+    const systemRole = "_systemRole_1ivu3_8";
+    const messageGrid = "_messageGrid_1ivu3_12";
+    const messageContents = "_messageContents_1ivu3_20";
+    const indented = "_indented_1ivu3_25";
+    const copyLink$1 = "_copyLink_1ivu3_29";
+    const metadataLabel = "_metadataLabel_1ivu3_39";
+    const styles$1o = {
+      message: message$1,
+      systemRole,
+      messageGrid,
+      messageContents,
+      indented,
+      copyLink: copyLink$1,
+      metadataLabel
+    };
+    const webSearch = "_webSearch_1376z_1";
+    const query$1 = "_query_1376z_8";
+    const styles$1n = {
+      webSearch,
+      query: query$1
+    };
+    const WebSearch = ({ query: query2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1n.webSearch, "text-size-smaller"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1n.query, "text-size-smallest"), children: query2 })
+      ] });
     };
     const contentData = "_contentData_1sd1z_1";
     const styles$1m = {
@@ -43179,47 +43213,64 @@ ${citation.url}`,
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1p.message,
-            message2.role === "system" ? styles$1p.systemRole : void 0,
-            message2.role === "user" ? styles$1p.userRole : void 0
+            styles$1o.message,
+            message2.role === "system" ? styles$1o.systemRole : void 0,
+            message2.role === "user" ? styles$1o.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1p.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.messageGrid, "text-style-label"), children: [
               message2.role,
               supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: toFullUrl(messageUrl),
-                  className: clsx(styles$1p.copyLink)
+                  className: clsx(styles$1o.copyLink)
                 }
               ) : ""
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
                 className: clsx(
-                  styles$1p.messageContents,
-                  indented2 ? styles$1p.indented : void 0
+                  styles$1o.messageContents,
+                  indented2 ? styles$1o.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ExpandablePanel,
-                  {
-                    id: `${id}-message`,
-                    collapse,
-                    lines: collapse ? 15 : 25,
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      MessageContents,
-                      {
-                        id: `${id}-contents`,
-                        message: message2,
-                        toolMessages,
-                        toolCallStyle
-                      },
-                      `${id}-contents`
-                    )
-                  }
-                )
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    ExpandablePanel,
+                    {
+                      id: `${id}-message`,
+                      collapse,
+                      lines: collapse ? 15 : 25,
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        MessageContents,
+                        {
+                          id: `${id}-contents`,
+                          message: message2,
+                          toolMessages,
+                          toolCallStyle
+                        },
+                        `${id}-contents`
+                      )
+                    }
+                  ),
+                  message2.metadata && Object.keys(message2.metadata).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    LabeledValue,
+                    {
+                      label: "Metadata",
+                      className: clsx(styles$1o.metadataLabel, "text-size-smaller"),
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        RecordTree,
+                        {
+                          record: message2.metadata,
+                          id: `${id}-metadata`,
+                          defaultExpandLevel: 1
+                        }
+                      )
+                    }
+                  ) : ""
+                ]
               }
             )
           ]
@@ -46601,6 +46652,33 @@ ${citation.url}`,
         }
       };
     }
+    const kSampleIdVariable = "id";
+    const kSampleMetadataVariable = "metadata";
+    const kSampleMetadataPrefix = kSampleMetadataVariable + ".";
+    const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
+    const MATH_FUNCTIONS = [
+      ["min", "Minimum of two or more values"],
+      ["max", "Maximum of two or more values"],
+      ["abs", "Absolute value"],
+      ["round", "Round to the nearest integer"],
+      ["floor", "Round down to the nearest integer"],
+      ["ceil", "Round up to the nearest integer"],
+      ["sqrt", "Square root"],
+      ["log", "Natural logarithm"],
+      ["log2", "Base 2 logarithm"],
+      ["log10", "Base 10 logarithm"]
+    ];
+    const SAMPLE_VARIABLES = [
+      ["has_error", "Checks if the sample has an error"],
+      ["has_retries", "Checks if the sample has been retried"],
+      [kSampleIdVariable, "The unique identifier of the sample"],
+      [kSampleMetadataVariable, "Metadata associated with the sample"]
+    ];
+    const SAMPLE_FUNCTIONS = [
+      ["input_contains", "Checks if input contains a regular expression"],
+      ["target_contains", "Checks if target contains a regular expression"],
+      ["error_contains", "Checks if error contains a regular expression"]
+    ];
     const coerceValue = (value2, descriptor) => {
       if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
         return Boolean(value2);
@@ -46652,10 +46730,24 @@ ${citation.url}`,
       }
       return variables;
     };
+    const getNestedPropertyValue = (obj, path) => {
+      const keys = path.split(".");
+      let current2 = obj;
+      for (const key2 of keys) {
+        if (current2 && typeof current2 === "object" && key2 in current2) {
+          current2 = current2[key2];
+        } else {
+          return void 0;
+        }
+      }
+      return current2;
+    };
     const sampleVariables = (sample2) => {
       return {
         has_error: !!sample2.error,
-        has_retries: sample2.retries !== void 0 && sample2.retries > 0
+        has_retries: sample2.retries !== void 0 && sample2.retries > 0,
+        id: sample2.id,
+        metadata: sample2.metadata
       };
     };
     const sampleFilterItems = (evalDescriptor) => {
@@ -46746,6 +46838,11 @@ categories: ${categories.join(" ")}`;
             const value2 = get2(name2);
             return value2;
           }
+          if (name2.startsWith(kSampleMetadataPrefix)) {
+            const propertyPath = name2.substring(kSampleMetadataPrefix.length);
+            const metadata2 = sample2.metadata || {};
+            return getNestedPropertyValue(metadata2, propertyPath);
+          }
           return sample2.error ? void 0 : get2(name2);
         };
         const expression = compileExpression(filterValue, {
@@ -46768,6 +46865,9 @@ categories: ${categories.join(" ")}`;
           const errorObj = error2;
           const propertyName2 = errorObj["propertyName"] || "";
           if (propertyName2) {
+            if (propertyName2.startsWith(kSampleMetadataPrefix)) {
+              return { matches: false, error: void 0 };
+            }
             const regex2 = new RegExp(`\\b${propertyName2}\\b`);
             const match = regex2.exec(filterValue);
             if (match) {
@@ -48753,38 +48853,6 @@ categories: ${categories.join(" ")}`;
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
       ] });
-    };
-    const LabeledValue = ({
-      layout = "column",
-      style: style2,
-      label: label2,
-      children: children2,
-      valueStyle,
-      className: className2
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx(
-            "labeled-value",
-            layout === "column" ? "column" : "row",
-            className2
-          ),
-          style: {
-            ...style2
-          },
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: "labeled-value-label text-style-label text-style-secondary",
-                children: label2
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "labeled-value-value", style: { ...valueStyle }, children: children2 })
-          ]
-        }
-      );
     };
     const staticCol = "_staticCol_xzzhl_1";
     const justifyLeft = "_justifyLeft_xzzhl_5";
@@ -55275,7 +55343,7 @@ self.onmessage = function (e) {
           {
             className: clsx(
               styles$y.eventRow,
-              "text-size-smallest",
+              "text-size-smaller",
               selected2 ? styles$y.selected : ""
             ),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
@@ -85584,28 +85652,6 @@ ${events}
         ...historyKeymap
       ])
     ])();
-    const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
-    const MATH_FUNCTIONS = [
-      ["min", "Minimum of two or more values"],
-      ["max", "Maximum of two or more values"],
-      ["abs", "Absolute value"],
-      ["round", "Round to the nearest integer"],
-      ["floor", "Round down to the nearest integer"],
-      ["ceil", "Round up to the nearest integer"],
-      ["sqrt", "Square root"],
-      ["log", "Natural logarithm"],
-      ["log2", "Base 2 logarithm"],
-      ["log10", "Base 10 logarithm"]
-    ];
-    const SAMPLE_VARIABLES = [
-      ["has_error", "Checks if the sample has an error"],
-      ["has_retries", "Checks if the sample has been retried"]
-    ];
-    const SAMPLE_FUNCTIONS = [
-      ["input_contains", "Checks if input contains a regular expression"],
-      ["target_contains", "Checks if target contains a regular expression"],
-      ["error_contains", "Checks if error contains a regular expression"]
-    ];
     const TOKEN_PATTERNS = {
       STRING: /^"[^"]*"/,
       UNTERMINATED_STRING: /^"[^"]*/,
@@ -85682,6 +85728,20 @@ ${events}
         selection: { anchor: from + completion.label.length + 1 }
       });
     };
+    const applyWithDot = (view, completion, from, to2) => {
+      view.dispatch({
+        changes: { from, to: to2, insert: `${completion.label}.` },
+        selection: { anchor: from + completion.label.length + 1 }
+      });
+      setTimeout(() => startCompletion(view), 0);
+    };
+    const applyWithSpace = (view, completion, from, to2) => {
+      view.dispatch({
+        changes: { from, to: to2, insert: `${completion.label} ` },
+        selection: { anchor: from + completion.label.length + 1 }
+      });
+      setTimeout(() => startCompletion(view), 0);
+    };
     const makeKeywordCompletion = (k) => ({
       label: k,
       type: "keyword",
@@ -85705,6 +85765,7 @@ ${events}
       label: label2,
       type: "variable",
       info,
+      apply: label2 === kSampleMetadataVariable ? applyWithDot : label2 === kSampleIdVariable ? applyWithSpace : void 0,
       boost: 10
     });
     const makeLiteralCompletion = (k) => ({
@@ -85731,8 +85792,139 @@ ${events}
       var _a2;
       return (_a2 = item2 == null ? void 0 : item2.qualifiedName) == null ? void 0 : _a2.startsWith(`${scorer2}.`);
     });
-    function getCompletions(context, filterItems) {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
+    const getSampleIds = (samples) => {
+      const ids = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        ids.add(sample2.id);
+      }
+      return ids;
+    };
+    const getMetadataPropertyValues = (samples, propertyPath) => {
+      const values = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        if (sample2.metadata) {
+          const value2 = getNestedProperty(sample2.metadata, propertyPath);
+          if (value2 !== void 0 && value2 !== null) {
+            values.add(value2);
+          }
+        }
+      }
+      return values;
+    };
+    const getNestedProperty = (obj, path) => {
+      const keys = path.split(".");
+      let current2 = obj;
+      for (const key2 of keys) {
+        if (current2 && typeof current2 === "object" && key2 in current2) {
+          current2 = current2[key2];
+        } else {
+          return void 0;
+        }
+      }
+      return current2;
+    };
+    const buildMetadataPath = (tokens, currentTokenIndex) => {
+      var _a2;
+      const parts = [];
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if ((token2 == null ? void 0 : token2.text) === kSampleMetadataVariable) {
+          return parts.reverse().join(".");
+        } else if ((token2 == null ? void 0 : token2.type) === "variable") {
+          parts.push(token2.text);
+          index2++;
+          if (((_a2 = tokens[currentTokenIndex - index2]) == null ? void 0 : _a2.text) === ".") {
+            index2++;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      return null;
+    };
+    const getMetadataKeysForPath = (samples, parentPath) => {
+      const keys = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        if (sample2.metadata) {
+          const parentObj = parentPath ? getNestedProperty(sample2.metadata, parentPath) : sample2.metadata;
+          if (parentObj && typeof parentObj === "object" && !Array.isArray(parentObj)) {
+            for (const key2 of Object.keys(parentObj)) {
+              keys.add(key2);
+            }
+          }
+        }
+      }
+      return keys;
+    };
+    const buildMetadataPropertyPath = (tokens, currentTokenIndex) => {
+      const parts = [];
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if (!token2) break;
+        if (token2.type === "variable") {
+          if (token2.text === kSampleMetadataVariable) {
+            return parts.reverse().join(".");
+          } else {
+            parts.push(token2.text);
+          }
+        } else if (token2.text !== ".") {
+          break;
+        }
+        index2++;
+      }
+      return null;
+    };
+    const isMetadataProperty = (tokens, currentTokenIndex) => {
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if (!token2) break;
+        if (token2.text === kSampleMetadataVariable) {
+          return true;
+        } else if (token2.text === "." || token2.type === "variable") {
+          index2++;
+        } else {
+          break;
+        }
+      }
+      return false;
+    };
+    const makeMetadataKeyCompletion = (key2) => ({
+      label: key2,
+      type: "property",
+      info: `Metadata property: ${key2}`,
+      boost: 25
+    });
+    const makeSampleIdCompletion = (id) => ({
+      label: typeof id === "string" ? `"${id}"` : String(id),
+      type: "text",
+      info: `Sample ID: ${id}`,
+      boost: 25
+    });
+    const makeMetadataValueCompletion = (value2) => {
+      let label2;
+      if (typeof value2 === "string") {
+        label2 = `"${value2}"`;
+      } else if (typeof value2 === "boolean") {
+        label2 = value2 ? "True" : "False";
+      } else if (value2 === null) {
+        label2 = "None";
+      } else {
+        label2 = String(value2);
+      }
+      return {
+        label: label2,
+        type: "text",
+        info: `Metadata value: ${value2}`,
+        boost: 25
+      };
+    };
+    function getCompletions(context, filterItems, samples) {
+      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k, _l, _m;
       const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
       const mathFunctionCompletionItems = MATH_FUNCTIONS.map(
         makeMathFunctionCompletion
@@ -85740,7 +85932,15 @@ ${events}
       const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
         makeSampleFunctionCompletion
       );
-      const sampleVariableCompletionItems = SAMPLE_VARIABLES.map(
+      const availableSampleVariables = SAMPLE_VARIABLES.filter(([label2]) => {
+        if (label2 === kSampleMetadataVariable) {
+          return samples && samples.some(
+            (sample2) => sample2.metadata && Object.keys(sample2.metadata).length > 0
+          );
+        }
+        return true;
+      });
+      const sampleVariableCompletionItems = availableSampleVariables.map(
         makeSampleVariableCompletion
       );
       const variableCompletionItems = filterItems.map(
@@ -85835,7 +86035,7 @@ ${events}
         enforceOrder: true,
         autoSpaceAfter: completingAtEnd
       });
-      const descreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
+      const discreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
         enforceOrder: true,
         autoSpaceAfter: completingAtEnd
       });
@@ -85850,9 +86050,19 @@ ${events}
       const rhsCompletions = (options2) => makeCompletions(options2.map(makeLiteralCompletion));
       if (!prevToken(1)) return newExpressionCompletions();
       if (((_a2 = prevToken(1)) == null ? void 0 : _a2.text) === ".") {
-        const scorer2 = (_b2 = prevToken(2)) == null ? void 0 : _b2.text;
-        if (scorer2) {
-          return memberAccessCompletions(getMemberScoreItems(filterItems, scorer2));
+        const varName = (_b2 = prevToken(2)) == null ? void 0 : _b2.text;
+        const metadataPath = buildMetadataPath(tokens, currentTokenIndex);
+        if (metadataPath !== null && samples) {
+          const metadataKeys = Array.from(
+            getMetadataKeysForPath(samples, metadataPath)
+          );
+          const metadataCompletions = metadataKeys.map(makeMetadataKeyCompletion);
+          return makeCompletions(metadataCompletions, {
+            autocompleteInTheMiddle: true,
+            includeDefault: false
+          });
+        } else if (varName) {
+          return memberAccessCompletions(getMemberScoreItems(filterItems, varName));
         }
       }
       if (((_c = prevToken(1)) == null ? void 0 : _c.text) === "(") {
@@ -85862,11 +86072,24 @@ ${events}
       }
       if (((_f = prevToken(1)) == null ? void 0 : _f.text) === ")") return noCompletions();
       if (((_g = prevToken(1)) == null ? void 0 : _g.type) === "variable") {
-        const scoreType = ((_h = findFilterItem(1)) == null ? void 0 : _h.scoreType) || "";
+        const varName = (_h = prevToken(1)) == null ? void 0 : _h.text;
+        if (isMetadataProperty(tokens, currentTokenIndex)) {
+          return customRelationCompletions();
+        }
+        if (varName === kSampleIdVariable) {
+          return discreteRelationCompletions();
+        }
+        if (varName === kSampleMetadataVariable) {
+          return customRelationCompletions();
+        }
+        if (varName === "has_error" || varName === "has_retries") {
+          return logicalOpCompletions();
+        }
+        const scoreType = ((_i = findFilterItem(1)) == null ? void 0 : _i.scoreType) || "";
         switch (scoreType) {
           case kScoreTypePassFail:
           case kScoreTypeCategorical:
-            return descreteRelationCompletions();
+            return discreteRelationCompletions();
           case kScoreTypeNumeric:
             return continuousRelationCompletions();
           case kScoreTypeOther:
@@ -85877,14 +86100,47 @@ ${events}
             return noCompletions();
         }
       }
-      if (((_i = prevToken(1)) == null ? void 0 : _i.type) === "relation") {
+      if (((_j = prevToken(1)) == null ? void 0 : _j.type) === "relation") {
+        const varName = (_k = prevToken(2)) == null ? void 0 : _k.text;
+        const metadataPropertyPath = buildMetadataPropertyPath(
+          tokens,
+          currentTokenIndex
+        );
+        if (metadataPropertyPath !== null && samples) {
+          const metadataValues = Array.from(
+            getMetadataPropertyValues(samples, metadataPropertyPath)
+          );
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredValues = currentQuery ? metadataValues.filter((value2) => {
+            const label2 = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "boolean" ? value2 ? "True" : "False" : value2 === null ? "None" : String(value2);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : metadataValues;
+          const metadataValueCompletions = filteredValues.map(
+            makeMetadataValueCompletion
+          );
+          return makeCompletions(metadataValueCompletions, {
+            includeDefault: false
+          });
+        }
+        if (varName === kSampleIdVariable && samples) {
+          const sampleIds = Array.from(getSampleIds(samples));
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredIds = currentQuery ? sampleIds.filter((id) => {
+            const label2 = typeof id === "string" ? `"${id}"` : String(id);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : sampleIds;
+          const sampleIdCompletions = filteredIds.map(makeSampleIdCompletion);
+          return makeCompletions(sampleIdCompletions, {
+            includeDefault: false
+          });
+        }
         const item2 = findFilterItem(2);
-        if ((_j = item2 == null ? void 0 : item2.categories) == null ? void 0 : _j.length) {
+        if ((_l = item2 == null ? void 0 : item2.categories) == null ? void 0 : _l.length) {
           return rhsCompletions(item2.categories);
         }
         return variableCompletions();
       }
-      if (isLiteral(prevToken(1)) && ((_k = prevToken(2)) == null ? void 0 : _k.type) === "relation") {
+      if (isLiteral(prevToken(1)) && ((_m = prevToken(2)) == null ? void 0 : _m.type) === "relation") {
         return logicalOpCompletions();
       }
       if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
@@ -85904,6 +86160,8 @@ Filter samples by:
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
   • Samples that have been retried: has_retries
+  • Sample Id: e.g. "id == 'sample123'"
+  • Sample metadata: e.g. "metadata.key == 'value'"
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^
@@ -85958,6 +86216,12 @@ Supported expressions:
       },
       ".cm-scroller": {
         overflow: "hidden"
+      },
+      ".cm-line": {
+        "font-size": "var(--inspect-font-size-smallest) !important"
+      },
+      ".token": {
+        "font-size": "var(--inspect-font-size-smallest) !important"
       }
     });
     const ensureOneLine = (tr2) => {
@@ -86001,6 +86265,12 @@ Supported expressions:
       );
       const filter = useStore((state) => state.log.filter);
       const filterError = useStore((state) => state.log.filterError);
+      const samples = useStore(
+        (state) => {
+          var _a2;
+          return (_a2 = state.log.selectedLogSummary) == null ? void 0 : _a2.sampleSummaries;
+        }
+      );
       const setFilter = useStore((state) => state.logActions.setFilter);
       const handleFocus = reactExports.useCallback((event, view) => {
         if (event.isTrusted && view.state.doc.toString() === "") {
@@ -86009,10 +86279,10 @@ Supported expressions:
       }, []);
       const makeAutocompletion = reactExports.useCallback(
         () => autocompletion({
-          override: [(context) => getCompletions(context, filterItems)],
+          override: [(context) => getCompletions(context, filterItems, samples)],
           activateOnCompletion: (c2) => c2.label.endsWith(" ")
         }),
-        []
+        [filterItems, samples]
       );
       const makeLinter = reactExports.useCallback(
         () => linter((view) => getLints(view, filterError)),
@@ -86082,7 +86352,7 @@ Supported expressions:
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
           effects: autocompletionCompartment.current.reconfigure(makeAutocompletion())
         });
-      }, [filterItems]);
+      }, [filterItems, samples]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({

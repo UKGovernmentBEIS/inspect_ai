@@ -115,6 +115,7 @@ export interface SampleSummary {
   scores: Scores1;
   error?: string;
   limit?: string;
+  metadata?: Record<string, any>;
   completed?: boolean;
   retries?: number;
 }
