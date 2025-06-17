@@ -1,7 +1,4 @@
-from anyio.abc import TaskGroup
-
 from inspect_ai._util.dotenv import init_dotenv
-from inspect_ai._util.eval_task_group import init_eval_task_group
 from inspect_ai._util.hooks import init_hooks
 from inspect_ai._util.logger import init_logger
 from inspect_ai.approval._apply import have_tool_approval, init_tool_approval
@@ -22,7 +19,6 @@ def init_eval_context(
     log_level: str | None,
     log_level_transcript: str | None,
     max_subprocesses: int | None = None,
-    task_group: TaskGroup | None = None,
 ) -> None:
     init_dotenv()
     init_logger(log_level, log_level_transcript)
@@ -31,7 +27,6 @@ def init_eval_context(
     init_hooks()
     init_active_samples()
     init_human_approval_manager()
-    init_eval_task_group(task_group)
 
 
 def init_task_context(
