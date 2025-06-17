@@ -147,7 +147,6 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
         root_logger = getLogger()
         if root_logger.hasHandlers():
             # someone else has already set up logging
-            _logHandler = True
             return
 
         _logHandler = LogHandler(
