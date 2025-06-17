@@ -727,6 +727,7 @@ ToolParamDef = (
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | BetaToolTextEditor20250429Param
     | WebSearchTool20250305Param
 )
 
@@ -737,6 +738,7 @@ def add_cache_control(
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | BetaToolTextEditor20250429Param
     | WebSearchTool20250305Param
     | dict[str, Any],
 ) -> None:
