@@ -1025,11 +1025,11 @@ ul.jsondiffpatch-textdiff {
 /* prism-custom.css */
 code[class*="language-"],
 pre[class*="language-"] {
-  font-size: 0.8rem !important;
+  font-size: 0.7rem !important;
 }
 
 .token {
-  font-size: 0.8rem !important;
+  font-size: 0.7rem !important;
 }
 
 /* PrismJS 1.29.0 https://prismjs.com/download.html#themes=prism-dark&languages=markup+css+clike+javascript+bash+python */
