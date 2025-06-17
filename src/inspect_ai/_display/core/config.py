@@ -8,9 +8,7 @@ from inspect_ai.log._log import eval_config_defaults
 from .display import TaskProfile
 
 
-def task_config_str(
-    profile: TaskProfile, generate_config: bool = True
-) -> str:
+def task_config_str(profile: TaskProfile, generate_config: bool = True) -> str:
     # merge config
     # wind params back for display
     task_args = dict(profile.task_args)

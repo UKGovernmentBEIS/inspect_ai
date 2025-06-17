@@ -1,6 +1,6 @@
 import contextlib
-from datetime import datetime
 import logging
+from datetime import datetime
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 import anyio
@@ -11,25 +11,26 @@ from inspect_ai.log import EvalStats
 
 from ...util import throttle
 from ...util._concurrency import concurrency_status_display
+from ..core.config import task_config_str
 from ..core.display import (
     TR,
     Display,
     Progress,
+    TaskCancelled,
     TaskDisplay,
     TaskDisplayMetric,
+    TaskError,
     TaskProfile,
     TaskResult,
     TaskScreen,
     TaskSpec,
-    TaskWithResult,
-    TaskCancelled,
-    TaskError,
     TaskSuccess,
+    TaskWithResult,
 )
 from ..core.footer import task_http_retries_str
-from ..core.results import task_metric, tasks_results
 from ..core.panel import task_title
-from ..core.config import task_config_str
+from ..core.results import task_metric
+
 
 class LogDisplay(Display):
     def __init__(self) -> None:
@@ -56,7 +57,7 @@ class LogDisplay(Display):
 
     @contextlib.asynccontextmanager
     async def task_screen(
-            self, tasks: list[TaskSpec], parallel: bool
+        self, tasks: list[TaskSpec], parallel: bool
     ) -> AsyncIterator[TaskScreen]:
         self.total_tasks = len(tasks)
         self.tasks = []
@@ -91,8 +92,8 @@ class LogDisplay(Display):
         # token usage
         for model, usage in stats.model_usage.items():
             if (
-                    usage.input_tokens_cache_read is not None
-                    or usage.input_tokens_cache_write is not None
+                usage.input_tokens_cache_read is not None
+                or usage.input_tokens_cache_write is not None
             ):
                 input_tokens_cache_read = usage.input_tokens_cache_read or 0
                 input_tokens_cache_write = usage.input_tokens_cache_write or 0
@@ -105,8 +106,7 @@ class LogDisplay(Display):
             else:
                 reasoning_tokens = ""
 
-            model_token_usage = \
-                f"{model}:  {usage.total_tokens:,} tokens [{input_tokens}, O: {usage.output_tokens:,}{reasoning_tokens}]"
+            model_token_usage = f"{model}:  {usage.total_tokens:,} tokens [{input_tokens}, O: {usage.output_tokens:,}{reasoning_tokens}]"
 
             res += f"\n{model_token_usage}"
 
@@ -118,9 +118,20 @@ class LogDisplay(Display):
         if isinstance(task.result, TaskCancelled):
             config = task_config_str(task.profile)
             stats = self._task_stats_str(task.result.stats)
-            logging.info(f"{title} cancelled ({task.result.samples_completed}/{task.profile.samples} logged)\n{config}\n{stats}", stacklevel=4)
+            logging.info(
+                f"{title} cancelled ({task.result.samples_completed}/{task.profile.samples} logged)\n{config}\n{stats}",
+                stacklevel=4,
+            )
         elif isinstance(task.result, TaskError):
-            logging.error(f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)", exc_info=(task.result.exc_type, task.result.exc_value, task.result.traceback), stacklevel=4)
+            logging.error(
+                f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)",
+                exc_info=(
+                    task.result.exc_type,
+                    task.result.exc_value,
+                    task.result.traceback,
+                ),
+                stacklevel=4,
+            )
         elif isinstance(task.result, TaskSuccess):
             config = task_config_str(task.profile)
             stats = self._task_stats_str(task.result.stats)
