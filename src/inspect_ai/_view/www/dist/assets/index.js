@@ -23563,6 +23563,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               throw error2;
             }
           },
+          clearLog: () => {
+            set2((state) => {
+              state.log.loadedLog = void 0;
+            });
+          },
           pollLog: async () => {
             const currentLog = get2().log.loadedLog;
             if (currentLog) {
@@ -47775,6 +47780,21 @@ categories: ${categories.join(" ")}`;
         setFilteredCount
       };
     };
+    const useUnloadLog = () => {
+      const clearSelectedLogSummary = useStore(
+        (state) => state.logActions.clearSelectedLogSummary
+      );
+      const setSelectedLogIndex = useStore(
+        (state) => state.logsActions.setSelectedLogIndex
+      );
+      const clearLog = useStore((state) => state.logActions.clearLog);
+      const unloadLog = reactExports.useCallback(() => {
+        clearSelectedLogSummary();
+        setSelectedLogIndex(-1);
+        clearLog();
+      }, [clearLog, clearSelectedLogSummary, setSelectedLogIndex]);
+      return { unloadLog };
+    };
     const filename = (path) => {
       if (!path) {
         return "";
@@ -47818,6 +47838,22 @@ categories: ${categories.join(" ")}`;
         return "";
       }
       return path.endsWith("/") ? path : path + "/";
+    };
+    const header$3 = "_header_1fu9w_1";
+    const breadcrumbs = "_breadcrumbs_1fu9w_12";
+    const ellipsis = "_ellipsis_1fu9w_23";
+    const left$2 = "_left_1fu9w_28";
+    const right$2 = "_right_1fu9w_38";
+    const toolbarButton = "_toolbarButton_1fu9w_47";
+    const pathContainer = "_pathContainer_1fu9w_55";
+    const styles$1g = {
+      header: header$3,
+      breadcrumbs,
+      ellipsis,
+      left: left$2,
+      right: right$2,
+      toolbarButton,
+      pathContainer
     };
     const useBreadcrumbTruncation = (segments, containerRef) => {
       const [truncatedData, setTruncatedData] = reactExports.useState({
@@ -47902,22 +47938,6 @@ categories: ${categories.join(" ")}`;
       }, [measureAndTruncate]);
       return truncatedData;
     };
-    const header$3 = "_header_1fu9w_1";
-    const breadcrumbs = "_breadcrumbs_1fu9w_12";
-    const ellipsis = "_ellipsis_1fu9w_23";
-    const left$2 = "_left_1fu9w_28";
-    const right$2 = "_right_1fu9w_38";
-    const toolbarButton = "_toolbarButton_1fu9w_47";
-    const pathContainer = "_pathContainer_1fu9w_55";
-    const styles$1g = {
-      header: header$3,
-      breadcrumbs,
-      ellipsis,
-      left: left$2,
-      right: right$2,
-      toolbarButton,
-      pathContainer
-    };
     const Navbar = ({ children: children2 }) => {
       const { logPath } = useLogRouteParams();
       const logs = useStore((state) => state.logs.logs);
@@ -47968,7 +47988,7 @@ categories: ${categories.join(" ")}`;
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.pathContainer), ref: pathContainerRef, children: logs.log_dir ? /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1g.breadcrumbs), children: visibleSegments == null ? void 0 : visibleSegments.map((segment, index2) => {
                 const isLast = index2 === visibleSegments.length - 1;
-                const shouldShowEllipsis = showEllipsis && index2 === 1 && visibleSegments.length > 2;
+                const shouldShowEllipsis = showEllipsis && index2 === 1 && visibleSegments.length >= 2;
                 return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
                   shouldShowEllipsis && /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: clsx("breadcrumb-item", styles$1g.ellipsis), children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "..." }) }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51896,11 +51916,9 @@ categories: ${categories.join(" ")}`;
       const logs = useStore((state) => state.logs.logs);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const headersLoading = useStore((state) => state.logs.headersLoading);
-      const clearSelectedLogSummary = useStore(
-        (state) => state.logActions.clearSelectedLogSummary
-      );
+      const { unloadLog } = useUnloadLog();
       reactExports.useEffect(() => {
-        clearSelectedLogSummary();
+        unloadLog();
       }, []);
       const { logPath } = useLogRouteParams();
       const currentDir = join(logPath || "", logs.log_dir);
@@ -91883,19 +91901,6 @@ Supported expressions:
               clearSelectedSample();
               clearSelectedLogSummary();
             }
-          } else {
-            setStatus({
-              loading: true,
-              error: void 0
-            });
-            setSelectedLogIndex(-1);
-            setWorkspaceTab(kLogViewSamplesTabId);
-            await refreshLogs();
-            setSelectedLogIndex(0);
-            setStatus({
-              loading: false,
-              error: void 0
-            });
           }
         };
         loadLogFromPath();

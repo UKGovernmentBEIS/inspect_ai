@@ -1,12 +1,12 @@
 import clsx from "clsx";
-import { FC, Fragment, ReactNode, useRef, useMemo } from "react";
+import { FC, Fragment, ReactNode, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
 import { ApplicationIcons } from "../appearance/icons";
 import { logUrl, useLogRouteParams } from "../routing/url";
-import { useBreadcrumbTruncation } from "./useBreadcrumbTruncation";
 import styles from "./Navbar.module.css";
+import { useBreadcrumbTruncation } from "./useBreadcrumbTruncation";
 
 interface NavbarProps {
   children?: ReactNode;
@@ -70,7 +70,7 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
               {visibleSegments?.map((segment, index) => {
                 const isLast = index === visibleSegments.length - 1;
                 const shouldShowEllipsis =
-                  showEllipsis && index === 1 && visibleSegments.length > 2;
+                  showEllipsis && index === 1 && visibleSegments.length >= 2;
 
                 return (
                   <Fragment key={index}>
