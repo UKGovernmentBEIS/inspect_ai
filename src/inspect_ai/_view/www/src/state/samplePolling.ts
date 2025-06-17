@@ -1,6 +1,7 @@
 import { Event } from "../app/types";
 import {
   AttachmentData,
+  ClientAPI,
   EventData,
   SampleData,
   SampleSummary,
@@ -183,6 +184,8 @@ export function createSamplePolling(
           const processedEvents = processEvents(
             sampleDataResponse.sampleData,
             pollingState,
+            api,
+            logFile,
           );
 
           // update max attachment id
@@ -268,7 +271,12 @@ function processAttachments(
   });
 }
 
-function processEvents(sampleData: SampleData, pollingState: PollingState) {
+function processEvents(
+  sampleData: SampleData,
+  pollingState: PollingState,
+  api: ClientAPI,
+  log_file: string,
+) {
   // Go through each event and resolve it, either appending or replacing
   log.debug(`Processing ${sampleData.events.length} events`);
   if (sampleData.events.length === 0) {
@@ -289,6 +297,14 @@ function processEvents(sampleData: SampleData, pollingState: PollingState) {
           attachmentId,
           available_attachments: Object.keys(pollingState.attachments),
         };
+
+        if (api.log_message) {
+          api.log_message(
+            log_file,
+            `Unable to resolve attachment ${attachmentId}\n` +
+              JSON.stringify(snapshot),
+          );
+        }
         console.warn(`Unable to resolve attachment ${attachmentId}`, snapshot);
       },
     );
