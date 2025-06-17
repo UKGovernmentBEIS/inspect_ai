@@ -52355,33 +52355,9 @@ categories: ${categories.join(" ")}`;
     const Card = ({ id, children: children2, className: className2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
-    const item$1 = "_item_1uzhd_1";
-    const styles$10 = {
-      item: item$1
-    };
-    const DatasetDetailView = ({
-      dataset,
-      style: style2
-    }) => {
-      const filtered = Object.fromEntries(
-        Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
-      );
-      if (!dataset || Object.keys(filtered).length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$10.item), style: style2, children: "No dataset information available" });
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        MetaDataView,
-        {
-          className: clsx("text-size-base", styles$10.item),
-          entries: filtered,
-          tableOptions: "borderless,sm",
-          style: style2
-        }
-      );
-    };
     const grid$6 = "_grid_14885_1";
     const cell$2 = "_cell_14885_8";
-    const styles$$ = {
+    const styles$10 = {
       grid: grid$6,
       cell: cell$2
     };
@@ -52412,7 +52388,7 @@ categories: ${categories.join(" ")}`;
             {
               className: clsx(
                 `${baseId}-key`,
-                styles$$.cell,
+                styles$10.cell,
                 "text-style-label",
                 "text-style-secondary",
                 fontStyle
@@ -52420,7 +52396,7 @@ categories: ${categories.join(" ")}`;
               children: entry == null ? void 0 : entry.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$$.value, `${baseId}-value`, fontStyle), children: entry && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$10.value, `${baseId}-value`, fontStyle), children: entry && /* @__PURE__ */ jsxRuntimeExports.jsx(
             RenderedContent,
             {
               id: id2,
@@ -52430,7 +52406,7 @@ categories: ${categories.join(" ")}`;
                   MetaDataGrid,
                   {
                     id: id2,
-                    className: clsx(styles$$.nested),
+                    className: clsx(styles$10.nested),
                     entries: obj,
                     size,
                     plain
@@ -52441,7 +52417,7 @@ categories: ${categories.join(" ")}`;
           ) })
         ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$$.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$10.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -52454,6 +52430,30 @@ categories: ${categories.join(" ")}`;
       } else {
         return entries;
       }
+    };
+    const item$1 = "_item_1uzhd_1";
+    const styles$$ = {
+      item: item$1
+    };
+    const DatasetDetailView = ({
+      dataset,
+      style: style2
+    }) => {
+      const filtered = Object.fromEntries(
+        Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
+      );
+      if (!dataset || Object.keys(filtered).length === 0) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$$.item), style: style2, children: "No dataset information available" });
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        MetaDataGrid,
+        {
+          className: clsx("text-size-base", styles$$.item),
+          entries: filtered,
+          style: style2,
+          plain: true
+        }
+      );
     };
     const icon$2 = "_icon_59zaz_1";
     const container$g = "_container_59zaz_5";
@@ -52497,7 +52497,7 @@ categories: ${categories.join(" ")}`;
           icon: ApplicationIcons.scorer,
           name: name2,
           params,
-          className: clsx(styles$10.item, "text-size-base")
+          className: clsx(styles$$.item, "text-size-base")
         }
       );
     };

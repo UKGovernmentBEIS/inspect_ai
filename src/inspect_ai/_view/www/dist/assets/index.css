@@ -16674,9 +16674,6 @@ a._citationLink_t2k1z_9:hover {
 .card-body.card-no-padding {
   padding: 0;
 }
-._item_1uzhd_1 {
-  margin-bottom: 0em;
-}
 ._grid_14885_1 {
   display: grid;
   grid-template-columns: max-content auto;
@@ -16687,6 +16684,9 @@ a._citationLink_t2k1z_9:hover {
 ._cell_14885_8 {
   font-weight: 400;
   white-space: nowrap;
+}
+._item_1uzhd_1 {
+  margin-bottom: 0em;
 }
 ._icon_59zaz_1 {
   margin-right: 0.3rem;
