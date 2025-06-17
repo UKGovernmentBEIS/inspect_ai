@@ -578,7 +578,7 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
-        task_args = task.eval.task_args
+        task_args = task.eval.task_args_passed
         model = str(task.eval.model)
         model_roles = task.eval.model_roles or {}
 
