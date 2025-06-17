@@ -39,7 +39,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from .list import task_files
 from .registry import task_create
 from .task import PreviousTask, Task, TaskInfo
-from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, TASK_ALL_PARAMS_ATTR
 from .task.run import eval_log_sample_source
 from .task.tasks import Tasks
 
@@ -148,6 +148,11 @@ def resolve_tasks(
 
 
 def resolve_task_args(task: Task) -> dict[str, Any]:
+    # If the task has been properly instantiated via the registry,
+    # it will have its TASK_ALL_PARAMS_ATTR attribute set.
+    task_args = getattr(task, TASK_ALL_PARAMS_ATTR, None)
+    if task_args is not None:
+        return task_args
     # was the task instantiated via the registry or a decorator?
     # if so then we can get the task_args from the registry.
     try:
@@ -155,7 +160,7 @@ def resolve_task_args(task: Task) -> dict[str, Any]:
         return task_args
 
     # if it wasn't instantiated via the registry or a decorator
-    # then it will not be in the registy and not have formal
+    # then it will not be in the registry and not have formal
     # task args (as it was simply synthesized via ad-hoc code)
     except ValueError:
         return {}

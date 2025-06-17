@@ -209,9 +209,7 @@ async def eval_run(
                     metrics=eval_metrics,
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
-                    task_args=getattr(
-                        task, TASK_ALL_PARAMS_ATTR, resolved_task.task_args
-                    ),
+                    task_args=resolved_task.task_args,
                     task_args_passed=resolved_task.task_args,
                     model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,

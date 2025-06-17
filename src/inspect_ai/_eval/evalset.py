@@ -583,18 +583,20 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         model_roles = task.eval.model_roles or {}
 
     # hash for task args
+    cleaned_task_args = {k: v for k, v in task_args.items() if v is not None}
     task_args_hash = hashlib.sha256(
-        to_json(task_args, exclude_none=True, fallback=lambda _x: None)
+        to_json(cleaned_task_args, fallback=lambda _x: None)
     ).hexdigest()
 
     # hash for model roles
     if len(model_roles):
+        cleaned_model_roles = {k: v for k, v in model_roles.items() if v is not None}
         model = (
             model
             + "/"
             + hashlib.sha256(
-                to_json(model_roles, exclude_none=True, fallback=lambda _x: None)
-            ).hexdigest()
+            to_json(cleaned_model_roles, fallback=lambda _x: None)
+        ).hexdigest()
         )
 
     if task_file:
