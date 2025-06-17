@@ -150,7 +150,7 @@ def resolve_tasks(
 def resolve_task_args(task: Task) -> dict[str, Any]:
     # If the task has been properly instantiated via the registry,
     # it will have its TASK_ALL_PARAMS_ATTR attribute set.
-    task_args = getattr(task, TASK_ALL_PARAMS_ATTR, None)
+    task_args = cast(dict[str, Any], getattr(task, TASK_ALL_PARAMS_ATTR, None))
     if task_args is not None:
         return task_args
     # was the task instantiated via the registry or a decorator?
