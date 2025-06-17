@@ -41,6 +41,7 @@ export const kMethodEvalLogBytes = "eval_log_bytes";
 export const kMethodEvalLogHeaders = "eval_log_headers";
 export const kMethodPendingSamples = "eval_log_pending_samples";
 export const kMethodSampleData = "eval_log_sample_data";
+export const kMethodLogMessage = "log_message";
 
 export const kJsonRpcParseError = -32700;
 export const kJsonRpcInvalidRequest = -32600;

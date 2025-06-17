@@ -70,6 +70,9 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
 
       return undefined;
     },
+    log_message: async (log_file: string, message: string) => {
+      console.log(`[CLIENT MESSAGE] (${log_file}): ${message}`);
+    },
     eval_log: async (
       log_file: string,
       _headerOnly?: number,

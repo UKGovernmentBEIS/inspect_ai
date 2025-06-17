@@ -335,6 +335,9 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     ) => {
       return api.download_file(download_file, file_contents);
     },
+    log_message: (log_file: string, message: string) => {
+      return api.log_message(log_file, message);
+    },
     get_log_pending_samples: api.eval_pending_samples
       ? get_log_pending_samples
       : undefined,
