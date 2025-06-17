@@ -7,6 +7,7 @@ import { formatDuration, toTitleCase } from "../../../utils/format";
 import { ghCommitUrl } from "../../../utils/git";
 import { MetaDataView } from "../../content/MetaDataView";
 
+import { MetaDataGrid } from "../../content/MetaDataGrid";
 import styles from "./TaskTab.module.css";
 
 // Individual hook for Info tab
@@ -101,14 +102,13 @@ export const TaskTab: FC<TaskTabProps> = ({ evalSpec, evalStats }) => {
           <CardHeader label="Task Info" />
           <CardBody id={"task-card-config"}>
             <div className={clsx(styles.grid)}>
-              <MetaDataView
+              <MetaDataGrid
                 key={`plan-md-task`}
                 className={"text-size-small"}
                 entries={taskInformation}
-                tableOptions="sm"
               />
 
-              <MetaDataView
+              <MetaDataGrid
                 entries={{
                   ["Start"]: new Date(
                     evalStats?.started_at || 0,
@@ -118,7 +118,6 @@ export const TaskTab: FC<TaskTabProps> = ({ evalSpec, evalStats }) => {
                   ).toLocaleString(),
                   ["Duration"]: totalDuration,
                 }}
-                tableOptions="sm"
               />
             </div>
           </CardBody>
