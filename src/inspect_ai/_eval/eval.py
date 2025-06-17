@@ -418,6 +418,8 @@ async def eval_async(
             tg.start_soon(run, tg)
     except Exception as ex:
         raise inner_exception(ex)
+    except anyio.get_cancelled_exc_class():
+        pass
 
     assert result is not None, "Eval async did not return a result."
 
