@@ -4,8 +4,8 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { FindBand } from "../../components/FindBand";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useStore } from "../../state/store";
-import { LogView } from "./LogView";
 import { Navbar } from "../navbar/Navbar";
+import { LogView } from "./LogView";
 
 /**
  * AppContent component with the main UI layout
@@ -19,6 +19,7 @@ export const LogViewLayout: FC = () => {
   const showFind = useStore((state) => state.app.showFind);
   const setShowFind = useStore((state) => state.appActions.setShowFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
+  const singleFileMode = useStore((state) => state.app.singleFileMode);
 
   // Logs Data
   const logs = useStore((state) => state.logs.logs);
@@ -58,7 +59,7 @@ export const LogViewLayout: FC = () => {
         onKeyDown={handleKeyboard}
       >
         {!nativeFind && showFind ? <FindBand /> : ""}
-        <Navbar />
+        {!singleFileMode ? <Navbar /> : ""}
         <ProgressBar animating={appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel

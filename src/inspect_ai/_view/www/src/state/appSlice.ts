@@ -52,6 +52,8 @@ export interface AppSlice {
     clearPagination: (name: string) => void;
 
     setUrlHash: (urlHash: string) => void;
+
+    setSingleFileMode: (singleFile: boolean) => void;
   };
 }
 
@@ -260,6 +262,11 @@ export const createAppSlice = (
       setUrlHash: (urlHash: string) => {
         set((state) => {
           state.app.urlHash = urlHash;
+        });
+      },
+      setSingleFileMode: (singleFile: boolean) => {
+        set((state) => {
+          state.app.singleFileMode = singleFile;
         });
       },
       setPagination: (

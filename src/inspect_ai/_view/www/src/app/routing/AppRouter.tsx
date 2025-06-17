@@ -5,7 +5,7 @@ import {
   Outlet,
   useLocation,
 } from "react-router-dom";
-import { storeImplementation } from "../../state/store";
+import { storeImplementation, useStore } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
@@ -26,6 +26,20 @@ const AppLayout = () => {
       storeImplementation.getState().appActions.setUrlHash(location.pathname);
     }
   }, [location]);
+
+  // Get log selection state from store
+  const singleFileMode = useStore((state) => state.app.singleFileMode);
+
+  // Single file mode is a legacy mode that is used when an explicit
+  // file is passed via URL (task_file or log_file params) or via
+  // embedded state (VSCode)
+  if (singleFileMode) {
+    return (
+      <AppErrorBoundary>
+        <LogViewContainer />
+      </AppErrorBoundary>
+    );
+  }
 
   return (
     <AppErrorBoundary>

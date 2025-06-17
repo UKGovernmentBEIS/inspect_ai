@@ -56,6 +56,7 @@ export interface AppState {
   };
   rehydrated?: boolean;
   pagination: Record<string, { page: number; pageSize: number }>;
+  singleFileMode?: boolean;
 }
 
 export interface LogsState {

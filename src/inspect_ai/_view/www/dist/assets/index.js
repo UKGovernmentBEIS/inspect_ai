@@ -23234,6 +23234,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.app.urlHash = urlHash;
             });
           },
+          setSingleFileMode: (singleFile) => {
+            set2((state) => {
+              state.app.singleFileMode = singleFile;
+            });
+          },
           setPagination: (name2, pagination) => {
             set2((state) => {
               state.app.pagination[name2] = pagination;
@@ -91775,6 +91780,7 @@ Supported expressions:
       const showFind = useStore((state) => state.app.showFind);
       const setShowFind = useStore((state) => state.appActions.setShowFind);
       const hideFind = useStore((state) => state.appActions.hideFind);
+      const singleFileMode = useStore((state) => state.app.singleFileMode);
       const logs = useStore((state) => state.logs.logs);
       const mainAppRef = reactExports.useRef(null);
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
@@ -91803,7 +91809,7 @@ Supported expressions:
           onKeyDown: handleKeyboard,
           children: [
             !nativeFind && showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}),
+            !singleFileMode ? /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}) : "",
             /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appStatus.loading }),
             appStatus.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               ErrorPanel,
@@ -91947,6 +91953,10 @@ Supported expressions:
           storeImplementation.getState().appActions.setUrlHash(location2.pathname);
         }
       }, [location2]);
+      const singleFileMode = useStore((state) => state.app.singleFileMode);
+      if (singleFileMode) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) });
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {}) });
     };
     const AppRouter = createHashRouter(
@@ -91994,6 +92004,9 @@ Supported expressions:
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const pollLog = useStore((state) => state.logActions.pollLog);
+      const setSingleFileMode = useStore(
+        (state) => state.appActions.setSingleFileMode
+      );
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile && selectedLogFile !== loadedLogFile) {
@@ -92068,6 +92081,7 @@ Supported expressions:
           if (embeddedState && !rehydrated) {
             const state = lib$1.parse(embeddedState.textContent || "");
             onMessage({ data: state });
+            setSingleFileMode(true);
           } else {
             const urlParams = new URLSearchParams(window.location.search);
             const logPath = urlParams.get("task_file");
@@ -92077,10 +92091,12 @@ Supported expressions:
                 log_dir: "",
                 files: [{ name: resolvedLogPath }]
               });
+              setSingleFileMode(true);
             } else {
               const log_file = urlParams.get("log_file");
               if (log_file) {
                 await selectLogFile(log_file);
+                setSingleFileMode(true);
               }
             }
           }
