@@ -86118,6 +86118,8 @@ Filter samples by:
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
   • Samples that have been retried: has_retries
+  • Sample Id: e.g. "id == 'sample123'"
+  • Sample metadata: e.g. "metadata.key == 'value'"
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^
