@@ -41,6 +41,7 @@ from anthropic.types import (
 from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
+    BetaToolTextEditor20250429Param,
 )
 from pydantic import JsonValue
 from typing_extensions import override
@@ -397,6 +398,9 @@ class AnthropicAPI(ModelAPI):
     def is_claude_3_7(self) -> bool:
         return "claude-3-7-" in self.service_model_name()
 
+    def is_claude_4(self) -> bool:
+        return re.search(r"claude-4-[a-zA-Z]", self.service_model_name()) is not None
+
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
@@ -627,7 +631,17 @@ class AnthropicAPI(ModelAPI):
 
     def text_editor_tool_param(
         self, tool: ToolInfo
-    ) -> ToolTextEditor20250124Param | BetaToolTextEditor20241022Param | None:
+    ) -> (
+        ToolTextEditor20250124Param
+        | BetaToolTextEditor20241022Param
+        | BetaToolTextEditor20250429Param
+        | None
+    ):
+        # See: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool#before-using-the-text-editor-tool
+        # TODO: It would be great to enhance our `is_claude_xxx` functions to help here.
+        if self.model_name.startswith(("claude-3-5-haiku", "claude-3-opus")):
+            return None
+
         # check for compatible 'text editor' tool
         if tool.name == "text_editor" and (
             sorted(tool.parameters.properties.keys())
@@ -644,7 +658,11 @@ class AnthropicAPI(ModelAPI):
             )
         ):
             return (
-                BetaToolTextEditor20241022Param(
+                BetaToolTextEditor20250429Param(
+                    type="text_editor_20250429", name="str_replace_based_edit_tool"
+                )
+                if self.is_claude_4()
+                else BetaToolTextEditor20241022Param(
                     type="text_editor_20241022", name="str_replace_editor"
                 )
                 if self.is_claude_3_5()
@@ -706,6 +724,7 @@ ToolParamDef = (
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | BetaToolTextEditor20250429Param
     | WebSearchTool20250305Param
 )
 
@@ -716,6 +735,7 @@ def add_cache_control(
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
+    | BetaToolTextEditor20250429Param
     | WebSearchTool20250305Param
     | dict[str, Any],
 ) -> None:
@@ -1008,6 +1028,7 @@ def _names_for_tool_call(
         (INTERNAL_COMPUTER_TOOL_NAME, "computer_20250124", "computer"),
         ("str_replace_editor", "text_editor_20241022", "text_editor"),
         ("str_replace_editor", "text_editor_20250124", "text_editor"),
+        ("str_replace_based_edit_tool", "text_editor_20250429", "text_editor"),
         ("bash", "bash_20250124", "bash_session"),
     )
 

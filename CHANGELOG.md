@@ -12,6 +12,7 @@
 - Inspect View: Increase transcript outline font size.
 - Inspect View: Add support for filtering by sample id, sample metadata.
 - Eval: Wrap eval execution in TaskGroup.
+- Bugfix: Use correct bindings for Claude v4 native `text_editor` tool; don't use native tool definition for Haiku 3.5 or Opus 3.0.  
 - Bugfix: Restore preservation of `ContentReasoning` blocks for Gemini (regressed in v0.3.104). 
 - Bugfix: Dataset shuffling now works correctly with `seed` of 0.
 
