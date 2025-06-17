@@ -132,12 +132,13 @@ def test_openai_flex_requests_not_available():
 @skip_if_no_openai
 async def test_openai_batch(mocker: MockerFixture):
     batch_tick = 0.01
+    batch_max_send_delay = 1.0
     model = OpenAIAPI(
         model_name="gpt-3.5-turbo",
         api_key="test-key",
         config=GenerateConfig(
             batch_size=10,
-            batch_max_send_delay=1.0,
+            batch_max_send_delay=batch_max_send_delay,
             batch_tick=batch_tick,
         ),
     )
@@ -199,7 +200,7 @@ async def test_openai_batch(mocker: MockerFixture):
 
     async def stub_batches_retrieve(batch_id: str):
         nonlocal file_content_response
-        requests = next(iter(model._batcher._inflight_batches.values()))  # pyright: ignore[reportPrivateUsage]
+        requests = model._batcher._inflight_batches[batch_id].requests  # pyright: ignore[reportPrivateUsage]
         file_content_response = httpx.Response(
             status_code=200,
             text="\n".join(
@@ -277,22 +278,27 @@ async def test_openai_batch(mocker: MockerFixture):
 
     async with anyio.create_task_group() as tg:
         mocker.patch.object(eval_task_group, "_eval_task_group", tg)
-        tg.start_soon(generate, 0)
-        await anyio.sleep(2 * batch_tick)
+        try:
+            with anyio.fail_after(2 * batch_max_send_delay):
+                tg.start_soon(generate, 0)
+                await anyio.sleep(2 * batch_tick)
 
-        mock_completions_create.assert_not_awaited()
+                mock_completions_create.assert_not_awaited()
 
-        assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
-        assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
-        assert model._batcher._task_group is not None  # pyright: ignore[reportPrivateUsage]
+                assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
+                assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
+                assert model._batcher._task_group is not None  # pyright: ignore[reportPrivateUsage]
 
-        mock_files_create.assert_not_awaited()
-        mock_batches_create.assert_not_awaited()
+                mock_files_create.assert_not_awaited()
+                mock_batches_create.assert_not_awaited()
 
-        for idx_call in range(1, 10):
-            tg.start_soon(generate, idx_call)
+                for idx_call in range(1, 10):
+                    tg.start_soon(generate, idx_call)
 
-        await anyio.sleep(2 * batch_tick)
+                await anyio.sleep(2 * batch_tick)
+        except Exception as error:
+            tg.cancel_scope.cancel()
+            raise error
 
     mock_completions_create.assert_not_awaited()
     mock_files_create.assert_awaited_once()

@@ -5,7 +5,6 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, cast
 
-import anyio.abc
 import httpx
 from anthropic import (
     APIConnectionError,
@@ -15,6 +14,7 @@ from anthropic import (
     AsyncAnthropicBedrock,
     AsyncAnthropicVertex,
     BadRequestError,
+    InternalServerError,
     NotGiven,
 )
 from anthropic._types import Body
@@ -77,7 +77,12 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
-from inspect_ai.model._providers.util.batch import Batcher, BatchRequest, BatchResult
+from inspect_ai.model._providers.util.batch import (
+    Batch,
+    Batcher,
+    BatchRequest,
+    CompletedBatch,
+)
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
@@ -138,32 +143,32 @@ class AnthropicBatcher(Batcher[Message]):
         )
         return batch_info.id
 
-    async def _check_batch(self, batch_id: str) -> BatchResult:
-        batch_info = await self.client.messages.batches.retrieve(batch_id)
-        return BatchResult(
-            id=batch_id,
+    async def _check_batch(self, batch: Batch[Message]) -> Batch[Message]:
+        batch_info = await self.client.messages.batches.retrieve(batch.id)
+        if batch_info.processing_status != "ended" or not batch_info.results_url:
+            return Batch[Message](
+                id=batch.id,
+                requests=batch.requests,
+                status=batch_info.processing_status,
+            )
+
+        return CompletedBatch[Message](
+            id=batch.id,
+            requests=batch.requests,
             status=batch_info.processing_status,
-            result_uris=list(
-                filter(
-                    None,
-                    [batch_info.results_url]
-                    if batch_info.processing_status == "ended"
-                    else [],
-                )
-            ),
+            result_uris=[batch_info.results_url],
         )
 
     async def _handle_batch_result(
         self,
-        batch_result: BatchResult,
+        batch: CompletedBatch[Message],
         idx_result_uri: int,
-        batch: dict[str, anyio.abc.ObjectSendStream[Message | Exception]],
     ) -> None:
         import anthropic
 
-        async for result in await self.client.messages.batches.results(batch_result.id):
+        async for result in await self.client.messages.batches.results(batch.id):
             custom_id = result.custom_id
-            send_stream = batch.pop(custom_id)
+            batch_request = batch.requests.pop(custom_id)
 
             match result.result.type:
                 case "succeeded":
@@ -211,7 +216,14 @@ class AnthropicBatcher(Batcher[Message]):
                         )
                     )
 
-            await send_stream.send(response)
+            await batch_request.result_stream.send(response)
+
+    def _get_request_failed_error(self, request: BatchRequest[Message]) -> Exception:
+        return InternalServerError(
+            message="Request failed",
+            response=httpx.Response(status_code=500, text="Request failed"),
+            body=None,
+        )
 
 
 class AnthropicAPI(ModelAPI):

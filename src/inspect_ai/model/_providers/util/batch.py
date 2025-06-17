@@ -13,38 +13,45 @@ from inspect_ai.model._generate_config import GenerateConfig
 
 logger = getLogger(__name__)
 
-T = TypeVar("T")
+ResponseT = TypeVar("ResponseT")
 
 
 @dataclasses.dataclass
-class BatchRequest(Generic[T]):
+class BatchRequest(Generic[ResponseT]):
     request: dict[str, Any]
-    result_stream: anyio.abc.ObjectSendStream[T | Exception]
+    result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
 
 
 @dataclasses.dataclass
-class BatchResult:
+class Batch(Generic[ResponseT]):
     id: str
-    status: str
+    requests: dict[str, BatchRequest[ResponseT]]
+    status: str | None
+
+
+@dataclasses.dataclass
+class CompletedBatch(Batch[ResponseT]):
     result_uris: list[str]
 
 
-class Batcher(Generic[T]):
+class Batcher(Generic[ResponseT]):
     def __init__(self, config: GenerateConfig) -> None:
         self.config = config
-        self._queue: list[BatchRequest[T]] = []
+        self._queue: list[BatchRequest[ResponseT]] = []
         self.queue_timeout: float | None = None
-        self._inflight_batches: dict[
-            str, dict[str, anyio.abc.ObjectSendStream[T | Exception]]
-        ] = {}
+        self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._task_group: anyio.abc.TaskGroup | None = None
 
-    async def generate(self, request: dict[str, Any], config: GenerateConfig) -> T:
-        send_stream, receive_stream = anyio.create_memory_object_stream[T | Exception](
-            1
+    async def generate(
+        self, request: dict[str, Any], config: GenerateConfig
+    ) -> ResponseT:
+        send_stream, receive_stream = anyio.create_memory_object_stream[
+            ResponseT | Exception
+        ](1)
+        batch_request = BatchRequest[ResponseT](
+            request=request, result_stream=send_stream
         )
-        batch_request = BatchRequest[T](request=request, result_stream=send_stream)
         self._queue.append(batch_request)
         self.queue_timeout = min(
             time.time()
@@ -80,66 +87,67 @@ class Batcher(Generic[T]):
         self._task_group = None
 
     async def _check_inflight_batches(self) -> None:
-        try:
-            async with anyio.create_task_group() as tg:
-                for batch_id in self._inflight_batches:
-                    tg.start_soon(self._check_inflight_batch, batch_id)
-        except Exception as e:
-            logger.error(f"Error checking batch inflight: {e}")
+        async with anyio.create_task_group() as tg:
+            for batch in self._inflight_batches.values():
+                tg.start_soon(self._check_inflight_batch, batch)
 
-    async def _check_inflight_batch(self, batch_id: str) -> None:
-        batch_results = await self._check_batch(batch_id)
-
-        if not batch_results.result_uris:
+    async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
+        batch = await self._check_batch(batch)
+        if not isinstance(batch, CompletedBatch):
+            self._inflight_batches[batch.id] = batch
             return
 
-        batch = self._inflight_batches.pop(batch_id)
         async with anyio.create_task_group() as tg:
-            for idx_result_uri in range(len(batch_results.result_uris)):
+            for idx_result_uri in range(len(batch.result_uris)):
                 tg.start_soon(
-                    self._handle_batch_result, batch_results, idx_result_uri, batch
+                    self._handle_batch_result,
+                    batch,
+                    idx_result_uri,
                 )
 
+        del self._inflight_batches[batch.id]
         # Send exceptions to any remaining streams that weren't handled
-        for request_id, result_stream in batch.items():
+        await self._fail_all_requests(list(batch.requests.values()))
+
+    async def _send_batch(self) -> None:
+        batch_requests = self._queue
+        self._queue = []
+
+        batch_id = await self._create_batch(batch_requests)
+        self._inflight_batches[batch_id] = Batch(
+            id=batch_id,
+            requests={request.custom_id: request for request in batch_requests},
+            status=None,
+        )
+
+    async def _fail_all_requests(
+        self, batch_requests: list[BatchRequest[ResponseT]]
+    ) -> None:
+        for request in batch_requests:
             try:
-                await result_stream.send(
-                    RuntimeError(
-                        f"Request {request_id} failed, batch {batch_id} in status {batch_results.status}"
-                    )
+                await request.result_stream.send(
+                    await self._get_request_failed_error(request)
                 )
             except anyio.BrokenResourceError:
                 # TODO: VERIFY Stream already closed, ignore
                 pass
 
-    async def _send_batch(self) -> None:
-        batch = self._queue
-        self._queue = []
-
-        try:
-            batch_id = await self._create_batch(batch)
-        except Exception as e:
-            logger.error(f"Error sending batch: {e}")
-            # TODO: implement retry logic?
-            return
-
-        self._inflight_batches[batch_id] = {
-            request.custom_id: request.result_stream for request in batch
-        }
-
     @abstractmethod
-    async def _create_batch(self, batch: list[BatchRequest[T]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         pass
 
     @abstractmethod
-    async def _check_batch(self, batch_id: str) -> BatchResult:
+    async def _check_batch(self, batch: Batch[ResponseT]) -> Batch[ResponseT]:
         pass
 
     @abstractmethod
     async def _handle_batch_result(
         self,
-        batch_result: BatchResult,
+        batch: CompletedBatch[ResponseT],
         idx_result_uri: int,
-        batch: dict[str, anyio.abc.ObjectSendStream[T | Exception]],
     ) -> None:
+        pass
+
+    @abstractmethod
+    def _get_request_failed_error(self, request: BatchRequest[ResponseT]) -> Exception:
         pass
