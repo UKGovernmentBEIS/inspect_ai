@@ -637,8 +637,8 @@ class AnthropicAPI(ModelAPI):
         | BetaToolTextEditor20250429Param
         | None
     ):
-        # TODO: It would be great to enhance our `is_claude_xxx` functions to help here.
         # See: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool#before-using-the-text-editor-tool
+        # TODO: It would be great to enhance our `is_claude_xxx` functions to help here.
         if any(
             self.model_name.startswith(prefix)
             for prefix in ["claude-3-5-haiku", "claude-3-opus"]
