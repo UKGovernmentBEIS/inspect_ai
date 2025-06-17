@@ -5,7 +5,6 @@ import { Card, CardBody, CardHeader } from "../../../components/Card";
 import { kLogViewTaskTabId } from "../../../constants";
 import { formatDuration, toTitleCase } from "../../../utils/format";
 import { ghCommitUrl } from "../../../utils/git";
-import { MetaDataView } from "../../content/MetaDataView";
 
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import styles from "./TaskTab.module.css";
@@ -127,11 +126,10 @@ export const TaskTab: FC<TaskTabProps> = ({ evalSpec, evalStats }) => {
           <Card>
             <CardHeader label="Task Args" />
             <CardBody id={"task-card-config"}>
-              <MetaDataView
+              <MetaDataGrid
                 key={`plan-md-task-args`}
                 className={"text-size-small"}
                 entries={task_args as Record<string, unknown>}
-                tableOptions="sm"
               />
             </CardBody>
           </Card>

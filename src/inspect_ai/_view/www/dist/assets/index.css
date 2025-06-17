@@ -15953,40 +15953,16 @@ a._citationLink_t2k1z_9:hover {
 ._container_rmdrx_16 {
   padding: 0.4em 0.4em 0.4em 0.4em;
 }
-._table_1t3ts_1 {
-  padding-left: 0;
-  margin-left: 0;
-  margin-bottom: 0.2rem;
+._grid_14885_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.5em;
+  row-gap: 0.2em;
 }
 
-._th_1t3ts_7 {
-  padding: 0;
-}
-
-._cell_1t3ts_11 {
-  padding: 0em 0.7em 0.3em 0em !important;
-}
-
-._compact_1t3ts_15 ._cell_1t3ts_11 {
-  padding: 0;
-}
-
-._cellKey_1t3ts_19 {
+._cell_14885_8 {
   font-weight: 400;
-  padding-right: 1em;
   white-space: nowrap;
-}
-
-._compact_1t3ts_15 ._cellKey_1t3ts_19 {
-  font-weight: 400;
-  padding-right: 0.2em;
-  white-space: nowrap;
-}
-
-._cellValue_1t3ts_31 {
-  font-weight: 300;
-  white-space: pre-wrap;
-  word-wrap: anywhere;
 }
 ._query_seqs2_1 {
   margin-bottom: 0.5rem;
@@ -16674,17 +16650,6 @@ a._citationLink_t2k1z_9:hover {
 .card-body.card-no-padding {
   padding: 0;
 }
-._grid_14885_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 0.5em;
-  row-gap: 0.2em;
-}
-
-._cell_14885_8 {
-  font-weight: 400;
-  white-space: nowrap;
-}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
@@ -16700,6 +16665,9 @@ a._citationLink_t2k1z_9:hover {
 
 ._metadata_59zaz_11 {
   margin-bottom: 0.75em;
+}
+._item_leq25_1 {
+  margin-bottom: 0;
 }
 ._container_12j2k_1 {
   display: flex;
@@ -16717,7 +16685,7 @@ a._citationLink_t2k1z_9:hover {
   margin-top: 0;
   margin-bottom: -0.1em;
 }
-._floatingCol_1y1hk_1 {
+._floatingCol_1n79r_1 {
   flex: 0 1 1;
   width: unset;
   text-align: left;
@@ -16725,32 +16693,33 @@ a._citationLink_t2k1z_9:hover {
   padding-right: 0.6rem;
 }
 
-._wideCol_1y1hk_9 {
+._wideCol_1n79r_9 {
   flex: 1 1 1;
   width: unset;
   padding-left: 0.6rem;
   padding-right: 0.6rem;
 }
 
-._oneCol_1y1hk_16 {
+._oneCol_1n79r_16 {
   flex: 0 0 100%;
 }
 
-._twoCol_1y1hk_20 {
+._twoCol_1n79r_20 {
   flex: 0 0 50%;
 }
 
-._planCol_1y1hk_24 {
+._planCol_1n79r_24 {
   margin-top: 0;
+  margin-bottom: 0.5em;
 }
 
-._container_1y1hk_28 {
+._container_1n79r_29 {
   padding-top: 0;
   padding-bottom: 1em;
   margin-left: 0;
 }
 
-._grid_1y1hk_34 {
+._grid_1n79r_35 {
   display: grid;
   justify-content: space-between;
   flex-wrap: wrap;
@@ -16758,7 +16727,7 @@ a._citationLink_t2k1z_9:hover {
   margin-bottom: 0.5em;
 }
 
-._row_1y1hk_42 {
+._row_1n79r_43 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto;

@@ -28418,7 +28418,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       result2.push(current2 + str2.substring(lastPos));
       return result2;
     }
-    function table$3(state, startLine, endLine, silent) {
+    function table$2(state, startLine, endLine, silent) {
       if (startLine + 2 > endLine) {
         return false;
       }
@@ -29487,7 +29487,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const _rules$1 = [
       // First 2 params - rule name & source. Secondary array - list of rules,
       // which can be terminated by this one.
-      ["table", table$3, ["paragraph", "reference"]],
+      ["table", table$2, ["paragraph", "reference"]],
       ["code", code$3],
       ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
       ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
@@ -43642,81 +43642,78 @@ ${citation.url}`,
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
     };
-    const table$2 = "_table_1t3ts_1";
-    const cell$3 = "_cell_1t3ts_11";
-    const compact = "_compact_1t3ts_15";
-    const cellKey = "_cellKey_1t3ts_19";
-    const cellValue = "_cellValue_1t3ts_31";
+    const grid$7 = "_grid_14885_1";
+    const cell$2 = "_cell_14885_8";
     const styles$1k = {
-      table: table$2,
-      cell: cell$3,
-      compact,
-      cellKey,
-      cellValue
+      grid: grid$7,
+      cell: cell$2
     };
-    const MetaDataView = ({
+    const MetaDataGrid = ({
       id,
-      style: style2,
       entries,
-      tableOptions,
-      compact: compact2,
-      className: className2
+      className: className2,
+      size,
+      style: style2,
+      plain
     }) => {
-      const baseId = "metadataview";
-      tableOptions = tableOptions || "sm";
-      const tblClz = (tableOptions || "").split(",").map((option) => {
-        return `table-${option}`;
-      });
-      const coercedEntries = toNameValues(entries);
-      const entryEls = (coercedEntries || []).map((entry, index2) => {
+      const baseId = "metadata-grid";
+      const fontStyle = size === "mini" ? "text-size-smallest" : "text-size-smaller";
+      const entryEls = entryRecords(entries).map((entry, index2) => {
         const id2 = `${baseId}-value-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          index2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              style: {
+                gridColumn: "1 / -1",
+                borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
+              }
+            }
+          ) : void 0,
           /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "td",
+            "div",
             {
               className: clsx(
+                `${baseId}-key`,
                 styles$1k.cell,
-                styles$1k.cellKey,
-                "text-size-small",
-                "text-style-label"
+                "text-style-label",
+                "text-style-secondary",
+                fontStyle
               ),
-              children: entry.name
+              children: entry == null ? void 0 : entry.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1k.cell, styles$1k.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry }) })
-        ] }, id2);
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.value, `${baseId}-value`, fontStyle), children: entry && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RenderedContent,
+            {
+              id: id2,
+              entry,
+              renderObject: (obj) => {
+                return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MetaDataGrid,
+                  {
+                    id: id2,
+                    className: clsx(styles$1k.nested),
+                    entries: obj,
+                    size,
+                    plain
+                  }
+                );
+              }
+            }
+          ) })
+        ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "table",
-        {
-          id,
-          className: clsx(
-            "table",
-            tblClz,
-            styles$1k.table,
-            compact2 ? styles$1k.compact : void 0,
-            className2
-          ),
-          style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
-        }
-      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$1k.grid), style: style2, children: entryEls });
     };
-    const toNameValues = (entries) => {
-      if (entries) {
-        if (Array.isArray(entries)) {
-          const filtered = entries.filter((entry) => {
-            if (entry && typeof entry === "object") {
-              return "name" in entry && "value" in entry;
-            }
-            return false;
-          });
-          return filtered;
-        } else {
-          return Object.entries(entries || {}).map(([key2, value2]) => {
-            return { name: key2, value: value2 };
-          });
-        }
+    const entryRecords = (entries) => {
+      if (!entries) {
+        return [];
+      }
+      if (!Array.isArray(entries)) {
+        return Object.entries(entries || {}).map(([key2, value2]) => {
+          return { name: key2, value: value2 };
+        });
       } else {
         return entries;
       }
@@ -43872,13 +43869,12 @@ ${citation.url}`,
               arrayMap[`[${index2}]`] = e;
             });
             const arrayRendered = renderObject ? renderObject(arrayMap) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
+              MetaDataGrid,
               {
                 id,
                 className: "font-size-small",
                 entries: arrayMap,
-                tableOptions: "borderless,sm",
-                compact: true
+                plain: true
               }
             );
             return { rendered: arrayRendered };
@@ -43959,13 +43955,12 @@ ${citation.url}`,
             } else {
               return {
                 rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MetaDataView,
+                  MetaDataGrid,
                   {
                     id,
-                    className: "text-size-smaller",
+                    className: "font-size-small",
                     entries: entry.value,
-                    tableOptions: "borderless,sm",
-                    compact: true
+                    plain: true
                   }
                 )
               };
@@ -51003,7 +50998,7 @@ categories: ${categories.join(" ")}`;
       return tableRef.current;
     }
     const gridContainer = "_gridContainer_vl3ih_1";
-    const grid$7 = "_grid_vl3ih_1";
+    const grid$6 = "_grid_vl3ih_1";
     const headerRow = "_headerRow_vl3ih_15";
     const headerCell = "_headerCell_vl3ih_26";
     const sortable = "_sortable_vl3ih_42";
@@ -51016,7 +51011,7 @@ categories: ${categories.join(" ")}`;
     const emptyMessage = "_emptyMessage_vl3ih_107";
     const styles$1f = {
       gridContainer,
-      grid: grid$7,
+      grid: grid$6,
       headerRow,
       headerCell,
       sortable,
@@ -51669,10 +51664,10 @@ categories: ${categories.join(" ")}`;
       center: center$1
     };
     const pager = "_pager_jzegk_1";
-    const item$2 = "_item_jzegk_11";
+    const item$3 = "_item_jzegk_11";
     const styles$15 = {
       pager,
-      item: item$2
+      item: item$3
     };
     const LogPager = ({ itemCount }) => {
       const { page, itemsPerPage, setPage } = usePagination(
@@ -52355,85 +52350,9 @@ categories: ${categories.join(" ")}`;
     const Card = ({ id, children: children2, className: className2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
-    const grid$6 = "_grid_14885_1";
-    const cell$2 = "_cell_14885_8";
+    const item$2 = "_item_1uzhd_1";
     const styles$10 = {
-      grid: grid$6,
-      cell: cell$2
-    };
-    const MetaDataGrid = ({
-      id,
-      entries,
-      className: className2,
-      size,
-      style: style2,
-      plain
-    }) => {
-      const baseId = "metadata-grid";
-      const fontStyle = size === "mini" ? "text-size-smallest" : "text-size-smaller";
-      const entryEls = entryRecords(entries).map((entry, index2) => {
-        const id2 = `${baseId}-value-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          index2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              style: {
-                gridColumn: "1 / -1",
-                borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
-              }
-            }
-          ) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                `${baseId}-key`,
-                styles$10.cell,
-                "text-style-label",
-                "text-style-secondary",
-                fontStyle
-              ),
-              children: entry == null ? void 0 : entry.name
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$10.value, `${baseId}-value`, fontStyle), children: entry && /* @__PURE__ */ jsxRuntimeExports.jsx(
-            RenderedContent,
-            {
-              id: id2,
-              entry,
-              renderObject: (obj) => {
-                return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MetaDataGrid,
-                  {
-                    id: id2,
-                    className: clsx(styles$10.nested),
-                    entries: obj,
-                    size,
-                    plain
-                  }
-                );
-              }
-            }
-          ) })
-        ] }, `${baseId}-record-${index2}`);
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$10.grid), style: style2, children: entryEls });
-    };
-    const entryRecords = (entries) => {
-      if (!entries) {
-        return [];
-      }
-      if (!Array.isArray(entries)) {
-        return Object.entries(entries || {}).map(([key2, value2]) => {
-          return { name: key2, value: value2 };
-        });
-      } else {
-        return entries;
-      }
-    };
-    const item$1 = "_item_1uzhd_1";
-    const styles$$ = {
-      item: item$1
+      item: item$2
     };
     const DatasetDetailView = ({
       dataset,
@@ -52443,12 +52362,12 @@ categories: ${categories.join(" ")}`;
         Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
       );
       if (!dataset || Object.keys(filtered).length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$$.item), style: style2, children: "No dataset information available" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$10.item), style: style2, children: "No dataset information available" });
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         MetaDataGrid,
         {
-          className: clsx("text-size-base", styles$$.item),
+          className: clsx("text-size-base", styles$10.item),
           entries: filtered,
           style: style2,
           plain: true
@@ -52458,7 +52377,7 @@ categories: ${categories.join(" ")}`;
     const icon$2 = "_icon_59zaz_1";
     const container$g = "_container_59zaz_5";
     const metadata$2 = "_metadata_59zaz_11";
-    const styles$_ = {
+    const styles$$ = {
       icon: icon$2,
       container: container$g,
       metadata: metadata$2
@@ -52469,19 +52388,23 @@ categories: ${categories.join(" ")}`;
       params,
       className: className2
     }) => {
-      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$_.icon) }) : "";
+      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$$.icon) }) : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         iconHtml,
         " ",
         name2,
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$_.container, children: params ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        params && Object.keys(params).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$$.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           MetaDataGrid,
           {
             entries: params,
-            className: clsx("text-size-small", styles$_.metadata)
+            className: clsx("text-size-small", styles$$.metadata)
           }
-        ) : "" })
+        ) }) : ""
       ] });
+    };
+    const item$1 = "_item_leq25_1";
+    const styles$_ = {
+      item: item$1
     };
     const ScorerDetailView = ({
       name: name2,
@@ -52497,7 +52420,7 @@ categories: ${categories.join(" ")}`;
           icon: ApplicationIcons.scorer,
           name: name2,
           params,
-          className: clsx(styles$$.item, "text-size-base")
+          className: clsx(styles$_.item, "text-size-base")
         }
       );
     };
@@ -52523,11 +52446,11 @@ categories: ${categories.join(" ")}`;
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.container, children: details });
     };
-    const floatingCol = "_floatingCol_1y1hk_1";
-    const wideCol = "_wideCol_1y1hk_9";
-    const planCol = "_planCol_1y1hk_24";
-    const container$e = "_container_1y1hk_28";
-    const grid$5 = "_grid_1y1hk_34";
+    const floatingCol = "_floatingCol_1n79r_1";
+    const wideCol = "_wideCol_1n79r_9";
+    const planCol = "_planCol_1n79r_24";
+    const container$e = "_container_1n79r_29";
+    const grid$5 = "_grid_1n79r_35";
     const styles$Y = {
       floatingCol,
       wideCol,
@@ -67888,7 +67811,7 @@ ${events}
         if (Object.keys(values).length === 0) {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(None, {});
         } else {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: values });
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: values });
         }
       } else {
         return values;
@@ -90871,11 +90794,10 @@ Supported expressions:
         Object.keys(task_args).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Task Args" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-card-config", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MetaDataView,
+            MetaDataGrid,
             {
               className: "text-size-small",
-              entries: task_args,
-              tableOptions: "sm"
+              entries: task_args
             },
             `plan-md-task-args`
           ) })
