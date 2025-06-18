@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Groq: Capture `executed_tools` field as model output metadata.
 - Eval: Wrap eval execution in TaskGroup.
 
 ## v0.3.105 (17 June 2025)

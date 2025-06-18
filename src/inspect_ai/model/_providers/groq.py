@@ -157,7 +157,7 @@ class GroqAPI(ModelAPI):
                     "total_time": completion.usage.total_time,
                 }
             if completion.choices[0].message.executed_tools:
-                    metadata["executed_tools"] = [tool.model_dump() for tool in completion.choices[0].message.executed_tools]
+                metadata["executed_tools"] = [tool.model_dump() for tool in completion.choices[0].message.executed_tools]
 
             # extract output
             choices = self._chat_choices_from_response(completion, tools)
