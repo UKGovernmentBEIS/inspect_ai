@@ -122,7 +122,10 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
         if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
             return None
 
-        # TODO: How are we handling "failed", "cancelled", "expired", etc?
+        # The doc suggests that `output_file_id` will only be populated if the batch
+        # as a whole reached the `completed` state. This means that if all but
+        # one request in the batch completed, but ultimately the batch expired,
+        # there will be no partial results returned.
 
         batch_file_ids = [
             file_id

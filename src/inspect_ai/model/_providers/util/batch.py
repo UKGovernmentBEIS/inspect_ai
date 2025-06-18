@@ -22,18 +22,27 @@ ResponseT = TypeVar("ResponseT")
 # objects instead. e.g. _handle_batch_result should not mutate the batch that was passed to it.
 # - [x] Write wrappers around calls to abstract methods to localize try/catch'es error handling.
 # - [] Implement error handling strategy for all calls - see TODO's below
+#   - [] _fail_all_requests needs to be enhanced to support sending a specific error to the futures.
 # - [] Review test - in particular, their need for mocking anyio
 
 
 @dataclasses.dataclass
 class BatchRequest(Generic[ResponseT]):
+    """This is a single request that is part of a batch."""
+
     request: dict[str, Any]
     result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
 
 
 CompletedBatchInfo: TypeAlias = dict[str, Any]
-"""This is model provider specific info that represents the completed result of a batch"""
+"""
+This is model provider specific info that represents the completed result of a batch
+
+It gets returned by the `_check_batch` method and passed to `_handle_batch_result`.
+
+Not all model providers need this
+"""
 
 
 @dataclasses.dataclass
