@@ -20,7 +20,7 @@ ResponseT = TypeVar("ResponseT")
 # TODO:
 # - [] Stop mutating across modules. Become more functional. Return new model
 # objects instead. e.g. _handle_batch_result should not mutate the batch that was passed to it.
-# - [] Write wrappers around calls to abstract methods to localize try/catch'es error handling.
+# - [x] Write wrappers around calls to abstract methods to localize try/catch'es error handling.
 # - [] Implement error handling strategy for all calls - see TODO's below
 
 
@@ -103,22 +103,21 @@ class Batcher(Generic[ResponseT]):
         )
 
     async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
-        # TODO: try/catch log and continue
-        batch = await self._check_batch(batch)
+        check_result = await self._safe_check_batch(batch)
+        if not check_result:
+            return
+
+        # TODO: Stop mutating the input
+        batch = check_result
         if not isinstance(batch, CompletedBatch):
             self._inflight_batches[batch.id] = batch
             return
 
         # TODO: This code relies on a hidden side-effect of _check_batch which
         # mutates the batch that was passed to this function. See TODO below
-        # TODO: try/catch and project error onto all requests in the batch. It's
-        # important to do the try/catch for each call to _handle_batch_ separately.
-        # One approach may be to have a private helper for each of the abstract
-        # methods that has the try/catch and proper handling. That way, code like
-        # this can not stress about the try/catch'ing.
         await tg_collect(
             [
-                functools.partial(self._handle_batch_result, batch, idx_result_uri)
+                functools.partial(self._safe_handle_batch_result, batch, idx_result_uri)
                 for idx_result_uri in range(len(batch.result_uris))
             ]
         )
@@ -131,7 +130,7 @@ class Batcher(Generic[ResponseT]):
         batch_requests = self._queue
         self._queue = []
 
-        batch_id = await self._create_batch(batch_requests)
+        batch_id = await self._safe_create_batch(batch_requests)
         self._inflight_batches[batch_id] = Batch(
             id=batch_id,
             requests={request.custom_id: request for request in batch_requests},
@@ -150,20 +149,52 @@ class Batcher(Generic[ResponseT]):
                 # TODO: VERIFY Stream already closed, ignore
                 pass
 
+    # These _safe_* methods are intended to wrap the abstract methods with the appropriate
+    # error handling logic consistent with the batch algorithm. This allows the
+    # code above to not worry about try/catch'ing the abstract methods.
+    # Any exception that escapes a _safe_* method should be considered a coding
+    # error and bring down the eval.
+
+    async def _safe_create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+        try:
+            return await self._create_batch(batch)
+        except Exception as e:
+            # TODO: Fail all requests with this error
+            print(f"Error creating batch: {e}")
+            raise
+
+    async def _safe_check_batch(
+        self, batch: Batch[ResponseT]
+    ) -> Batch[ResponseT] | None:
+        try:
+            return await self._check_batch(batch)
+        except Exception as e:
+            # TODO: Logging
+            print(f"Error checking batch: {e}")
+            return None
+
+    async def _safe_handle_batch_result(
+        self,
+        batch: CompletedBatch[ResponseT],
+        idx_result_uri: int,
+    ) -> None:
+        try:
+            await self._handle_batch_result(batch, idx_result_uri)
+        except Exception as e:
+            # TODO: Fail all requests with this error
+            logger.error(f"Error handling batch result: {e}")
+            raise
+
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
-        # TODO: Concrete implementations should let exceptions escape up to this
-        # code so that they can be projected onto all of the futures for all of
-        # the requests within the batch.
         pass
 
     @abstractmethod
+    # TODO: I would propose that we break out a type for BatchResult that includes
+    # status and result_uris. This concrete method should return one of those
+    # rather than mutating the data held by this base class. Functional code
+    # like that is easier to reason about.
     async def _check_batch(self, batch: Batch[ResponseT]) -> Batch[ResponseT]:
-        # TODO: I would propose that we break out a type for BatchResult that includes
-        # status and result_uris. This concrete method should return one of those
-        # rather than mutating the data help by this base class. Functional code
-        # like that is easier to reason about.
-        # TODO: Exceptions raised by this are ignorable since we're polling anyway?
         pass
 
     @abstractmethod
@@ -172,11 +203,10 @@ class Batcher(Generic[ResponseT]):
         batch: CompletedBatch[ResponseT],
         idx_result_uri: int,
     ) -> None:
-        # TODO: Concrete implementations should let exceptions escape up to this
-        # code so that they can be projected onto all of the futures for all of
-        # the requests within the batch.
         pass
 
     @abstractmethod
+    # Must not let any exceptions escape. Any exception that does escape is a
+    # coding error and will bring down the eval.
     def _get_request_failed_error(self, request: BatchRequest[ResponseT]) -> Exception:
         pass
