@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import httpx
 from openai import (
@@ -26,7 +26,6 @@ from inspect_ai.model._providers.util.batch import (
     Batch,
     Batcher,
     BatchRequest,
-    CompletedBatchInfo,
 )
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -64,10 +63,15 @@ OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
 
+
+class CompletedBatchInfo(TypedDict):
+    result_uris: list[str]
+
+
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
 
 
-class OpenAIBatcher(Batcher[ChatCompletion]):
+class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
     def __init__(self, client: AsyncOpenAI, config: GenerateConfig):
         super().__init__(config)
         self.client = client
@@ -140,8 +144,7 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
         batch: Batch[ChatCompletion],
         completion_info: CompletedBatchInfo,
     ) -> None:
-        result_uris = completion_info.get("result_uris")
-        assert isinstance(result_uris, list)
+        result_uris = completion_info["result_uris"]
 
         for result_uri in result_uris:
             # TODO: Add error handling so that if one uri fails, the others can

@@ -15,6 +15,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 logger = getLogger(__name__)
 
 ResponseT = TypeVar("ResponseT")
+CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
 
 # TODO:
 # - [x] One more pass removing dependency on eval_task_group. This code needs to
@@ -36,7 +37,6 @@ class BatchRequest(Generic[ResponseT]):
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
 
 
-CompletedBatchInfo: TypeAlias = dict[str, Any]
 """
 This is model provider specific info that represents the completed result of a batch
 
@@ -52,7 +52,7 @@ class Batch(Generic[ResponseT]):
     requests: dict[str, BatchRequest[ResponseT]]
 
 
-class Batcher(Generic[ResponseT]):
+class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     def __init__(self, config: GenerateConfig) -> None:
         self.config = config
         self._queue: list[BatchRequest[ResponseT]] = []
@@ -134,12 +134,14 @@ class Batcher(Generic[ResponseT]):
         )
 
     async def _fail_all_requests(
-        self, batch_requests: list[BatchRequest[ResponseT]]
+        self,
+        batch_requests: list[BatchRequest[ResponseT]],
+        error: Exception | None = None,
     ) -> None:
         for request in batch_requests:
             try:
                 await request.result_stream.send(
-                    self._get_request_failed_error(request)
+                    error or self._get_request_failed_error(request)
                 )
             except anyio.BrokenResourceError:
                 # TODO: VERIFY Stream already closed, ignore
@@ -155,30 +157,32 @@ class Batcher(Generic[ResponseT]):
         try:
             return await self._create_batch(batch)
         except Exception as e:
-            # TODO: Fail all requests with this error
-            print(f"Error creating batch: {e}")
+            logger.error(f"Error creating batch: {e}", exc_info=True)
+            await self._fail_all_requests(batch, e)
             raise
 
     async def _safe_check_batch(
         self, batch: Batch[ResponseT]
-    ) -> CompletedBatchInfo | None:
+    ) -> CompletedBatchInfoT | None:
         try:
             return await self._check_batch(batch)
         except Exception as e:
-            # TODO: Logging
-            print(f"Error checking batch: {e}")
+            logger.error(f"Error checking batch {batch.id}: {e}", exc_info=True)
             return None
 
     async def _safe_handle_batch_result(
         self,
         batch: Batch[ResponseT],
-        completion_info: CompletedBatchInfo,
+        completion_info: CompletedBatchInfoT,
     ) -> None:
         try:
             await self._handle_batch_result(batch, completion_info)
         except Exception as e:
-            # TODO: Fail all requests with this error
-            logger.error(f"Error handling batch result: {e}")
+            logger.error(
+                f"Error handling batch {batch.id} result {completion_info}: {e}",
+                exc_info=True,
+            )
+            await self._fail_all_requests(list(batch.requests.values()), e)
             raise
 
     @abstractmethod
@@ -186,14 +190,14 @@ class Batcher(Generic[ResponseT]):
         pass
 
     @abstractmethod
-    async def _check_batch(self, batch: Batch[ResponseT]) -> CompletedBatchInfo | None:
+    async def _check_batch(self, batch: Batch[ResponseT]) -> CompletedBatchInfoT | None:
         pass
 
     @abstractmethod
     async def _handle_batch_result(
         self,
         batch: Batch[ResponseT],
-        completion_info: CompletedBatchInfo,
+        completion_info: CompletedBatchInfoT,
     ) -> None:
         pass
 

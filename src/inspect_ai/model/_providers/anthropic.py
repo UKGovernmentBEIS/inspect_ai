@@ -3,7 +3,7 @@ import os
 import re
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, cast
+from typing import Any, Literal, Optional, Tuple, TypeAlias, cast
 
 import httpx
 from anthropic import (
@@ -81,7 +81,6 @@ from inspect_ai.model._providers.util.batch import (
     Batch,
     Batcher,
     BatchRequest,
-    CompletedBatchInfo,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -112,8 +111,10 @@ WEB_SEARCH_COMPATIBLE_MODELS = [
     "claude-3-5-haiku-latest",
 ]
 
+CompletedBatchInfo: TypeAlias = bool
 
-class AnthropicBatcher(Batcher[Message]):
+
+class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     def __init__(
         self,
         client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
@@ -151,7 +152,7 @@ class AnthropicBatcher(Batcher[Message]):
 
         # We don't need any extra completion info since we retrieve the results
         # directly via the sdk given the batch id.
-        return {}
+        return True
 
     async def _handle_batch_result(
         self,

@@ -85,16 +85,13 @@ async def test_anthropic_batch(mocker: MockerFixture):
     batch_max_send_delay = 1.0
     model_name = "claude-3-7-sonnet-20250219"
     max_tokens = 1000
-    model = AnthropicAPI(
-        model_name=model_name,
-        api_key="test-key",
-        config=GenerateConfig(
-            batch_size=10,
-            batch_max_send_delay=batch_max_send_delay,
-            batch_tick=batch_tick,
-            max_tokens=max_tokens,
-        ),
+    generate_config = GenerateConfig(
+        batch_size=10,
+        batch_max_send_delay=batch_max_send_delay,
+        batch_tick=batch_tick,
+        max_tokens=max_tokens,
     )
+    model = AnthropicAPI(model_name=model_name, api_key="test-key")
     batch_id = "test-batch-id"
 
     mock_messages_create = mocker.AsyncMock(
@@ -194,9 +191,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
     )
     mocker.patch.object(AsyncBatches, "results", mock_batches_results)
 
-    assert len(model._batcher._queue) == 0  # pyright: ignore[reportPrivateUsage]
-    assert not model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
-    assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
+    assert model._batcher is None  # pyright: ignore[reportPrivateUsage]
 
     generations: list[tuple[ModelOutput, ModelCall]] = []
 
@@ -205,7 +200,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
             input=[ChatMessageUser(content=f"Hello, world {idx_call}!")],
             tools=[],
             tool_choice="auto",
-            config=GenerateConfig(max_tokens=max_tokens),
+            config=generate_config,
         )
         generations.append(generation)  # pyright: ignore[reportArgumentType]
         return generation
@@ -219,6 +214,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
 
                 mock_messages_create.assert_not_awaited()
 
+                assert model._batcher is not None  # pyright: ignore[reportPrivateUsage]
                 assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
