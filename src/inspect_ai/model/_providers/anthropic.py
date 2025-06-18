@@ -82,6 +82,7 @@ from inspect_ai.model._providers.util.batch import (
     Batcher,
     BatchRequest,
     CompletedBatch,
+    CompletedBatchInfo,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -143,26 +144,20 @@ class AnthropicBatcher(Batcher[Message]):
         )
         return batch_info.id
 
-    async def _check_batch(self, batch: Batch[Message]) -> Batch[Message]:
+    async def _check_batch(self, batch: Batch[Message]) -> CompletedBatchInfo | None:
         batch_info = await self.client.messages.batches.retrieve(batch.id)
+        # TODO: What does it mean to be ended but without results_url?
         if batch_info.processing_status != "ended" or not batch_info.results_url:
-            return Batch[Message](
-                id=batch.id,
-                requests=batch.requests,
-                status=batch_info.processing_status,
-            )
+            return None
 
-        return CompletedBatch[Message](
-            id=batch.id,
-            requests=batch.requests,
-            status=batch_info.processing_status,
-            result_uris=[batch_info.results_url],
-        )
+        # We don't need any extra completion info since we retrieve the results
+        # directly via the sdk given the batch id.
+        return {}
 
     async def _handle_batch_result(
         self,
         batch: CompletedBatch[Message],
-        idx_result_uri: int,
+        _: CompletedBatchInfo,
     ) -> None:
         import anthropic
 

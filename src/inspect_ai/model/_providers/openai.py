@@ -27,6 +27,7 @@ from inspect_ai.model._providers.util.batch import (
     Batcher,
     BatchRequest,
     CompletedBatch,
+    CompletedBatchInfo,
 )
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -115,58 +116,52 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
         )
         return batch_info.id
 
-    async def _check_batch(self, batch: Batch[ChatCompletion]) -> Batch[ChatCompletion]:
+    async def _check_batch(
+        self, batch: Batch[ChatCompletion]
+    ) -> CompletedBatchInfo | None:
         batch_info = await self.client.batches.retrieve(batch.id)
         if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
-            return Batch[ChatCompletion](
-                id=batch.id,
-                requests=batch.requests,
-                status=batch_info.status,
-            )
+            return None
 
-        batch_file_ids: list[str] = []
-        if batch_info.output_file_id is not None:
-            batch_file_ids.append(batch_info.output_file_id)
-        if batch_info.error_file_id is not None:
-            batch_file_ids.append(batch_info.error_file_id)
+        # TODO: How are we handling "failed", "cancelled", "expired", etc?
 
-        if not batch_file_ids:
-            return Batch[ChatCompletion](
-                id=batch.id,
-                requests=batch.requests,
-                status=batch_info.status,
-            )
+        batch_file_ids = [
+            file_id
+            for file_id in [batch_info.output_file_id, batch_info.error_file_id]
+            if file_id is not None
+        ]
 
-        return CompletedBatch[ChatCompletion](
-            id=batch.id,
-            requests=batch.requests,
-            status=batch_info.status,
-            result_uris=batch_file_ids,
-        )
+        return {"result_uris": batch_file_ids} if batch_file_ids else None
 
     async def _handle_batch_result(
         self,
         batch: CompletedBatch[ChatCompletion],
-        idx_result_uri: int,
+        completed_batch_info: CompletedBatchInfo,
     ) -> None:
-        batch_file = await self.client.files.content(batch.result_uris[idx_result_uri])
-        for line in (await batch_file.aread()).decode().splitlines():
-            result: dict[str, Any] = json.loads(line)
-            request_id = result.pop("custom_id")
-            if not request_id:
-                # TODO: Does this happen? Seems like a coding error if it does.
-                # either ours or openai's
-                #
-                continue
+        result_uris = completed_batch_info.get("result_uris")
+        assert isinstance(result_uris, list)
 
-            batch_request = batch.requests.pop(request_id)
-            await batch_request.result_stream.send(
-                ChatCompletion.model_validate(result["response"]["body"])
-                if (error := result.get("error")) is None
-                else self.client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx.Response(status_code=error["code"], text=error["message"])
+        for result_uri in result_uris:
+            # TODO: Add error handling so that if one uri fails, the others can
+            # still succeed
+            batch_file = await self.client.files.content(result_uri)
+            for line in (await batch_file.aread()).decode().splitlines():
+                result: dict[str, Any] = json.loads(line)
+                request_id = result.pop("custom_id")
+                if not request_id:
+                    # TODO: Does this happen? Seems like a coding error if it does.
+                    # either ours or openai's
+                    #
+                    continue
+
+                batch_request = batch.requests.pop(request_id)
+                await batch_request.result_stream.send(
+                    ChatCompletion.model_validate(result["response"]["body"])
+                    if (error := result.get("error")) is None
+                    else self.client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                        httpx.Response(status_code=error["code"], text=error["message"])
+                    )
                 )
-            )
 
     def _get_request_failed_error(
         self, request: BatchRequest[ChatCompletion]

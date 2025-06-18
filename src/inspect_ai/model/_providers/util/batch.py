@@ -4,7 +4,7 @@ import time
 import uuid
 from abc import abstractmethod
 from logging import getLogger
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeAlias, TypeVar
 
 import anyio
 import anyio.abc
@@ -18,10 +18,11 @@ logger = getLogger(__name__)
 ResponseT = TypeVar("ResponseT")
 
 # TODO:
-# - [] Stop mutating across modules. Become more functional. Return new model
+# - [x] Stop mutating across modules. Become more functional. Return new model
 # objects instead. e.g. _handle_batch_result should not mutate the batch that was passed to it.
 # - [x] Write wrappers around calls to abstract methods to localize try/catch'es error handling.
 # - [] Implement error handling strategy for all calls - see TODO's below
+# - [] Review test - in particular, their need for mocking anyio
 
 
 @dataclasses.dataclass
@@ -31,16 +32,14 @@ class BatchRequest(Generic[ResponseT]):
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
 
 
+CompletedBatchInfo: TypeAlias = dict[str, Any]
+"""This is model provider specific info that represents the completed result of a batch"""
+
+
 @dataclasses.dataclass
 class Batch(Generic[ResponseT]):
     id: str
     requests: dict[str, BatchRequest[ResponseT]]
-    status: str | None
-
-
-@dataclasses.dataclass
-class CompletedBatch(Batch[ResponseT]):
-    result_uris: list[str]
 
 
 class Batcher(Generic[ResponseT]):
@@ -103,24 +102,11 @@ class Batcher(Generic[ResponseT]):
         )
 
     async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
-        check_result = await self._safe_check_batch(batch)
-        if not check_result:
+        completed_info = await self._safe_check_batch(batch)
+        if not completed_info:
             return
 
-        # TODO: Stop mutating the input
-        batch = check_result
-        if not isinstance(batch, CompletedBatch):
-            self._inflight_batches[batch.id] = batch
-            return
-
-        # TODO: This code relies on a hidden side-effect of _check_batch which
-        # mutates the batch that was passed to this function. See TODO below
-        await tg_collect(
-            [
-                functools.partial(self._safe_handle_batch_result, batch, idx_result_uri)
-                for idx_result_uri in range(len(batch.result_uris))
-            ]
-        )
+        await self._safe_handle_batch_result(batch, completed_info)
 
         del self._inflight_batches[batch.id]
         # Send exceptions to any remaining streams that weren't handled
@@ -134,7 +120,6 @@ class Batcher(Generic[ResponseT]):
         self._inflight_batches[batch_id] = Batch(
             id=batch_id,
             requests={request.custom_id: request for request in batch_requests},
-            status=None,
         )
 
     async def _fail_all_requests(
@@ -165,7 +150,7 @@ class Batcher(Generic[ResponseT]):
 
     async def _safe_check_batch(
         self, batch: Batch[ResponseT]
-    ) -> Batch[ResponseT] | None:
+    ) -> CompletedBatchInfo | None:
         try:
             return await self._check_batch(batch)
         except Exception as e:
@@ -175,11 +160,11 @@ class Batcher(Generic[ResponseT]):
 
     async def _safe_handle_batch_result(
         self,
-        batch: CompletedBatch[ResponseT],
-        idx_result_uri: int,
+        batch: Batch[ResponseT],
+        completion_info: CompletedBatchInfo,
     ) -> None:
         try:
-            await self._handle_batch_result(batch, idx_result_uri)
+            await self._handle_batch_result(batch, completion_info)
         except Exception as e:
             # TODO: Fail all requests with this error
             logger.error(f"Error handling batch result: {e}")
@@ -190,18 +175,14 @@ class Batcher(Generic[ResponseT]):
         pass
 
     @abstractmethod
-    # TODO: I would propose that we break out a type for BatchResult that includes
-    # status and result_uris. This concrete method should return one of those
-    # rather than mutating the data held by this base class. Functional code
-    # like that is easier to reason about.
-    async def _check_batch(self, batch: Batch[ResponseT]) -> Batch[ResponseT]:
+    async def _check_batch(self, batch: Batch[ResponseT]) -> CompletedBatchInfo | None:
         pass
 
     @abstractmethod
     async def _handle_batch_result(
         self,
-        batch: CompletedBatch[ResponseT],
-        idx_result_uri: int,
+        batch: Batch[ResponseT],
+        completion_info: CompletedBatchInfo,
     ) -> None:
         pass
 
