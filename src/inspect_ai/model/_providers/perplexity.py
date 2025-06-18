@@ -67,7 +67,9 @@ class PerplexityAPI(OpenAICompatibleAPI):
                             f"Expected a dictionary or True for perplexity_options, got {type(maybe_opts)}"
                         )
             else:
-                raise ValueError("Perplexity does not support tools other than web_search with perplexity options")
+                raise ValueError(
+                    "Perplexity does not support tools other than web_search with perplexity options"
+                )
 
         if search_options:
             extra_body = {**(config.extra_body or {}), **search_options}

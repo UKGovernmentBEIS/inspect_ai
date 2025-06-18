@@ -32,8 +32,8 @@ async def test_perplexity_api() -> None:
             top_p=1.0,
             extra_body={
                 "search_mode": "academic",
-                "web_search_options": {"search_context_size": "low"}
-            }
+                "web_search_options": {"search_context_size": "low"},
+            },
         ),
     )
 
@@ -161,7 +161,7 @@ async def test_perplexity_web_search_options(monkeypatch) -> None:
         captured["config"] = config
         return (
             ModelOutput(model="perplexity/sonar", choices=[]),
-            ModelCall.create({}, {})
+            ModelCall.create({}, {}),
         )
 
     provider = PerplexityAPI(model_name="perplexity/sonar", api_key="sk-test")
@@ -173,14 +173,14 @@ async def test_perplexity_web_search_options(monkeypatch) -> None:
         options={
             "perplexity": {
                 "search_mode": "academic",
-                "web_search_options": {"search_context_size": "low"}
+                "web_search_options": {"search_context_size": "low"},
             }
-        }
+        },
     )
     await provider.generate([], [tool], "none", GenerateConfig())
 
     assert captured["tools"] == []
     assert captured["config"].extra_body == {
         "search_mode": "academic",
-        "web_search_options": {"search_context_size": "low"}
+        "web_search_options": {"search_context_size": "low"},
     }
