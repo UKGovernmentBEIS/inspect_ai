@@ -94,14 +94,19 @@ def run_in_background(
     if tg := eval_task_group():
         tg.start_soon(func, *args)
     else:
+        if (backend := current_async_backend()) == "asyncio":
 
-        async def wrapper() -> None:
-            try:
-                await func(*args)
-            except Exception as ex:
-                raise RuntimeError("Exception escaped from background task") from ex
+            async def wrapper() -> None:
+                try:
+                    await func(*args)
+                except Exception as ex:
+                    raise RuntimeError("Exception escaped from background task") from ex
 
-        run_coroutine(wrapper())
+            asyncio.create_task(wrapper())
+        else:
+            raise RuntimeError(
+                f"run_coroutine cannot be used {'with trio' if backend == 'trio' else 'outside of an async context'}"
+            )
 
 
 async def coro_print_exceptions(
