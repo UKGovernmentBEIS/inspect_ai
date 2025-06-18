@@ -17,6 +17,12 @@ logger = getLogger(__name__)
 
 ResponseT = TypeVar("ResponseT")
 
+# TODO:
+# - [] Stop mutating across modules. Become more functional. Return new model
+# objects instead. e.g. _handle_batch_result should not mutate the batch that was passed to it.
+# - [] Write wrappers around calls to abstract methods to localize try/catch'es error handling.
+# - [] Implement error handling strategy for all calls - see TODO's below
+
 
 @dataclasses.dataclass
 class BatchRequest(Generic[ResponseT]):
