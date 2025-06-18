@@ -154,6 +154,9 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
             result: dict[str, Any] = json.loads(line)
             request_id = result.pop("custom_id")
             if not request_id:
+                # TODO: Does this happen? Seems like a coding error if it does.
+                # either ours or openai's
+                #
                 continue
 
             batch_request = batch.requests.pop(request_id)

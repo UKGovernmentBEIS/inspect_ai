@@ -1,4 +1,5 @@
 import dataclasses
+import functools
 import time
 import uuid
 from abc import abstractmethod
@@ -8,6 +9,7 @@ from typing import Any, Generic, TypeVar
 import anyio
 import anyio.abc
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.eval_task_group import eval_task_group
 from inspect_ai.model._generate_config import GenerateConfig
 
@@ -41,7 +43,7 @@ class Batcher(Generic[ResponseT]):
         self._queue: list[BatchRequest[ResponseT]] = []
         self.queue_timeout: float | None = None
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
-        self._task_group: anyio.abc.TaskGroup | None = None
+        self._is_batch_worker_running: bool = False
 
     async def generate(
         self, request: dict[str, Any], config: GenerateConfig
@@ -59,9 +61,9 @@ class Batcher(Generic[ResponseT]):
             self.queue_timeout or float("inf"),
         )
 
-        if self._task_group is None:
-            self._task_group = eval_task_group()
-            self._task_group.start_soon(self._batch_worker)
+        if not self._is_batch_worker_running:
+            self._is_batch_worker_running = True
+            eval_task_group().start_soon(self._batch_worker)
 
         result = await receive_stream.receive()
         if isinstance(result, Exception):
@@ -84,26 +86,36 @@ class Batcher(Generic[ResponseT]):
 
             await anyio.sleep(self.config.batch_tick)
 
-        self._task_group = None
+        self._is_batch_worker_running = False
 
     async def _check_inflight_batches(self) -> None:
-        async with anyio.create_task_group() as tg:
-            for batch in self._inflight_batches.values():
-                tg.start_soon(self._check_inflight_batch, batch)
+        await tg_collect(
+            [
+                functools.partial(self._check_inflight_batch, batch)
+                for batch in self._inflight_batches.values()
+            ]
+        )
 
     async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
+        # TODO: try/catch log and continue
         batch = await self._check_batch(batch)
         if not isinstance(batch, CompletedBatch):
             self._inflight_batches[batch.id] = batch
             return
 
-        async with anyio.create_task_group() as tg:
-            for idx_result_uri in range(len(batch.result_uris)):
-                tg.start_soon(
-                    self._handle_batch_result,
-                    batch,
-                    idx_result_uri,
-                )
+        # TODO: This code relies on a hidden side-effect of _check_batch which
+        # mutates the batch that was passed to this function. See TODO below
+        # TODO: try/catch and project error onto all requests in the batch. It's
+        # important to do the try/catch for each call to _handle_batch_ separately.
+        # One approach may be to have a private helper for each of the abstract
+        # methods that has the try/catch and proper handling. That way, code like
+        # this can not stress about the try/catch'ing.
+        await tg_collect(
+            [
+                functools.partial(self._handle_batch_result, batch, idx_result_uri)
+                for idx_result_uri in range(len(batch.result_uris))
+            ]
+        )
 
         del self._inflight_batches[batch.id]
         # Send exceptions to any remaining streams that weren't handled
@@ -126,7 +138,7 @@ class Batcher(Generic[ResponseT]):
         for request in batch_requests:
             try:
                 await request.result_stream.send(
-                    await self._get_request_failed_error(request)
+                    self._get_request_failed_error(request)
                 )
             except anyio.BrokenResourceError:
                 # TODO: VERIFY Stream already closed, ignore
@@ -134,10 +146,18 @@ class Batcher(Generic[ResponseT]):
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+        # TODO: Concrete implementations should let exceptions escape up to this
+        # code so that they can be projected onto all of the futures for all of
+        # the requests within the batch.
         pass
 
     @abstractmethod
     async def _check_batch(self, batch: Batch[ResponseT]) -> Batch[ResponseT]:
+        # TODO: I would propose that we break out a type for BatchResult that includes
+        # status and result_uris. This concrete method should return one of those
+        # rather than mutating the data help by this base class. Functional code
+        # like that is easier to reason about.
+        # TODO: Exceptions raised by this are ignorable since we're polling anyway?
         pass
 
     @abstractmethod
@@ -146,6 +166,9 @@ class Batcher(Generic[ResponseT]):
         batch: CompletedBatch[ResponseT],
         idx_result_uri: int,
     ) -> None:
+        # TODO: Concrete implementations should let exceptions escape up to this
+        # code so that they can be projected onto all of the futures for all of
+        # the requests within the batch.
         pass
 
     @abstractmethod

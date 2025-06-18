@@ -261,7 +261,7 @@ async def test_openai_batch(mocker: MockerFixture):
     mocker.patch.object(AsyncFiles, "content", mock_files_content)
 
     assert len(model._batcher._queue) == 0  # pyright: ignore[reportPrivateUsage]
-    assert model._batcher._task_group is None  # pyright: ignore[reportPrivateUsage]
+    assert not model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
     assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
 
     generations: list[tuple[ModelOutput, ModelCall]] = []
@@ -287,7 +287,7 @@ async def test_openai_batch(mocker: MockerFixture):
 
                 assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
-                assert model._batcher._task_group is not None  # pyright: ignore[reportPrivateUsage]
+                assert model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
 
                 mock_files_create.assert_not_awaited()
                 mock_batches_create.assert_not_awaited()
@@ -351,4 +351,4 @@ async def test_openai_batch(mocker: MockerFixture):
 
     await anyio.sleep(2 * batch_tick)
 
-    assert model._batcher._task_group is None  # pyright: ignore[reportPrivateUsage]
+    assert not model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
