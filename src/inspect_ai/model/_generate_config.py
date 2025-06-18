@@ -109,11 +109,17 @@ class GenerateConfigArgs(TypedDict, total=False):
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
+    batch: bool | None
+    """Use batch API. Set to False to disable batching for a specific request."""
+
     batch_size: int | None
     """Batch size. OpenAI and Anthropic only."""
 
     batch_max_send_delay: float | None
     """Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only."""
+
+    batch_tick: float
+    """Time between checking for new batch requests. OpenAI and Anthropic only."""
 
 
 class GenerateConfig(BaseModel):
