@@ -18,7 +18,7 @@ from ._tavily import TavilyOptions, tavily_search_provider
 from ._web_search_provider import SearchProvider
 
 Provider: TypeAlias = Literal[
-    "gemini", "openai", "anthropic", "tavily", "google", "exa"
+    "gemini", "openai", "anthropic", "perplexity", "tavily", "google", "exa"
 ]
 valid_providers = set(get_args(Provider))
 
@@ -35,6 +35,7 @@ class Providers(TypedDict, total=False):
     openai: dict[str, Any] | Literal[True]
     anthropic: dict[str, Any] | Literal[True]
     gemini: dict[str, Any] | Literal[True]
+    perplexity: dict[str, Any] | Literal[True]
     tavily: dict[str, Any] | Literal[True]
     google: dict[str, Any] | Literal[True]
     exa: dict[str, Any] | Literal[True]
@@ -44,6 +45,7 @@ class _NormalizedProviders(TypedDict, total=False):
     openai: dict[str, Any]
     anthropic: dict[str, Any]
     gemini: dict[str, Any]
+    perplexity: dict[str, Any]
     tavily: dict[str, Any]
     google: dict[str, Any]
     exa: dict[str, Any]
@@ -67,7 +69,7 @@ def web_search(
     Web searches are executed using a provider. Providers are split
     into two categories:
 
-    - Internal providers: "openai", "anthropic" - these use the model's built-in
+    - Internal providers: "openai", "anthropic", "gemini", "perplexity" - these use the model's built-in
       search capability and do not require separate API keys. These work only for
       their respective model provider (e.g. the "openai" search provider
       works only for `openai/*` models).
@@ -84,7 +86,7 @@ def web_search(
 
     Args:
       providers: Configuration for the search providers to use. Currently supported
-        providers are "openai", "anthropic", "tavily", "google", and "exa". The
+        providers are "openai", "anthropic", "perplexity", "tavily", "google", and "exa". The
         `providers` parameter supports several formats based on either a `str`
         specifying a provider or a `dict` whose keys are the provider names and
         whose values are the provider-specific options. A single value or a list
@@ -120,6 +122,9 @@ def web_search(
 
         - anthropic: Supports Anthropic's web search parameters.
           See https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#tool-definition
+
+        - perplexity: Supports Perplexity's web search parameters.
+          See https://docs.perplexity.ai/api-reference/chat-completions-post
 
         - tavily: Supports options like `max_results`, `search_depth`, etc.
           See https://docs.tavily.com/documentation/api-reference/endpoint/search

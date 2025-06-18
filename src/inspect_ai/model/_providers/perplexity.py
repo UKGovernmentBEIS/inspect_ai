@@ -49,7 +49,31 @@ class PerplexityAPI(OpenAICompatibleAPI):
         tool_choice: "ToolChoice",
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, "ModelCall"]:
-        result = await super().generate(input, tools, tool_choice, config)
+        search_options: dict[str, Any] | None = None
+        for tool in tools:
+            if (
+                tool.name == "web_search"
+                and tool.options
+                and "perplexity" in tool.options
+            ):
+                maybe_opts = tool.options["perplexity"]
+                if maybe_opts is not None:
+                    if maybe_opts is True:
+                        search_options = {}
+                    elif isinstance(maybe_opts, dict):
+                        search_options = maybe_opts
+                    else:
+                        raise TypeError(
+                            f"Expected a dictionary or True for perplexity_options, got {type(maybe_opts)}"
+                        )
+            else:
+                raise ValueError("Perplexity does not support tools other than web_search with perplexity options")
+
+        if search_options:
+            extra_body = {**(config.extra_body or {}), **search_options}
+            config = config.merge(GenerateConfig(extra_body=extra_body))
+
+        result = await super().generate(input, [], tool_choice, config)
         output, call = cast(tuple[ModelOutput, "ModelCall"], result)
 
         if self._response:
