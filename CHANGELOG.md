@@ -1,6 +1,6 @@
 ## Unreleased
 
-- OpenAI: Use prefix matching when detecting compatiable models for `web_search()`.
+- OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
 - Groq: Capture `executed_tools` field as model output metadata.
 - Eval: Wrap eval execution in TaskGroup.
 
