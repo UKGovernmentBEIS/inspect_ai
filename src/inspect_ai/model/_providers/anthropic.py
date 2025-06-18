@@ -165,12 +165,14 @@ class AnthropicBatcher(Batcher[Message]):
             custom_id = result.custom_id
             batch_request = batch.requests.pop(custom_id)
 
+            response: Message | Exception
             match result.result.type:
                 case "succeeded":
                     response = result.result.message
                 case "errored":
                     # See anthropic._client.AsyncAnthropic._make_status_error
                     message = result.result.error.error.message
+                    error_class: type[anthropic.APIStatusError]
                     match result.result.error.error:
                         case InvalidRequestError():
                             error_class = anthropic.BadRequestError
