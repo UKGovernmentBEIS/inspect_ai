@@ -1,6 +1,7 @@
 ## Unreleased
 
 - ReAct agent: Always send `str` returned from `on_continue` to the model (formerly this was only done if there were no tool calls).
+- Groq: Capture `executed_tools` field as model output metadata.
 - Eval: Wrap eval execution in TaskGroup.
 
 ## v0.3.105 (17 June 2025)
