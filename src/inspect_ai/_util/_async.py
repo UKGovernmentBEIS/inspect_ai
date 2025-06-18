@@ -35,7 +35,7 @@ T = TypeVar("T")
 async def tg_collect(
     funcs: list[Callable[[], Awaitable[T]]], exception_group: bool = False
 ) -> list[T]:
-    """Runs all of the pased async functions and collects their results.
+    """Runs all of the passed async functions and collects their results.
 
     The results will be returned in the same order as the input `funcs`.
 
@@ -82,7 +82,7 @@ def run_in_background(
     Runs the given asynchronous function in the background using the most appropriate form of structured concurrency.
 
     Args:
-      func (Callable[[Unpack[PosArgsT]], Awaitable[Any]]): The asynchronous function to run in the background.
+      func (Callable[[Unpack[PosArgsT]], Awaitable[None]]): The asynchronous function to run in the background.
       *args (Unpack[PosArgsT]): Positional arguments to pass to the function.
 
 
@@ -94,7 +94,7 @@ def run_in_background(
     if tg := eval_task_group():
         tg.start_soon(func, *args)
     else:
-        # TODO: Review this
+
         async def wrapper() -> None:
             try:
                 await func(*args)

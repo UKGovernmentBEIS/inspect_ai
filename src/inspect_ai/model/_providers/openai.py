@@ -140,7 +140,7 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
         batch: Batch[ChatCompletion],
         completion_info: CompletedBatchInfo,
     ) -> None:
-        result_uris: list[str] = completion_info.get("result_uris")
+        result_uris = completion_info.get("result_uris")
         assert isinstance(result_uris, list)
 
         for result_uri in result_uris:
