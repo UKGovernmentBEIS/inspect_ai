@@ -82,9 +82,8 @@ def react(
           the submit tool within the message. Alternatively, an async function
           to call to determine whether the loop should continue and what message
           to play back. Note that this function is called on _every_ iteration of
-          the loop. If you return a `str` with a custom message it will be
-          sent to the model as a user message only in the case that no tool
-          calls were made.
+          the loop so if you only want to send a message back when the model fails
+          to call tools you need to code that behavior explicitly.
        truncation: Truncate the conversation history in the event of a context
           window overflow. Defaults to "disabled" which does no truncation. Pass
           "auto" to use `trim_messages()` to reduce the context size. Pass a
@@ -246,13 +245,12 @@ def react(
                                 )
                             )
                     elif isinstance(do_continue, str):
-                        # if there were no tool calls we need to send back the user message
-                        if not state.output.message.tool_calls:
-                            state.messages.append(
-                                ChatMessageUser(
-                                    content=do_continue.format(submit=submit_tool.name)
-                                )
+                        # send back the user message
+                        state.messages.append(
+                            ChatMessageUser(
+                                content=do_continue.format(submit=submit_tool.name)
                             )
+                        )
                     else:  # do_continue is False
                         break
 
@@ -328,11 +326,14 @@ def react_no_submit(
                 if on_continue:
                     do_continue = await _call_on_continue(on_continue, state)
                     if do_continue is True:
-                        do_continue = DEFAULT_CONTINUE_PROMOT_NO_SUBMIT
-                    if do_continue:
-                        # send back user message if there are no tool calls
                         if not state.output.message.tool_calls:
-                            state.messages.append(ChatMessageUser(content=do_continue))
+                            state.messages.append(
+                                ChatMessageUser(
+                                    content=DEFAULT_CONTINUE_PROMOT_NO_SUBMIT
+                                )
+                            )
+                    elif isinstance(do_continue, str):
+                        state.messages.append(ChatMessageUser(content=do_continue))
                     else:
                         break
                 elif not state.output.message.tool_calls:
