@@ -14,7 +14,7 @@ def maybe_web_search_tool(model_name: str, tool: ToolInfo) -> WebSearchToolParam
             tool.name == "web_search"
             and tool.options
             and "openai" in tool.options
-            and model_name in COMPATIBLE_MODELS
+            and any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
         )
         else None
     )
