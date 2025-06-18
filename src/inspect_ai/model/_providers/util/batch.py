@@ -9,8 +9,7 @@ from typing import Any, Generic, TypeAlias, TypeVar
 import anyio
 import anyio.abc
 
-from inspect_ai._util._async import tg_collect
-from inspect_ai._util.eval_task_group import eval_task_group
+from inspect_ai._util._async import run_in_background, tg_collect
 from inspect_ai.model._generate_config import GenerateConfig
 
 logger = getLogger(__name__)
@@ -18,6 +17,8 @@ logger = getLogger(__name__)
 ResponseT = TypeVar("ResponseT")
 
 # TODO:
+# - [x] One more pass removing dependency on eval_task_group. This code needs to
+#       work when running outside of an eval context - like in a notebook.
 # - [x] Stop mutating across modules. Become more functional. Return new model
 # objects instead. e.g. _handle_batch_result should not mutate the batch that was passed to it.
 # - [x] Write wrappers around calls to abstract methods to localize try/catch'es error handling.
@@ -77,7 +78,7 @@ class Batcher(Generic[ResponseT]):
 
         if not self._is_batch_worker_running:
             self._is_batch_worker_running = True
-            eval_task_group().start_soon(self._batch_worker)
+            run_in_background(self._batch_worker)
 
         result = await receive_stream.receive()
         if isinstance(result, Exception):

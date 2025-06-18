@@ -9,6 +9,8 @@ import anyio
 import nest_asyncio  # type: ignore
 import sniffio
 
+from inspect_ai._util.eval_task_group import eval_task_group
+
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
@@ -70,6 +72,36 @@ async def tg_collect(
             raise
         else:
             raise ex.exceptions[0] from None
+
+
+def run_in_background(
+    func: Callable[[Unpack[PosArgsT]], Awaitable[None]],
+    *args: Unpack[PosArgsT],
+) -> None:
+    """
+    Runs the given asynchronous function in the background using the most appropriate form of structured concurrency.
+
+    Args:
+      func (Callable[[Unpack[PosArgsT]], Awaitable[Any]]): The asynchronous function to run in the background.
+      *args (Unpack[PosArgsT]): Positional arguments to pass to the function.
+
+
+    Note:
+      The passed function must ensure that it does not raise any exceptions. Exceptions
+      that do escape are considered coding errors, and the behavior is not strictly
+      defined. For example, if within the context of an eval, the eval will fail.
+    """
+    if tg := eval_task_group():
+        tg.start_soon(func, *args)
+    else:
+        # TODO: Review this
+        async def wrapper() -> None:
+            try:
+                await func(*args)
+            except Exception as ex:
+                raise RuntimeError("Exception escaped from background task") from ex
+
+        run_coroutine(wrapper())
 
 
 async def coro_print_exceptions(
