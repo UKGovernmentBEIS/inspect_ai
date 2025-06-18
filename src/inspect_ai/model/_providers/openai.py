@@ -26,7 +26,6 @@ from inspect_ai.model._providers.util.batch import (
     Batch,
     Batcher,
     BatchRequest,
-    CompletedBatch,
     CompletedBatchInfo,
 )
 from inspect_ai.model._providers.util.hooks import HttpxHooks
@@ -135,10 +134,10 @@ class OpenAIBatcher(Batcher[ChatCompletion]):
 
     async def _handle_batch_result(
         self,
-        batch: CompletedBatch[ChatCompletion],
-        completed_batch_info: CompletedBatchInfo,
+        batch: Batch[ChatCompletion],
+        completion_info: CompletedBatchInfo,
     ) -> None:
-        result_uris = completed_batch_info.get("result_uris")
+        result_uris: list[str] = completion_info.get("result_uris")
         assert isinstance(result_uris, list)
 
         for result_uri in result_uris:

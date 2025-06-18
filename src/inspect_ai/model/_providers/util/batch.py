@@ -103,7 +103,7 @@ class Batcher(Generic[ResponseT]):
 
     async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
         completed_info = await self._safe_check_batch(batch)
-        if not completed_info:
+        if completed_info is None:
             return
 
         await self._safe_handle_batch_result(batch, completed_info)

@@ -79,7 +79,7 @@ def test_anthropic_should_retry():
 
 
 @pytest.mark.anyio
-@skip_if_no_anthropic
+# @skip_if_no_anthropic
 async def test_anthropic_batch(mocker: MockerFixture):
     batch_tick = 0.01
     batch_max_send_delay = 1.0
@@ -212,23 +212,27 @@ async def test_anthropic_batch(mocker: MockerFixture):
 
     async with anyio.create_task_group() as tg:
         mocker.patch.object(eval_task_group, "_eval_task_group", tg)
-        with anyio.fail_after(2 * batch_max_send_delay):
-            tg.start_soon(generate, 0)
-            await anyio.sleep(2 * batch_tick)
+        try:
+            with anyio.fail_after(2 * batch_max_send_delay):
+                tg.start_soon(generate, 0)
+                await anyio.sleep(2 * batch_tick)
 
-            mock_messages_create.assert_not_awaited()
+                mock_messages_create.assert_not_awaited()
 
-            assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
-            assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
-            assert not model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
+                assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
+                assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
+                assert model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
 
-            mock_batches_create.assert_not_awaited()
-            mock_batches_retrieve.assert_not_awaited()
+                mock_batches_create.assert_not_awaited()
+                mock_batches_retrieve.assert_not_awaited()
 
-            for idx_call in range(1, 10):
-                tg.start_soon(generate, idx_call)
+                for idx_call in range(1, 10):
+                    tg.start_soon(generate, idx_call)
 
-            await anyio.sleep(2 * batch_tick)
+                await anyio.sleep(2 * batch_tick)
+        except Exception as error:
+            tg.cancel_scope.cancel()
+            raise error
 
     mock_messages_create.assert_not_awaited()
     mock_batches_create.assert_awaited_once()

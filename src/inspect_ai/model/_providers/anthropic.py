@@ -81,7 +81,6 @@ from inspect_ai.model._providers.util.batch import (
     Batch,
     Batcher,
     BatchRequest,
-    CompletedBatch,
     CompletedBatchInfo,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -156,8 +155,8 @@ class AnthropicBatcher(Batcher[Message]):
 
     async def _handle_batch_result(
         self,
-        batch: CompletedBatch[Message],
-        _: CompletedBatchInfo,
+        batch: Batch[Message],
+        completion_info: CompletedBatchInfo,
     ) -> None:
         import anthropic
 
