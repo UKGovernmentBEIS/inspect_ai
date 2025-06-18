@@ -246,13 +246,12 @@ def react(
                                 )
                             )
                     elif isinstance(do_continue, str):
-                        # if there were no tool calls we need to send back the user message
-                        if not state.output.message.tool_calls:
-                            state.messages.append(
-                                ChatMessageUser(
-                                    content=do_continue.format(submit=submit_tool.name)
-                                )
+                        # send back the user message
+                        state.messages.append(
+                            ChatMessageUser(
+                                content=do_continue.format(submit=submit_tool.name)
                             )
+                        )
                     else:  # do_continue is False
                         break
 
