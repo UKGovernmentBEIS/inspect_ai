@@ -39,6 +39,8 @@ export interface LogsSlice {
     setColumnResizeMode: (mode: ColumnResizeMode) => void;
     setColumnSize: (columnId: string, size: number) => void;
     setFilteredCount: (count: number) => void;
+    setWatchedLogs: (logs: LogFile[]) => void;
+    clearWatchedLogs: () => void;
   };
 }
 
@@ -208,6 +210,16 @@ export const createLogsSlice = (
       setFilteredCount: (count: number) => {
         set((state) => {
           state.logs.listing.filteredCount = count;
+        });
+      },
+      setWatchedLogs: (logs: LogFile[]) => {
+        set((state) => {
+          state.logs.listing.watchedLogs = logs;
+        });
+      },
+      clearWatchedLogs: () => {
+        set((state) => {
+          state.logs.listing.watchedLogs = [];
         });
       },
     },

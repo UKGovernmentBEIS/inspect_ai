@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FC, useEffect, useMemo } from "react";
 
 import { ProgressBar } from "../../components/ProgressBar";
+import { useClientEvents } from "../../state/clientEvents";
 import { useLogs } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
@@ -36,6 +37,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   const logs = useStore((state) => state.logs.logs);
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const headersLoading = useStore((state) => state.logs.headersLoading);
+  const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
 
   // Unload the load when this is mounted. This prevents the old log
   // data from being displayed when navigating back to the logs panel
@@ -48,6 +50,27 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   const { logPath } = useLogRouteParams();
 
   const currentDir = join(logPath || "", logs.log_dir);
+
+  // Polling for client events
+  const { startPolling, cleanup, stopPolling } = useClientEvents();
+
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (watchedLogs && watchedLogs.length > 0) {
+      startPolling(watchedLogs);
+    } else {
+      stopPolling();
+    }
+
+    return () => {
+      stopPolling();
+    };
+  }, [watchedLogs]);
 
   // All the items visible in the current directory (might span
   // multiple pages)
