@@ -27,6 +27,7 @@ import {
   EvalLogHeader,
   EvalSummary,
   EventData,
+  LogFile,
   LogFiles,
   PendingSamples,
   SampleSummary,
@@ -75,6 +76,7 @@ export interface LogsListing {
   columnResizeMode?: ColumnResizeMode;
   columnSizes?: Record<string, number>;
   filteredCount?: number;
+  watchedLogs?: LogFile[];
 }
 
 export interface LogState {

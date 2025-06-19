@@ -1205,10 +1205,10 @@ var require_assets = __commonJS({
         } catch (err2) {
         }
     }
-    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$8 = Math.log, LN2 = Math.LN2;
+    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$9 = Math.log, LN2 = Math.LN2;
     function clz32Fallback(x2) {
       x2 >>>= 0;
-      return 0 === x2 ? 32 : 31 - (log$8(x2) / LN2 | 0) | 0;
+      return 0 === x2 ? 32 : 31 - (log$9(x2) / LN2 | 0) | 0;
     }
     var nextTransitionLane = 256, nextRetryLane = 4194304;
     function getHighestPriorityLanes(lanes) {
@@ -23328,9 +23328,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       return { name: name2, start: start2, stop };
     };
-    const log$7 = createLogger("logPolling");
-    const kRetries = 10;
-    const kPollingInterval$1 = 2;
+    const log$8 = createLogger("logPolling");
+    const kRetries$1 = 10;
+    const kPollingInterval$2 = 2;
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       let abortController;
@@ -23344,19 +23344,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!api2 || !selectedLogFile) {
           return false;
         }
-        log$7.debug(`refresh: ${selectedLogFile}`);
+        log$8.debug(`refresh: ${selectedLogFile}`);
         try {
           const logContents = await api2.get_log_summary(selectedLogFile);
           set2((state2) => {
             state2.log.selectedLogSummary = logContents;
-            log$7.debug(
+            log$8.debug(
               `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
               logContents
             );
             if (clearPending) {
               const pendingSampleSummaries = state2.log.pendingSampleSummaries;
               if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-                log$7.debug(
+                log$8.debug(
                   `Clearing pending summaries during refresh for: ${logFileName}`
                 );
                 state2.log.pendingSampleSummaries = {
@@ -23368,7 +23368,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           });
           return true;
         } catch (error2) {
-          log$7.error("Error refreshing log:", error2);
+          log$8.error("Error refreshing log:", error2);
           return false;
         }
       };
@@ -23384,7 +23384,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           async () => {
             var _a3, _b2;
             if (abortController.signal.aborted) {
-              log$7.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$8.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
@@ -23395,13 +23395,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             if (abortController.signal.aborted) {
               return false;
             }
-            log$7.debug(`Polling running samples: ${logFileName}`);
+            log$8.debug(`Polling running samples: ${logFileName}`);
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
             );
-            log$7.debug(`Received pending samples`, pendingSamples);
+            log$8.debug(`Received pending samples`, pendingSamples);
             if (abortController.signal.aborted) {
               return false;
             }
@@ -23413,9 +23413,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               await refreshLog(logFileName, false);
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$7.debug(`Stop polling running samples: ${logFileName}`);
+              log$8.debug(`Stop polling running samples: ${logFileName}`);
               if (loadedPendingSamples || ((_b2 = state.log.selectedLogSummary) == null ? void 0 : _b2.status) === "started") {
-                log$7.debug(`Refresh log: ${logFileName}`);
+                log$8.debug(`Refresh log: ${logFileName}`);
                 await refreshLog(logFileName, true);
               }
               return false;
@@ -23423,8 +23423,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             return true;
           },
           {
-            maxRetries: kRetries,
-            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || kPollingInterval$1
+            maxRetries: kRetries$1,
+            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || kPollingInterval$2
           }
         );
         currentPolling.start();
@@ -23435,7 +23435,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$7.debug(`Clear pending: ${logFileName}`);
+          log$8.debug(`Clear pending: ${logFileName}`);
           return refreshLog(logFileName, true);
         }
         return false;
@@ -23447,8 +23447,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       };
       const cleanup = () => {
-        log$7.debug(`Cleanup`);
-        abortController.abort();
+        log$8.debug(`Cleanup`);
+        if (abortController) {
+          abortController.abort();
+        }
         stopPolling();
       };
       return {
@@ -23460,7 +23462,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         refreshLog: (clearPending = false) => refreshLog(get2().logs.selectedLogFile || "", clearPending)
       };
     }
-    const log$6 = createLogger("logSlice");
+    const log$7 = createLogger("logSlice");
     const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
@@ -23538,7 +23540,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               console.error("API not initialized in Store");
               return;
             }
-            log$6.debug(`Load log: ${logFileName}`);
+            log$7.debug(`Load log: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -23559,7 +23561,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               });
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$6.error("Error loading log:", error2);
+              log$7.error("Error loading log:", error2);
               throw error2;
             }
           },
@@ -23581,12 +23583,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$6.debug(`refresh: ${selectedLogFile}`);
+            log$7.debug(`refresh: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$6.error("Error refreshing log:", error2);
+              log$7.error("Error refreshing log:", error2);
               throw error2;
             }
           }
@@ -23604,7 +23606,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
-    const log$5 = createLogger("Log Slice");
+    const log$6 = createLogger("Log Slice");
     const kEmptyLogs = {
       log_dir: "",
       files: []
@@ -23639,7 +23641,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               console.error("API not initialized in LogsStore");
               return [];
             }
-            log$5.debug("LOADING LOG HEADERS");
+            log$6.debug("LOADING LOG HEADERS");
             return await api2.get_log_headers(logs.map((log2) => log2.name));
           },
           setHeadersLoading: (loading) => set2((state) => {
@@ -23674,7 +23676,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               return kEmptyLogs;
             }
             try {
-              log$5.debug("LOADING LOG FILES");
+              log$6.debug("LOADING LOG FILES");
               return await api2.get_log_paths();
             } catch (e) {
               console.log(e);
@@ -23683,7 +23685,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             }
           },
           refreshLogs: async () => {
-            log$5.debug("REFRESH LOGS");
+            log$6.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             const currentLog = state.logs.logs.files[state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0];
@@ -23747,6 +23749,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setFilteredCount: (count2) => {
             set2((state) => {
               state.logs.listing.filteredCount = count2;
+            });
+          },
+          setWatchedLogs: (logs) => {
+            set2((state) => {
+              state.logs.listing.watchedLogs = logs;
+            });
+          },
+          clearWatchedLogs: () => {
+            set2((state) => {
+              state.logs.listing.watchedLogs = [];
             });
           }
         }
@@ -23824,9 +23836,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       sample2.attachments = {};
       return sample2;
     };
-    const log$4 = createLogger("samplePolling");
+    const log$5 = createLogger("samplePolling");
     const kNoId = -1;
-    const kPollingInterval = 2;
+    const kPollingInterval$1 = 2;
     const kPollingMaxRetries = 10;
     function createSamplePolling(get2, set2) {
       let currentPolling = null;
@@ -23840,13 +23852,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       const startPolling = (logFile, summary2) => {
         const pollingId = `${logFile}:${summary2.id}-${summary2.epoch}`;
-        log$4.debug(`Start Polling ${pollingId}`);
+        log$5.debug(`Start Polling ${pollingId}`);
         if (currentPolling && currentPolling.name === pollingId) {
-          log$4.debug(`Aleady polling, ignoring start`);
+          log$5.debug(`Aleady polling, ignoring start`);
           return;
         }
         if (currentPolling) {
-          log$4.debug(`Resetting existing polling`);
+          log$5.debug(`Resetting existing polling`);
           currentPolling.stop();
           set2((state) => {
             state.sample.runningEvents = [];
@@ -23854,7 +23866,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           resetPollingState(pollingState);
         }
         abortController = new AbortController();
-        log$4.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
+        log$5.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
           const state = get2();
           const api2 = state.api;
@@ -23884,7 +23896,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             stopPolling();
             if (state.sample.runningEvents.length > 0) {
               try {
-                log$4.debug(
+                log$5.debug(
                   `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary2.id}-${summary2.epoch}`
                 );
                 const sample2 = await api2.get_log_sample(
@@ -23938,7 +23950,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleDataResponse.sampleData.attachments,
                   pollingState.attachmentId
                 );
-                log$4.debug(`New max attachment ${maxAttachment}`);
+                log$5.debug(`New max attachment ${maxAttachment}`);
                 pollingState.attachmentId = maxAttachment;
               }
               if (sampleDataResponse.sampleData.events.length > 0) {
@@ -23946,7 +23958,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleDataResponse.sampleData.events,
                   pollingState.eventId
                 );
-                log$4.debug(`New max event ${maxEvent}`);
+                log$5.debug(`New max event ${maxEvent}`);
                 pollingState.eventId = maxEvent;
               }
               if (processedEvents) {
@@ -23960,7 +23972,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         };
         const polling = createPolling(pollingId, pollCallback, {
           maxRetries: kPollingMaxRetries,
-          interval: kPollingInterval
+          interval: kPollingInterval$1
         });
         currentPolling = polling;
         polling.start();
@@ -23972,8 +23984,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       };
       const cleanup = () => {
-        log$4.debug(`CLEANUP`);
-        abortController.abort();
+        log$5.debug(`Cleanup`);
+        if (abortController) {
+          abortController.abort();
+        }
         stopPolling();
       };
       return {
@@ -23990,13 +24004,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       state.events = [];
     };
     function processAttachments(sampleData, pollingState) {
-      log$4.debug(`Processing ${sampleData.attachments.length} attachments`);
+      log$5.debug(`Processing ${sampleData.attachments.length} attachments`);
       Object.values(sampleData.attachments).forEach((v2) => {
         pollingState.attachments[v2.hash] = v2.content;
       });
     }
     function processEvents(sampleData, pollingState, api2, log_file) {
-      log$4.debug(`Processing ${sampleData.events.length} events`);
+      log$5.debug(`Processing ${sampleData.events.length} events`);
       if (sampleData.events.length === 0) {
         return false;
       }
@@ -24022,10 +24036,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         );
         if (existingIndex) {
-          log$4.debug(`Replace event ${existingIndex}`);
+          log$5.debug(`Replace event ${existingIndex}`);
           pollingState.events[existingIndex] = resolvedEvent;
         } else {
-          log$4.debug(`New event ${pollingState.events.length}`);
+          log$5.debug(`New event ${pollingState.events.length}`);
           const currentIndex = pollingState.events.length;
           pollingState.eventMapping[eventData.event_id] = currentIndex;
           pollingState.events.push(resolvedEvent);
@@ -24141,7 +24155,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return state;
       }
     }
-    const log$3 = createLogger("sampleSlice");
+    const log$4 = createLogger("sampleSlice");
     let selectedSampleRef = {
       current: void 0
     };
@@ -24294,7 +24308,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             const state = get2();
             try {
               if (sampleSummary.completed !== false) {
-                log$3.debug(
+                log$4.debug(
                   `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
@@ -24302,7 +24316,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleSummary.id,
                   sampleSummary.epoch
                 ));
-                log$3.debug(
+                log$4.debug(
                   `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 if (sample2) {
@@ -24319,7 +24333,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   );
                 }
               } else {
-                log$3.debug(
+                log$4.debug(
                   `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 samplePolling.startPolling(logFile, sampleSummary);
@@ -24349,7 +24363,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
-    const log$2 = createLogger("store");
+    const log$3 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
       if (!storeImplementation) {
@@ -24441,18 +24455,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   logs: state.logs,
                   sample: state.sample
                 });
-                log$2.debug("PARTIALIZED STATE", persisted);
+                log$3.debug("PARTIALIZED STATE", persisted);
                 return persisted;
               },
               version: 1,
               onRehydrateStorage: (state) => {
                 return (hydrationState, error2) => {
                   handleRehydrate(state);
-                  log$2.debug("REHYDRATING STATE");
+                  log$3.debug("REHYDRATING STATE");
                   if (error2) {
-                    log$2.debug("ERROR", { error: error2 });
+                    log$3.debug("ERROR", { error: error2 });
                   } else {
-                    log$2.debug("STATE", { state, hydrationState });
+                    log$3.debug("STATE", { state, hydrationState });
                   }
                 };
               }
@@ -41725,7 +41739,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function Hn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, mt.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
-    const log$1 = createLogger("scrolling");
+    const log$2 = createLogger("scrolling");
     function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable2 = true) {
       const getScrollPosition = useStore(
         (state) => state.appActions.getScrollPosition
@@ -41737,7 +41751,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         debounce$2((e) => {
           const target2 = e.target;
           const position = target2.scrollTop;
-          log$1.debug(`Storing scroll position`, elementKey, position);
+          log$2.debug(`Storing scroll position`, elementKey, position);
           setScrollPosition(elementKey, position);
         }, delay),
         [elementKey, setScrollPosition, delay]
@@ -41761,15 +41775,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!element || !scrollable2) {
           return;
         }
-        log$1.debug(`Restore Scroll Hook`, elementKey);
+        log$2.debug(`Restore Scroll Hook`, elementKey);
         const savedPosition = getScrollPosition(elementKey);
         if (savedPosition !== void 0) {
-          log$1.debug(`Restoring scroll position`, savedPosition);
+          log$2.debug(`Restoring scroll position`, savedPosition);
           const tryRestoreScroll = () => {
             if (element.scrollHeight > element.clientHeight) {
               if (element.scrollTop !== savedPosition) {
                 element.scrollTop = savedPosition;
-                log$1.debug(`Scroll position restored to ${savedPosition}`);
+                log$2.debug(`Scroll position restored to ${savedPosition}`);
               }
               return true;
             }
@@ -41781,7 +41795,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             const pollForRender = () => {
               if (tryRestoreScroll() || attempts >= maxAttempts) {
                 if (attempts >= maxAttempts) {
-                  log$1.debug(
+                  log$2.debug(
                     `Failed to restore scroll after ${maxAttempts} attempts`
                   );
                 }
@@ -41796,13 +41810,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (element.addEventListener) {
           element.addEventListener("scroll", handleScroll);
         } else {
-          log$1.warn("Element has no way to add event listener", element);
+          log$2.warn("Element has no way to add event listener", element);
         }
         return () => {
           if (element.removeEventListener) {
             element.removeEventListener("scroll", handleScroll);
           } else {
-            log$1.warn("Element has no way to remove event listener", element);
+            log$2.warn("Element has no way to remove event listener", element);
           }
         };
       }, [elementKey, elementRef, handleScroll]);
@@ -41821,14 +41835,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const debouncedFnRef = reactExports.useRef(null);
       const handleStateChange = reactExports.useCallback(
         (state) => {
-          log$1.debug(`Storing list state: [${elementKey}]`, state);
+          log$2.debug(`Storing list state: [${elementKey}]`, state);
           setListPosition(elementKey, state);
         },
         [elementKey, setListPosition]
       );
       reactExports.useEffect(() => {
         debouncedFnRef.current = debounce$2((isScrolling2) => {
-          log$1.debug("List scroll", isScrolling2);
+          log$2.debug("List scroll", isScrolling2);
           const element = virtuosoRef.current;
           if (!element) {
             return;
@@ -47267,7 +47281,7 @@ categories: ${categories.join(" ")}`;
       });
       return [...logSamples, ...uniquePendingSamples];
     };
-    const log = createLogger("hooks");
+    const log$1 = createLogger("hooks");
     const useEvalSpec = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       return selectedLogSummary == null ? void 0 : selectedLogSummary.eval;
@@ -47461,7 +47475,7 @@ categories: ${categories.join(" ")}`;
         var _a2;
         const isCollapsed = collapsed2 !== null && ((_a2 = collapsed2[scope]) == null ? void 0 : _a2[id]) === true;
         const set2 = (value2) => {
-          log.debug("Set collapsed", id, value2);
+          log$1.debug("Set collapsed", id, value2);
           collapseEvent(scope, id, value2);
         };
         return [isCollapsed, set2];
@@ -47496,7 +47510,7 @@ categories: ${categories.join(" ")}`;
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
       return reactExports.useMemo(() => {
         const set2 = (value2) => {
-          log.debug("Set collapsed", id, scope, value2);
+          log$1.debug("Set collapsed", id, scope, value2);
           setCollapsed(stateId, value2);
         };
         return [collapsed2, set2];
@@ -47517,7 +47531,7 @@ categories: ${categories.join(" ")}`;
           isFirstRender.current = false;
           return;
         }
-        log.debug("clear message (eval)", id);
+        log$1.debug("clear message (eval)", id);
         clearVisible(id);
       }, [selectedLogFile, clearVisible, id]);
       const selectedSampleIndex = useStore(
@@ -47528,14 +47542,14 @@ categories: ${categories.join(" ")}`;
           return;
         }
         if (scope === "sample") {
-          log.debug("clear message (sample)", id);
+          log$1.debug("clear message (sample)", id);
           clearVisible(id);
         }
       }, [selectedSampleIndex, clearVisible, id, scope]);
       return reactExports.useMemo(() => {
-        log.debug("visibility", id, visible2);
+        log$1.debug("visibility", id, visible2);
         const set2 = (visible22) => {
-          log.debug("set visiblity", id);
+          log$1.debug("set visiblity", id);
           setVisible(id, visible22);
         };
         return [visible2, set2];
@@ -47656,7 +47670,7 @@ categories: ${categories.join(" ")}`;
           setStatus({ loading: false, error: void 0 });
         };
         exec2().catch((e) => {
-          log.error("Error loading logs", e);
+          log$1.error("Error loading logs", e);
           setStatus({ loading: false, error: e });
         });
       }, [load, setLogs, setStatus]);
@@ -47683,7 +47697,7 @@ categories: ${categories.join(" ")}`;
             const updatedHeaders = { ...existingHeaders, ...result2 };
             setHeaders(updatedHeaders);
           } catch (e) {
-            log.error("Error loading log headers", e);
+            log$1.error("Error loading log headers", e);
             setHeaders({ ...existingHeaders });
           } finally {
             setHeadersLoading(false);
@@ -47775,6 +47789,88 @@ categories: ${categories.join(" ")}`;
         setFilteredCount
       };
     };
+    const log = createLogger("Client-Events");
+    const kRetries = 10;
+    const kPollingInterval = 5;
+    const kRefreshEvent = "refresh-evals";
+    function useClientEvents() {
+      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const api2 = useStore((state) => state.api);
+      const { loadHeaders } = useLogs();
+      let currentPolling = null;
+      let abortController;
+      const refreshLogFiles = reactExports.useCallback(
+        async (logFiles) => {
+          log.debug("Refresh Log Files");
+          refreshLogs();
+          const toRefresh = [];
+          for (const logFile of logFiles) {
+            const header2 = logHeaders[logFile.name];
+            if (!header2 || header2.status === "started" || header2.status === "error") {
+              toRefresh.push(logFile);
+            }
+          }
+          if (toRefresh.length > 0) {
+            log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
+            await loadHeaders(toRefresh);
+          }
+        },
+        [logHeaders, refreshLogs]
+      );
+      const startPolling = (logFiles) => {
+        if (currentPolling) {
+          currentPolling.stop();
+        }
+        abortController = new AbortController();
+        currentPolling = createPolling(
+          `Client-Events`,
+          async () => {
+            if (abortController.signal.aborted) {
+              log.debug(`Component unmounted, stopping poll for client events`);
+              return false;
+            }
+            if (abortController.signal.aborted) {
+              return false;
+            }
+            log.debug(`Polling client events`);
+            const events = await (api2 == null ? void 0 : api2.client_events());
+            log.debug(`Received events`, events);
+            if (abortController.signal.aborted) {
+              log.debug(`Polling aborted, stopping poll for client events`);
+              return false;
+            }
+            if ((events || []).includes(kRefreshEvent)) {
+              await refreshLogFiles(logFiles);
+            }
+            return true;
+          },
+          {
+            maxRetries: kRetries,
+            interval: kPollingInterval
+          }
+        );
+        currentPolling.start();
+      };
+      const stopPolling = () => {
+        if (currentPolling) {
+          currentPolling.stop();
+          currentPolling = null;
+        }
+      };
+      const cleanup = () => {
+        log.debug(`Cleanup`);
+        if (abortController) {
+          abortController.abort();
+        }
+        stopPolling();
+      };
+      return {
+        startPolling,
+        stopPolling,
+        cleanup
+      };
+    }
     const useUnloadLog = () => {
       const clearSelectedLogSummary = useStore(
         (state) => state.logActions.clearSelectedLogSummary
@@ -51439,6 +51535,8 @@ categories: ${categories.join(" ")}`;
       );
       const headersLoading = useStore((state) => state.logs.headersLoading);
       const loading = useStore((state) => state.app.status.loading);
+      const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
+      const allLogFiles = useStore((state) => state.logs.logs.files);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const sortingRef = reactExports.useRef(sorting);
       const loadingHeadersRef = reactExports.useRef(false);
@@ -51449,10 +51547,11 @@ categories: ${categories.join(" ")}`;
         loadingHeadersRef.current = true;
         try {
           await loadAllHeaders();
+          setWatchedLogs(allLogFiles);
         } finally {
           loadingHeadersRef.current = false;
         }
-      }, [loadAllHeaders]);
+      }, [loadAllHeaders, allLogFiles]);
       reactExports.useEffect(() => {
         sortingRef.current = sorting;
       }, [sorting]);
@@ -51540,6 +51639,7 @@ categories: ${categories.join(" ")}`;
           });
           if (logFiles.length > 0) {
             await loadHeaders(logFiles);
+            setWatchedLogs(fileItems.map((item2) => item2.logFile));
           }
         };
         exec2();
@@ -51911,12 +52011,29 @@ categories: ${categories.join(" ")}`;
       const logs = useStore((state) => state.logs.logs);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const headersLoading = useStore((state) => state.logs.headersLoading);
+      const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
       const { unloadLog } = useUnloadLog();
       reactExports.useEffect(() => {
         unloadLog();
       }, []);
       const { logPath } = useLogRouteParams();
       const currentDir = join(logPath || "", logs.log_dir);
+      const { startPolling, cleanup, stopPolling } = useClientEvents();
+      reactExports.useEffect(() => {
+        return () => {
+          cleanup();
+        };
+      }, []);
+      reactExports.useEffect(() => {
+        if (watchedLogs && watchedLogs.length > 0) {
+          startPolling(watchedLogs);
+        } else {
+          stopPolling();
+        }
+        return () => {
+          stopPolling();
+        };
+      }, [watchedLogs]);
       const logItems = reactExports.useMemo(() => {
         const logItems2 = [];
         const processedFolders = /* @__PURE__ */ new Set();
@@ -54192,6 +54309,7 @@ self.onmessage = function (e) {
       }
     }
     const MAX_BYTES = 50 * 1024 * 1024;
+    const OPEN_RETRY_LIMIT = 5;
     class SampleNotFoundError extends Error {
       constructor(message2) {
         super(message2 || "Sample not found");
@@ -54201,11 +54319,30 @@ self.onmessage = function (e) {
     }
     const openRemoteLogFile = async (api2, url, concurrency) => {
       const queue = new AsyncQueue(concurrency);
-      const remoteZipFile = await openRemoteZipFile(
-        url,
-        api2.eval_log_size,
-        api2.eval_log_bytes
-      );
+      let remoteZipFile = void 0;
+      let retryCount = 0;
+      while (!remoteZipFile && retryCount < OPEN_RETRY_LIMIT) {
+        try {
+          remoteZipFile = await openRemoteZipFile(
+            url,
+            api2.eval_log_size,
+            api2.eval_log_bytes
+          );
+        } catch {
+          retryCount++;
+          console.warn(
+            `Failed to open remote log file at ${url}, retrying (${retryCount}/${OPEN_RETRY_LIMIT})...`
+          );
+          await new Promise(
+            (resolve) => setTimeout(resolve, 100 * (retryCount + retryCount))
+          );
+        }
+      }
+      if (!remoteZipFile) {
+        throw new Error(
+          `Failed to open remote log file at ${url} after ${OPEN_RETRY_LIMIT} attempts.`
+        );
+      }
       const readJSONFile = async (file, maxBytes) => {
         try {
           const data = await remoteZipFile.readFile(file, maxBytes);
