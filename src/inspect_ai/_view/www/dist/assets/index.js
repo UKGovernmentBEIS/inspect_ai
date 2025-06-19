@@ -51639,8 +51639,8 @@ categories: ${categories.join(" ")}`;
           });
           if (logFiles.length > 0) {
             await loadHeaders(logFiles);
-            setWatchedLogs(fileItems.map((item2) => item2.logFile));
           }
+          setWatchedLogs(fileItems.map((item2) => item2.logFile));
         };
         exec2();
       }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
