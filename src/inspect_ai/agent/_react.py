@@ -472,12 +472,33 @@ def _remove_submit_tool(
 
         # remove submit tool from assistant messages
         if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-            tools_calls = [
+            new_tools_calls = [
                 tool_call
                 for tool_call in message.tool_calls
                 if tool_call.function != submit_name
             ]
-            message = message.model_copy(update=dict(tool_calls=tools_calls))
+
+            # If a submit tool call was removed, we need to update the message
+            if len(new_tools_calls) < len(message.tool_calls):
+                # Some models (OpenAI) don't like to see the reasoning content item
+                # that led to the submit tool call, so we have to remove it too.
+                message = message.model_copy(
+                    update=dict(
+                        tool_calls=new_tools_calls,
+                        content=(
+                            [
+                                content
+                                for content in message.content
+                                if (
+                                    isinstance(content, str)
+                                    or content.type != "reasoning"
+                                )
+                            ]
+                            if isinstance(message.content, list)
+                            else message.content
+                        ),
+                    )
+                )
 
         # always append message
         filtered.append(message)
