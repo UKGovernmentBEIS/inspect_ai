@@ -189,8 +189,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
       if (logFiles.length > 0) {
         await loadHeaders(logFiles);
-        setWatchedLogs(fileItems.map((item) => item.logFile!));
       }
+      setWatchedLogs(fileItems.map((item) => item.logFile!));
     };
     exec();
   }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
