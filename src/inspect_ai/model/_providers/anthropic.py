@@ -430,7 +430,7 @@ class AnthropicAPI(ModelAPI):
         if streaming:
             async with self.client.messages.stream(**request) as stream:
                 head_message = await stream.get_final_message()
-        elif config.batch is not False and self.config.batch_size:
+        elif config.batch is not False and config.batch_size:
             head_message = await self._batcher.generate(request, config)
         else:
             head_message = await self.client.messages.create(**request, stream=False)

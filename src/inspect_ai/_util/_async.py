@@ -85,7 +85,6 @@ def run_in_background(
       func (Callable[[Unpack[PosArgsT]], Awaitable[None]]): The asynchronous function to run in the background.
       *args (Unpack[PosArgsT]): Positional arguments to pass to the function.
 
-
     Note:
       The passed function must ensure that it does not raise any exceptions. Exceptions
       that do escape are considered coding errors, and the behavior is not strictly

@@ -127,7 +127,6 @@ class ModelAPI(abc.ABC):
         """
         self.model_name = model_name
         self.base_url = base_url
-        self.config = config
 
         # apply api key override
         for key in api_key_vars:
