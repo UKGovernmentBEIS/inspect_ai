@@ -7,10 +7,15 @@ import {
   LogViewAPI,
   SampleSummary,
 } from "../api/types";
-import { FileSizeLimitError, openRemoteZipFile } from "./remoteZipFile";
+import {
+  CentralDirectoryEntry,
+  FileSizeLimitError,
+  openRemoteZipFile,
+} from "./remoteZipFile";
 
 // don't try to load samples greater than 50mb
 const MAX_BYTES = 50 * 1024 * 1024;
+const OPEN_RETRY_LIMIT = 5;
 
 interface SampleEntry {
   sampleId: string;
@@ -47,11 +52,38 @@ export const openRemoteLogFile = async (
   concurrency: number,
 ): Promise<RemoteLogFile> => {
   const queue = new AsyncQueue(concurrency);
-  const remoteZipFile = await openRemoteZipFile(
-    url,
-    api.eval_log_size,
-    api.eval_log_bytes,
-  );
+
+  let remoteZipFile:
+    | {
+        centralDirectory: Map<string, CentralDirectoryEntry>;
+        readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>;
+      }
+    | undefined = undefined;
+
+  let retryCount = 0;
+  while (!remoteZipFile && retryCount < OPEN_RETRY_LIMIT) {
+    try {
+      remoteZipFile = await openRemoteZipFile(
+        url,
+        api.eval_log_size,
+        api.eval_log_bytes,
+      );
+    } catch {
+      retryCount++;
+      console.warn(
+        `Failed to open remote log file at ${url}, retrying (${retryCount}/${OPEN_RETRY_LIMIT})...`,
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, 100 * (retryCount + retryCount)),
+      );
+    }
+  }
+
+  if (!remoteZipFile) {
+    throw new Error(
+      `Failed to open remote log file at ${url} after ${OPEN_RETRY_LIMIT} attempts.`,
+    );
+  }
 
   /**
    * Reads and parses a JSON file from the zip.
