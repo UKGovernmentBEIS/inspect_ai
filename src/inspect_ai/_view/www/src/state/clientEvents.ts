@@ -29,39 +29,26 @@ export function useClientEvents() {
   let isRefreshing = false;
 
   // Accumulate log files that arrive while refresh is in progress
-  const pendingLogFiles = new Set<string>();
+  const pendingLogFiles = new Set<LogFile>();
 
-  // Refresh logs and clear pending in a single transaction
-  const refreshLogFiles = useCallback(
-    async (logFiles: LogFile[]) => {
-      // If refresh is in progress, accumulate files for next refresh
-      if (isRefreshing) {
-        log.debug("Refresh already in progress, accumulating files");
-        logFiles.forEach(file => pendingLogFiles.add(file.name));
-        return;
-      }
+  const refreshPendingLogFiles = useCallback(async () => {
+    if (isRefreshing) {
+      return;
+    }
 
-      isRefreshing = true;
+    while (pendingLogFiles.size > 0) {
       try {
-        // Include any pending files from previous skipped calls
-        const allLogFiles = [...logFiles];
-        if (pendingLogFiles.size > 0) {
-          log.debug(`Including ${pendingLogFiles.size} pending files`);
-          for (const fileName of pendingLogFiles) {
-            // Add pending file if not already in current batch
-            if (!allLogFiles.some(f => f.name === fileName)) {
-              allLogFiles.push({ name: fileName });
-            }
-          }
-          pendingLogFiles.clear();
-        }
+        const logFiles = [...pendingLogFiles];
+        pendingLogFiles.clear();
+
+        isRefreshing = true;
 
         // Refresh the list of log files
         log.debug("Refresh Log Files");
-        refreshLogs();
+        await refreshLogs();
 
         const toRefresh: LogFile[] = [];
-        for (const logFile of allLogFiles) {
+        for (const logFile of logFiles) {
           const header = logHeaders[logFile.name];
           if (
             !header ||
@@ -80,8 +67,16 @@ export function useClientEvents() {
       } finally {
         isRefreshing = false;
       }
+    }
+  }, [logHeaders, refreshLogs, loadHeaders]);
+
+  // Refresh logs and clear pending in a single transaction
+  const refreshLogFiles = useCallback(
+    async (logFiles: LogFile[]) => {
+      logFiles.forEach((file) => pendingLogFiles.add(file));
+      refreshPendingLogFiles();
     },
-    [logHeaders, refreshLogs],
+    [logHeaders, refreshLogs, refreshPendingLogFiles],
   );
 
   // Function to start polling for a specific log file
