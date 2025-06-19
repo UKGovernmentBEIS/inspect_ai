@@ -47,7 +47,6 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const headersLoading = useStore((state) => state.logs.headersLoading);
   const loading = useStore((state) => state.app.status.loading);
   const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
-  const allLogFiles = useStore((state) => state.logs.logs.files);
 
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const sortingRef = useRef(sorting);
@@ -61,12 +60,18 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
     loadingHeadersRef.current = true;
     try {
-      await loadAllHeaders();
-      setWatchedLogs(allLogFiles);
+      const logFiles = items
+        .filter((item) => item.type === "file")
+        .map((item) => item.logFile)
+        .filter((file) => file !== undefined)
+        .filter((item) => logHeaders[item.name] === undefined);
+
+      await loadHeaders(logFiles);
+      setWatchedLogs(logFiles);
     } finally {
       loadingHeadersRef.current = false;
     }
-  }, [loadAllHeaders, allLogFiles]);
+  }, [loadAllHeaders, items, logHeaders]);
 
   // Keep ref updated
   useEffect(() => {

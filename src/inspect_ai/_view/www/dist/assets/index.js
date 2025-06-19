@@ -51536,7 +51536,6 @@ categories: ${categories.join(" ")}`;
       const headersLoading = useStore((state) => state.logs.headersLoading);
       const loading = useStore((state) => state.app.status.loading);
       const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
-      const allLogFiles = useStore((state) => state.logs.logs.files);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const sortingRef = reactExports.useRef(sorting);
       const loadingHeadersRef = reactExports.useRef(false);
@@ -51546,12 +51545,13 @@ categories: ${categories.join(" ")}`;
         }
         loadingHeadersRef.current = true;
         try {
-          await loadAllHeaders();
-          setWatchedLogs(allLogFiles);
+          const logFiles = items.filter((item2) => item2.type === "file").map((item2) => item2.logFile).filter((file) => file !== void 0).filter((item2) => logHeaders[item2.name] === void 0);
+          await loadHeaders(logFiles);
+          setWatchedLogs(logFiles);
         } finally {
           loadingHeadersRef.current = false;
         }
-      }, [loadAllHeaders, allLogFiles]);
+      }, [loadAllHeaders, items, logHeaders]);
       reactExports.useEffect(() => {
         sortingRef.current = sorting;
       }, [sorting]);
