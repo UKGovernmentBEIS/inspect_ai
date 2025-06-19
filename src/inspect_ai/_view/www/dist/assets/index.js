@@ -47800,20 +47800,42 @@ categories: ${categories.join(" ")}`;
       const { loadHeaders } = useLogs();
       let currentPolling = null;
       let abortController;
+      let isRefreshing = false;
+      const pendingLogFiles = /* @__PURE__ */ new Set();
       const refreshLogFiles = reactExports.useCallback(
         async (logFiles) => {
-          log.debug("Refresh Log Files");
-          refreshLogs();
-          const toRefresh = [];
-          for (const logFile of logFiles) {
-            const header2 = logHeaders[logFile.name];
-            if (!header2 || header2.status === "started" || header2.status === "error") {
-              toRefresh.push(logFile);
-            }
+          if (isRefreshing) {
+            log.debug("Refresh already in progress, accumulating files");
+            logFiles.forEach((file) => pendingLogFiles.add(file.name));
+            return;
           }
-          if (toRefresh.length > 0) {
-            log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
-            await loadHeaders(toRefresh);
+          isRefreshing = true;
+          try {
+            const allLogFiles = [...logFiles];
+            if (pendingLogFiles.size > 0) {
+              log.debug(`Including ${pendingLogFiles.size} pending files`);
+              for (const fileName of pendingLogFiles) {
+                if (!allLogFiles.some((f) => f.name === fileName)) {
+                  allLogFiles.push({ name: fileName });
+                }
+              }
+              pendingLogFiles.clear();
+            }
+            log.debug("Refresh Log Files");
+            refreshLogs();
+            const toRefresh = [];
+            for (const logFile of allLogFiles) {
+              const header2 = logHeaders[logFile.name];
+              if (!header2 || header2.status === "started" || header2.status === "error") {
+                toRefresh.push(logFile);
+              }
+            }
+            if (toRefresh.length > 0) {
+              log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
+              await loadHeaders(toRefresh);
+            }
+          } finally {
+            isRefreshing = false;
           }
         },
         [logHeaders, refreshLogs]
@@ -47864,6 +47886,7 @@ categories: ${categories.join(" ")}`;
           abortController.abort();
         }
         stopPolling();
+        pendingLogFiles.clear();
       };
       return {
         startPolling,
