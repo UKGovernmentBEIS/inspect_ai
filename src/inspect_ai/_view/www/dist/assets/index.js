@@ -47802,29 +47802,19 @@ categories: ${categories.join(" ")}`;
       let abortController;
       let isRefreshing = false;
       const pendingLogFiles = /* @__PURE__ */ new Set();
-      const refreshLogFiles = reactExports.useCallback(
-        async (logFiles) => {
-          if (isRefreshing) {
-            log.debug("Refresh already in progress, accumulating files");
-            logFiles.forEach((file) => pendingLogFiles.add(file.name));
-            return;
-          }
-          isRefreshing = true;
+      const refreshPendingLogFiles = reactExports.useCallback(async () => {
+        if (isRefreshing) {
+          return;
+        }
+        while (pendingLogFiles.size > 0) {
           try {
-            const allLogFiles = [...logFiles];
-            if (pendingLogFiles.size > 0) {
-              log.debug(`Including ${pendingLogFiles.size} pending files`);
-              for (const fileName of pendingLogFiles) {
-                if (!allLogFiles.some((f) => f.name === fileName)) {
-                  allLogFiles.push({ name: fileName });
-                }
-              }
-              pendingLogFiles.clear();
-            }
+            const logFiles = [...pendingLogFiles];
+            pendingLogFiles.clear();
+            isRefreshing = true;
             log.debug("Refresh Log Files");
-            refreshLogs();
+            await refreshLogs();
             const toRefresh = [];
-            for (const logFile of allLogFiles) {
+            for (const logFile of logFiles) {
               const header2 = logHeaders[logFile.name];
               if (!header2 || header2.status === "started" || header2.status === "error") {
                 toRefresh.push(logFile);
@@ -47837,8 +47827,14 @@ categories: ${categories.join(" ")}`;
           } finally {
             isRefreshing = false;
           }
+        }
+      }, [logHeaders, refreshLogs, loadHeaders]);
+      const refreshLogFiles = reactExports.useCallback(
+        async (logFiles) => {
+          logFiles.forEach((file) => pendingLogFiles.add(file));
+          refreshPendingLogFiles();
         },
-        [logHeaders, refreshLogs]
+        [logHeaders, refreshLogs, refreshPendingLogFiles]
       );
       const startPolling = (logFiles) => {
         if (currentPolling) {
