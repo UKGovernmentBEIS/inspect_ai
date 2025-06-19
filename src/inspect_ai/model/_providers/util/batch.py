@@ -60,6 +60,7 @@ class Batcher(Generic[ResponseT]):
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
+    # TODO: Think through generate's config argument vs self.config - particularly wrt memoization
     async def generate(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ResponseT:
