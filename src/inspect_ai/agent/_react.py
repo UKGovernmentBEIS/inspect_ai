@@ -480,11 +480,12 @@ def _remove_submit_tool(
 
             # If a submit tool call was removed, we need to update the message
             if len(new_tools_calls) < len(message.tool_calls):
-                # Some models (OpenAI) don't like to see the reasoning content item
-                # that led to the submit tool call, so we have to remove it too.
                 message = message.model_copy(
                     update=dict(
                         tool_calls=new_tools_calls,
+                        # Some models (OpenAI) don't like to see the reasoning
+                        # content item that led to the submit tool call, so we
+                        # have to remove it too.
                         content=(
                             [
                                 content
