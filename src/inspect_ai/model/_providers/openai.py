@@ -295,7 +295,7 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
-        self._batcher = OpenAIBatcher(self.client, config)
+        self._batcher: OpenAIBatcher | None = None
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -446,9 +446,11 @@ class OpenAIAPI(ModelAPI):
     async def _get_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if config.batch is False or not self.config.batch_size:
+        if config.batch is False or not config.batch_size:
             return await self.client.chat.completions.create(**request)
 
+        if not self._batcher:
+            self._batcher = OpenAIBatcher(self.client, config)
         return await self._batcher.generate(request, config)
 
     def service_model_name(self) -> str:

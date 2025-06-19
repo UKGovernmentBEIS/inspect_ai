@@ -305,7 +305,7 @@ class AnthropicAPI(ModelAPI):
                 **model_args,
             )
 
-        self._batcher = AnthropicBatcher(self.client, config)
+        self._batcher: AnthropicBatcher | None = None
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -431,6 +431,8 @@ class AnthropicAPI(ModelAPI):
             async with self.client.messages.stream(**request) as stream:
                 head_message = await stream.get_final_message()
         elif config.batch is not False and config.batch_size:
+            if not self._batcher:
+                self._batcher = AnthropicBatcher(self.client, config)
             head_message = await self._batcher.generate(request, config)
         else:
             head_message = await self.client.messages.create(**request, stream=False)
