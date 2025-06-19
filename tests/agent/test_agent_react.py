@@ -1,6 +1,7 @@
 import re
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._react import react
@@ -13,10 +14,14 @@ from inspect_ai.agent._types import (
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageSystem
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+)
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.tool import Tool, tool
+from inspect_ai.tool import Tool, ToolCall, tool
 from inspect_ai.tool._tool_def import ToolDef
 
 
@@ -450,3 +455,102 @@ def compare_quantities():
             )
 
     return score
+
+
+def test_remove_submit_tool_filters_reasoning_content():
+    """Test that _remove_submit_tool removes both submit tool calls and reasoning content."""
+    from inspect_ai.agent._react import _remove_submit_tool
+
+    # Create a tool call for submit
+    submit_tool_call = ToolCall(
+        id="call_123",
+        function="submit",
+        arguments={"answer": "42"},
+    )
+
+    # Create a tool call for a regular tool
+    regular_tool_call = ToolCall(
+        id="call_456",
+        function="addition",
+        arguments={"x": 1, "y": 2},
+    )
+
+    # Create an assistant message with both reasoning content and tool calls
+    message_with_reasoning = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="I need to think about this problem..."),
+            ContentText(text="Let me solve this step by step."),
+        ],
+        tool_calls=[regular_tool_call, submit_tool_call],
+    )
+
+    # Create an assistant message without reasoning content but with submit tool call
+    message_without_reasoning = ChatMessageAssistant(
+        content="Just a regular message",
+        tool_calls=[submit_tool_call],
+    )
+
+    # Create an assistant message with only regular tool calls (should be unchanged)
+    message_regular_only = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="This reasoning should stay"),
+            ContentText(text="Regular message"),
+        ],
+        tool_calls=[regular_tool_call],
+    )
+
+    messages = [
+        message_with_reasoning,
+        message_without_reasoning,
+        message_regular_only,
+    ]
+
+    # Filter out submit tool calls
+    filtered_messages = _remove_submit_tool(messages, "submit")
+
+    # Verify we still have all messages
+    assert len(filtered_messages) == 3
+
+    # Check first message: reasoning content should be removed, submit tool call removed
+    first_filtered = filtered_messages[0]
+    assert isinstance(first_filtered, ChatMessageAssistant)
+    assert len(first_filtered.tool_calls) == 1  # Only regular tool call should remain
+    assert first_filtered.tool_calls[0].function == "addition"
+
+    # Reasoning content should be filtered out
+    assert isinstance(first_filtered.content, list)
+    reasoning_content = [
+        c for c in first_filtered.content if isinstance(c, ContentReasoning)
+    ]
+    assert len(reasoning_content) == 0, (
+        "Reasoning content should be removed when submit tool call is filtered"
+    )
+
+    # Text content should remain
+    text_content = [c for c in first_filtered.content if isinstance(c, ContentText)]
+    assert len(text_content) == 1
+    assert text_content[0].text == "Let me solve this step by step."
+
+    # Check second message: submit tool call should be removed, content unchanged (no reasoning)
+    second_filtered = filtered_messages[1]
+    assert isinstance(second_filtered, ChatMessageAssistant)
+    assert second_filtered.tool_calls == []  # Submit tool call removed
+    assert (
+        second_filtered.content == "Just a regular message"
+    )  # String content unchanged
+
+    # Check third message: should be completely unchanged (no submit tool calls)
+    third_filtered = filtered_messages[2]
+    assert isinstance(third_filtered, ChatMessageAssistant)
+    assert len(third_filtered.tool_calls) == 1
+    assert third_filtered.tool_calls[0].function == "addition"
+
+    # Reasoning content should NOT be filtered out (no submit tool call was removed)
+    assert isinstance(third_filtered.content, list)
+    reasoning_content = [
+        c for c in third_filtered.content if isinstance(c, ContentReasoning)
+    ]
+    assert len(reasoning_content) == 1, (
+        "Reasoning content should remain when no submit tool call is filtered"
+    )
+    assert reasoning_content[0].reasoning == "This reasoning should stay"
