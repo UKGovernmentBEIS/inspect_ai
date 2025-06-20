@@ -2,6 +2,7 @@ import pytest
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util.registry import registry_lookup
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._lifecycle import (
     EvalEndEvent,
@@ -14,10 +15,8 @@ from inspect_ai.util._lifecycle import (
 )
 
 
-class TestLifecycleHook(LifecycleHook):
+class MockHook(LifecycleHook):
     def __init__(self) -> None:
-        global hook_instance
-        hook_instance = self
         self.eval_start_events: list[EvalStartEvent] = []
         self.eval_end_events: list[EvalEndEvent] = []
         self.sample_started_events: list[SampleStartedEvent] = []
@@ -47,33 +46,52 @@ class TestLifecycleHook(LifecycleHook):
         self.model_usage_events.append(event)
 
 
-@pytest.fixture
-def hook() -> TestLifecycleHook:
-    global hook_instance
+class MockMinimalHook(LifecycleHook):
+    def __init__(self) -> None:
+        self.eval_start_events: list[EvalStartEvent] = []
 
+    async def on_eval_start(self, event: EvalStartEvent) -> None:
+        self.eval_start_events.append(event)
+
+
+@pytest.fixture
+def hook() -> MockHook:
     @lifecycle_hook("test_hook_1")
-    def get_hook_class() -> type[TestLifecycleHook]:
-        return TestLifecycleHook
+    def get_hook_class() -> type[MockHook]:
+        return MockHook
 
-    return hook_instance
+    obj = registry_lookup("lifecycle_hook", "test_hook_1")
+    assert isinstance(obj, MockHook)
+    return obj
 
 
 @pytest.fixture
-def hook_2() -> TestLifecycleHook:
-    global hook_instance
-
+def hook_2() -> MockHook:
     @lifecycle_hook("test_hook_2")
-    def get_hook_class() -> type[TestLifecycleHook]:
-        return TestLifecycleHook
+    def get_hook_class() -> type[MockHook]:
+        return MockHook
 
-    return hook_instance
+    obj = registry_lookup("lifecycle_hook", "test_hook_2")
+    assert isinstance(obj, MockHook)
+    return obj
+
+
+@pytest.fixture
+def hook_minimal() -> MockMinimalHook:
+    @lifecycle_hook("test_hook_minimal")
+    def get_hook_class() -> type[MockMinimalHook]:
+        return MockMinimalHook
+
+    obj = registry_lookup("lifecycle_hook", "test_hook_minimal")
+    assert isinstance(obj, MockMinimalHook)
+    return obj
 
 
 def test_can_run_eval_with_no_hooks() -> None:
     eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
 
 
-def test_can_subscribe_to_events(hook: TestLifecycleHook) -> None:
+def test_can_subscribe_to_events(hook: MockHook) -> None:
     hook.assert_no_events()
 
     eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
@@ -87,7 +105,7 @@ def test_can_subscribe_to_events(hook: TestLifecycleHook) -> None:
 
 
 def test_can_subscribe_to_events_with_multiple_hooks(
-    hook: TestLifecycleHook, hook_2: TestLifecycleHook
+    hook: MockHook, hook_2: MockHook
 ) -> None:
     hook.assert_no_events()
     hook_2.assert_no_events()
@@ -103,6 +121,12 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.model_usage_events) == 0
 
 
-hook_instance: TestLifecycleHook
+def test_hook_does_not_need_to_subscribe_to_all_events(
+    hook_minimal: MockMinimalHook,
+) -> None:
+    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+
+    assert len(hook_minimal.eval_start_events) == 1
+
 
 # TODO: Check that not all hooks need to be subscribed to.
