@@ -7,7 +7,7 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._lifecycle import (
     EvalEndEvent,
     EvalStartEvent,
-    LifecycleHook,
+    LifecycleHooks,
     ModelUsageEvent,
     SampleScoredEvent,
     SampleStartedEvent,
@@ -15,7 +15,7 @@ from inspect_ai.util._lifecycle import (
 )
 
 
-class MockHook(LifecycleHook):
+class MockHook(LifecycleHooks):
     def __init__(self) -> None:
         self.eval_start_events: list[EvalStartEvent] = []
         self.eval_end_events: list[EvalEndEvent] = []
@@ -30,27 +30,27 @@ class MockHook(LifecycleHook):
         assert not self.sample_scored_events
         assert not self.model_usage_events
 
-    async def on_eval_start(self, event: EvalStartEvent) -> None:
+    async def on_run_start(self, event: EvalStartEvent) -> None:
         self.eval_start_events.append(event)
 
-    async def on_eval_end(self, event: EvalEndEvent) -> None:
+    async def on_run_end(self, event: EvalEndEvent) -> None:
         self.eval_end_events.append(event)
 
-    async def on_sample_started(self, event: SampleStartedEvent) -> None:
+    async def on_sample_start(self, event: SampleStartedEvent) -> None:
         self.sample_started_events.append(event)
 
-    async def on_sample_scored(self, event: SampleScoredEvent) -> None:
+    async def on_sample_score(self, event: SampleScoredEvent) -> None:
         self.sample_scored_events.append(event)
 
     async def on_model_usage(self, event: ModelUsageEvent) -> None:
         self.model_usage_events.append(event)
 
 
-class MockMinimalHook(LifecycleHook):
+class MockMinimalHook(LifecycleHooks):
     def __init__(self) -> None:
         self.eval_start_events: list[EvalStartEvent] = []
 
-    async def on_eval_start(self, event: EvalStartEvent) -> None:
+    async def on_run_start(self, event: EvalStartEvent) -> None:
         self.eval_start_events.append(event)
 
 

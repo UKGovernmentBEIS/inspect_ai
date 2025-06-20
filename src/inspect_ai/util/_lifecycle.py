@@ -1,3 +1,5 @@
+# TODO: Move to inspect_ai.hooks.
+
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
@@ -47,17 +49,21 @@ class ModelUsageEvent:
 # TODO: Can a user runs multiple evals in parallel with asyncio gather? If so, should we
 # be providing a run_id or similar in all events to distinguish runs?
 # TODO: Consider adding "tool used" event (for web_search logging).
-class LifecycleHook:
-    async def on_eval_start(self, event: EvalStartEvent) -> None:
+class LifecycleHooks:
+    async def on_run_start(self, event: EvalStartEvent) -> None:
         pass
 
-    async def on_eval_end(self, event: EvalEndEvent) -> None:
+    async def on_run_end(self, event: EvalEndEvent) -> None:
         pass
 
-    async def on_sample_started(self, event: SampleStartedEvent) -> None:
+    # on_task_start (with evalspec)
+
+    # on_task_end (with 1 eval log)
+
+    async def on_sample_start(self, event: SampleStartedEvent) -> None:
         pass
 
-    async def on_sample_scored(self, event: SampleScoredEvent) -> None:
+    async def on_sample_score(self, event: SampleScoredEvent) -> None:
         pass
 
     # TODO: Should we have an on_sample_error event? Would need to document that this
@@ -67,11 +73,15 @@ class LifecycleHook:
 
     # TODO: Hook for web search usage (requested by Iman).
 
+    # TODO: on_metrics_update
+
     async def on_model_usage(self, event: ModelUsageEvent) -> None:
         pass
 
+    # property/func enabled()
 
-T = TypeVar("T", bound=LifecycleHook)
+
+T = TypeVar("T", bound=LifecycleHooks)
 
 
 def lifecycle_hook(name: str) -> Callable[..., Type[T]]:
@@ -85,7 +95,7 @@ def lifecycle_hook(name: str) -> Callable[..., Type[T]]:
         # Resolve the hook type it's a function.
         if not isinstance(hook_type, type):
             hook_type = hook_type()
-        if not issubclass(hook_type, LifecycleHook):
+        if not issubclass(hook_type, LifecycleHooks):
             raise TypeError(
                 f"Lifecycle hook must be a subclass of LifecycleHook, got {hook_type}"
             )
@@ -104,22 +114,22 @@ def lifecycle_hook(name: str) -> Callable[..., Type[T]]:
 
 async def emit_eval_start(run_id: str, tasks: list[ResolvedTask]) -> None:
     event = EvalStartEvent(run_id=run_id, task_names=[task.task.name for task in tasks])
-    await _emit_to_all(lambda hook: hook.on_eval_start(event))
+    await _emit_to_all(lambda hook: hook.on_run_start(event))
 
 
 async def emit_eval_end(logs: EvalLogs) -> None:
     event = EvalEndEvent(logs=logs)
-    await _emit_to_all(lambda hook: hook.on_eval_end(event))
+    await _emit_to_all(lambda hook: hook.on_run_end(event))
 
 
 async def emit_sample_started(sample_summary: EvalSampleSummary) -> None:
     event = SampleStartedEvent(sample_summary)
-    await _emit_to_all(lambda hook: hook.on_sample_started(event))
+    await _emit_to_all(lambda hook: hook.on_sample_start(event))
 
 
 async def emit_sample_scored(sample_summary: EvalSampleSummary) -> None:
     event = SampleScoredEvent(sample_summary)
-    await _emit_to_all(lambda hook: hook.on_sample_scored(event))
+    await _emit_to_all(lambda hook: hook.on_sample_score(event))
 
 
 async def emit_model_usage(
@@ -131,16 +141,16 @@ async def emit_model_usage(
     await _emit_to_all(lambda hook: hook.on_model_usage(event))
 
 
-def get_all_lifecycle_hooks() -> list[LifecycleHook]:
+def get_all_lifecycle_hooks() -> list[LifecycleHooks]:
     """Get all registered lifecycle hooks."""
     # TODO: Do we allow hooks to register themselves, or do we need to check that there
     # is some env var set to avoid potential attacks like we do for "INSPECT_TELEMETRY"?
     # (especially if we add an API key override hook)
     results = registry_find(lambda info: info.type == "lifecycle_hook")
-    return cast(list[LifecycleHook], results)
+    return cast(list[LifecycleHooks], results)
 
 
-async def _emit_to_all(callable: Callable[[LifecycleHook], Awaitable[None]]) -> None:
+async def _emit_to_all(callable: Callable[[LifecycleHooks], Awaitable[None]]) -> None:
     for hook in get_all_lifecycle_hooks():
         try:
             await callable(hook)

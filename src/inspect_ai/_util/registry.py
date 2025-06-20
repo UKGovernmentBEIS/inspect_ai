@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool
     from inspect_ai.util import SandboxEnvironment
-    from inspect_ai.util._lifecycle import LifecycleHook
+    from inspect_ai.util._lifecycle import LifecycleHooks
 
 obj_type = type
 
@@ -263,7 +263,7 @@ def registry_create(
 @overload
 def registry_create(
     type: Literal["lifecycle_hook"], name: str, **kwargs: Any
-) -> LifecycleHook: ...
+) -> LifecycleHooks: ...
 
 
 @overload

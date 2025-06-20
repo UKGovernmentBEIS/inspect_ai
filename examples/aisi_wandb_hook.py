@@ -11,7 +11,7 @@ from inspect_ai.solver import chain_of_thought, generate, self_critique
 from inspect_ai.util._lifecycle import (
     EvalEndEvent,
     EvalStartEvent,
-    LifecycleHook,
+    LifecycleHooks,
     ModelUsageEvent,
     SampleScoredEvent,
     lifecycle_hook,
@@ -19,14 +19,14 @@ from inspect_ai.util._lifecycle import (
 
 
 @lifecycle_hook(name="aisi_wandb_hook")
-class AisiWBHook(LifecycleHook):
+class AisiWBHook(LifecycleHooks):
     """An example lifecycle event hook for AISI which writes to Weights and Biases."""
 
     # TODO: If display=rich, we send too much logging data to wandb.
     # Can we ask Inspect what display mode is being used, and warn if it is rich/full?
     # Or can we supply a "plain" logger to W&B in addition to whatever is shown in the
     # terminal?
-    async def on_eval_start(self, event: EvalStartEvent) -> None:
+    async def on_run_start(self, event: EvalStartEvent) -> None:
         wandb.init(
             project="inspect-integration-test",
             # TODO: Should we be using Task ID (used in inspect log filename) or run ID?
@@ -35,7 +35,7 @@ class AisiWBHook(LifecycleHook):
         )
         wandb.log({"resolved_tasks": event.task_names})
 
-    async def on_eval_end(self, event: EvalEndEvent) -> None:
+    async def on_run_end(self, event: EvalEndEvent) -> None:
         # TODO: When can we expect to have multiple logs?
         for log in event.logs:
             assert wandb.run is not None
@@ -58,7 +58,7 @@ class AisiWBHook(LifecycleHook):
         wandb.log({"evals_df": wandb.Table(dataframe=df.fillna("N/A"))})
         wandb.finish()
 
-    async def on_sample_scored(self, event: SampleScoredEvent) -> None:
+    async def on_sample_score(self, event: SampleScoredEvent) -> None:
         serializable_scores = {}
         if event.sample_summary.scores is not None:
             serializable_scores = {
