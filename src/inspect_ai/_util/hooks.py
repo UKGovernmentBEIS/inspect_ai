@@ -7,6 +7,8 @@ from rich import print
 from .constants import PKG_NAME
 from .error import PrerequisiteError
 
+# Deprecated: Please use "lifecycle hooks" instead.
+
 # Hooks are functions inside packages that are installed with an
 # environment variable (e.g. INSPECT_TELEMETRY='mypackage.send_telemetry')
 # If one or more hooks are enabled a message will be printed at startup
@@ -95,6 +97,16 @@ def init_hooks() -> None:
         if result:
             _override_api_key, message = result
             messages.append(message)
+
+    from inspect_ai._util.lifecycle import get_all_lifecycle_hooks
+
+    # TODO: Hooks are not loaded in registry by this point in time.
+    lifecycle_hooks = get_all_lifecycle_hooks()
+    if lifecycle_hooks:
+        # TODO: Get names of hooks from registry.
+        messages.append(f"[bold]Lifecycle hooks enabled: {len(lifecycle_hooks)}[/bold]")
+        for hook in lifecycle_hooks:
+            messages.append(f"  - {hook.__class__.__name__}")
 
     # if any hooks are enabled, let the user know
     if len(messages) > 0:

@@ -6,6 +6,7 @@ from test_helpers.tools import list_files
 from test_helpers.utils import ensure_test_package_installed, skip_if_trio
 
 from inspect_ai import Task, eval_async
+from inspect_ai._util.lifecycle import emit_eval_start
 from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.scorer import includes
@@ -107,3 +108,13 @@ def test_supports_str_config():
     assert recreated == spec
     assert recreated.config == spec.config
     assert isinstance(recreated.config, str)
+
+
+async def test_lifecycle_hooks():
+    ensure_test_package_installed()
+    module = importlib.import_module("inspect_package.lifecycle.custom")
+
+    # TODO: Test that we can emit an event which isn't subscribed to.
+    await emit_eval_start(run_id="42", tasks=[])
+
+    assert module.run_ids == ["42"]

@@ -31,12 +31,14 @@ if TYPE_CHECKING:
     from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool
     from inspect_ai.util import SandboxEnvironment
+    from inspect_ai._util.lifecycle import LifecycleHook
 
 obj_type = type
 
 RegistryType = Literal[
     "agent",
     "approver",
+    "lifecycle_hook",
     "metric",
     "modelapi",
     "plan",
@@ -256,6 +258,12 @@ def registry_create(type: Literal["plan"], name: str, **kwargs: Any) -> Plan: ..
 def registry_create(
     type: Literal["sandboxenv"], name: str, **kwargs: Any
 ) -> SandboxEnvironment: ...
+
+
+@overload
+def registry_create(
+    type: Literal["lifecycle_hook"], name: str, **kwargs: Any
+) -> LifecycleHook: ...
 
 
 @overload

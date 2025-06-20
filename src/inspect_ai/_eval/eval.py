@@ -469,6 +469,8 @@ async def _eval_async_inner(
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
+    from inspect_ai._util.lifecycle import emit_eval_end, emit_eval_start
+
     # only a single call to eval_async can be active at a time, this used
     # to be due to running tasks switching to the task's directory, however
     # that feature no longer exists so we may be able to revisit this
@@ -610,6 +612,7 @@ async def _eval_async_inner(
         # (w/ optional multiple models) and the other for true multi-task
         # (which requires different scheduling and UI)
         run_id = uuid()
+        await emit_eval_start(run_id, resolved_tasks)
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
 
@@ -668,6 +671,7 @@ async def _eval_async_inner(
         cleanup_sample_buffers(log_dir)
 
     finally:
+        await emit_eval_end(logs)
         _eval_async_running = False
 
     # return logs

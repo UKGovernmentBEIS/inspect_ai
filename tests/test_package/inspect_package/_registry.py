@@ -1,5 +1,6 @@
 # ruff: noqa: F401
 
+from inspect_ai._util.lifecycle import lifecycle_hook
 from inspect_ai.model import modelapi
 from inspect_ai.util import sandboxenv
 
@@ -25,3 +26,10 @@ def podman():
     from .sandboxenv.podman import PodmanSandboxEnvironment
 
     return PodmanSandboxEnvironment
+
+
+@lifecycle_hook(name="custom_hook")
+def custom_hook_plugin():
+    from .lifecycle.custom import CustomLifecycleHook
+
+    return CustomLifecycleHook

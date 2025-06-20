@@ -432,6 +432,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
 
+    # TODO: Should we be emitting "eval complete" event here instead?
     try:
         if (
             await send_telemetry("eval_log_location", eval_log.location)
@@ -537,6 +538,8 @@ async def task_run_sample(
     working_limit: int | None,
     semaphore: anyio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
+    from inspect_ai._util.lifecycle import emit_sample_scored, emit_sample_started
+
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
         previous_sample = sample_source(sample.id, state.epoch)
@@ -679,16 +682,17 @@ async def task_run_sample(
                         # mark started
                         active.started = datetime.now().timestamp()
 
+                        sample_summary = EvalSampleSummary(
+                            id=sample_id,
+                            epoch=state.epoch,
+                            input=sample.input,
+                            target=sample.target,
+                            metadata=sample.metadata or {},
+                        )
+
                         if logger is not None:
-                            await logger.start_sample(
-                                EvalSampleSummary(
-                                    id=sample_id,
-                                    epoch=state.epoch,
-                                    input=sample.input,
-                                    target=sample.target,
-                                    metadata=sample.metadata or {},
-                                )
-                            )
+                            await logger.start_sample(sample_summary)
+                        await emit_sample_started(sample_summary)
 
                         # set progress for plan then run it
                         async with span("solvers"):
@@ -828,29 +832,29 @@ async def task_run_sample(
         if not error or (retry_on_error == 0):
             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-            # log it
-            if logger is not None:
-                # if we are logging images then be sure to base64 images injected by solvers
-                if log_images:
-                    state = (await states_with_base64_content([state]))[0]
+            # if we are logging images then be sure to base64 images injected by solvers
+            if log_images:
+                state = (await states_with_base64_content([state]))[0]
 
-                # otherwise ensure there are no base64 images in sample or messages
-                else:
-                    sample = sample_without_base64_content(sample)
-                    state = state_without_base64_content(state)
+            # otherwise ensure there are no base64 images in sample or messages
+            else:
+                sample = sample_without_base64_content(sample)
+                state = state_without_base64_content(state)
 
-                # log the sample
-                await log_sample(
-                    start_time=start_time,
-                    logger=logger,
-                    sample=sample,
-                    state=state,
-                    scores=results,
-                    error=error,
-                    limit=limit,
-                    error_retries=error_retries,
-                    log_images=log_images,
-                )
+            # log the sample
+            eval_sample = await log_sample(
+                start_time=start_time,
+                logger=logger,
+                sample=sample,
+                state=state,
+                scores=results,
+                error=error,
+                limit=limit,
+                error_retries=error_retries,
+                log_images=log_images,
+            )
+
+            await emit_sample_scored(eval_sample.summary())
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -908,7 +912,7 @@ async def task_run_sample(
 
 async def log_sample(
     start_time: float | None,
-    logger: TaskLogger,
+    logger: TaskLogger | None,
     sample: Sample,
     state: TaskState,
     scores: dict[str, SampleScore],
@@ -916,7 +920,7 @@ async def log_sample(
     limit: EvalSampleLimit | None,
     error_retries: list[EvalError],
     log_images: bool,
-) -> None:
+) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
     if id is None:
@@ -955,7 +959,12 @@ async def log_sample(
         limit=limit,
     )
 
-    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
+    if logger is not None:
+        await logger.complete_sample(
+            condense_sample(eval_sample, log_images), flush=True
+        )
+
+    return eval_sample
 
 
 async def resolve_dataset(

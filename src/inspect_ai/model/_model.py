@@ -490,6 +490,7 @@ class Model:
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
     ) -> tuple[ModelOutput, BaseModel]:
+        from inspect_ai._util.lifecycle import emit_model_usage
         from inspect_ai.log._samples import track_active_model_event
         from inspect_ai.log._transcript import ModelEvent
 
@@ -686,6 +687,9 @@ class Model:
                 await send_telemetry(
                     "model_usage",
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
+                )
+                await emit_model_usage(
+                    model_name=str(self), usage=output.usage, call_duration=output.time
                 )
 
             if cache and cache_entry:

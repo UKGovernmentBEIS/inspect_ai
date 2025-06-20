@@ -181,3 +181,6 @@ node_modules/
 /.luarc.json
 /.Rproj.user
 *.Rproj
+
+# Weight & Biases
+wandb/
