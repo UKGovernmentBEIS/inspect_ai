@@ -4,7 +4,7 @@ import time
 import uuid
 from abc import abstractmethod
 from logging import getLogger
-from typing import Any, Generic, TypeAlias, TypeVar
+from typing import Any, Generic, TypeVar
 
 import anyio
 import anyio.abc
@@ -50,6 +50,7 @@ Not all model providers need this
 class Batch(Generic[ResponseT]):
     id: str
     requests: dict[str, BatchRequest[ResponseT]]
+    retry_count: int = 0
 
 
 class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
@@ -128,6 +129,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._queue = []
 
         batch_id = await self._safe_create_batch(batch_requests)
+        if batch_id is None:
+            return
+
         self._inflight_batches[batch_id] = Batch(
             id=batch_id,
             requests={request.custom_id: request for request in batch_requests},
@@ -153,22 +157,35 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     # Any exception that escapes a _safe_* method should be considered a coding
     # error and bring down the eval.
 
-    async def _safe_create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _safe_create_batch(
+        self, batch: list[BatchRequest[ResponseT]]
+    ) -> str | None:
         try:
             return await self._create_batch(batch)
         except Exception as e:
-            logger.error(f"Error creating batch: {e}", exc_info=True)
+            logger.error(
+                f"Error creating batch, failing all {len(batch)} requests in batch",
+                exc_info=e,
+            )
             await self._fail_all_requests(batch, e)
-            raise
+            return None
 
     async def _safe_check_batch(
         self, batch: Batch[ResponseT]
     ) -> CompletedBatchInfoT | None:
         try:
-            return await self._check_batch(batch)
+            result = await self._check_batch(batch)
+            batch.retry_count = 0
+            return result
         except Exception as e:
-            logger.error(f"Error checking batch {batch.id}: {e}", exc_info=True)
-            return None
+            logger.error(f"Error checking batch {batch.id}", exc_info=e)
+            batch.retry_count += 1
+            if batch.retry_count >= 3:
+                logger.error(
+                    f"Batch {batch.id} failed after 3 retries, failing all {len(batch.requests)} requests in batch",
+                )
+                await self._fail_all_requests([*batch.requests.values()], e)
+                del self._inflight_batches[batch.id]
 
     async def _safe_handle_batch_result(
         self,
@@ -177,13 +194,19 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     ) -> None:
         try:
             await self._handle_batch_result(batch, completion_info)
+            batch.retry_count = 0
         except Exception as e:
             logger.error(
-                f"Error handling batch {batch.id} result {completion_info}: {e}",
-                exc_info=True,
+                f"Error handling batch {batch.id} result {completion_info}",
+                exc_info=e,
             )
-            await self._fail_all_requests(list(batch.requests.values()), e)
-            raise
+            batch.retry_count += 1
+            if batch.retry_count >= 3:
+                logger.error(
+                    f"Batch {batch.id} failed after 3 retries, failing all {len(batch.requests)} requests in batch",
+                )
+                await self._fail_all_requests([*batch.requests.values()], e)
+                batch.requests = {}
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:

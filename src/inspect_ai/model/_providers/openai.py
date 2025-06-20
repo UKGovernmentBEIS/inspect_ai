@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import tempfile
@@ -17,6 +18,7 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -146,27 +148,38 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
     ) -> None:
         result_uris = completion_info["result_uris"]
 
-        for result_uri in result_uris:
-            # TODO: Add error handling so that if one uri fails, the others can
-            # still succeed
-            batch_file = await self.client.files.content(result_uri)
-            for line in (await batch_file.aread()).decode().splitlines():
-                result: dict[str, Any] = json.loads(line)
-                request_id = result.pop("custom_id")
-                if not request_id:
-                    # TODO: Does this happen? Seems like a coding error if it does.
-                    # either ours or openai's
-                    #
-                    continue
+        await tg_collect(
+            [
+                functools.partial(self._handle_batch_result_file, batch, file_id)
+                for file_id in result_uris
+            ]
+        )
 
-                batch_request = batch.requests.pop(request_id)
-                await batch_request.result_stream.send(
-                    ChatCompletion.model_validate(result["response"]["body"])
-                    if (error := result.get("error")) is None
-                    else self.client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                        httpx.Response(status_code=error["code"], text=error["message"])
-                    )
+    async def _handle_batch_result_file(
+        self,
+        batch: Batch[ChatCompletion],
+        file_id: str,
+    ) -> None:
+        # TODO: Add error handling so that if one uri fails, the others can
+        # still succeed
+        batch_file = await self.client.files.content(file_id)
+        for line in (await batch_file.aread()).decode().splitlines():
+            result: dict[str, Any] = json.loads(line)
+            request_id = result.pop("custom_id")
+            if not request_id:
+                # TODO: Does this happen? Seems like a coding error if it does.
+                # either ours or openai's
+                #
+                continue
+
+            batch_request = batch.requests.pop(request_id)
+            await batch_request.result_stream.send(
+                ChatCompletion.model_validate(result["response"]["body"])
+                if (error := result.get("error")) is None
+                else self.client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                    httpx.Response(status_code=error["code"], text=error["message"])
                 )
+            )
 
     def _get_request_failed_error(
         self, request: BatchRequest[ChatCompletion]
