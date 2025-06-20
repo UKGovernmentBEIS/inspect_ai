@@ -237,4 +237,4 @@ from inspect_ai.log import transcript
 transcript().info("custom *markdown* content")
 ```
 
-This code will no-op when running outside of Inspect to it is safe to include in agents that are also run in other environments.
+This code will no-op when running outside of Inspect, so it is safe to include in agents that are also run in other environments.
