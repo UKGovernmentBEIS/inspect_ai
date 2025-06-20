@@ -125,7 +125,9 @@ class Plan(Solver):
                     await self.cleanup(state)
                     check_sample_interrupt()
                 except Exception as ex:
-                    logger.warning(f"Exception occurred during plan cleanup: {ex}")
+                    logger.warning(
+                        f"Exception occurred during plan cleanup: {ex}", exc_info=ex
+                    )
 
         return state
 
