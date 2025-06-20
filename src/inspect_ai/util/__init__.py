@@ -19,6 +19,16 @@ from ._concurrency import concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_counter, display_type
 from ._json import JSONSchema, JSONType, json_schema
+
+# TODO: Causing circular import: eval -> task -> agent -> tools -> lifecycle -> eval
+# from inspect_ai.util._lifecycle import (
+#     EvalEndEvent,
+#     EvalStartEvent,
+#     LifecycleHook,
+#     ModelUsageEvent,
+#     SampleScoredEvent,
+#     lifecycle_hook,
+# )
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
@@ -97,4 +107,10 @@ __all__ = [
     "trace_message",
     "RegistryType",
     "registry_create",
+    # "lifecycle_hook",
+    # "LifecycleHook",
+    # "EvalStartEvent",
+    # "EvalEndEvent",
+    # "SampleScoredEvent",
+    # "ModelUsageEvent",
 ]

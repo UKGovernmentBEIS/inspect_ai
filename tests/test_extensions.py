@@ -11,6 +11,7 @@ from inspect_ai.model import get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util._lifecycle import emit_eval_start
 
 
 @pytest.mark.asyncio
@@ -107,3 +108,12 @@ def test_supports_str_config():
     assert recreated == spec
     assert recreated.config == spec.config
     assert isinstance(recreated.config, str)
+
+
+async def test_lifecycle_hooks():
+    ensure_test_package_installed()
+    module = importlib.import_module("inspect_package.lifecycle.custom")
+
+    await emit_eval_start(run_id="42", tasks=[])
+
+    assert module.run_ids == ["42"]

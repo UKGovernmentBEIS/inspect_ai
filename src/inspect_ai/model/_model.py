@@ -492,6 +492,7 @@ class Model:
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.log._samples import track_active_model_event
         from inspect_ai.log._transcript import ModelEvent
+        from inspect_ai.util._lifecycle import emit_model_usage
 
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
@@ -686,6 +687,9 @@ class Model:
                 await send_telemetry(
                     "model_usage",
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
+                )
+                await emit_model_usage(
+                    model_name=str(self), usage=output.usage, call_duration=output.time
                 )
 
             if cache and cache_entry:
