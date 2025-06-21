@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
+
 ## v0.3.106 (21 June 2025)
 
 - OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
