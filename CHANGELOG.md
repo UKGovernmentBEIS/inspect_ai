@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.106 (21 June 2025)
 
 - OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
 - Groq: Capture `executed_tools` field as model output metadata.
