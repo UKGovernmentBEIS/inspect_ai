@@ -468,6 +468,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
     )
     @click.option(
+        "--batch-size",
+        type=int,
+        help="Batch size. OpenAI and Anthropic only.",
+        envvar="INSPECT_EVAL_BATCH_SIZE",
+    )
+    @click.option(
+        "--batch-max-send-delay",
+        type=float,
+        help="Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only.",
+        envvar="INSPECT_EVAL_BATCH_MAX_SEND_DELAY",
+    )
+    @click.option(
         "--log-format",
         type=click.Choice(["eval", "json"], case_sensitive=False),
         envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
@@ -542,6 +554,8 @@ def eval_command(
     reasoning_summary: Literal["concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    batch_size: int | None,
+    batch_max_send_delay: float | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
