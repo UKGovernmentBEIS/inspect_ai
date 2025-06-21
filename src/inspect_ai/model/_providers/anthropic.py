@@ -428,13 +428,13 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
-        if streaming:
-            async with self.client.messages.stream(**request) as stream:
-                head_message = await stream.get_final_message()
-        elif config.batch is not False and config.batch_size:
+        if config.batch is not False and config.batch_size:
             if not self._batcher:
                 self._batcher = AnthropicBatcher(self.client, config)
             head_message = await self._batcher.generate(request, config)
+        elif streaming:
+            async with self.client.messages.stream(**request) as stream:
+                head_message = await stream.get_final_message()
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
