@@ -1,0 +1,29 @@
+.pager {
+  --bs-pagination-padding-x: 0.5em;
+  --bs-pagination-padding-y: 0.15em;
+  --bs-pagination-font-size: 0.8rem;
+  --bs-pagination-padding-x: 0.5em;
+  --bs-pagination-padding-y: 0;
+  --bs-pagination-border-radius: var(--bs-border-radius);
+  margin-bottom: 0;
+}
+
+.item:not(:global(.disabled)) {
+  cursor: pointer;
+}
+
+.item {
+  margin-left: 0.2em;
+  margin-right: 0.2em;
+}
+
+.item:first-child,
+.item:last-child {
+  --bs-pagination-padding-x: 0.3em;
+}
+
+.item:first-child :global(.ii:before),
+.item:last-child :global(.ii:before) {
+  margin-top: -2px;
+  font-size: 0.8em;
+}

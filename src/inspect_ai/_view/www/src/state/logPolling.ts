@@ -184,7 +184,9 @@ export function createLogPolling(
   // Method to call when component unmounts
   const cleanup = () => {
     log.debug(`Cleanup`);
-    abortController.abort();
+    if (abortController) {
+      abortController.abort();
+    }
     stopPolling();
   };
 

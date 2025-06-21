@@ -1,11 +1,11 @@
 import { EvalLog, EvalSample } from "../../@types/log";
+import { encodePathParts } from "../../utils/uri";
 import {
   openRemoteLogFile,
   RemoteLogFile,
   SampleNotFoundError,
 } from "../remote/remoteLogFile";
 import { FileSizeLimitError } from "../remote/remoteZipFile";
-import { encodePathParts } from "./api-shared";
 import {
   ClientAPI,
   EvalSummary,

@@ -1,0 +1,15 @@
+.error {
+  color: var(--bs-danger);
+}
+
+.started {
+  color: var(--bs-secondary);
+}
+
+.success {
+  color: var(--bs-success);
+}
+
+.cancelled {
+  color: var(--bs-secondary);
+}

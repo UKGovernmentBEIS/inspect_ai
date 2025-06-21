@@ -1,0 +1,20 @@
+.nameCell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.fileLink {
+  color: var(--bs-body-color);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.fileLink:hover {
+  color: var(--bs-link-hover-color);
+  text-decoration: underline;
+}

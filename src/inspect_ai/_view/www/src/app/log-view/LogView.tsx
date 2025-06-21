@@ -9,7 +9,6 @@ import {
 } from "react";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { TabPanel, TabSet } from "../../components/TabSet";
-import { Navbar } from "./navbar/Navbar";
 
 import { useEvalSpec, useRefreshLog } from "../../state/hooks";
 import { useStore } from "../../state/store";
@@ -20,6 +19,7 @@ import { useJsonTabConfig } from "./tabs/JsonTab";
 import { useModelsTab } from "./tabs/ModelsTab";
 import { useSamplesTabConfig } from "./tabs/SamplesTab";
 import { useTaskTabConfig } from "./tabs/TaskTab";
+import { TitleView } from "./title-view/TitleView";
 import { TabDescriptor } from "./types";
 
 export const LogView: FC = () => {
@@ -33,8 +33,6 @@ export const LogView: FC = () => {
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,
   );
-  const logs = useStore((state) => state.logs.logs);
-  const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
 
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
@@ -111,14 +109,13 @@ export const LogView: FC = () => {
 
     return (
       <Fragment>
-        <Navbar
+        <TitleView
           evalSpec={evalSpec}
           evalPlan={selectedLogSummary?.plan}
           evalResults={selectedLogSummary?.results}
           runningMetrics={runningMetrics}
           evalStats={selectedLogSummary?.stats}
           status={selectedLogSummary?.status}
-          showToggle={showToggle}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
           <div className={clsx("log-detail", styles.tabContainer)}>

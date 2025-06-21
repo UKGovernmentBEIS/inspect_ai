@@ -5,6 +5,7 @@ export const filename = (path: string): string => {
   if (!path) {
     return "";
   }
+  path = path.endsWith("/") ? path.slice(0, -1) : path;
 
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -22,10 +23,21 @@ export const filename = (path: string): string => {
   }
 };
 
+export const basename = (path: string): string => {
+  if (!path) {
+    return "";
+  }
+  path = path.endsWith("/") ? path.slice(0, -1) : path;
+  const pathparts = path.split("/");
+  return pathparts.slice(-1)[0];
+};
+
 /**
  * Extracts the directory name from a given path.
  */
 export const dirname = (path: string): string => {
+  path = path.endsWith("/") ? path.slice(0, -1) : path;
+
   const pathparts = path.split("/");
 
   // If the path ends with a filename (or no slashes), remove the last part (filename)
@@ -37,4 +49,20 @@ export const dirname = (path: string): string => {
 
   // If no slashes, return empty string (no directory)
   return "";
+};
+
+/**
+ * Tests whether the given path is in the specified directory.
+ */
+export const isInDirectory = (path: string, directory: string): boolean => {
+  directory = directory.endsWith("/") ? directory.slice(0, -1) : directory;
+
+  return dirname(path) === directory;
+};
+
+export const ensureTrailingSlash = (path?: string): string => {
+  if (!path) {
+    return "";
+  }
+  return path.endsWith("/") ? path : path + "/";
 };

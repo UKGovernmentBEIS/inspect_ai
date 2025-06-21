@@ -1,7 +1,12 @@
+import {
+  ColumnFiltersState,
+  ColumnResizeMode,
+  SortingState,
+} from "@tanstack/react-table";
+import { EvalLog } from "../@types/log";
 import { LogsState } from "../app/types";
-import { EvalLogHeader, LogFiles } from "../client/api/types";
+import { EvalLogHeader, LogFile, LogFiles } from "../client/api/types";
 import { createLogger } from "../utils/logger";
-import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
@@ -17,6 +22,7 @@ export interface LogsSlice {
     // Update State
     setLogs: (logs: LogFiles) => void;
     setLogHeaders: (headers: Record<string, EvalLogHeader>) => void;
+    loadHeaders: (logs: LogFile[]) => Promise<EvalLog[]>;
     setHeadersLoading: (loading: boolean) => void;
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
@@ -26,6 +32,15 @@ export interface LogsSlice {
     refreshLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
+
+    setSorting: (sorting: SortingState) => void;
+    setFiltering: (filtering: ColumnFiltersState) => void;
+    setGlobalFilter: (globalFilter: string) => void;
+    setColumnResizeMode: (mode: ColumnResizeMode) => void;
+    setColumnSize: (columnId: string, size: number) => void;
+    setFilteredCount: (count: number) => void;
+    setWatchedLogs: (logs: LogFile[]) => void;
+    clearWatchedLogs: () => void;
   };
 }
 
@@ -35,6 +50,7 @@ const initialState: LogsState = {
   headersLoading: false,
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
+  listing: {},
 };
 
 export const createLogsSlice = (
@@ -42,8 +58,6 @@ export const createLogsSlice = (
   get: () => StoreState,
   _store: any,
 ): [LogsSlice, () => void] => {
-  const logsPolling = createLogsPolling(get, set);
-
   const slice = {
     // State
     logs: initialState,
@@ -58,22 +72,20 @@ export const createLogsSlice = (
               ? logs.files[state.logs.selectedLogIndex]?.name
               : undefined;
         });
-
-        // If we have files in the logs, load the headers
-        if (logs.files.length > 0) {
-          // ensure state is updated first
-          setTimeout(() => {
-            const currentState = get();
-            if (!currentState.logs.headersLoading) {
-              logsPolling.startPolling(logs);
-            }
-          }, 100);
-        }
       },
       setLogHeaders: (headers: Record<string, EvalLogHeader>) =>
         set((state) => {
           state.logs.logHeaders = headers;
         }),
+      loadHeaders: async (logs: LogFile[]) => {
+        const api = get().api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return [];
+        }
+        log.debug("LOADING LOG HEADERS");
+        return await api.get_log_headers(logs.map((log) => log.name));
+      },
       setHeadersLoading: (loading: boolean) =>
         set((state) => {
           state.logs.headersLoading = loading;
@@ -166,6 +178,49 @@ export const createLogsSlice = (
             idx !== undefined && idx > -1 ? idx : 0,
           );
         }
+      },
+      setSorting: (sorting: SortingState) => {
+        set((state) => {
+          state.logs.listing.sorting = sorting;
+        });
+      },
+      setFiltering: (filtering: ColumnFiltersState) => {
+        set((state) => {
+          state.logs.listing.filtering = filtering;
+        });
+      },
+      setGlobalFilter: (globalFilter: string) => {
+        set((state) => {
+          state.logs.listing.globalFilter = globalFilter;
+        });
+      },
+      setColumnResizeMode: (mode: ColumnResizeMode) => {
+        set((state) => {
+          state.logs.listing.columnResizeMode = mode;
+        });
+      },
+      setColumnSize: (columnId: string, size: number) => {
+        set((state) => {
+          if (!state.logs.listing.columnSizes) {
+            state.logs.listing.columnSizes = {};
+          }
+          state.logs.listing.columnSizes[columnId] = size;
+        });
+      },
+      setFilteredCount: (count: number) => {
+        set((state) => {
+          state.logs.listing.filteredCount = count;
+        });
+      },
+      setWatchedLogs: (logs: LogFile[]) => {
+        set((state) => {
+          state.logs.listing.watchedLogs = logs;
+        });
+      },
+      clearWatchedLogs: () => {
+        set((state) => {
+          state.logs.listing.watchedLogs = [];
+        });
       },
     },
   } as const;

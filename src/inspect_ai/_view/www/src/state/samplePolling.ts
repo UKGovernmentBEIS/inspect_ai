@@ -241,8 +241,10 @@ export function createSamplePolling(
   };
 
   const cleanup = () => {
-    log.debug(`CLEANUP`);
-    abortController.abort();
+    log.debug(`Cleanup`);
+    if (abortController) {
+      abortController.abort();
+    }
     stopPolling();
   };
 

@@ -1,10 +1,10 @@
 import clsx from "clsx";
 import { FC, memo, RefObject } from "react";
-import { useParams } from "react-router-dom";
 import { Events } from "../../../@types/log";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
 import { ApplicationIcons } from "../../appearance/icons";
+import { useLogRouteParams } from "../../routing/url";
 import { TranscriptOutline } from "./outline/TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
@@ -29,7 +29,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     events,
     running === true,
   );
-  const { logPath } = useParams<{ logPath: string }>();
+  const { logPath } = useLogRouteParams();
 
   const [collapsed, setCollapsed] = useCollapsedState(
     `transcript-panel-${logPath || "na"}`,

@@ -8,7 +8,7 @@ import { formatNumber } from "../../utils/format";
 import { isJson } from "../../utils/json";
 import { ApplicationIcons } from "../appearance/icons";
 import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
-import { MetaDataView } from "./MetaDataView";
+import { MetaDataGrid } from "./MetaDataGrid";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer, RenderOptions } from "./types";
 
@@ -190,12 +190,11 @@ const contentRenderers: (
         const arrayRendered = renderObject ? (
           renderObject(arrayMap)
         ) : (
-          <MetaDataView
+          <MetaDataGrid
             id={id}
             className={"font-size-small"}
             entries={arrayMap}
-            tableOptions="borderless,sm"
-            compact={true}
+            plain={true}
           />
         );
         return { rendered: arrayRendered };
@@ -283,12 +282,11 @@ const contentRenderers: (
         } else {
           return {
             rendered: (
-              <MetaDataView
+              <MetaDataGrid
                 id={id}
-                className={"text-size-smaller"}
-                entries={entry.value}
-                tableOptions="borderless,sm"
-                compact
+                className={"font-size-small"}
+                entries={entry.value as Record<string, unknown>}
+                plain={true}
               />
             ),
           };

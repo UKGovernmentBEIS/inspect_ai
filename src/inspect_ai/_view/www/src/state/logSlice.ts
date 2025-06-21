@@ -54,6 +54,9 @@ export interface LogSlice {
 
     // Poll the currently selected log
     pollLog: () => Promise<void>;
+
+    // Clear the currently loaded log
+    clearLog: () => void;
   };
 }
 
@@ -195,6 +198,12 @@ export const createLogSlice = (
           log.error("Error loading log:", error);
           throw error;
         }
+      },
+
+      clearLog: () => {
+        set((state) => {
+          state.log.loadedLog = undefined;
+        });
       },
 
       pollLog: async () => {
