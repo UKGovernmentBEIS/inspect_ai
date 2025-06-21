@@ -301,17 +301,44 @@ class SampleBufferDatabase(SampleBuffer):
     @contextmanager
     def _get_connection(self, *, write: bool = False) -> Iterator[Connection]:
         """Get a database connection."""
-        conn = sqlite3.connect(self.db_path, timeout=10)
-        conn.row_factory = sqlite3.Row  # Enable row factory for named columns
+        max_retries = 5
+        retry_delay = 0.1
+
+        conn: Connection | None = None
+        last_error: Exception | None = None
+
+        for attempt in range(max_retries):
+            try:
+                conn = sqlite3.connect(self.db_path, timeout=30)
+                conn.row_factory = sqlite3.Row  # enable row factory for named columns
+
+                # Enable foreign key constraints
+                conn.execute("PRAGMA foreign_keys = ON")
+
+                # concurrency setup
+                conn.execute("PRAGMA busy_timeout=30000")
+                conn.execute("PRAGMA synchronous=OFF")
+                conn.execute("PRAGMA cache_size=-64000")
+                conn.execute("PRAGMA temp_store=MEMORY")
+
+                break
+
+            except sqlite3.OperationalError as e:
+                last_error = e
+                if "locked" in str(e) and attempt < max_retries - 1:
+                    if conn:
+                        conn.close()
+                    time.sleep(retry_delay * (2**attempt))
+                    continue
+                raise
+
+        # ensure we have a connection
+        if conn is None:
+            raise sqlite3.OperationalError(
+                f"Failed to establish connection after {max_retries} attempts"
+            ) from last_error
+
         try:
-            # Enable foreign key constraints
-            conn.execute("PRAGMA foreign_keys = ON")
-
-            # concurrency setup
-            conn.execute("PRAGMA journal_mode=MEMORY")
-            conn.execute("PRAGMA busy_timeout=10000")
-            conn.execute("PRAGMA synchronous=OFF")
-
             # do work
             yield conn
 
