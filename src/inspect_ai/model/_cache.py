@@ -148,13 +148,16 @@ class CacheEntry:
 
 
 def _cache_key(entry: CacheEntry) -> str:
+    config_dump = entry.config.model_dump(
+        # Exclude fields that don't affect the model output
+        exclude=set(["max_retries", "timeout", "max_connections"])
+    )
+    for k in [*config_dump]:
+        if k.startswith("batch_"):
+            config_dump.pop(k)
+
     components = [
-        (
-            entry.config.model_dump(
-                # Exclude fields that don't affect the model output
-                exclude=set(["max_retries", "timeout", "max_connections"])
-            )
-        ),
+        config_dump,
         ",".join(
             [str(message.model_dump(exclude=set(["id"]))) for message in entry.input]
         ),
