@@ -65,6 +65,7 @@
     "@mui/material": "^7.1.0",
     "@mui/x-tree-view": "^8.3.1",
     "@popperjs/core": "^2.11.8",
+    "@tanstack/react-table": "^8.21.3",
     "ansi-output": "^0.0.9",
     "asciinema-player": "^3.10.0",
     "bootstrap": "^5.3.6",
