@@ -1903,7 +1903,11 @@
             "reasoning_summary": null,
             "reasoning_history": null,
             "response_schema": null,
-            "extra_body": null
+            "extra_body": null,
+            "batch": null,
+            "batch_size": null,
+            "batch_max_send_delay": null,
+            "batch_tick": null
           }
         }
       },
@@ -3329,6 +3333,54 @@
           ],
           "default": null,
           "title": "Extra Body"
+        },
+        "batch": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch"
+        },
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch Size"
+        },
+        "batch_max_send_delay": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch Max Send Delay"
+        },
+        "batch_tick": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch Tick"
         }
       },
       "title": "GenerateConfig",
@@ -3360,7 +3412,11 @@
         "reasoning_summary",
         "reasoning_history",
         "response_schema",
-        "extra_body"
+        "extra_body",
+        "batch",
+        "batch_size",
+        "batch_max_send_delay",
+        "batch_tick"
       ],
       "additionalProperties": false
     },
