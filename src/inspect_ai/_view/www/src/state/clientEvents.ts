@@ -1,9 +1,9 @@
 import { useCallback, useEffect } from "react";
 import { LogFile } from "../client/api/types";
 import { createLogger } from "../utils/logger";
+import { clientEventsService } from "./clientEventsService";
 import { useLogs } from "./hooks";
 import { useStore } from "./store";
-import { clientEventsService } from "./clientEventsService";
 
 const log = createLogger("Client-Events");
 
@@ -65,7 +65,6 @@ export function useClientEvents() {
   // Cleanup when hook unmounts
   useEffect(() => {
     return () => {
-      console.log("useClientEvents cleanup");
       cleanup();
     };
   }, [cleanup]);

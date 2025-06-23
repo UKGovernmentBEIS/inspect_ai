@@ -24696,6 +24696,88 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       ) });
     };
+    const log$3 = createLogger("Client-Events-Service");
+    const kRetries = 10;
+    const kPollingInterval = 5;
+    const kRefreshEvent = "refresh-evals";
+    class ClientEventsService {
+      constructor() {
+        __publicField(this, "currentPolling", null);
+        __publicField(this, "abortController", null);
+        __publicField(this, "isRefreshing", false);
+        __publicField(this, "pendingLogFiles", /* @__PURE__ */ new Set());
+        __publicField(this, "onRefreshCallback", null);
+      }
+      setRefreshCallback(callback) {
+        this.onRefreshCallback = callback;
+      }
+      async refreshPendingLogFiles() {
+        if (this.isRefreshing || !this.onRefreshCallback) {
+          return;
+        }
+        do {
+          try {
+            const logFiles = [...this.pendingLogFiles];
+            this.pendingLogFiles.clear();
+            this.isRefreshing = true;
+            await this.onRefreshCallback(logFiles);
+          } finally {
+            this.isRefreshing = false;
+          }
+        } while (this.pendingLogFiles.size > 0);
+      }
+      async refreshLogFiles(logFiles) {
+        logFiles.forEach((file) => this.pendingLogFiles.add(file));
+        await this.refreshPendingLogFiles();
+      }
+      startPolling(logFiles, api2) {
+        this.stopPolling();
+        this.abortController = new AbortController();
+        this.currentPolling = createPolling(
+          `Client-Events`,
+          async () => {
+            var _a2, _b2;
+            if ((_a2 = this.abortController) == null ? void 0 : _a2.signal.aborted) {
+              log$3.debug(`Component unmounted, stopping poll for client events`);
+              return false;
+            }
+            log$3.debug(`Polling client events`);
+            const events = await (api2 == null ? void 0 : api2.client_events());
+            log$3.debug(`Received events`, events);
+            if ((_b2 = this.abortController) == null ? void 0 : _b2.signal.aborted) {
+              log$3.debug(`Polling aborted, stopping poll for client events`);
+              return false;
+            }
+            if ((events || []).includes(kRefreshEvent)) {
+              await this.refreshLogFiles(logFiles);
+            }
+            return true;
+          },
+          {
+            maxRetries: kRetries,
+            interval: kPollingInterval
+          }
+        );
+        this.currentPolling.start();
+      }
+      stopPolling() {
+        if (this.currentPolling) {
+          this.currentPolling.stop();
+          this.currentPolling = null;
+        }
+        if (this.abortController) {
+          this.abortController.abort();
+          this.abortController = null;
+        }
+      }
+      cleanup() {
+        log$3.debug(`Cleanup`);
+        this.stopPolling();
+        this.pendingLogFiles.clear();
+        this.onRefreshCallback = null;
+      }
+    }
+    const clientEventsService = new ClientEventsService();
     const arrayToString = (val) => {
       val = Array.isArray(val) ? val : [val];
       return val.join(", ");
@@ -41800,7 +41882,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function Hn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, mt.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
-    const log$3 = createLogger("scrolling");
+    const log$2 = createLogger("scrolling");
     function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable2 = true) {
       const getScrollPosition = useStore(
         (state) => state.appActions.getScrollPosition
@@ -41812,7 +41894,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         debounce$2((e) => {
           const target2 = e.target;
           const position = target2.scrollTop;
-          log$3.debug(`Storing scroll position`, elementKey, position);
+          log$2.debug(`Storing scroll position`, elementKey, position);
           setScrollPosition(elementKey, position);
         }, delay),
         [elementKey, setScrollPosition, delay]
@@ -41836,15 +41918,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!element || !scrollable2) {
           return;
         }
-        log$3.debug(`Restore Scroll Hook`, elementKey);
+        log$2.debug(`Restore Scroll Hook`, elementKey);
         const savedPosition = getScrollPosition(elementKey);
         if (savedPosition !== void 0) {
-          log$3.debug(`Restoring scroll position`, savedPosition);
+          log$2.debug(`Restoring scroll position`, savedPosition);
           const tryRestoreScroll = () => {
             if (element.scrollHeight > element.clientHeight) {
               if (element.scrollTop !== savedPosition) {
                 element.scrollTop = savedPosition;
-                log$3.debug(`Scroll position restored to ${savedPosition}`);
+                log$2.debug(`Scroll position restored to ${savedPosition}`);
               }
               return true;
             }
@@ -41856,7 +41938,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             const pollForRender = () => {
               if (tryRestoreScroll() || attempts >= maxAttempts) {
                 if (attempts >= maxAttempts) {
-                  log$3.debug(
+                  log$2.debug(
                     `Failed to restore scroll after ${maxAttempts} attempts`
                   );
                 }
@@ -41871,13 +41953,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (element.addEventListener) {
           element.addEventListener("scroll", handleScroll);
         } else {
-          log$3.warn("Element has no way to add event listener", element);
+          log$2.warn("Element has no way to add event listener", element);
         }
         return () => {
           if (element.removeEventListener) {
             element.removeEventListener("scroll", handleScroll);
           } else {
-            log$3.warn("Element has no way to remove event listener", element);
+            log$2.warn("Element has no way to remove event listener", element);
           }
         };
       }, [elementKey, elementRef, handleScroll]);
@@ -41896,14 +41978,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const debouncedFnRef = reactExports.useRef(null);
       const handleStateChange = reactExports.useCallback(
         (state) => {
-          log$3.debug(`Storing list state: [${elementKey}]`, state);
+          log$2.debug(`Storing list state: [${elementKey}]`, state);
           setListPosition(elementKey, state);
         },
         [elementKey, setListPosition]
       );
       reactExports.useEffect(() => {
         debouncedFnRef.current = debounce$2((isScrolling2) => {
-          log$3.debug("List scroll", isScrolling2);
+          log$2.debug("List scroll", isScrolling2);
           const element = virtuosoRef.current;
           if (!element) {
             return;
@@ -47342,7 +47424,7 @@ categories: ${categories.join(" ")}`;
       });
       return [...logSamples, ...uniquePendingSamples];
     };
-    const log$2 = createLogger("hooks");
+    const log$1 = createLogger("hooks");
     const useEvalSpec = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       return selectedLogSummary == null ? void 0 : selectedLogSummary.eval;
@@ -47536,7 +47618,7 @@ categories: ${categories.join(" ")}`;
         var _a2;
         const isCollapsed = collapsed2 !== null && ((_a2 = collapsed2[scope]) == null ? void 0 : _a2[id]) === true;
         const set2 = (value2) => {
-          log$2.debug("Set collapsed", id, value2);
+          log$1.debug("Set collapsed", id, value2);
           collapseEvent(scope, id, value2);
         };
         return [isCollapsed, set2];
@@ -47571,7 +47653,7 @@ categories: ${categories.join(" ")}`;
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
       return reactExports.useMemo(() => {
         const set2 = (value2) => {
-          log$2.debug("Set collapsed", id, scope, value2);
+          log$1.debug("Set collapsed", id, scope, value2);
           setCollapsed(stateId, value2);
         };
         return [collapsed2, set2];
@@ -47592,7 +47674,7 @@ categories: ${categories.join(" ")}`;
           isFirstRender.current = false;
           return;
         }
-        log$2.debug("clear message (eval)", id);
+        log$1.debug("clear message (eval)", id);
         clearVisible(id);
       }, [selectedLogFile, clearVisible, id]);
       const selectedSampleIndex = useStore(
@@ -47603,14 +47685,14 @@ categories: ${categories.join(" ")}`;
           return;
         }
         if (scope === "sample") {
-          log$2.debug("clear message (sample)", id);
+          log$1.debug("clear message (sample)", id);
           clearVisible(id);
         }
       }, [selectedSampleIndex, clearVisible, id, scope]);
       return reactExports.useMemo(() => {
-        log$2.debug("visibility", id, visible2);
+        log$1.debug("visibility", id, visible2);
         const set2 = (visible22) => {
-          log$2.debug("set visiblity", id);
+          log$1.debug("set visiblity", id);
           setVisible(id, visible22);
         };
         return [visible2, set2];
@@ -47731,7 +47813,7 @@ categories: ${categories.join(" ")}`;
           setStatus({ loading: false, error: void 0 });
         };
         exec2().catch((e) => {
-          log$2.error("Error loading logs", e);
+          log$1.error("Error loading logs", e);
           setStatus({ loading: false, error: e });
         });
       }, [load, setLogs, setStatus]);
@@ -47822,92 +47904,6 @@ categories: ${categories.join(" ")}`;
         setFilteredCount
       };
     };
-    const log$1 = createLogger("Client-Events-Service");
-    const kRetries = 10;
-    const kPollingInterval = 5;
-    const kRefreshEvent = "refresh-evals";
-    class ClientEventsService {
-      constructor() {
-        __publicField(this, "currentPolling", null);
-        __publicField(this, "abortController", null);
-        __publicField(this, "isRefreshing", false);
-        __publicField(this, "pendingLogFiles", /* @__PURE__ */ new Set());
-        __publicField(this, "onRefreshCallback", null);
-      }
-      setRefreshCallback(callback) {
-        this.onRefreshCallback = callback;
-      }
-      async refreshPendingLogFiles() {
-        if (this.isRefreshing || !this.onRefreshCallback) {
-          return;
-        }
-        do {
-          try {
-            const logFiles = [...this.pendingLogFiles];
-            this.pendingLogFiles.clear();
-            this.isRefreshing = true;
-            await this.onRefreshCallback(logFiles);
-          } finally {
-            this.isRefreshing = false;
-          }
-        } while (this.pendingLogFiles.size > 0);
-      }
-      async refreshLogFiles(logFiles) {
-        logFiles.forEach((file) => this.pendingLogFiles.add(file));
-        await this.refreshPendingLogFiles();
-      }
-      startPolling(logFiles, api2) {
-        this.stopPolling();
-        console.debug(`Starting poll for client events`, logFiles);
-        this.abortController = new AbortController();
-        this.currentPolling = createPolling(
-          `Client-Events`,
-          async () => {
-            var _a2, _b2;
-            if ((_a2 = this.abortController) == null ? void 0 : _a2.signal.aborted) {
-              log$1.debug(`Component unmounted, stopping poll for client events`);
-              return false;
-            }
-            log$1.debug(`Polling client events`);
-            const events = await (api2 == null ? void 0 : api2.client_events());
-            log$1.debug(`Received events`, events);
-            if ((_b2 = this.abortController) == null ? void 0 : _b2.signal.aborted) {
-              log$1.debug(`Polling aborted, stopping poll for client events`);
-              return false;
-            }
-            console.log("poll", logFiles);
-            if ((events || []).includes(kRefreshEvent)) {
-              console.log("refresh");
-              await this.refreshLogFiles(logFiles);
-            }
-            return true;
-          },
-          {
-            maxRetries: kRetries,
-            interval: kPollingInterval
-          }
-        );
-        this.currentPolling.start();
-      }
-      stopPolling() {
-        console.log("stop polling");
-        if (this.currentPolling) {
-          this.currentPolling.stop();
-          this.currentPolling = null;
-        }
-        if (this.abortController) {
-          this.abortController.abort();
-          this.abortController = null;
-        }
-      }
-      cleanup() {
-        log$1.debug(`Cleanup`);
-        this.stopPolling();
-        this.pendingLogFiles.clear();
-        this.onRefreshCallback = null;
-      }
-    }
-    const clientEventsService = new ClientEventsService();
     const log = createLogger("Client-Events");
     function useClientEvents() {
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
@@ -47949,7 +47945,6 @@ categories: ${categories.join(" ")}`;
       }, []);
       reactExports.useEffect(() => {
         return () => {
-          console.log("useClientEvents cleanup");
           cleanup();
         };
       }, [cleanup]);

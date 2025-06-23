@@ -48,8 +48,6 @@ class ClientEventsService {
     // Stop any existing polling
     this.stopPolling();
 
-    console.debug(`Starting poll for client events`, logFiles);
-
     this.abortController = new AbortController();
 
     this.currentPolling = createPolling(
@@ -69,9 +67,7 @@ class ClientEventsService {
           return false;
         }
 
-        console.log("poll", logFiles);
         if ((events || []).includes(kRefreshEvent)) {
-          console.log("refresh");
           await this.refreshLogFiles(logFiles);
         }
 
@@ -87,7 +83,6 @@ class ClientEventsService {
   }
 
   stopPolling() {
-    console.log("stop polling");
     if (this.currentPolling) {
       this.currentPolling.stop();
       this.currentPolling = null;
