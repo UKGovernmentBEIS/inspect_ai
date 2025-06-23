@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 from logging import getLogger
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, cast
 
 import httpx
 from openai import (
@@ -463,7 +463,9 @@ class OpenAIAPI(ModelAPI):
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
         if config.batch is False or not config.batch_size:
-            return await self.client.chat.completions.create(**request)
+            return cast(
+                ChatCompletion, await self.client.chat.completions.create(**request)
+            )
 
         if not self._batcher:
             self._batcher = OpenAIBatcher(self.client, config)

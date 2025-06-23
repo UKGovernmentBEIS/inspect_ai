@@ -134,7 +134,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
             requests.append(
                 AnthropicBatchRequest(
                     custom_id=request.custom_id,
-                    params=MessageCreateParamsNonStreaming(**request.request),
+                    params=cast(MessageCreateParamsNonStreaming, request.request),
                 )
             )
 
