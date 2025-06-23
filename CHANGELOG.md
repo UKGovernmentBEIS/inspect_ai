@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
+- Inspect View: Properly wrap log configuration values in evaluation header.
 
 ## v0.3.106 (21 June 2025)
 
