@@ -12,6 +12,8 @@ import anyio.abc
 from inspect_ai._util._async import run_in_background, tg_collect
 from inspect_ai.model._generate_config import GenerateConfig
 
+DEFAULT_BATCH_TICK = 15
+
 logger = getLogger(__name__)
 
 ResponseT = TypeVar("ResponseT")
@@ -101,7 +103,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             ):
                 await self._send_batch()
 
-            await anyio.sleep(self.config.batch_tick)
+            await anyio.sleep(self.config.batch_tick or DEFAULT_BATCH_TICK)
 
         self._is_batch_worker_running = False
 

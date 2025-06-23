@@ -219,7 +219,7 @@ class GenerateConfig(BaseModel):
     batch_max_send_delay: float | None = Field(default=None)
     """Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only."""
 
-    batch_tick: float = Field(default=1)
+    batch_tick: float | None = Field(default=None)
     """Time between checking for new batch requests. OpenAI and Anthropic only."""
 
     # migrate reasoning_history as a bool
