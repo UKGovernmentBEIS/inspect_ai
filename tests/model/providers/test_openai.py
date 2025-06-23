@@ -27,7 +27,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+from inspect_ai.model._providers._openai_batch import CompletedBatchInfo, OpenAIBatcher
 from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.util.batch import Batch, BatchRequest
 
@@ -206,6 +206,7 @@ async def test_openai_batch(mocker: MockerFixture):
 
     async def stub_batches_retrieve(batch_id: str):
         nonlocal file_content_response
+        assert model._batcher is not None  # pyright: ignore[reportPrivateUsage]
         requests = model._batcher._inflight_batches[batch_id].requests  # pyright: ignore[reportPrivateUsage]
         file_content_response = httpx.Response(
             status_code=200,
@@ -267,7 +268,7 @@ async def test_openai_batch(mocker: MockerFixture):
     mocker.patch.object(AsyncFiles, "content", mock_files_content)
 
     assert model._batcher is None  # pyright: ignore[reportPrivateUsage]
-    generations: list[tuple[ModelOutput, ModelCall]] = []
+    generations: list[ModelOutput | tuple[ModelOutput | Exception, ModelCall]] = []
 
     async def generate(idx_call: int):
         generation = await model.generate(
@@ -392,7 +393,7 @@ async def test_openai_batcher_handle_batch_result(
 
     custom_id = uuid.uuid4().hex
 
-    batch_request_0 = BatchRequest(
+    batch_request_0 = BatchRequest[ChatCompletion](
         custom_id=custom_id,
         request={
             "model": "gpt-3.5-turbo",
@@ -400,11 +401,11 @@ async def test_openai_batcher_handle_batch_result(
         },
         result_stream=send_stream,
     )
-    batch = Batch(
+    batch = Batch[ChatCompletion](
         id=batch_id,
         requests={custom_id: batch_request_0},
     )
-    completion_info = {"result_uris": [expected_file_id]}
+    completion_info = CompletedBatchInfo(result_uris=[expected_file_id])
 
     expected_chat_completion = ChatCompletion(
         id="test-id-0",
