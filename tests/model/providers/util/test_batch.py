@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -13,7 +14,7 @@ from inspect_ai.model._providers.util.batch import (
 )
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture, MockType
+    from pytest_mock import MockerFixture
 
 
 class CompletedBatchInfo(TypedDict):
@@ -45,7 +46,7 @@ class FakeBatcher(Batcher[str, CompletedBatchInfo]):
         self._num_sent_batches = 0
         self._batch_check_counts = batch_check_counts or defaultdict(int)
 
-    def _stub_create_batch(self, batch: Batch[str]) -> str:
+    def _stub_create_batch(self, _: Batch[str]) -> str:
         batch_ids = [*self._batch_check_counts]
         num_sent_batches = self._num_sent_batches
         batch_id = (
@@ -90,7 +91,7 @@ class FakeBatcher(Batcher[str, CompletedBatchInfo]):
     ) -> None:
         return await self.mock_handle_batch_result(batch, completion_info)
 
-    def _get_request_failed_error(self, request: BatchRequest[str]) -> Exception:
+    def _get_request_failed_error(self, _: BatchRequest[str]) -> Exception:
         return Exception("Test error")
 
 
@@ -119,7 +120,7 @@ async def test_batcher_safe_create_batch(
 
     batcher.mock_create_batch.assert_awaited_once_with(batch_requests)
     for request in batch_requests:
-        mock_send: MockType = request.result_stream.send
+        mock_send = cast(AsyncMock, request.result_stream.send)
         if expected_error:
             mock_send.assert_awaited_once_with(expected_error)
         else:
@@ -196,7 +197,7 @@ async def test_batcher_safe_check_batch(
         assert completion_info == expected_completion_info
 
     for request in batch.requests.values():
-        mock_send: MockType = request.result_stream.send
+        mock_send = cast(AsyncMock, request.result_stream.send)
         if expected_batch_removed:
             mock_send.assert_awaited_once_with(check_call_result)
         else:
@@ -244,7 +245,7 @@ async def test_batcher_safe_handle_batch_result(
 
     batcher.mock_handle_batch_result.assert_awaited_once_with(batch, completion_info)
     for idx_request, request in enumerate(batch.requests.values()):
-        mock_send: MockType = request.result_stream.send
+        mock_send = cast(AsyncMock, request.result_stream.send)
         if expected_send:
             mock_send.assert_awaited_once_with(expected_error or idx_request)
         else:
