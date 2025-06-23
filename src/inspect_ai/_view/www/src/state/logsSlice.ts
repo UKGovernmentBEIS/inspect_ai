@@ -51,6 +51,8 @@ const initialState: LogsState = {
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
+  loadingFiles: new Set<string>(),
+  pendingRequests: new Map<string, Promise<EvalLogHeader | null>>(),
 };
 
 export const createLogsSlice = (
@@ -78,13 +80,98 @@ export const createLogsSlice = (
           state.logs.logHeaders = headers;
         }),
       loadHeaders: async (logs: LogFile[]) => {
-        const api = get().api;
+        const state = get();
+        const api = state.api;
         if (!api) {
           console.error("API not initialized in LogsStore");
           return [];
         }
-        log.debug("LOADING LOG HEADERS");
-        return await api.get_log_headers(logs.map((log) => log.name));
+
+        // Filter out files that are already loaded or currently loading
+        // reload headers with "started" status as they may have changed
+        const filesToLoad = logs.filter((logFile) => {
+          const existing = state.logs.logHeaders[logFile.name];
+          const isLoading = state.logs.loadingFiles.has(logFile.name);
+
+          // Always load if no existing header
+          if (!existing) {
+            return !isLoading;
+          }
+
+          // Reload if header status is "started" or "error" (but not if already loading)
+          if (existing.status === "started" || existing.status === "error") {
+            return !isLoading;
+          }
+
+          // Skip if already loaded with final status
+          return false;
+        });
+
+        if (filesToLoad.length === 0) {
+          return [];
+        }
+
+        // Mark files as loading
+        set((state) => {
+          filesToLoad.forEach((logFile) => {
+            state.logs.loadingFiles.add(logFile.name);
+          });
+        });
+
+        // Set global loading state if this is the first batch
+        const wasLoading = get().logs.headersLoading;
+        if (!wasLoading) {
+          set((state) => {
+            state.logs.headersLoading = true;
+          });
+        }
+
+        try {
+          log.debug(`LOADING LOG HEADERS for ${filesToLoad.length} files`);
+          const headers = await api.get_log_headers(
+            filesToLoad.map((log) => log.name),
+          );
+
+          // Process results and update store
+          const headerMap: Record<string, EvalLogHeader> = {};
+          for (let i = 0; i < filesToLoad.length; i++) {
+            const logFile = filesToLoad[i];
+            const header = headers[i];
+            if (header) {
+              headerMap[logFile.name] = header as EvalLogHeader;
+            }
+          }
+
+          // Update headers in store
+          set((state) => {
+            state.logs.logHeaders = { ...state.logs.logHeaders, ...headerMap };
+            // Remove from loading state
+            filesToLoad.forEach((logFile) => {
+              state.logs.loadingFiles.delete(logFile.name);
+            });
+            // Update global loading state if no more files are loading
+            if (state.logs.loadingFiles.size === 0) {
+              state.logs.headersLoading = false;
+            }
+          });
+
+          return headers;
+        } catch (error) {
+          log.error("Error loading log headers", error);
+
+          // Clear loading state on error
+          set((state) => {
+            filesToLoad.forEach((logFile) => {
+              state.logs.loadingFiles.delete(logFile.name);
+            });
+            if (state.logs.loadingFiles.size === 0) {
+              state.logs.headersLoading = false;
+            }
+          });
+
+          // Don't throw - just return empty array like the old implementation
+          return [];
+        }
       },
       setHeadersLoading: (loading: boolean) =>
         set((state) => {

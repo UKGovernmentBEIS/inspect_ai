@@ -67,6 +67,8 @@ export interface LogsState {
   selectedLogIndex: number;
   selectedLogFile?: string;
   listing: LogsListing;
+  loadingFiles: Set<string>;
+  pendingRequests: Map<string, Promise<EvalLogHeader | null>>;
 }
 
 export interface LogsListing {

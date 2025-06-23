@@ -38,7 +38,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     setColumnSize,
   } = useLogsListing();
 
-  const { loadAllHeaders, loadHeaders } = useLogs();
+  const { loadHeaders } = useLogs();
 
   const { page, itemsPerPage, setPage } = usePagination(
     kLogsPaginationId,
@@ -50,32 +50,17 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const sortingRef = useRef(sorting);
-  const loadingHeadersRef = useRef(false);
 
-  // Load headers for files on the current page (demand loading)
-  const logHeadersRef = useRef(logHeaders);
-  logHeadersRef.current = logHeaders;
+  // Load all headers when needed (store handles deduplication)
+  const loadAllHeadersForItems = useCallback(async () => {
+    const logFiles = items
+      .filter((item) => item.type === "file")
+      .map((item) => item.logFile)
+      .filter((file) => file !== undefined);
 
-  // Protected version of loadAllHeaders that prevents concurrent calls
-  const maybeLoadAllHeaders = useCallback(async () => {
-    if (loadingHeadersRef.current) {
-      return; // Already loading, skip this call
-    }
-
-    loadingHeadersRef.current = true;
-    try {
-      const logFiles = items
-        .filter((item) => item.type === "file")
-        .map((item) => item.logFile)
-        .filter((file) => file !== undefined)
-        .filter((item) => logHeadersRef.current[item.name] === undefined);
-
-      await loadHeaders(logFiles);
-      setWatchedLogs(logFiles);
-    } finally {
-      loadingHeadersRef.current = false;
-    }
-  }, [loadAllHeaders, items]);
+    await loadHeaders(logFiles);
+    setWatchedLogs(logFiles);
+  }, [loadHeaders, items, setWatchedLogs]);
 
   // Keep ref updated
   useEffect(() => {
@@ -120,13 +105,13 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     },
     rowCount: items.length,
     onSortingChange: async (updater: Updater<SortingState>) => {
-      await maybeLoadAllHeaders();
+      await loadAllHeadersForItems();
       setSorting(
         typeof updater === "function" ? updater(sorting || []) : updater,
       );
     },
     onColumnFiltersChange: async (updater: Updater<ColumnFiltersState>) => {
-      await maybeLoadAllHeaders();
+      await loadAllHeadersForItems();
       setFiltering(
         typeof updater === "function" ? updater(filtering || []) : updater,
       );
@@ -169,31 +154,26 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   // Load all headers when globalFilter changes
   useEffect(() => {
     if (globalFilter && globalFilter.trim()) {
-      maybeLoadAllHeaders();
+      loadAllHeadersForItems();
     }
-  }, [globalFilter, maybeLoadAllHeaders]);
+  }, [globalFilter, loadAllHeadersForItems]);
 
+  // Load headers for current page (demand loading)
   useEffect(() => {
     const exec = async () => {
-      // Get current page items directly from pagination state
       const startIndex = page * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
       const currentPageItems = items.slice(startIndex, endIndex);
 
       const fileItems = currentPageItems.filter((item) => item.type === "file");
-
       const logFiles = fileItems
         .map((item) => item.logFile)
-        .filter((file) => file !== undefined)
-        .filter((logFile) => {
-          // Filter out files that are already loaded
-          return logHeadersRef.current[logFile.name] === undefined;
-        });
+        .filter((file) => file !== undefined);
 
       if (logFiles.length > 0) {
         await loadHeaders(logFiles);
       }
-      setWatchedLogs(fileItems.map((item) => item.logFile!));
+      setWatchedLogs(logFiles);
     };
     exec();
   }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs]);

@@ -11,7 +11,7 @@ import {
   bySample,
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
-import { EvalLogHeader, LogFile, SampleSummary } from "../client/api/types";
+import { LogFile, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
@@ -577,45 +577,15 @@ export const useLogs = () => {
   }, [load, setLogs, setStatus]);
 
   // Loading headers
-  const fetchHeaders = useStore((state) => state.logsActions.loadHeaders);
+  const storeLoadHeaders = useStore((state) => state.logsActions.loadHeaders);
   const existingHeaders = useStore((state) => state.logs.logHeaders);
-  const setHeaders = useStore((state) => state.logsActions.setLogHeaders);
-  const setHeadersLoading = useStore(
-    (state) => state.logsActions.setHeadersLoading,
-  );
   const allLogFiles = useStore((state) => state.logs.logs.files);
-
-  // Shared function for loading headers with error handling
-  const loadHeadersWithErrorHandling = useCallback(
-    async (logFiles: LogFile[]) => {
-      setHeadersLoading(true);
-      try {
-        const logHeaders = await fetchHeaders(logFiles);
-        const result: Record<string, EvalLogHeader> = {};
-        for (var i = 0; i < logFiles.length; i++) {
-          const logFile = logFiles[i];
-          const logHeader = logHeaders[i];
-          if (logHeader) {
-            result[logFile.name] = logHeader as EvalLogHeader;
-          }
-        }
-        const updatedHeaders = { ...existingHeaders, ...result };
-        setHeaders(updatedHeaders);
-      } catch (e) {
-        log.error("Error loading log headers", e);
-        setHeaders({ ...existingHeaders });
-      } finally {
-        setHeadersLoading(false);
-      }
-    },
-    [fetchHeaders, existingHeaders, setHeaders, setHeadersLoading],
-  );
 
   const loadHeaders = useCallback(
     async (logFiles: LogFile[] = allLogFiles) => {
-      await loadHeadersWithErrorHandling(logFiles);
+      await storeLoadHeaders(logFiles);
     },
-    [loadHeadersWithErrorHandling, allLogFiles],
+    [storeLoadHeaders, allLogFiles],
   );
 
   const loadAllHeaders = useCallback(async () => {
@@ -625,9 +595,9 @@ export const useLogs = () => {
     });
 
     if (logsToLoad.length > 0) {
-      await loadHeadersWithErrorHandling(logsToLoad);
+      await storeLoadHeaders(logsToLoad);
     }
-  }, [loadHeadersWithErrorHandling, allLogFiles, existingHeaders]);
+  }, [storeLoadHeaders, allLogFiles, existingHeaders]);
 
   return { loadLogs, loadHeaders, loadAllHeaders };
 };

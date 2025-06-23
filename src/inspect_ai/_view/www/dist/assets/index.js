@@ -23617,7 +23617,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       headersLoading: false,
       selectedLogIndex: -1,
       selectedLogFile: void 0,
-      listing: {}
+      listing: {},
+      loadingFiles: /* @__PURE__ */ new Set(),
+      pendingRequests: /* @__PURE__ */ new Map()
     };
     const createLogsSlice = (set2, get2, _store) => {
       const slice = {
@@ -23636,13 +23638,72 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             state.logs.logHeaders = headers;
           }),
           loadHeaders: async (logs) => {
-            const api2 = get2().api;
+            const state = get2();
+            const api2 = state.api;
             if (!api2) {
               console.error("API not initialized in LogsStore");
               return [];
             }
-            log$6.debug("LOADING LOG HEADERS");
-            return await api2.get_log_headers(logs.map((log2) => log2.name));
+            const filesToLoad = logs.filter((logFile) => {
+              const existing = state.logs.logHeaders[logFile.name];
+              const isLoading = state.logs.loadingFiles.has(logFile.name);
+              if (!existing) {
+                return !isLoading;
+              }
+              if (existing.status === "started" || existing.status === "error") {
+                return !isLoading;
+              }
+              return false;
+            });
+            if (filesToLoad.length === 0) {
+              return [];
+            }
+            set2((state2) => {
+              filesToLoad.forEach((logFile) => {
+                state2.logs.loadingFiles.add(logFile.name);
+              });
+            });
+            const wasLoading = get2().logs.headersLoading;
+            if (!wasLoading) {
+              set2((state2) => {
+                state2.logs.headersLoading = true;
+              });
+            }
+            try {
+              log$6.debug(`LOADING LOG HEADERS for ${filesToLoad.length} files`);
+              const headers = await api2.get_log_headers(
+                filesToLoad.map((log2) => log2.name)
+              );
+              const headerMap = {};
+              for (let i2 = 0; i2 < filesToLoad.length; i2++) {
+                const logFile = filesToLoad[i2];
+                const header2 = headers[i2];
+                if (header2) {
+                  headerMap[logFile.name] = header2;
+                }
+              }
+              set2((state2) => {
+                state2.logs.logHeaders = { ...state2.logs.logHeaders, ...headerMap };
+                filesToLoad.forEach((logFile) => {
+                  state2.logs.loadingFiles.delete(logFile.name);
+                });
+                if (state2.logs.loadingFiles.size === 0) {
+                  state2.logs.headersLoading = false;
+                }
+              });
+              return headers;
+            } catch (error2) {
+              log$6.error("Error loading log headers", error2);
+              set2((state2) => {
+                filesToLoad.forEach((logFile) => {
+                  state2.logs.loadingFiles.delete(logFile.name);
+                });
+                if (state2.logs.loadingFiles.size === 0) {
+                  state2.logs.headersLoading = false;
+                }
+              });
+              return [];
+            }
           },
           setHeadersLoading: (loading) => set2((state) => {
             state.logs.headersLoading = loading;
@@ -47674,42 +47735,14 @@ categories: ${categories.join(" ")}`;
           setStatus({ loading: false, error: e });
         });
       }, [load, setLogs, setStatus]);
-      const fetchHeaders = useStore((state) => state.logsActions.loadHeaders);
+      const storeLoadHeaders = useStore((state) => state.logsActions.loadHeaders);
       const existingHeaders = useStore((state) => state.logs.logHeaders);
-      const setHeaders = useStore((state) => state.logsActions.setLogHeaders);
-      const setHeadersLoading = useStore(
-        (state) => state.logsActions.setHeadersLoading
-      );
       const allLogFiles = useStore((state) => state.logs.logs.files);
-      const loadHeadersWithErrorHandling = reactExports.useCallback(
-        async (logFiles) => {
-          setHeadersLoading(true);
-          try {
-            const logHeaders = await fetchHeaders(logFiles);
-            const result2 = {};
-            for (var i2 = 0; i2 < logFiles.length; i2++) {
-              const logFile = logFiles[i2];
-              const logHeader = logHeaders[i2];
-              if (logHeader) {
-                result2[logFile.name] = logHeader;
-              }
-            }
-            const updatedHeaders = { ...existingHeaders, ...result2 };
-            setHeaders(updatedHeaders);
-          } catch (e) {
-            log$1.error("Error loading log headers", e);
-            setHeaders({ ...existingHeaders });
-          } finally {
-            setHeadersLoading(false);
-          }
-        },
-        [fetchHeaders, existingHeaders, setHeaders, setHeadersLoading]
-      );
       const loadHeaders = reactExports.useCallback(
         async (logFiles = allLogFiles) => {
-          await loadHeadersWithErrorHandling(logFiles);
+          await storeLoadHeaders(logFiles);
         },
-        [loadHeadersWithErrorHandling, allLogFiles]
+        [storeLoadHeaders, allLogFiles]
       );
       const loadAllHeaders = reactExports.useCallback(async () => {
         const logsToLoad = allLogFiles.filter((logFile) => {
@@ -47717,9 +47750,9 @@ categories: ${categories.join(" ")}`;
           return !existingHeader || existingHeader.status === "started";
         });
         if (logsToLoad.length > 0) {
-          await loadHeadersWithErrorHandling(logsToLoad);
+          await storeLoadHeaders(logsToLoad);
         }
-      }, [loadHeadersWithErrorHandling, allLogFiles, existingHeaders]);
+      }, [storeLoadHeaders, allLogFiles, existingHeaders]);
       return { loadLogs, loadHeaders, loadAllHeaders };
     };
     const usePagination = (name2, defaultPageSize2) => {
@@ -51547,7 +51580,7 @@ categories: ${categories.join(" ")}`;
         columnSizes,
         setColumnSize
       } = useLogsListing();
-      const { loadAllHeaders, loadHeaders } = useLogs();
+      const { loadHeaders } = useLogs();
       const { page, itemsPerPage, setPage } = usePagination(
         kLogsPaginationId,
         kDefaultPageSize
@@ -51557,22 +51590,11 @@ categories: ${categories.join(" ")}`;
       const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const sortingRef = reactExports.useRef(sorting);
-      const loadingHeadersRef = reactExports.useRef(false);
-      const logHeadersRef = reactExports.useRef(logHeaders);
-      logHeadersRef.current = logHeaders;
-      const maybeLoadAllHeaders = reactExports.useCallback(async () => {
-        if (loadingHeadersRef.current) {
-          return;
-        }
-        loadingHeadersRef.current = true;
-        try {
-          const logFiles = items.filter((item2) => item2.type === "file").map((item2) => item2.logFile).filter((file) => file !== void 0).filter((item2) => logHeadersRef.current[item2.name] === void 0);
-          await loadHeaders(logFiles);
-          setWatchedLogs(logFiles);
-        } finally {
-          loadingHeadersRef.current = false;
-        }
-      }, [loadAllHeaders, items]);
+      const loadAllHeadersForItems = reactExports.useCallback(async () => {
+        const logFiles = items.filter((item2) => item2.type === "file").map((item2) => item2.logFile).filter((file) => file !== void 0);
+        await loadHeaders(logFiles);
+        setWatchedLogs(logFiles);
+      }, [loadHeaders, items, setWatchedLogs]);
       reactExports.useEffect(() => {
         sortingRef.current = sorting;
       }, [sorting]);
@@ -51607,13 +51629,13 @@ categories: ${categories.join(" ")}`;
         },
         rowCount: items.length,
         onSortingChange: async (updater) => {
-          await maybeLoadAllHeaders();
+          await loadAllHeadersForItems();
           setSorting(
             typeof updater === "function" ? updater(sorting || []) : updater
           );
         },
         onColumnFiltersChange: async (updater) => {
-          await maybeLoadAllHeaders();
+          await loadAllHeadersForItems();
           setFiltering(
             typeof updater === "function" ? updater(filtering || []) : updater
           );
@@ -51646,22 +51668,20 @@ categories: ${categories.join(" ")}`;
       }, [table2.getFilteredRowModel().rows.length, setFilteredCount]);
       reactExports.useEffect(() => {
         if (globalFilter && globalFilter.trim()) {
-          maybeLoadAllHeaders();
+          loadAllHeadersForItems();
         }
-      }, [globalFilter, maybeLoadAllHeaders]);
+      }, [globalFilter, loadAllHeadersForItems]);
       reactExports.useEffect(() => {
         const exec2 = async () => {
           const startIndex2 = page * itemsPerPage;
           const endIndex2 = startIndex2 + itemsPerPage;
           const currentPageItems = items.slice(startIndex2, endIndex2);
           const fileItems = currentPageItems.filter((item2) => item2.type === "file");
-          const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
-            return logHeadersRef.current[logFile.name] === void 0;
-          });
+          const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0);
           if (logFiles.length > 0) {
             await loadHeaders(logFiles);
           }
-          setWatchedLogs(fileItems.map((item2) => item2.logFile));
+          setWatchedLogs(logFiles);
         };
         exec2();
       }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs]);
