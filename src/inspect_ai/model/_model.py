@@ -32,7 +32,11 @@ from tenacity import (
 )
 from tenacity.stop import StopBaseT
 
-from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS, HTTP
+from inspect_ai._util.constants import (
+    DEFAULT_MAX_CONNECTIONS,
+    DEFAULT_MAX_CONNECTIONS_BATCH,
+    HTTP,
+)
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -754,6 +758,8 @@ class Model:
         max_connections = (
             config.max_connections
             if config.max_connections
+            else DEFAULT_MAX_CONNECTIONS_BATCH
+            if config.batch
             else self.api.max_connections()
         )
         model_name = ModelName(self)
