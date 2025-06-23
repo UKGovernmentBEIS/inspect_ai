@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
+
+## v0.3.106 (21 June 2025)
+
 - OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
 - Groq: Capture `executed_tools` field as model output metadata.
 - ReAct agent: Always send `str` returned from `on_continue` to the model (formerly this was only done if there were no tool calls).
