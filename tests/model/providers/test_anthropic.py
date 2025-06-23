@@ -193,7 +193,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
 
     assert model._batcher is None  # pyright: ignore[reportPrivateUsage]
 
-    generations: list[tuple[ModelOutput, ModelCall]] = []
+    generations: list[ModelOutput | tuple[ModelOutput | Exception, ModelCall]] = []
 
     async def generate(idx_call: int):
         generation = await model.generate(
