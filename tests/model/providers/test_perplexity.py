@@ -14,6 +14,7 @@ from inspect_ai.model import (
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.perplexity import PerplexityAPI
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 @pytest.mark.anyio
@@ -29,6 +30,10 @@ async def test_perplexity_api() -> None:
             seed=None,
             temperature=0.0,
             top_p=1.0,
+            extra_body={
+                "search_mode": "academic",
+                "web_search_options": {"search_context_size": "low"},
+            },
         ),
     )
 
@@ -57,8 +62,8 @@ async def test_perplexity_api() -> None:
     assert response.metadata is not None
     if "search_context_size" in response.metadata:
         context_size = response.metadata["search_context_size"]
-        # Updated based on actual API response values
-        assert context_size in ["low", "medium", "high"]
+        # Since we explicitly requested "low", verify it matches
+        assert context_size == "low"
     if "citation_tokens" in response.metadata:
         citation_tokens = response.metadata["citation_tokens"]
         assert citation_tokens >= 0
@@ -145,3 +150,37 @@ async def test_perplexity_citation_mapping(monkeypatch) -> None:
     assert result.usage.reasoning_tokens == 1
     assert result.metadata is not None
     assert result.metadata["search_context_size"] == "low"
+
+
+@pytest.mark.anyio
+async def test_perplexity_web_search_options(monkeypatch) -> None:
+    captured = {}
+
+    async def fake_generate(self, input, tools, tool_choice, config):
+        captured["tools"] = tools
+        captured["config"] = config
+        return (
+            ModelOutput(model="perplexity/sonar", choices=[]),
+            ModelCall.create({}, {}),
+        )
+
+    provider = PerplexityAPI(model_name="perplexity/sonar", api_key="sk-test")
+    monkeypatch.setattr(OpenAICompatibleAPI, "generate", fake_generate)
+
+    tool = ToolInfo(
+        name="web_search",
+        description="",
+        options={
+            "perplexity": {
+                "search_mode": "academic",
+                "web_search_options": {"search_context_size": "low"},
+            }
+        },
+    )
+    await provider.generate([], [tool], "none", GenerateConfig())
+
+    assert captured["tools"] == []
+    assert captured["config"].extra_body == {
+        "search_mode": "academic",
+        "web_search_options": {"search_context_size": "low"},
+    }

@@ -1,8 +1,15 @@
 ## Unreleased
 
-- ReAct agent: Always send `str` returned from `on_continue` to the model (formerly this was only done if there were no tool calls).
+- Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
+
+## v0.3.106 (21 June 2025)
+
+- OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
 - Groq: Capture `executed_tools` field as model output metadata.
+- ReAct agent: Always send `str` returned from `on_continue` to the model (formerly this was only done if there were no tool calls).
+- Web Search: Added provider for Perplexity's internal web search tool.
 - Eval: Wrap eval execution in TaskGroup.
+- Bugfix: Remove correlated reasoning content items when removing submit tool calls from ChatMessageAssistant instances in multi-agent scenarios.
 
 ## v0.3.105 (17 June 2025)
 
