@@ -23,11 +23,7 @@ export function useClientEvents() {
       const toRefresh: LogFile[] = [];
       for (const logFile of logFiles) {
         const header = logHeaders[logFile.name];
-        if (
-          !header ||
-          header.status === "started" ||
-          header.status === "error"
-        ) {
+        if (!header || header.status === "started") {
           toRefresh.push(logFile);
         }
       }

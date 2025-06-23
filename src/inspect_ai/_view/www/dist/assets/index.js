@@ -47917,7 +47917,7 @@ categories: ${categories.join(" ")}`;
           const toRefresh = [];
           for (const logFile of logFiles) {
             const header2 = logHeaders[logFile.name];
-            if (!header2 || header2.status === "started" || header2.status === "error") {
+            if (!header2 || header2.status === "started") {
               toRefresh.push(logFile);
             }
           }
@@ -51709,13 +51709,14 @@ categories: ${categories.join(" ")}`;
           const currentPageItems = items.slice(startIndex2, endIndex2);
           const fileItems = currentPageItems.filter((item2) => item2.type === "file");
           const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0);
-          if (logFiles.length > 0) {
-            await loadHeaders(logFiles);
+          const filesToLoad = logFiles.filter((file) => !logHeaders[file.name]);
+          if (filesToLoad.length > 0) {
+            await loadHeaders(filesToLoad);
           }
           setWatchedLogs(logFiles);
         };
         exec2();
-      }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs]);
+      }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs, logHeaders]);
       const placeholderText = reactExports.useMemo(() => {
         if (headersLoading || loading) {
           if (globalFilter) {

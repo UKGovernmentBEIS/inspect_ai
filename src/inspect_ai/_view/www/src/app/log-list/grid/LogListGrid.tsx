@@ -170,13 +170,17 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         .map((item) => item.logFile)
         .filter((file) => file !== undefined);
 
-      if (logFiles.length > 0) {
-        await loadHeaders(logFiles);
+      // Only load headers for files that don't already have headers loaded
+      const filesToLoad = logFiles.filter((file) => !logHeaders[file.name]);
+
+      if (filesToLoad.length > 0) {
+        await loadHeaders(filesToLoad);
       }
+
       setWatchedLogs(logFiles);
     };
     exec();
-  }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs]);
+  }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs, logHeaders]);
 
   const placeholderText = useMemo(() => {
     if (headersLoading || loading) {
