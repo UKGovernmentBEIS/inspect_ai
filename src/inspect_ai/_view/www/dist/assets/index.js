@@ -47824,7 +47824,7 @@ categories: ${categories.join(" ")}`;
     };
     const log$1 = createLogger("Client-Events-Service");
     const kRetries = 10;
-    const kPollingInterval = 2.5;
+    const kPollingInterval = 5;
     const kRefreshEvent = "refresh-evals";
     class ClientEventsService {
       constructor() {
@@ -47914,27 +47914,33 @@ categories: ${categories.join(" ")}`;
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const api2 = useStore((state) => state.api);
       const { loadHeaders } = useLogs();
-      const refreshCallback = reactExports.useCallback(async (logFiles) => {
-        log.debug("Refresh Log Files");
-        await refreshLogs();
-        const toRefresh = [];
-        for (const logFile of logFiles) {
-          const header2 = logHeaders[logFile.name];
-          if (!header2 || header2.status === "started" || header2.status === "error") {
-            toRefresh.push(logFile);
+      const refreshCallback = reactExports.useCallback(
+        async (logFiles) => {
+          log.debug("Refresh Log Files");
+          await refreshLogs();
+          const toRefresh = [];
+          for (const logFile of logFiles) {
+            const header2 = logHeaders[logFile.name];
+            if (!header2 || header2.status === "started" || header2.status === "error") {
+              toRefresh.push(logFile);
+            }
           }
-        }
-        if (toRefresh.length > 0) {
-          log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
-          await loadHeaders(toRefresh);
-        }
-      }, [logHeaders, refreshLogs, loadHeaders]);
+          if (toRefresh.length > 0) {
+            log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
+            await loadHeaders(toRefresh);
+          }
+        },
+        [logHeaders, refreshLogs, loadHeaders]
+      );
       reactExports.useEffect(() => {
         clientEventsService.setRefreshCallback(refreshCallback);
       }, [refreshCallback]);
-      const startPolling = reactExports.useCallback((logFiles) => {
-        clientEventsService.startPolling(logFiles, api2);
-      }, [api2]);
+      const startPolling = reactExports.useCallback(
+        (logFiles) => {
+          clientEventsService.startPolling(logFiles, api2);
+        },
+        [api2]
+      );
       const stopPolling = reactExports.useCallback(() => {
         clientEventsService.stopPolling();
       }, []);

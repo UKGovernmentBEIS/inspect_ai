@@ -5,7 +5,7 @@ import { createPolling } from "../utils/polling";
 const log = createLogger("Client-Events-Service");
 
 const kRetries = 10;
-const kPollingInterval = 2.5;
+const kPollingInterval = 5;
 const kRefreshEvent = "refresh-evals";
 
 class ClientEventsService {
@@ -13,7 +13,8 @@ class ClientEventsService {
   private abortController: AbortController | null = null;
   private isRefreshing = false;
   private pendingLogFiles = new Set<LogFile>();
-  private onRefreshCallback: ((logFiles: LogFile[]) => Promise<void>) | null = null;
+  private onRefreshCallback: ((logFiles: LogFile[]) => Promise<void>) | null =
+    null;
 
   setRefreshCallback(callback: (logFiles: LogFile[]) => Promise<void>) {
     this.onRefreshCallback = callback;

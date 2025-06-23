@@ -52,7 +52,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   const currentDir = join(logPath || "", logs.log_dir);
 
   // Polling for client events
-  const { startPolling, cleanup, stopPolling } = useClientEvents();
+  const { startPolling, stopPolling } = useClientEvents();
 
   const previousWatchedLogs = useRef<typeof watchedLogs>(undefined);
 
