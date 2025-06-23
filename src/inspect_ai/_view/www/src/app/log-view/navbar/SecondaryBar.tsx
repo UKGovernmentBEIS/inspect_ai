@@ -215,7 +215,13 @@ const ParamSummary: FC<ParamSummaryProps> = ({ params }) => {
   });
   if (paraValues.length > 0) {
     return (
-      <code style={{ padding: 0, color: "var(--bs-body-color)" }}>
+      <code
+        style={{
+          padding: 0,
+          color: "var(--bs-body-color)",
+          overflowWrap: "anywhere",
+        }}
+      >
         {paraValues.join(", ")}
       </code>
     );
