@@ -81,7 +81,10 @@
 /* Body Styles */
 .bodyContainer {
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
+  min-width: 100%;
+  width: fit-content;
 }
 
 .bodyRow {
