@@ -36,7 +36,7 @@ export function useClientEvents() {
       return;
     }
 
-    while (pendingLogFiles.size > 0) {
+    do {
       try {
         const logFiles = [...pendingLogFiles];
         pendingLogFiles.clear();
@@ -67,7 +67,7 @@ export function useClientEvents() {
       } finally {
         isRefreshing = false;
       }
-    }
+    } while (pendingLogFiles.size > 0);
   }, [logHeaders, refreshLogs, loadHeaders]);
 
   // Refresh logs and clear pending in a single transaction

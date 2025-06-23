@@ -47839,7 +47839,7 @@ categories: ${categories.join(" ")}`;
         if (isRefreshing) {
           return;
         }
-        while (pendingLogFiles.size > 0) {
+        do {
           try {
             const logFiles = [...pendingLogFiles];
             pendingLogFiles.clear();
@@ -47860,7 +47860,7 @@ categories: ${categories.join(" ")}`;
           } finally {
             isRefreshing = false;
           }
-        }
+        } while (pendingLogFiles.size > 0);
       }, [logHeaders, refreshLogs, loadHeaders]);
       const refreshLogFiles = reactExports.useCallback(
         async (logFiles) => {
@@ -52066,7 +52066,7 @@ categories: ${categories.join(" ")}`;
         };
       }, []);
       reactExports.useEffect(() => {
-        if (watchedLogs && watchedLogs.length > 0) {
+        if (watchedLogs) {
           startPolling(watchedLogs);
         } else {
           stopPolling();

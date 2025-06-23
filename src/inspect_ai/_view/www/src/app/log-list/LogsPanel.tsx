@@ -61,7 +61,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   }, []);
 
   useEffect(() => {
-    if (watchedLogs && watchedLogs.length > 0) {
+    if (watchedLogs) {
       startPolling(watchedLogs);
     } else {
       stopPolling();
