@@ -6,7 +6,7 @@ interface LogListFooterProps {
 
 import clsx from "clsx";
 import { FC } from "react";
-import { usePagination, useLogsListing } from "../../state/hooks";
+import { useLogsListing, usePagination } from "../../state/hooks";
 import styles from "./LogListFooter.module.css";
 import { LogPager } from "./LogPager";
 import { kDefaultPageSize, kLogsPaginationId } from "./LogsPanel";
@@ -55,9 +55,11 @@ export const LogListFooter: FC<LogListFooterProps> = ({
       </div>
       <div className={clsx(styles.right)}>
         <div>
-          {filteredCount !== undefined && filteredCount !== itemCount
-            ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)`
-            : `${startItem} - ${endItem} / ${effectiveItemCount}`}
+          {effectiveItemCount === 0
+            ? ""
+            : filteredCount !== undefined && filteredCount !== itemCount
+              ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)`
+              : `${startItem} - ${endItem} / ${effectiveItemCount}`}
         </div>
       </div>
     </div>
