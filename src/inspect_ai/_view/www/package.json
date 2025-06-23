@@ -91,7 +91,7 @@
     "react-popper": "^2.3.0",
     "react-router-dom": "^7.6.0",
     "react-virtuoso": "^4.12.7",
-    "zustand": "^5.0.5",
-    "use-resize-observer": "^9.1.0"
+    "use-resize-observer": "^9.1.0",
+    "zustand": "^5.0.5"
   }
 }

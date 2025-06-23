@@ -26,7 +26,11 @@ def biology_qa() -> Task:
         solver=[
             use_tools(
                 web_search(
-                    providers={"openai": openai_options, "tavily": tavily_options},
+                    providers={
+                        "openai": openai_options,
+                        "anthropic": True,
+                        "tavily": tavily_options,
+                    },
                 )
             ),
             generate(),

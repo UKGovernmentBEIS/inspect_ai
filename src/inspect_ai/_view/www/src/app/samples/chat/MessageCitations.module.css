@@ -1,0 +1,16 @@
+.citations {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.5em;
+}
+
+a.citationLink {
+  display: block;
+  color: var(--bs-body);
+  text-decoration: none;
+}
+a.citationLink:hover {
+  text-decoration: underline;
+}

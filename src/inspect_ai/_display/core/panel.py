@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import rich
-from rich.console import RenderableType
+from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -9,7 +9,7 @@ from rich.text import Text
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai.util._display import display_type
+from inspect_ai.util._display import display_type_plain
 
 from .display import TaskProfile
 from .rich import is_vscode_notebook, rich_theme
@@ -27,7 +27,7 @@ def task_panel(
     log_location: str | None,
 ) -> RenderableType:
     # dispatch to plain handler if we are in plain mode
-    if display_type() == "plain":
+    if display_type_plain():
         return task_panel_plain(
             profile, show_model, body, subtitle, footer, log_location
         )
@@ -89,23 +89,31 @@ def task_panel(
             log_location_relative = log_location
 
         root = Table.grid(expand=True)
-        root.add_column()
+        root.add_column(overflow="fold")
         root.add_row(table)
         root.add_row()
         root.add_row(
             f"[bold][{theme.light}]Log:[/{theme.light}][/bold] "
             + f"[{theme.link}]{log_location_relative}[/{theme.link}]"
         )
+        root.add_row()
 
-    # create panel w/ title
-    panel = Panel(
-        root,
-        title=task_panel_title(profile, show_model),
-        title_align="left",
-        width=width,
-        expand=True,
-    )
-    return panel
+        panel = Panel(
+            task_panel_title(profile, show_model),
+            padding=(0, 0),
+            width=width,
+            height=3,
+            expand=True,
+        )
+        return Group(panel, root)
+    else:
+        return Panel(
+            root,
+            title=task_panel_title(profile, show_model),
+            title_align="left",
+            width=width,
+            expand=True,
+        )
 
 
 def task_panel_plain(

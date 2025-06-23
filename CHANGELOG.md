@@ -1,5 +1,71 @@
 ## Unreleased
 
+- Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
+
+## v0.3.106 (21 June 2025)
+
+- OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
+- Groq: Capture `executed_tools` field as model output metadata.
+- ReAct agent: Always send `str` returned from `on_continue` to the model (formerly this was only done if there were no tool calls).
+- Web Search: Added provider for Perplexity's internal web search tool.
+- Eval: Wrap eval execution in TaskGroup.
+- Bugfix: Remove correlated reasoning content items when removing submit tool calls from ChatMessageAssistant instances in multi-agent scenarios.
+
+## v0.3.105 (17 June 2025)
+
+- [background()](https://inspect.aisi.org.uk/agent-custom.html#background) function for executing work in the background of the current sample.
+- [sandbox_service()](https://inspect.aisi.org.uk/agent-custom.html#sandbox-service) function for making available methods to a sandbox for calling back into the main Inspect process.
+- [sample_limits()](https://inspect.aisi.org.uk/errors-and-limits.html#query-usage) function for determining the current status of sample limits.
+- React agent: Only do substitution on parts of the prompt that may contain a {submit} reference.
+- Agent handoff: Ensure that handoff tool call responses immediately follow the call.
+- Agent handoff: Only print handoff agent prefix if there is assistant message content.
+- Subprocess: Ensure that streams are drained when a cancellation occurs (prevent hanging on calls with large output payloads).
+- Eval log: Capture only limits that terminated the sample as `sample.limit` (as opposed to ones bound to context managers or agents).
+- Inspect View: Display metadata for Chat Messages.
+- Inspect View: Increase transcript outline font size.
+- Inspect View: Add support for filtering by sample id, sample metadata.
+- Bugfix: Eval set now correctly handles retries for tasks with defaulted args (regressed in v0.3.104).
+- Bugfix: Use correct bindings for Claude v4 native `text_editor` tool; don't use native tool definition for Haiku 3.5 or Opus 3.0.  
+- Bugfix: Restore preservation of `ContentReasoning` blocks for Gemini (regressed in v0.3.104). 
+- Bugfix: Dataset shuffling now works correctly with `seed` of 0.
+
+## v0.3.104 (12 June 2025)
+
+- Web Search: Added provider for Anthropic's internal web search tool.
+- Web Search: Added provider for [Exa](https://exa.ai/exa-api) Search API.
+- Web Search: Added provider for Google's [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/grounding) .
+- Mistral: Support for capturing reasoning blocks for magistral models.
+- Add [Perplexity](https://inspect.aisi.org.uk/providers.html#perplexity) model provider.
+- ChatMessage: Add `metadata` field for arbitrary additional metadata.
+- Content: Added `ContentData` for model specific content blocks.
+- Citations: Added `Citation` suite of types and included citations in `ContentText` (supported for OpenAI and Anthropic models).
+- Eval log: `task_args` now includes defaulted args (formerly it only included explicitly passed args).
+- Eval set: `retry_connections` now defaults to 1.0 (resulting in no reduction in connections across passes).
+  OpenAI: Work around OpenAI Responses API issue by filtering out leading consecutive reasoning blocks.
+- OpenAI compatible provider: Substitute `-` with `_` when looking up provider environment variables.
+- MCP: Update to types in latest release (1.9.4, which is now required).
+- Added development container (`.devcontainer`) configuration.
+- `trim_messages()` now removes any trailing assistant message after compaction.
+- Task display: Ensure that full path to log file is always displayed (wrap as required).
+- Task display: Wrap scorers and scores in the task detail display.
+- Inspect View: Add support for displaying citations for web searches in the transcript.
+- Inspect View: Correctly update browser URL when navigation between samples.
+- Bugfix: Properly honor `responses_api=False` when pass as an OpenAI model config arg.
+- Bugfix: Limits passed to handoffs can be used multiple times (if agent is handed off to multiple times).
+- Bugfix: Replace invalid surrogate characters when serializing strings to JSON.
+- Bugfix: Prevent error writing Nan values to the `logs.json` summary file during bundling.
+
+## v0.3.103 (06 June 2025)
+
+- Eval set: Do not read full eval logs into memory at task completion.
+
+## v0.3.102 (05 June 2025)
+
+- OpenAI: Use responses API for codex models.
+- Bugfix: Temporarily revert change to eval set header reading to investigate regression.
+
+## v0.3.101 (05 June 2025)
+
 - Eval set: Default `max_tasks` to the greater of 4 and the number of models being evaluated.
 - Eval set: Do not read full eval logs into memory at task completion.
 - pass_at_k: Treat threshold as the the minimum inclusive value for passing (rather than checking equality)
@@ -7,6 +73,7 @@
 - Inspect View: Display sample id & epoch in sample dialog title bar.
 - Inspect View: Don't open sample dialog when simply navigating the sample list.
 - Inspect View: Fix error that could occur when determine transcript outline collapse state.
+- Inspect View: Show the correct sample when opening a sample from a sorted list.
 - Bugfix: Ensure that dataset shuffle_choices=True always uses a distinct random seed.
 - Bugfix: Don't attempt to use OpenAI's web search preview against models that are known to not support it.
 

@@ -8,6 +8,7 @@ import {
   kMethodEvalLogHeaders,
   kMethodEvalLogs,
   kMethodEvalLogSize,
+  kMethodLogMessage,
   kMethodPendingSamples,
   kMethodSampleData,
   webViewJsonRpcClient,
@@ -147,6 +148,10 @@ async function eval_log_sample_data(
   }
 }
 
+async function log_message(log_file: string, message: string): Promise<void> {
+  await vscodeClient(kMethodLogMessage, [log_file, message]);
+}
+
 async function download_file() {
   throw Error("Downloading files is not supported in VS Code");
 }
@@ -167,6 +172,7 @@ const api: LogViewAPI = {
   eval_log_size,
   eval_log_bytes,
   eval_log_headers,
+  log_message,
   download_file,
   open_log_file,
   eval_pending_samples,

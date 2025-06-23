@@ -155,6 +155,23 @@ def view_server(
                 body=samples.model_dump_json(), headers={"ETag": samples.etag}
             )
 
+    @routes.get("/api/log-message")
+    async def api_log_message(request: web.Request) -> web.Response:
+        # log file requested
+        file = query_param_required("log_file", request, str)
+
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        # message to log
+        message = query_param_required("message", request, str)
+
+        # log the message
+        logger.warning(f"[CLIENT MESSAGE] ({file}): {message}")
+
+        # respond
+        return web.Response(status=204)
+
     @routes.get("/api/pending-sample-data")
     async def api_sample_events(request: web.Request) -> web.Response:
         # log file requested

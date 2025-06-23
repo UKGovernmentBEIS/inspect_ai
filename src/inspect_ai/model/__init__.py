@@ -1,8 +1,16 @@
 # ruff: noqa: F401 F403 F405
 
+from inspect_ai._util.citation import (
+    Citation,
+    CitationBase,
+    ContentCitation,
+    DocumentCitation,
+    UrlCitation,
+)
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -59,6 +67,7 @@ __all__ = [
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",
+    "ContentData",
     "ContentImage",
     "ContentReasoning",
     "ContentText",
@@ -93,6 +102,11 @@ __all__ = [
     "cache_size",
     "get_model",
     "modelapi",
+    "Citation",
+    "CitationBase",
+    "DocumentCitation",
+    "ContentCitation",
+    "UrlCitation",
 ]
 
 _TOOL_MODULE_VERSION = "0.3.18"

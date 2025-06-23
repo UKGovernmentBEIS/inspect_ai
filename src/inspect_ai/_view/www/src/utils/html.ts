@@ -4,3 +4,9 @@
 export function escapeSelector(id: string): string {
   return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
 }
+
+export const decodeHtmlEntities = (text: string): string => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, "text/html");
+  return doc.documentElement.textContent || text;
+};

@@ -40,7 +40,6 @@ async def generate_responses(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     service_tier: str | None,
-    store: bool,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -65,7 +64,7 @@ async def generate_responses(
         else NOT_GIVEN
     )
     request = dict(
-        input=await openai_responses_inputs(input, model_name, store),
+        input=await openai_responses_inputs(input, model_name),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
@@ -77,7 +76,6 @@ async def generate_responses(
             config=config,
             service_tier=service_tier,
             tools=len(tools) > 0,
-            store=store,
         ),
     )
 
@@ -125,7 +123,6 @@ def completion_params_responses(
     config: GenerateConfig,
     service_tier: str | None,
     tools: bool,
-    store: bool,
 ) -> dict[str, Any]:
     # TODO: we'll need a computer_use_preview bool for the 'include'
     # and 'reasoning' parameters
@@ -135,7 +132,7 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(model=model_name, store=store)
+    params: dict[str, Any] = dict(model=model_name)
     if service_tier is not None:
         params["service_tier"] = service_tier
     if config.max_tokens is not None:

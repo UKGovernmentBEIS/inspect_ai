@@ -10,6 +10,7 @@ from pathlib import PurePath
 from typing import Callable, Literal
 
 import anyio
+from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._display import (
@@ -223,7 +224,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         samples=len(samples),
         steps=len(samples) * SAMPLE_TOTAL_PROGRESS_UNITS,
         eval_config=config,
-        task_args=logger.eval.task_args,
+        task_args=logger.eval.task_args_passed,
         generate_config=generate_config,
         tags=tags,
         log_location=log_location,
@@ -306,37 +307,57 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     task.metrics,
                 )
 
+                async def run_sample(
+                    sample: Sample, state: TaskState
+                ) -> dict[str, SampleScore] | None:
+                    result: dict[str, SampleScore] | None = None
+
+                    async def run(tg: TaskGroup) -> None:
+                        try:
+                            nonlocal result
+                            result = await task_run_sample(
+                                tg=tg,
+                                task_name=task.name,
+                                log_location=profile.log_location,
+                                sample=sample,
+                                state=state,
+                                sandbox=sandbox,
+                                max_sandboxes=config.max_sandboxes,
+                                sandbox_cleanup=sandbox_cleanup,
+                                plan=plan,
+                                scorers=scorers,
+                                generate=generate,
+                                progress=progress,
+                                logger=logger if log_samples else None,
+                                log_images=log_images,
+                                sample_source=sample_source,
+                                sample_error=sample_error_handler,
+                                sample_complete=sample_complete,
+                                fails_on_error=(
+                                    config.fail_on_error is None
+                                    or config.fail_on_error is True
+                                ),
+                                retry_on_error=config.retry_on_error or 0,
+                                error_retries=[],
+                                time_limit=config.time_limit,
+                                working_limit=config.working_limit,
+                                semaphore=sample_semaphore,
+                            )
+                        finally:
+                            tg.cancel_scope.cancel()
+
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(run, tg)
+
+                    return result
+
                 sample_results = await tg_collect(
                     [
-                        functools.partial(
-                            task_run_sample,
-                            task_name=task.name,
-                            log_location=profile.log_location,
-                            sample=sample,
-                            state=state,
-                            sandbox=sandbox,
-                            max_sandboxes=config.max_sandboxes,
-                            sandbox_cleanup=sandbox_cleanup,
-                            plan=plan,
-                            scorers=scorers,
-                            generate=generate,
-                            progress=progress,
-                            logger=logger if log_samples else None,
-                            log_images=log_images,
-                            sample_source=sample_source,
-                            sample_error=sample_error_handler,
-                            sample_complete=sample_complete,
-                            fails_on_error=(
-                                config.fail_on_error is None
-                                or config.fail_on_error is True
-                            ),
-                            retry_on_error=config.retry_on_error or 0,
-                            error_retries=[],
-                            time_limit=config.time_limit,
-                            working_limit=config.working_limit,
-                            semaphore=sample_semaphore,
+                        functools.partial(run_sample, sample, state)
+                        for (sample, state) in zip(
+                            samples,
+                            states,
                         )
-                        for (sample, state) in zip(samples, states)
                     ]
                 )
 
@@ -492,6 +513,7 @@ def update_metrics_display_fn(
 
 async def task_run_sample(
     *,
+    tg: TaskGroup,
     task_name: str,
     log_location: str,
     sample: Sample,
@@ -611,12 +633,14 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            tg=tg,
         ) as active,
     ):
         start_time: float | None = None
         error: EvalError | None = None
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
+        limit: EvalSampleLimit | None = None
         try:
             # begin init
             init_span = span("init", type="init")
@@ -704,9 +728,17 @@ async def task_run_sample(
                         # handle the cancel exception
                         raise
 
-                except (LimitExceededError, TerminateSampleError):
+                except LimitExceededError as ex:
                     # capture most recent state for scoring
                     state = sample_state() or state
+                    limit = EvalSampleLimit(
+                        type=ex.type, limit=ex.limit if ex.limit is not None else -1
+                    )
+
+                except TerminateSampleError:
+                    # capture most recent state for scoring
+                    state = sample_state() or state
+                    limit = EvalSampleLimit(type="operator", limit=1)
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)
@@ -815,6 +847,7 @@ async def task_run_sample(
                     state=state,
                     scores=results,
                     error=error,
+                    limit=limit,
                     error_retries=error_retries,
                     log_images=log_images,
                 )
@@ -854,6 +887,7 @@ async def task_run_sample(
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
+            tg=tg,
         )
 
     # no error
@@ -879,6 +913,7 @@ async def log_sample(
     state: TaskState,
     scores: dict[str, SampleScore],
     error: EvalError | None,
+    limit: EvalSampleLimit | None,
     error_retries: list[EvalError],
     log_images: bool,
 ) -> None:
@@ -893,15 +928,6 @@ async def log_sample(
 
     # compute total time if we can
     total_time = time.monotonic() - start_time if start_time is not None else None
-
-    # if a limit was hit, note that in the Eval Sample
-    limit = None
-    for e in transcript().events:
-        if e.event == "sample_limit":
-            limit = EvalSampleLimit(
-                type=e.type, limit=e.limit if e.limit is not None else -1
-            )
-            break
 
     eval_sample = EvalSample(
         id=id,

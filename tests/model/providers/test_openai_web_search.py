@@ -2,7 +2,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from inspect_ai.model._openai_web_search import _web_search_tool, maybe_web_search_tool
+from inspect_ai.model._providers._openai_web_search import (
+    _web_search_tool,
+    maybe_web_search_tool,
+)
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -47,21 +50,14 @@ class TestOpenAIWebSearch:
         )
 
     def test_maybe_web_search_tool_returns_tool_param(self):
-        openai_options = {"key": "value"}
-
-        with patch("inspect_ai.model._openai_web_search._web_search_tool") as mock_tool:
-            mock_tool.return_value = {"type": "web_search_preview", "key": "value"}
-            result = maybe_web_search_tool(
-                "gpt-4o",
-                ToolInfo(
-                    name="web_search",
-                    description="A web search tool",
-                    options={"openai": openai_options},
-                ),
-            )
-
-            mock_tool.assert_called_once_with(openai_options)
-            assert result == {"type": "web_search_preview", "key": "value"}
+        assert maybe_web_search_tool(
+            "gpt-4o",
+            ToolInfo(
+                name="web_search",
+                description="A web search tool",
+                options={"openai": {"key": "value"}},
+            ),
+        ) == {"type": "web_search_preview", "key": "value"}
 
     def test_web_search_tool_raises_type_error(self):
         with pytest.raises(TypeError) as excinfo:

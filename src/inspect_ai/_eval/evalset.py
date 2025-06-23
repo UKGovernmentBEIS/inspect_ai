@@ -114,7 +114,7 @@ def eval_set(
             (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
             per-retry will in no case by longer than 1 hour.
         retry_connections: Reduce max_connections at this rate with each retry
-            (defaults to 0.5)
+            (defaults to 1.0, which results in no reduction).
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
@@ -275,7 +275,7 @@ def eval_set(
     fs.mkdir(log_dir, exist_ok=True)
 
     # resolve some parameters
-    retry_connections = retry_connections or 0.5
+    retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
     max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
@@ -578,7 +578,7 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
-        task_args = task.eval.task_args
+        task_args = task.eval.task_args_passed
         model = str(task.eval.model)
         model_roles = task.eval.model_roles or {}
 

@@ -1,7 +1,11 @@
 import contextlib
+import inspect
 from contextvars import ContextVar
+from logging import getLogger
 from typing import AsyncIterator
 from uuid import uuid4
+
+logger = getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
@@ -21,6 +25,10 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
 
     # span id
     id = uuid4().hex
+
+    # span caller context
+    frame = inspect.stack()[1]
+    caller = f"{frame.function}() [{frame.filename}:{frame.lineno}]"
 
     # capture parent id
     parent_id = _current_span_id.get()
@@ -48,7 +56,10 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
         # send end event
         transcript()._event(SpanEndEvent(id=id))
 
-        _current_span_id.reset(token)
+        try:
+            _current_span_id.reset(token)
+        except ValueError:
+            logger.warning(f"Exiting span created in another context: {caller}")
 
 
 def current_span_id() -> str | None:

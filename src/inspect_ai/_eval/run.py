@@ -3,6 +3,7 @@ import os
 import sys
 from typing import Any, Awaitable, Callable, Set, cast
 
+from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.trace import trace_action
@@ -208,7 +209,10 @@ async def eval_run(
                     metrics=eval_metrics,
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
-                    task_args=resolved_task.task_args,
+                    task_args=getattr(
+                        task, TASK_ALL_PARAMS_ATTR, resolved_task.task_args
+                    ),
+                    task_args_passed=resolved_task.task_args,
                     model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
                     metadata=((metadata or {}) | (task.metadata or {})) or None,

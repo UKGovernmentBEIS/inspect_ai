@@ -13,6 +13,7 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
+from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
@@ -27,6 +28,7 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    is_codex,
     is_computer_use_preview,
     is_gpt,
     is_o1,
@@ -63,6 +65,8 @@ class OpenAIAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
+        # Can't use the XxxDeprecatedArgs approach since this already has a **param
+        # but responses_store is deprecated and should not be used.
         responses_store: Literal["auto"] | bool = "auto",
         service_tier: str | None = None,
         client_timeout: float | None = None,
@@ -87,17 +91,18 @@ class OpenAIAPI(ModelAPI):
         )
 
         # is this a model we use responses api by default for?
-        responses_model = (
+        responses_preferred = (
             self.is_o_series() and not self.is_o1_early()
-        ) or self.is_computer_use_preview()
+        ) or self.is_codex()
 
         # resolve whether we are forcing the responses api
-        self.responses_api = responses_api or responses_model
+        self.responses_api = self.is_computer_use_preview() or (
+            responses_api if responses_api is not None else responses_preferred
+        )
 
         # resolve whether we are using the responses store
-        self.responses_store = (
-            responses_store if isinstance(responses_store, bool) else responses_model
-        )
+        if isinstance(responses_store, bool):
+            deprecation_warning("`responses_store` is no longer supported.")
 
         # set service tier if specified
         self.service_tier = service_tier
@@ -193,6 +198,9 @@ class OpenAIAPI(ModelAPI):
     def is_computer_use_preview(self) -> bool:
         return is_computer_use_preview(self.service_model_name())
 
+    def is_codex(self) -> bool:
+        return is_codex(self.service_model_name())
+
     def is_gpt(self) -> bool:
         return is_gpt(self.service_model_name())
 
@@ -254,7 +262,6 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
-                store=self.responses_store,
             )
 
         # allocate request_id (so we can see it from ModelCall)

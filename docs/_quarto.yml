@@ -42,9 +42,13 @@ website:
             href: index.qmd
           - text: "Reference"
             href: reference/index.qmd
+          - text: "Integrations"
+            href: integrations/index.qmd
           - text: "Evals"
             href: evals/index.qmd
       right: 
+          - text: "Changelog"
+            href: CHANGELOG.md
           - icon: github
             href: https://github.com/UKGovernmentBEIS/inspect_ai
       

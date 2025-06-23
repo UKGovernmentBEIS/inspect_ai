@@ -1,0 +1,7 @@
+.contentData {
+  border: solid var(--bs-light-border-subtle) 1px;
+  padding: 0.5em;
+  margin-bottom: 0.5em;
+  margin-top: 0.5em;
+  margin-left: 1em;
+}

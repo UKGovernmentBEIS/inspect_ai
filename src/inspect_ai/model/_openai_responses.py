@@ -31,9 +31,16 @@ from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoice,
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_output_text import (
+    Annotation,
+    AnnotationFileCitation,
+    AnnotationFilePath,
+    AnnotationURLCitation,
+)
 from openai.types.responses.response_reasoning_item_param import Summary
 from pydantic import JsonValue
 
+from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -47,29 +54,30 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
 from inspect_ai.model._openai import is_o_series
-from inspect_ai.model._openai_computer_use import (
-    computer_call_output,
-    maybe_computer_use_preview_tool,
-    tool_call_from_openai_computer_tool_call,
-)
-from inspect_ai.model._openai_web_search import maybe_web_search_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
+from ._providers._openai_computer_use import (
+    computer_call_output,
+    maybe_computer_use_preview_tool,
+    tool_call_from_openai_computer_tool_call,
+)
+from ._providers._openai_web_search import maybe_web_search_tool
+
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model: str, store: bool
+    messages: list[ChatMessage], model: str
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model, store)
+        for item in await _openai_input_item_from_chat_message(message, model)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model: str, store: bool
+    message: ChatMessage, model: str
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -87,7 +95,7 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message, store)
+        return _openai_input_items_from_chat_message_assistant(message)
     elif message.role == "tool":
         if message.internal:
             internal = _model_tool_call_for_internal(message.internal)
@@ -252,7 +260,18 @@ def _chat_message_assistant_from_openai_response(
             case ResponseOutputMessage(content=content, id=id):
                 message_content.extend(
                     [
-                        ContentText(text=c.text, internal={"id": id})
+                        ContentText(
+                            text=c.text,
+                            internal={"id": id},
+                            citations=(
+                                [
+                                    _to_inspect_citation(annotation)
+                                    for annotation in c.annotations
+                                ]
+                                if c.annotations
+                                else None
+                            ),
+                        )
                         if isinstance(c, ResponseOutputText)
                         else ContentText(
                             text=c.refusal, refusal=True, internal={"id": id}
@@ -310,7 +329,7 @@ def _chat_message_assistant_from_openai_response(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant, store: bool
+    message: ChatMessageAssistant,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -343,10 +362,6 @@ def _openai_input_items_from_chat_message_assistant(
     )
     suppress_output_message = message.internal is not None and not has_content_with_ids
 
-    # if we are not storing messages on the server then blank these out
-    if not store:
-        tool_message_ids = {}
-
     # items to return
     items: list[ResponseInputItemParam] = []
     # group content by message ID
@@ -354,30 +369,21 @@ def _openai_input_items_from_chat_message_assistant(
         str | None, list[ResponseOutputTextParam | ResponseOutputRefusalParam]
     ] = {}
 
-    for content in (
-        list[ContentText | ContentReasoning]([ContentText(text=message.content)])
-        if isinstance(message.content, str)
-        else [
-            c for c in message.content if isinstance(c, ContentText | ContentReasoning)
-        ]
-    ):
+    for content in _filter_consecutive_reasoning_blocks(content_items):
         match content:
             case ContentReasoning(reasoning=reasoning):
                 assert content.signature is not None, (
                     "reasoning_id must be saved in signature"
                 )
-                # if items are not stored on the server then there is no
-                # sense appending the reasoning item as its just a pointer
-                if store:
-                    items.append(
-                        ResponseReasoningItemParam(
-                            type="reasoning",
-                            id=content.signature,
-                            summary=[Summary(type="summary_text", text=reasoning)]
-                            if reasoning
-                            else [],
-                        )
+                items.append(
+                    ResponseReasoningItemParam(
+                        type="reasoning",
+                        id=content.signature,
+                        summary=[Summary(type="summary_text", text=reasoning)]
+                        if reasoning
+                        else [],
                     )
+                )
             case ContentText(text=text, refusal=refusal):
                 if suppress_output_message:
                     continue
@@ -409,7 +415,7 @@ def _openai_input_items_from_chat_message_assistant(
             role="assistant",
             # this actually can be `None`, and it will in fact be `None` when the
             # assistant message is synthesized by the scaffold as opposed to being
-            # replayed from the model (or when store=False)
+            # replayed from the model
             id=msg_id,  # type: ignore[typeddict-item]
             content=content_list,
             status="completed",
@@ -531,3 +537,43 @@ def _responses_tool_alias(name: str) -> str:
 
 def _from_responses_tool_alias(name: str) -> str:
     return next((k for k, v in _responses_tool_aliases.items() if v == name), name)
+
+
+def _to_inspect_citation(input: Annotation) -> Citation:
+    match input:
+        case AnnotationURLCitation(
+            end_index=end_index, start_index=start_index, title=title, url=url
+        ):
+            return UrlCitation(
+                cited_text=(start_index, end_index), title=title, url=url
+            )
+
+        case (
+            AnnotationFileCitation(file_id=file_id, index=index)
+            | AnnotationFilePath(file_id=file_id, index=index)
+        ):
+            return DocumentCitation(internal={"file_id": file_id, "index": index})
+    assert False, f"Unexpected citation type: {input.type}"
+
+
+def _filter_consecutive_reasoning_blocks(
+    content_list: list[ContentText | ContentReasoning],
+) -> list[ContentText | ContentReasoning]:
+    return [
+        content
+        for i, content in enumerate(content_list)
+        if _should_keep_content(i, content, content_list)
+    ]
+
+
+def _should_keep_content(
+    i: int,
+    content: ContentText | ContentReasoning,
+    content_list: list[ContentText | ContentReasoning],
+) -> bool:
+    return (
+        True
+        if not isinstance(content, ContentReasoning)
+        else i == len(content_list) - 1
+        or not isinstance(content_list[i + 1], ContentReasoning)
+    )

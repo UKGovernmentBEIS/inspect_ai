@@ -19,35 +19,37 @@ class TestNormalizeConfig:
         "providers,expected_result",
         [
             # Single str
-            ("google", {"google": None}),
-            ("tavily", {"tavily": None}),
-            ("openai", {"openai": None}),
+            ("google", {"google": {}}),
+            ("tavily", {"tavily": {}}),
+            ("openai", {"openai": {}}),
             # Single str[]
-            (["google"], {"google": None}),
-            (["tavily"], {"tavily": None}),
-            (["openai"], {"openai": None}),
+            (["google"], {"google": {}}),
+            (["tavily"], {"tavily": {}}),
+            (["openai"], {"openai": {}}),
             # Multiple str[]
-            (["google", "tavily"], {"google": None, "tavily": None}),
+            (["google", "tavily"], {"google": {}, "tavily": {}}),
             # Single dict
-            ({"tavily": None}, {"tavily": None}),
+            ({"tavily": True}, {"tavily": {}}),
+            ({"tavily": {"max_results": 5}}, {"tavily": {"max_results": 5}}),
+            ({"tavily": None}, {"tavily": {}}),
             ({"tavily": {"max_results": 5}}, {"tavily": {"max_results": 5}}),
             # Single dict[]
-            ([{"tavily": None}], {"tavily": None}),
+            ([{"tavily": None}], {"tavily": {}}),
             ([{"tavily": {"max_results": 5}}], {"tavily": {"max_results": 5}}),
             # Multi dict[]
             (
-                [{"tavily": {"max_results": 5}}, {"google": None}],
-                {"tavily": {"max_results": 5}, "google": None},
+                [{"tavily": {"max_results": 5}}, {"google": {}}],
+                {"tavily": {"max_results": 5}, "google": {}},
             ),
             # Mixed string and dict[]
             (
                 ["google", {"tavily": {"max_results": 5}}],
-                {"google": None, "tavily": {"max_results": 5}},
+                {"google": {}, "tavily": {"max_results": 5}},
             ),
             # Complex combination
             (
                 ["google", {"tavily": None}, {"openai": {"model": "gpt-4o"}}],
-                {"google": None, "tavily": None, "openai": {"model": "gpt-4o"}},
+                {"google": {}, "tavily": {}, "openai": {"model": "gpt-4o"}},
             ),
         ],
     )
@@ -60,8 +62,8 @@ class TestNormalizeConfig:
         "deprecated_provider,deprecated_args,expected_result",
         [
             # Basic deprecated providers
-            ("google", {}, {"google": None}),
-            ("tavily", {}, {"tavily": None}),
+            ("google", {}, {"google": {}}),
+            ("tavily", {}, {"tavily": {}}),
             # Google with various deprecated args
             ("google", {"num_results": 5}, {"google": {"num_results": 5}}),
             (
@@ -120,7 +122,7 @@ class TestNormalizeConfig:
     def test_direct_providers_dict(self) -> None:
         """Test passing a Providers dict directly."""
         # Copy the dict to avoid modification
-        providers_dict: Providers = {"google": None}
+        providers_dict: Providers = {"google": {}}
         result = _normalize_config(providers_dict)
         assert result == providers_dict
 
@@ -160,7 +162,7 @@ class TestCreateExternalProvider:
         else default,
     )
     def test_tavily_provider_with_none(self, mock_environ_get) -> None:
-        assert callable(_create_external_provider({"tavily": None}))
+        assert callable(_create_external_provider({"tavily": {}}))
 
     @patch(
         "os.environ.get",
@@ -184,7 +186,35 @@ class TestCreateExternalProvider:
         return_value=("fake-key", "fake-cse-id"),
     )
     def test_google_provider_with_none(self, mock_google_api_keys) -> None:
-        assert callable(_create_external_provider({"google": None}))
+        assert callable(_create_external_provider({"google": {}}))
+
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "EXA_API_KEY"
+        else default,
+    )
+    def test_exa_provider_with_normal_config(self, mock_environ_get) -> None:
+        assert callable(_create_external_provider({"exa": {"text": True}}))
+
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "EXA_API_KEY"
+        else default,
+    )
+    def test_exa_provider_with_none(self, mock_environ_get) -> None:
+        assert callable(_create_external_provider({"exa": {}}))
+
+    @patch(
+        "os.environ.get",
+        side_effect=lambda key, default=None: "fake-key"
+        if key == "EXA_API_KEY"
+        else default,
+    )
+    def test_exa_provider_with_bogus_config(self, mock_environ_get) -> None:
+        with pytest.raises(ValidationError):
+            _create_external_provider({"exa": {"text": "bogus"}})
 
 
 class TestOldSignatureVariants:
@@ -199,12 +229,12 @@ class TestOldSignatureVariants:
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_no_parameters(self, mock_warning):
-        assert ToolDef(web_search()).options == {"google": None}
+        assert ToolDef(web_search()).options == {"google": {}}
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_only_provider_parameter(self, mock_warning):
-        assert ToolDef(web_search(provider="google")).options == {"google": None}
-        assert ToolDef(web_search(provider="tavily")).options == {"tavily": None}
+        assert ToolDef(web_search(provider="google")).options == {"google": {}}
+        assert ToolDef(web_search(provider="tavily")).options == {"tavily": {}}
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_provider_with_num_results(self, mock_warning):

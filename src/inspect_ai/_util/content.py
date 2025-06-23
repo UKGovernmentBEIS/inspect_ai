@@ -1,6 +1,8 @@
-from typing import Literal, Union
+from typing import Literal, Sequence, Union
 
 from pydantic import BaseModel, Field, JsonValue
+
+from inspect_ai._util.citation import Citation
 
 
 class ContentBase(BaseModel):
@@ -19,6 +21,9 @@ class ContentText(ContentBase):
 
     refusal: bool | None = Field(default=None)
     """Was this a refusal message?"""
+
+    citations: Sequence[Citation] | None = Field(default=None)
+    """Citations supporting the text block."""
 
 
 class ContentReasoning(ContentBase):
@@ -82,5 +87,22 @@ class ContentVideo(ContentBase):
     """Format of video data ('mp4', 'mpeg', or 'mov')"""
 
 
-Content = Union[ContentText, ContentReasoning, ContentImage, ContentAudio, ContentVideo]
+class ContentData(ContentBase):
+    """Model internal."""
+
+    type: Literal["data"] = Field(default="data")
+    """Type."""
+
+    data: dict[str, JsonValue]
+    """Model provider specific payload - required for internal content."""
+
+
+Content = Union[
+    ContentText,
+    ContentReasoning,
+    ContentImage,
+    ContentAudio,
+    ContentVideo,
+    ContentData,
+]
 """Content sent to or received from a model."""

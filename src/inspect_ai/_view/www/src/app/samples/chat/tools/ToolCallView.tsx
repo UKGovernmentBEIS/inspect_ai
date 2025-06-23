@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FC, useMemo } from "react";
 import {
   ContentAudio,
+  ContentData,
   ContentImage,
   ContentReasoning,
   ContentText,
@@ -11,6 +12,7 @@ import {
 import { ContentTool } from "../../../../app/types";
 import ExpandablePanel from "../../../../components/ExpandablePanel";
 import { MessageContent } from "../MessageContent";
+import { defaultContext } from "../MessageContents";
 import styles from "./ToolCallView.module.css";
 import { ToolInput } from "./ToolInput";
 import { ToolTitle } from "./ToolTitle";
@@ -31,6 +33,7 @@ interface ToolCallViewProps {
     | ContentVideo
     | ContentTool
     | ContentReasoning
+    | ContentData
     | (
         | ContentText
         | ContentAudio
@@ -38,6 +41,7 @@ interface ToolCallViewProps {
         | ContentVideo
         | ContentTool
         | ContentReasoning
+        | ContentData
       )[];
   mode?: "compact";
 }
@@ -65,7 +69,8 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
       | ContentImage
       | ContentVideo
       | ContentTool
-      | ContentReasoning,
+      | ContentReasoning
+      | ContentData,
   ) {
     if (value && typeof value === "object") {
       if (value.type === "image") {
@@ -105,6 +110,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   });
 
   const contents = mode !== "compact" ? input : input || functionCall;
+  const context = defaultContext();
   return (
     <div className={clsx(styles.toolCallView)}>
       <div>
@@ -127,7 +133,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           lines={15}
           className={clsx("text-size-small")}
         >
-          <MessageContent contents={normalizedContent} />
+          <MessageContent contents={normalizedContent} context={context} />
         </ExpandablePanel>
       ) : undefined}
     </div>
@@ -148,6 +154,7 @@ const normalizeContent = (
     | ContentVideo
     | ContentTool
     | ContentReasoning
+    | ContentData
     | (
         | ContentText
         | ContentImage
@@ -155,6 +162,7 @@ const normalizeContent = (
         | ContentVideo
         | ContentTool
         | ContentReasoning
+        | ContentData
       )[],
 ): (
   | ContentText
@@ -163,6 +171,7 @@ const normalizeContent = (
   | ContentVideo
   | ContentTool
   | ContentReasoning
+  | ContentData
 )[] => {
   if (Array.isArray(output)) {
     return output;
@@ -176,6 +185,7 @@ const normalizeContent = (
             text: String(output),
             refusal: null,
             internal: null,
+            citations: null,
           },
         ],
       },

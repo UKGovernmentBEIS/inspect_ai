@@ -11,7 +11,9 @@
         "task_attribs": {
             "lite": true
         },
-        "task_args": {},
+        "task_args": {
+            "foo": "bar"
+        },
         "dataset": {
             "name": "...",
             "location": ".",

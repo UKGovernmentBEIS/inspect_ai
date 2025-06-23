@@ -4,13 +4,16 @@ from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
     LimitScope,
+    SampleLimits,
     apply_limits,
     message_limit,
+    sample_limits,
     time_limit,
     token_limit,
     working_limit,
 )
 
+from ._background import background
 from ._collect import collect
 from ._concurrency import concurrency
 from ._console import input_screen
@@ -29,6 +32,7 @@ from ._sandbox import (
     SandboxEnvironmentType,
     sandbox,
     sandbox_default,
+    sandbox_service,
     sandbox_with,
     sandboxenv,
 )
@@ -44,6 +48,8 @@ from ._throttle import throttle
 
 __all__ = [
     "apply_limits",
+    "sample_limits",
+    "SampleLimits",
     "ExecResult",
     "concurrency",
     "DisplayType",
@@ -73,6 +79,7 @@ __all__ = [
     "sandbox",
     "sandbox_with",
     "sandbox_default",
+    "sandbox_service",
     "Store",
     "store",
     "StoreModel",
@@ -82,6 +89,7 @@ __all__ = [
     "Subtask",
     "subtask",
     "throttle",
+    "background",
     "token_limit",
     "time_limit",
     "working_limit",

@@ -1,4 +1,4 @@
-# Groups: Coding Assistants Cybersecurity Safeguards Mathematics Reasoning Knowledge Multimodal
+# Groups: Coding Assistants Cybersecurity Safeguards Mathematics Reasoning Knowledge Personality Scheming
 
 - title: "HumanEval: Python Function Generation from Instructions"
   description: |
@@ -218,6 +218,56 @@
       dataset_samples: 13
   tags: ["Agent"]
 
+- title: "GDM Dangerous Capabilities: Self-Reasoning"
+  description: |
+    Test AI's ability to reason about its environment.
+  path: src/inspect_evals/gdm_capabilities/self_reasoning
+  arxiv: https://arxiv.org/abs/2505.01420
+  group: Scheming
+  contributors: ["ZiyueWang25", "XkunW"]
+  tasks:
+    - name: gdm_approved_directories
+      dataset_samples: 2
+    - name: gdm_calculator_improvement
+      dataset_samples: 2
+    - name: gdm_context_length_mod_instrumental_only
+      dataset_samples: 2
+    - name: gdm_context_length_mod_irreversibility_only
+      dataset_samples: 2
+    - name: gdm_database_tool
+      dataset_samples: 2
+    - name: gdm_latency_calculator
+      dataset_samples: 2
+    - name: gdm_max_messages_calculator
+      dataset_samples: 2
+    - name: gdm_max_tokens
+      dataset_samples: 2
+    - name: gdm_oversight_frequency
+      dataset_samples: 2
+    - name: gdm_read_logs
+      dataset_samples: 2
+    - name: gdm_turn_off_filters
+      dataset_samples: 2
+  tags: ["Agent"]
+
+- title: "GDM Dangerous Capabilities: Stealth"
+  description: |
+    Test AI's ability to reason about and circumvent oversight.
+  path: src/inspect_evals/gdm_capabilities/stealth
+  arxiv: https://arxiv.org/abs/2505.01420
+  group: Scheming
+  contributors: ["ZiyueWang25"]
+  tasks:
+    - name: gdm_classifier_evasion
+      dataset_samples: 9
+    - name: gdm_cover_your_tracks
+      dataset_samples: 2
+    - name: gdm_oversight_pattern
+      dataset_samples: 2
+    - name: gdm_strategic_rule_breaking
+      dataset_samples: 1
+  tags: ["Agent"]
+
 - title: "SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis and response abilities in LLMs for Security Events."
   description: |
     Designed for analyzing cybersecurity incidents, which is comprised of two primary task categories: understanding and generation, with a further breakdown into 28 subcategories of tasks.
@@ -310,7 +360,7 @@
 
 - title: "MATH: Measuring Mathematical Problem Solving"
   description: |
-    Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers.
+    Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers. NOTE: The dataset has been taken down due to a DMCA notice from The Art of Problem Solving.
   path: src/inspect_evals/mathematics
   arxiv: https://arxiv.org/abs/2103.03874
   group: Mathematics
@@ -794,11 +844,22 @@
     - name: simpleqa
       dataset_samples: 4326
 
+- title: "Pre-Flight: Aviation Operations Knowledge Evaluation"
+  description: |
+    Tests model understanding of aviation regulations including ICAO annexes, flight dispatch rules, pilot procedures, and airport ground operations safety protocols.
+  path: src/inspect_evals/pre_flight
+  group: Knowledge
+  contributors: ["alexbrooker"]
+  tasks:
+    - name: pre_flight
+      dataset_samples: 300
+
 - title: "MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language Models"
   description: A comprehensive dataset designed to evaluate Large Vision-Language Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses 7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously curated multiple-choice questions.
   path: src/inspect_evals/mmiu
   arxiv: https://arxiv.org/pdf/2408.02718
-  group: Multimodal
+  group: Reasoning
+  tags: ["Multimodal"]
   contributors: ["Esther-Guo"]
   tasks:
     - name: mmiu
@@ -849,3 +910,36 @@
   tasks:
     - name: mind2web
       dataset_samples: 7775
+
+- title: "USACO: USA Computing Olympiad"
+  description: |
+    Evaluates language model performance on difficult Olympiad programming problems across four difficulty levels.
+  path: src/inspect_evals/usaco
+  arxiv: https://arxiv.org/abs/2404.10952
+  group: Coding
+  contributors: ["danwilhelm"]
+  tasks:
+    - name: usaco
+      dataset_samples: 307
+      human_baseline:
+        metric: pass@1
+        score: 0.3583
+        source: https://arxiv.org/abs/2404.10952
+
+- title: "Personality"
+  description: |
+    An evaluation suite consisting of multiple personality tests that can be applied to LLMs.
+    Its primary goals are twofold:
+      1. Assess a model's default personality: the persona it naturally exhibits without specific prompting.  
+      2. Evaluate whether a model can embody a specified persona**: how effectively it adopts certain personality traits when prompted or guided.
+  path: src/inspect_evals/personality
+  group: Personality
+  contributors: ["guiem"]
+  tasks:
+    - name: personality_BFI
+      dataset_samples: 44
+    - name: personality_TRAIT
+      dataset_samples: 8000
+    - name: personality_PRIME
+      dataset_samples: 50
+  dependency: "personality"

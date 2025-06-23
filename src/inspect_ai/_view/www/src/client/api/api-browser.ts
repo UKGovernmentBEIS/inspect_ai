@@ -155,6 +155,29 @@ async function eval_log_sample_data(
   return result;
 }
 
+async function log_message(log_file: string, message: string) {
+  const params = new URLSearchParams();
+  params.append("log_file", log_file);
+  params.append("message", message);
+
+  const request: Request<void> = {
+    headers: {
+      "Content-Type": "text/plain",
+    },
+    parse: async (text: string) => {
+      if (text !== "") {
+        throw new Error(`Unexpected response from log_message: ${text}`);
+      }
+      return;
+    },
+  };
+  await apiRequest<void>(
+    "GET",
+    `/api/log-message?${params.toString()}`,
+    request,
+  );
+}
+
 interface Request<T> {
   headers?: Record<string, string>;
   body?: string;
@@ -288,7 +311,9 @@ const browserApi: LogViewAPI = {
   eval_log_size,
   eval_log_bytes,
   eval_log_headers,
+  log_message,
   download_file,
+
   open_log_file,
   eval_pending_samples,
   eval_log_sample_data,

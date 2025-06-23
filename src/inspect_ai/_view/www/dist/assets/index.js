@@ -23937,7 +23937,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               processAttachments(sampleDataResponse.sampleData, pollingState);
               const processedEvents = processEvents(
                 sampleDataResponse.sampleData,
-                pollingState
+                pollingState,
+                api2,
+                logFile
               );
               if (sampleDataResponse.sampleData.attachments.length > 0) {
                 const maxAttachment = findMaxId(
@@ -24001,7 +24003,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         pollingState.attachments[v2.hash] = v2.content;
       });
     }
-    function processEvents(sampleData, pollingState) {
+    function processEvents(sampleData, pollingState, api2, log_file) {
       log$4.debug(`Processing ${sampleData.events.length} events`);
       if (sampleData.events.length === 0) {
         return false;
@@ -24017,6 +24019,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               attachmentId,
               available_attachments: Object.keys(pollingState.attachments)
             };
+            if (api2.log_message) {
+              api2.log_message(
+                log_file,
+                `Unable to resolve attachment ${attachmentId}
+` + JSON.stringify(snapshot)
+              );
+            }
             console.warn(`Unable to resolve attachment ${attachmentId}`, snapshot);
           }
         );
@@ -24709,7 +24718,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1r = {
+    const styles$1v = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24725,9 +24734,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1r.circle,
+                styles$1v.circle,
                 "text-size-small",
-                score2 ? styles$1r.green : styles$1r.red
+                score2 ? styles$1v.green : styles$1v.red
               ),
               children: String(score2)
             }
@@ -24798,7 +24807,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const container$l = "_container_1ramc_1";
     const key$1 = "_key_1ramc_12";
     const value$2 = "_value_1ramc_16";
-    const styles$1q = {
+    const styles$1u = {
       container: container$l,
       key: key$1,
       value: value$2
@@ -24841,12 +24850,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -31484,19 +31493,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1p[sup[this.id]];
+      return styles$1t[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1p[sub[this.id]];
+      return styles$1t[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1p[fracNum[this.id]];
+      return styles$1t[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1p[fracDen[this.id]];
+      return styles$1t[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1p[cramp[this.id]];
+      return styles$1t[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -31524,7 +31533,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1p = [
+    var styles$1t = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -31540,10 +31549,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1p[D],
-      TEXT: styles$1p[T],
-      SCRIPT: styles$1p[S],
-      SCRIPTSCRIPT: styles$1p[SS]
+      DISPLAY: styles$1t[D],
+      TEXT: styles$1t[T],
+      SCRIPT: styles$1t[S],
+      SCRIPTSCRIPT: styles$1t[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -38202,7 +38211,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const unescaped = unprotectMarkdown(renderedHtml);
         const withCode = unescapeCodeHtmlEntities(unescaped);
-        const markup = { __html: withCode };
+        const withSup = unescapeSupHtmlEntities(withCode);
+        const markup = { __html: withSup };
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -38214,7 +38224,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         );
       }
     );
-    const kLetterListPattern = /^([a-zA-Z0-9][).]\s.*?)$/gm;
+    const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
     const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
     const protectBackslashesInLatex = (content2) => {
       if (!content2) return content2;
@@ -38299,6 +38309,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       txt = txt.replaceAll("(close:767A125E)", "]");
       return txt;
     };
+    function unescapeSupHtmlEntities(str2) {
+      if (!str2) {
+        return str2;
+      }
+      return str2.replace(/&lt;sup&gt;/g, "<sup>").replace(/&lt;\/sup&gt;/g, "</sup>");
+    }
     function unescapeCodeHtmlEntities(str2) {
       if (!str2) return str2;
       const htmlEntities = {
@@ -38322,7 +38338,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1o = {
+    const styles$1s = {
       visible,
       hidden: hidden$2,
       pills,
@@ -38354,7 +38370,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1o.visible : styles$1o.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1s.visible : styles$1s.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -38364,7 +38380,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1o.pills),
+            className: clsx("nav", "nav-pills", styles$1s.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -38400,7 +38416,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$1o.pill
+              styles$1s.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -38416,7 +38432,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       final: 1e3
     };
     const copyButton = "_copyButton_1goi8_1";
-    const styles$1n = {
+    const styles$1r = {
       copyButton
     };
     const CopyButton = ({
@@ -38446,7 +38462,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "button",
         {
           type: "button",
-          className: clsx("copy-button", styles$1n.copyButton, className2),
+          className: clsx("copy-button", styles$1r.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -38487,7 +38503,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const bordered = "_bordered_elrou_35";
     const moreToggleButton = "_moreToggleButton_elrou_39";
     const separator$5 = "_separator_elrou_45";
-    const styles$1m = {
+    const styles$1q = {
       expandablePanel,
       expandableBordered,
       expandableCollapsed,
@@ -38529,10 +38545,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                styles$1m.expandablePanel,
-                collapsed2 ? styles$1m.expandableCollapsed : void 0,
-                border ? styles$1m.expandableBordered : void 0,
-                showToggle ? styles$1m.padBottom : void 0
+                styles$1q.expandablePanel,
+                collapsed2 ? styles$1q.expandableCollapsed : void 0,
+                border ? styles$1q.expandableBordered : void 0,
+                showToggle ? styles$1q.padBottom : void 0
               ),
               children: [
                 children2,
@@ -38547,7 +38563,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.separator) })
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.separator) })
         ] });
       }
     );
@@ -38564,12 +38580,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1m.moreToggle, border ? styles$1m.bordered : void 0),
+          className: clsx(styles$1q.moreToggle, border ? styles$1q.bordered : void 0),
           style: style2,
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              className: clsx("btn", styles$1m.moreToggleButton, "text-size-smallest"),
+              className: clsx("btn", styles$1q.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
                 text2,
@@ -38579,6450 +38595,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           )
         }
       );
-    };
-    const directoryRelativeUrl = (file, dir) => {
-      if (!dir) {
-        return encodeURIComponent(file);
-      }
-      const normalizedFile = file.replace(/\\/g, "/");
-      const normalizedLogDir = dir.replace(/\\/g, "/");
-      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-      if (normalizedFile.startsWith(dirWithSlash)) {
-        const relativePath = normalizedFile.substring(dirWithSlash.length);
-        const segments = relativePath.split("/");
-        const encodedSegments = segments.map(
-          (segment) => encodeURIComponent(segment)
-        );
-        return encodedSegments.join("/");
-      }
-      return encodeURIComponent(file);
-    };
-    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
-    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
-    const baseUrl = (logPath, sampleId, sampleEpoch) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return sampleUrl(logPath, sampleId, sampleEpoch);
-      } else {
-        return logUrl(logPath);
-      }
-    };
-    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
-      } else {
-        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
-      }
-    };
-    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleTranscriptTabId
-      );
-      return `${baseUrl2}?event=${eventId}`;
-    };
-    const useSampleMessageUrl = (messageId, sampleId, sampleEpoch) => {
-      const {
-        logPath: urlLogPath,
-        sampleId: urlSampleId,
-        epoch: urlEpoch
-      } = useParams();
-      const log_file = useStore((state) => state.logs.selectedLogFile);
-      const log_dir = useStore((state) => state.logs.logs.log_dir);
-      let targetLogPath = urlLogPath;
-      if (!targetLogPath && log_file) {
-        targetLogPath = makeLogPath(log_file, log_dir);
-      }
-      const eventUrl = reactExports.useMemo(() => {
-        return messageId && targetLogPath ? sampleMessageUrl(
-          messageId,
-          targetLogPath,
-          urlSampleId,
-          urlEpoch
-        ) : void 0;
-      }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-      return eventUrl;
-    };
-    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
-      const {
-        logPath: urlLogPath,
-        sampleId: urlSampleId,
-        epoch: urlEpoch
-      } = useParams();
-      const log_file = useStore((state) => state.logs.selectedLogFile);
-      const log_dir = useStore((state) => state.logs.logs.log_dir);
-      let targetLogPath = urlLogPath;
-      if (!targetLogPath && log_file) {
-        targetLogPath = makeLogPath(log_file, log_dir);
-      }
-      const eventUrl = reactExports.useMemo(() => {
-        return targetLogPath ? sampleEventUrl(
-          eventId,
-          targetLogPath,
-          urlSampleId,
-          urlEpoch
-        ) : void 0;
-      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-      return eventUrl;
-    };
-    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
-      const baseUrl2 = sampleUrl(
-        logPath,
-        sampleId,
-        sampleEpoch,
-        kSampleMessagesTabId
-      );
-      return `${baseUrl2}?message=${messageId}`;
-    };
-    const logUrl = (log_file, log_dir, tabId) => {
-      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
-    };
-    const makeLogPath = (log_file, log_dir) => {
-      const pathSegment = directoryRelativeUrl(log_file, log_dir);
-      return pathSegment;
-    };
-    const logUrlRaw = (log_segment, tabId) => {
-      if (tabId) {
-        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
-      } else {
-        return `/logs/${encodeURIComponent(log_segment)}`;
-      }
-    };
-    const supportsLinking = () => {
-      return (
-        //location.hostname !== "localhost" &&
-        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
-      );
-    };
-    const toFullUrl = (path) => {
-      return `${window.location.origin}${window.location.pathname}#${path}`;
-    };
-    const message$1 = "_message_17kai_1";
-    const systemRole = "_systemRole_17kai_8";
-    const messageGrid = "_messageGrid_17kai_12";
-    const messageContents = "_messageContents_17kai_20";
-    const indented = "_indented_17kai_25";
-    const copyLink$1 = "_copyLink_17kai_29";
-    const styles$1l = {
-      message: message$1,
-      systemRole,
-      messageGrid,
-      messageContents,
-      indented,
-      copyLink: copyLink$1
-    };
-    const contentImage = "_contentImage_61gdd_1";
-    const reasoning = "_reasoning_61gdd_6";
-    const styles$1k = {
-      contentImage,
-      reasoning
-    };
-    const toolImage = "_toolImage_bv5nm_1";
-    const output = "_output_bv5nm_6";
-    const textOutput = "_textOutput_bv5nm_10";
-    const textCode = "_textCode_bv5nm_18";
-    const styles$1j = {
-      toolImage,
-      output,
-      textOutput,
-      textCode
-    };
-    const ToolOutput = ({ output: output2 }) => {
-      if (!output2) {
-        return null;
-      }
-      const outputs = [];
-      if (Array.isArray(output2)) {
-        output2.forEach((out, idx) => {
-          const key2 = `tool-output-${idx}`;
-          if (out.type === "text") {
-            outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: out.text }, key2));
-          } else {
-            if (out.image.startsWith("data:")) {
-              outputs.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "img",
-                  {
-                    className: clsx(styles$1j.toolImage),
-                    src: out.image
-                  },
-                  key2
-                )
-              );
-            } else {
-              outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(out.image) }, key2));
-            }
-          }
-        });
-      } else {
-        outputs.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
-        );
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.output), children: outputs });
-    };
-    const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1j.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1j.textCode), children: text2.trim() }) });
-    };
-    const MessageContent = ({ contents: contents2 }) => {
-      if (Array.isArray(contents2)) {
-        return contents2.map((content2, index2) => {
-          if (typeof content2 === "string") {
-            return messageRenderers["text"].render(
-              `text-content-${index2}`,
-              {
-                type: "text",
-                text: content2,
-                refusal: null,
-                internal: null
-              },
-              index2 === contents2.length - 1
-            );
-          } else {
-            if (content2) {
-              const renderer = messageRenderers[content2.type];
-              if (renderer) {
-                return renderer.render(
-                  `text-${content2.type}-${index2}`,
-                  content2,
-                  index2 === contents2.length - 1
-                );
-              } else {
-                console.error(`Unknown message content type '${content2.type}'`);
-              }
-            }
-          }
-        });
-      } else {
-        const contentText = {
-          type: "text",
-          text: contents2,
-          refusal: null,
-          internal: null
-        };
-        return messageRenderers["text"].render(
-          "text-message-content",
-          contentText,
-          true
-        );
-      }
-    };
-    const messageRenderers = {
-      text: {
-        render: (key2, content2, isLast) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MarkdownDiv,
-            {
-              markdown: c2.text || "",
-              className: isLast ? "no-last-para-padding" : ""
-            },
-            key2
-          );
-        }
-      },
-      reasoning: {
-        render: (key2, content2, isLast) => {
-          const r2 = content2;
-          if (!r2.reasoning && !r2.redacted) {
-            return void 0;
-          }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1k.reasoning, "text-size-small"), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx(
-                  "text-style-label",
-                  "text-style-secondary",
-                  isLast ? "no-last-para-padding" : ""
-                ),
-                children: "Reasoning"
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${key2}-reasoning`, collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MarkdownDiv,
-              {
-                markdown: r2.redacted ? "Reasoning encrypted by model provider." : r2.reasoning
-              }
-            ) })
-          ] }, key2);
-        }
-      },
-      image: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1k.contentImage }, key2);
-          } else {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
-          }
-        }
-      },
-      audio: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("audio", { controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.audio, type: mimeTypeForFormat(c2.format) }) }, key2);
-        }
-      },
-      video: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("video", { width: "500", height: "375", controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.video, type: mimeTypeForFormat(c2.format) }) }, key2);
-        }
-      },
-      tool: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(ToolOutput, { output: c2.content }, key2);
-        }
-      }
-    };
-    const mimeTypeForFormat = (format2) => {
-      switch (format2) {
-        case "mov":
-          return "video/quicktime";
-        case "wav":
-          return "audio/wav";
-        case "mp3":
-          return "audio/mpeg";
-        case "mp4":
-          return "video/mp4";
-        case "mpeg":
-          return "video/mpeg";
-      }
-    };
-    const resolveToolInput = (fn2, toolArgs) => {
-      const toolName = fn2;
-      const [inputKey, highlightLanguage] = extractInputMetadata(toolName);
-      const { input: input2, args } = extractInput(
-        toolArgs,
-        inputKey
-      );
-      const functionCall = args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
-      return {
-        functionCall,
-        input: input2,
-        highlightLanguage
-      };
-    };
-    const extractInputMetadata = (toolName) => {
-      if (toolName === "bash") {
-        return ["cmd", "bash"];
-      } else if (toolName === "python") {
-        return ["code", "python"];
-      } else if (toolName === "web_search") {
-        return ["query", "text"];
-      } else {
-        return [void 0, void 0];
-      }
-    };
-    const extractInput = (args, inputKey) => {
-      const formatArg = (key2, value2) => {
-        const quotedValue = value2 === null ? "None" : typeof value2 === "string" ? `"${value2}"` : typeof value2 === "object" || Array.isArray(value2) ? JSON.stringify(value2, void 0, 2) : String(value2);
-        return `${key2}: ${quotedValue}`;
-      };
-      if (args) {
-        if (inputKey && args[inputKey]) {
-          const input2 = args[inputKey];
-          const filteredArgs = Object.keys(args).filter((key2) => {
-            return key2 !== inputKey;
-          }).map((key2) => {
-            return formatArg(key2, args[key2]);
-          });
-          return {
-            input: String(input2),
-            args: filteredArgs
-          };
-        } else {
-          const formattedArgs = Object.keys(args).map((key2) => {
-            return formatArg(key2, args[key2]);
-          });
-          return {
-            input: void 0,
-            args: formattedArgs
-          };
-        }
-      }
-      return {
-        input: void 0,
-        args: []
-      };
-    };
-    const toolCallView = "_toolCallView_16q6n_1";
-    const styles$1i = {
-      toolCallView
-    };
-    const outputPre = "_outputPre_1jznn_1";
-    const toolView = "_toolView_1jznn_7";
-    const outputCode = "_outputCode_1jznn_15";
-    const styles$1h = {
-      outputPre,
-      toolView,
-      outputCode
-    };
-    const ToolInput = (props) => {
-      const { highlightLanguage, contents: contents2, toolCallView: toolCallView2 } = props;
-      const prismParentRef = usePrismHighlight(toolCallView2 == null ? void 0 : toolCallView2.content);
-      if (!contents2 && !(toolCallView2 == null ? void 0 : toolCallView2.content)) return null;
-      if (toolCallView2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          MarkdownDiv,
-          {
-            markdown: toolCallView2.content,
-            ref: prismParentRef,
-            className: clsx("tool-output", styles$1h.toolView)
-          }
-        );
-      }
-      const formattedContent = typeof contents2 === "object" ? JSON.stringify(contents2) : contents2;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "pre",
-        {
-          className: clsx("tool-output", styles$1h.outputPre, styles$1h.bottomMargin),
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "code",
-            {
-              className: clsx(
-                "source-code",
-                "sourceCode",
-                highlightLanguage ? `language-${highlightLanguage}` : void 0,
-                styles$1h.outputCode
-              ),
-              children: formattedContent
-            }
-          )
-        }
-      ) });
-    };
-    const image = "_image_a8byr_1";
-    const toolTitle = "_toolTitle_a8byr_6";
-    const styles$1g = {
-      image,
-      toolTitle
-    };
-    const ToolTitle = ({ title: title2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1g.image) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1g.toolTitle), children: title2 })
-      ] });
-    };
-    const ToolCallView = ({
-      id,
-      functionCall,
-      input: input2,
-      highlightLanguage,
-      view,
-      output: output2,
-      mode
-    }) => {
-      function isContentImage(value2) {
-        if (value2 && typeof value2 === "object") {
-          if (value2.type === "image") {
-            return true;
-          } else if (value2.type === "tool") {
-            if (Array.isArray(value2.content) && value2.content.some(isContentImage)) {
-              return true;
-            }
-          }
-        }
-        return false;
-      }
-      const collapse = Array.isArray(output2) ? output2.every((item2) => !isContentImage(item2)) : !isContentImage(output2);
-      const normalizedContent = reactExports.useMemo(() => normalizeContent$1(output2), [output2]);
-      const hasContent = normalizedContent.find((c2) => {
-        if (c2.type === "tool") {
-          for (const t2 of c2.content) {
-            if (t2.type === "text") {
-              if (t2.text) {
-                return true;
-              }
-            } else {
-              return true;
-            }
-          }
-          return false;
-        } else {
-          return true;
-        }
-      });
-      const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1i.toolCallView), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ToolInput,
-            {
-              highlightLanguage,
-              contents: contents2,
-              toolCallView: view
-            }
-          )
-        ] }),
-        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ExpandablePanel,
-          {
-            id: `${id}-tool-input`,
-            collapse,
-            border: true,
-            lines: 15,
-            className: clsx("text-size-small"),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
-          }
-        ) : void 0
-      ] });
-    };
-    const normalizeContent$1 = (output2) => {
-      if (Array.isArray(output2)) {
-        return output2;
-      } else {
-        return [
-          {
-            type: "tool",
-            content: [
-              {
-                type: "text",
-                text: String(output2),
-                refusal: null,
-                internal: null
-              }
-            ]
-          }
-        ];
-      }
-    };
-    const content$2 = "_content_1b2jp_1";
-    const codeCompact = "_codeCompact_1b2jp_5";
-    const styles$1f = {
-      content: content$2,
-      codeCompact
-    };
-    const MessageContents = ({
-      id,
-      message: message2,
-      toolMessages,
-      toolCallStyle
-    }) => {
-      if (message2.role === "assistant" && message2.tool_calls && message2.tool_calls.length) {
-        const toolCalls = message2.tool_calls.map((tool_call, idx) => {
-          const { input: input2, functionCall, highlightLanguage } = resolveToolInput(
-            tool_call.function,
-            tool_call.arguments
-          );
-          let toolMessage;
-          if (tool_call.id) {
-            toolMessage = toolMessages.find((msg) => {
-              return msg.tool_call_id === tool_call.id;
-            });
-          } else {
-            toolMessage = toolMessages[idx];
-          }
-          const resolvedToolOutput = resolveToolMessage(toolMessage);
-          if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1f.codeCompact), children: [
-              "tool: ",
-              functionCall
-            ] }) }, `tool-call-${idx}`);
-          } else if (toolCallStyle === "omit") {
-            return void 0;
-          } else {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ToolCallView,
-              {
-                id: `${id}-tool-call`,
-                functionCall,
-                input: input2,
-                highlightLanguage,
-                output: resolvedToolOutput
-              },
-              `tool-call-${idx}`
-            );
-          }
-        });
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
-          toolCalls
-        ] });
-      } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content });
-      }
-    };
-    const resolveToolMessage = (toolMessage) => {
-      if (!toolMessage) {
-        return [];
-      }
-      const content2 = toolMessage.error !== null && toolMessage.error ? toolMessage.error.message : toolMessage.content;
-      if (typeof content2 === "string") {
-        return [
-          {
-            type: "tool",
-            content: [
-              {
-                type: "text",
-                text: content2,
-                refusal: null,
-                internal: null
-              }
-            ]
-          }
-        ];
-      } else {
-        const result2 = content2.map((con) => {
-          if (typeof con === "string") {
-            return {
-              type: "tool",
-              content: [
-                {
-                  type: "text",
-                  text: con,
-                  refusal: null,
-                  internal: null
-                }
-              ]
-            };
-          } else if (con.type === "text") {
-            return {
-              content: [con],
-              type: "tool"
-            };
-          } else if (con.type === "image") {
-            return {
-              content: [con],
-              type: "tool"
-            };
-          }
-        }).filter((con) => con !== void 0);
-        return result2;
-      }
-    };
-    const ChatMessage = ({
-      id,
-      message: message2,
-      toolMessages,
-      indented: indented2,
-      toolCallStyle
-    }) => {
-      const messageUrl = useSampleMessageUrl(message2.id);
-      const collapse = message2.role === "system" || message2.role === "user";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx(
-            message2.role,
-            "text-size-base",
-            styles$1l.message,
-            message2.role === "system" ? styles$1l.systemRole : void 0,
-            message2.role === "user" ? styles$1l.userRole : void 0
-          ),
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1l.messageGrid, "text-style-label"), children: [
-              message2.role,
-              supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                CopyButton,
-                {
-                  icon: ApplicationIcons.link,
-                  value: toFullUrl(messageUrl),
-                  className: clsx(styles$1l.copyLink)
-                }
-              ) : ""
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx(
-                  styles$1l.messageContents,
-                  indented2 ? styles$1l.indented : void 0
-                ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ExpandablePanel,
-                  {
-                    id: `${id}-message`,
-                    collapse,
-                    lines: collapse ? 15 : 25,
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      MessageContents,
-                      {
-                        id: `${id}-contents`,
-                        message: message2,
-                        toolMessages,
-                        toolCallStyle
-                      },
-                      `${id}-contents`
-                    )
-                  }
-                )
-              }
-            )
-          ]
-        }
-      );
-    };
-    const grid$7 = "_grid_rmdrx_1";
-    const number$1 = "_number_rmdrx_7";
-    const user = "_user_rmdrx_11";
-    const container$k = "_container_rmdrx_16";
-    const styles$1e = {
-      grid: grid$7,
-      number: number$1,
-      user,
-      container: container$k
-    };
-    const ChatMessageRow = ({
-      parentName,
-      number: number2,
-      resolvedMessage,
-      toolCallStyle,
-      indented: indented2,
-      highlightUserMessage
-    }) => {
-      if (number2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "div",
-            {
-              className: clsx(
-                styles$1e.grid,
-                styles$1e.container,
-                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1e.user : void 0
-              ),
-              children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "div",
-                  {
-                    className: clsx(
-                      "text-size-smaller",
-                      "text-style-secondary",
-                      styles$1e.number
-                    ),
-                    children: number2
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ChatMessage,
-                  {
-                    id: `${parentName}-chat-messages`,
-                    message: resolvedMessage.message,
-                    toolMessages: resolvedMessage.toolMessages,
-                    indented: indented2,
-                    toolCallStyle
-                  }
-                )
-              ]
-            }
-          ),
-          resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
-        ] });
-      } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              styles$1e.container,
-              styles$1e.simple,
-              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1e.user : void 0
-            ),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ChatMessage,
-                {
-                  id: `${parentName}-chat-messages`,
-                  message: resolvedMessage.message,
-                  toolMessages: resolvedMessage.toolMessages,
-                  indented: indented2,
-                  toolCallStyle
-                }
-              ),
-              resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
-            ]
-          }
-        );
-      }
-    };
-    const resolveMessages = (messages) => {
-      const resolvedMessages = [];
-      let index2 = 0;
-      for (const message2 of messages) {
-        if (message2.role === "tool") {
-          if (resolvedMessages.length > 0) {
-            const msg = resolvedMessages[resolvedMessages.length - 1];
-            msg.toolMessages = msg.toolMessages || [];
-            msg.toolMessages.push(message2);
-          }
-        } else {
-          resolvedMessages.push({ message: message2, toolMessages: [] });
-        }
-        if (message2.id === void 0) {
-          message2.id = `msg-${index2}`;
-        }
-        index2++;
-      }
-      const systemMessages = [];
-      const collapsedMessages = resolvedMessages.map((resolved) => {
-        if (resolved.message.role === "system") {
-          systemMessages.push(resolved.message);
-        }
-        return resolved;
-      }).filter((resolved) => {
-        return resolved.message.role !== "system";
-      });
-      const systemContent = [];
-      for (const systemMessage2 of systemMessages) {
-        const contents2 = Array.isArray(systemMessage2.content) ? systemMessage2.content : [systemMessage2.content];
-        systemContent.push(...contents2.map(normalizeContent));
-      }
-      const systemMessage = {
-        id: "sys-message-6815A84B062A",
-        role: "system",
-        content: systemContent,
-        source: "input",
-        internal: null
-      };
-      if (systemMessage && systemMessage.content.length > 0) {
-        collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
-      }
-      return collapsedMessages;
-    };
-    const normalizeContent = (content2) => {
-      if (typeof content2 === "string") {
-        return {
-          type: "text",
-          text: content2,
-          refusal: null,
-          internal: null
-        };
-      } else {
-        return content2;
-      }
-    };
-    const messagesFromEvents = (runningEvents) => {
-      const messages = /* @__PURE__ */ new Map();
-      runningEvents.filter((e) => e.event === "model").forEach((e) => {
-        for (const m of e.input) {
-          const inputMessage = m;
-          if (inputMessage.id && !messages.has(inputMessage.id)) {
-            messages.set(inputMessage.id, inputMessage);
-          }
-        }
-        const outputMessage = e.output.choices[0].message;
-        if (outputMessage.id) {
-          messages.set(outputMessage.id, outputMessage);
-        }
-      });
-      if (messages.size > 0) {
-        return messages.values().toArray();
-      } else {
-        return [];
-      }
-    };
-    const ChatView = ({
-      id,
-      messages,
-      toolCallStyle = "complete",
-      indented: indented2,
-      numbered = true,
-      className: className2
-    }) => {
-      const collapsedMessages = resolveMessages(messages);
-      const result2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(className2), children: collapsedMessages.map((msg, index2) => {
-        const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ChatMessageRow,
-          {
-            parentName: id || "chat-view",
-            number: number2,
-            resolvedMessage: msg,
-            indented: indented2,
-            toolCallStyle
-          },
-          `${id}-msg-${index2}`
-        );
-      }) });
-      return result2;
-    };
-    const ChatMessageRenderer = {
-      bucket: Buckets.first,
-      canRender: (entry2) => {
-        var _a2, _b2;
-        const val = entry2.value;
-        return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
-      },
-      render: (id, entry2) => {
-        return {
-          rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { id: `${id}-navpills`, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry2.value }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry2.value })
-          ] })
-        };
-      }
-    };
-    const ChatSummary = ({ id, messages }) => {
-      const summaryMessages = [];
-      for (const message2 of messages.slice().reverse()) {
-        summaryMessages.unshift(message2);
-        if (message2.role === "user") {
-          break;
-        }
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
-    };
-    const table$2 = "_table_1t3ts_1";
-    const cell$3 = "_cell_1t3ts_11";
-    const compact = "_compact_1t3ts_15";
-    const cellKey = "_cellKey_1t3ts_19";
-    const cellValue = "_cellValue_1t3ts_31";
-    const styles$1d = {
-      table: table$2,
-      cell: cell$3,
-      compact,
-      cellKey,
-      cellValue
-    };
-    const MetaDataView = ({
-      id,
-      style: style2,
-      entries,
-      tableOptions,
-      compact: compact2,
-      className: className2
-    }) => {
-      const baseId = "metadataview";
-      tableOptions = tableOptions || "sm";
-      const tblClz = (tableOptions || "").split(",").map((option) => {
-        return `table-${option}`;
-      });
-      const coercedEntries = toNameValues(entries);
-      const entryEls = (coercedEntries || []).map((entry2, index2) => {
-        const id2 = `${baseId}-value-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "td",
-            {
-              className: clsx(
-                styles$1d.cell,
-                styles$1d.cellKey,
-                "text-size-small",
-                "text-style-label"
-              ),
-              children: entry2.name
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1d.cell, styles$1d.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
-        ] }, id2);
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "table",
-        {
-          id,
-          className: clsx(
-            "table",
-            tblClz,
-            styles$1d.table,
-            compact2 ? styles$1d.compact : void 0,
-            className2
-          ),
-          style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
-        }
-      );
-    };
-    const toNameValues = (entries) => {
-      if (entries) {
-        if (Array.isArray(entries)) {
-          const filtered = entries.filter((entry2) => {
-            if (entry2 && typeof entry2 === "object") {
-              return "name" in entry2 && "value" in entry2;
-            }
-            return false;
-          });
-          return filtered;
-        } else {
-          return Object.entries(entries || {}).map(([key2, value2]) => {
-            return { name: key2, value: value2 };
-          });
-        }
-      } else {
-        return entries;
-      }
-    };
-    const query = "_query_seqs2_1";
-    const summary$3 = "_summary_seqs2_6";
-    const preWrap = "_preWrap_seqs2_10";
-    const preCompact = "_preCompact_seqs2_15";
-    const styles$1c = {
-      query,
-      summary: summary$3,
-      preWrap,
-      preCompact
-    };
-    const RenderedContent = ({
-      id,
-      entry: entry2,
-      renderOptions = { renderString: "markdown" },
-      renderObject
-    }) => {
-      if (entry2.value === null) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
-      }
-      const renderers = contentRenderers(renderObject);
-      const renderer = Object.keys(renderers).map((key2) => {
-        return renderers[key2];
-      }).sort((a, b) => {
-        return a.bucket - b.bucket;
-      }).find((renderer2) => {
-        return renderer2.canRender(entry2);
-      });
-      if (renderer) {
-        const { rendered } = renderer.render(id, entry2, renderOptions);
-        if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
-          return rendered;
-        }
-      }
-      const displayValue = (() => {
-        try {
-          if (typeof entry2.value === "object") {
-            return JSON.stringify(entry2.value);
-          }
-          return String(entry2.value).trim();
-        } catch (e) {
-          return "[Unable to display value]";
-        }
-      })();
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: displayValue });
-    };
-    const contentRenderers = (renderObject) => {
-      const contentRenderers2 = {
-        AnsiString: {
-          bucket: Buckets.first,
-          canRender: (entry2) => {
-            return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
-          },
-          render: (_id, entry2, _options) => {
-            return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
-            };
-          }
-        },
-        JsonString: {
-          bucket: Buckets.first,
-          canRender: (entry2) => {
-            if (typeof entry2.value === "string") {
-              const trimmed = entry2.value.trim();
-              return isJson(trimmed);
-            }
-            return false;
-          },
-          render: (_id, entry2, _options) => {
-            const obj = lib$1.parse(entry2.value);
-            return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj })
-            };
-          }
-        },
-        Model: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object" && entry2.value._model;
-          },
-          render: (_id, entry2, _options) => {
-            return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
-                " ",
-                entry2.value._model
-              ] })
-            };
-          }
-        },
-        Boolean: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "boolean";
-          },
-          render: (id, entry2, options2) => {
-            entry2.value = entry2.value.toString();
-            return contentRenderers2.String.render(id, entry2, options2);
-          }
-        },
-        Number: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "number";
-          },
-          render: (id, entry2, options2) => {
-            entry2.value = formatNumber(entry2.value);
-            return contentRenderers2.String.render(id, entry2, options2);
-          }
-        },
-        String: {
-          bucket: Buckets.final,
-          canRender: (entry2) => {
-            return typeof entry2.value === "string";
-          },
-          render: (_id, entry2, options2) => {
-            const rendered = entry2.value.trim();
-            if (options2.renderString === "markdown") {
-              return {
-                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: rendered })
-              };
-            } else {
-              return {
-                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1c.preWrap, styles$1c.preCompact), children: rendered })
-              };
-            }
-          }
-        },
-        Array: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            const isArray = Array.isArray(entry2.value);
-            if (isArray) {
-              if (entry2.value.length === 0 || entry2.value.length === 1) {
-                return true;
-              }
-              const types2 = new Set(
-                entry2.value.filter((e) => e !== null).map((e) => {
-                  return typeof e;
-                })
-              );
-              return types2.size === 1;
-            } else {
-              return false;
-            }
-          },
-          render: (id, entry2, _options) => {
-            const arrayMap = {};
-            entry2.value.forEach((e, index2) => {
-              arrayMap[`[${index2}]`] = e;
-            });
-            const arrayRendered = renderObject ? renderObject(arrayMap) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
-              {
-                id,
-                className: "font-size-small",
-                entries: arrayMap,
-                tableOptions: "borderless,sm",
-                compact: true
-              }
-            );
-            return { rendered: arrayRendered };
-          }
-        },
-        ChatMessage: ChatMessageRenderer,
-        web_search: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object" && entry2.name === "web_search";
-          },
-          render: (_id, entry2, _options) => {
-            const results = [];
-            results.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1c.query, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
-                " ",
-                entry2.value.query
-              ] })
-            );
-            entry2.value.results.forEach(
-              (result2) => {
-                results.push(
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
-                );
-                results.push(
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1c.summary), children: result2.summary })
-                );
-              }
-            );
-            return {
-              rendered: results
-            };
-          }
-        },
-        web_browser: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            var _a2;
-            return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
-          },
-          render: (_id, entry2, _options) => {
-            return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1c.preWrap, children: entry2.value })
-            };
-          }
-        },
-        Html: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object" && entry2.value._html;
-          },
-          render: (_id, entry2, _options) => {
-            return {
-              rendered: entry2.value._html
-            };
-          }
-        },
-        Image: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
-          },
-          render: (_id, entry2, _options) => {
-            return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
-            };
-          }
-        },
-        Object: {
-          bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object";
-          },
-          render: (id, entry2, _options) => {
-            if (renderObject) {
-              return { rendered: renderObject(entry2.value) };
-            } else {
-              return {
-                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MetaDataView,
-                  {
-                    id,
-                    className: "text-size-smaller",
-                    entries: entry2.value,
-                    tableOptions: "borderless,sm",
-                    compact: true
-                  }
-                )
-              };
-            }
-          }
-        }
-      };
-      return contentRenderers2;
-    };
-    const otherScoreDescriptor = () => {
-      return {
-        scoreType: kScoreTypeOther,
-        compare: () => {
-          return 0;
-        },
-        render: (score2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            RenderedContent,
-            {
-              id: "other-score-value",
-              entry: { name: "other-score-value", value: score2 }
-            }
-          );
-        }
-      };
-    };
-    const circle = "_circle_1iagp_1";
-    const green = "_green_1iagp_12";
-    const red = "_red_1iagp_18";
-    const orange = "_orange_1iagp_24";
-    const styles$1b = {
-      circle,
-      green,
-      red,
-      orange
-    };
-    const passFailScoreDescriptor = (values) => {
-      const categories = [];
-      if (values.includes("C")) {
-        categories.push({
-          val: "C",
-          text: "Correct"
-        });
-      }
-      if (values.includes("P")) {
-        categories.push({
-          val: "P",
-          text: "Partial"
-        });
-      }
-      if (values.includes("I")) {
-        categories.push({
-          val: "I",
-          text: "Incorrect"
-        });
-      }
-      if (values.includes("N")) {
-        categories.push({
-          val: "N",
-          text: "Refusal"
-        });
-      }
-      const order2 = ["C", "P", "I", "N"];
-      return {
-        scoreType: kScoreTypePassFail,
-        categories,
-        render: (score2) => {
-          if (score2 === "C") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "span",
-              {
-                className: clsx("text-size-small", styles$1b.circle, styles$1b.green),
-                children: "C"
-              }
-            );
-          } else if (score2 === "I") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1b.circle, styles$1b.red), children: "I" });
-          } else if (score2 === "P") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "span",
-              {
-                className: clsx("text-size-small", styles$1b.circle, styles$1b.orange),
-                children: "P"
-              }
-            );
-          } else if (score2 === "N") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1b.circle, styles$1b.red), children: "N" });
-          } else {
-            return String(score2);
-          }
-        },
-        compare: (a, b) => {
-          if (typeof a.value !== "string" && typeof b.value !== "string") {
-            return 0;
-          } else if (typeof a.value === "string" && typeof b.value !== "string") {
-            return -1;
-          } else if (typeof a.value !== "string" && typeof b.value === "string") {
-            return 1;
-          } else {
-            const sort = order2.indexOf(String(a.value || "")) - order2.indexOf(String(b.value || ""));
-            return sort;
-          }
-        }
-      };
-    };
-    const getScoreDescriptorForValues = (uniqScoreValues, uniqScoreTypes) => {
-      for (const categorizer of scoreCategorizers) {
-        const scoreDescriptor = categorizer.describe(
-          uniqScoreValues,
-          uniqScoreTypes
-        );
-        if (scoreDescriptor) {
-          return scoreDescriptor;
-        }
-      }
-    };
-    const scoreCategorizers = [
-      {
-        describe: (_values, types2) => {
-          if (types2 && types2.length === 1 && types2[0] === "boolean") {
-            return booleanScoreDescriptor();
-          }
-        }
-      },
-      {
-        describe: (values, _types) => {
-          if (values.length === 2 && values.every((val) => {
-            return val === 1 || val === 0;
-          })) {
-            return booleanScoreDescriptor();
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (types2 && types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
-            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-          })) {
-            return passFailScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (values.length < 10 && types2 && types2.length === 1 && types2[0] === "string") {
-            return categoricalScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (types2 && types2.length !== 0 && types2[0] === "number") {
-            return numericScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (types2 && types2.length !== 0 && types2[0] === "object") {
-            return objectScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (_values, _types) => {
-          return otherScoreDescriptor();
-        }
-      }
-    ];
-    const createEvalDescriptor = (scores2, samples) => {
-      if (!samples) {
-        return void 0;
-      }
-      const scoreValue = (sample2, scoreLabel) => {
-        if (sample2.scores === null || Object.keys(sample2.scores).length === 0 || !scoreLabel) {
-          return void 0;
-        }
-        if (scoreLabel.scorer !== scoreLabel.name && sample2.scores[scoreLabel.scorer] && sample2.scores[scoreLabel.scorer].value) {
-          if (typeof sample2.scores[scoreLabel.scorer].value === "object") {
-            return sample2.scores[scoreLabel.scorer].value[scoreLabel.name];
-          } else {
-            return sample2.scores[scoreLabel.scorer].value;
-          }
-        } else if (sample2.scores[scoreLabel.name]) {
-          return sample2.scores[scoreLabel.name].value;
-        } else {
-          return void 0;
-        }
-      };
-      const scoreAnswer = (sample2, scorer2) => {
-        if (sample2 && sample2.scores) {
-          const sampleScore = sample2.scores[scorer2.name];
-          if (sampleScore && sampleScore.answer) {
-            return sampleScore.answer;
-          }
-        } else {
-          return void 0;
-        }
-      };
-      const scoreExplanation = (sample2, scorer2) => {
-        if (sample2 && sample2.scores) {
-          const sampleScore = sample2.scores[scorer2];
-          if (sampleScore && sampleScore.explanation) {
-            return sampleScore.explanation;
-          }
-        }
-        return void 0;
-      };
-      const scoreMetadata = (sample2, scorer2) => {
-        if (sample2 && sample2.scores) {
-          const sampleScore = sample2.scores[scorer2];
-          if (sampleScore && sampleScore.metadata) {
-            return sampleScore.metadata;
-          }
-        }
-        return void 0;
-      };
-      const scoreDescriptorMap = {};
-      for (const scoreLabel of scores2) {
-        const uniqScoreValues = [
-          ...new Set(
-            samples.filter((sample2) => !!sample2.scores).filter((sample2) => {
-              if (!scoreLabel) {
-                return true;
-              }
-              if (!sample2.scores) {
-                return false;
-              }
-              if (scoreLabel.scorer !== scoreLabel.name) {
-                return Object.keys(sample2.scores).includes(scoreLabel.scorer) && Object.keys(sample2.scores[scoreLabel.scorer].value).includes(
-                  scoreLabel.name
-                );
-              } else {
-                return Object.keys(sample2.scores).includes(scoreLabel.name);
-              }
-            }).map((sample2) => {
-              return scoreValue(sample2, scoreLabel);
-            }).filter((value2) => {
-              return value2 !== null;
-            }).filter((value2) => {
-              return value2 !== void 0;
-            })
-          )
-        ];
-        const uniqScoreTypes = [
-          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-        ];
-        const scoreDescriptor2 = getScoreDescriptorForValues(
-          uniqScoreValues,
-          uniqScoreTypes
-        );
-        if (scoreDescriptor2) {
-          scoreDescriptorMap[scoreLabelKey(scoreLabel)] = scoreDescriptor2;
-        }
-      }
-      const scoreDescriptor = (scoreLabel) => {
-        return scoreDescriptorMap[scoreLabelKey(scoreLabel)];
-      };
-      const scoreRendered = (sample2, scoreLabel) => {
-        const descriptor = scoreDescriptor(scoreLabel);
-        const score22 = scoreValue(sample2, scoreLabel);
-        if (score22 === null) {
-          return "null";
-        } else if (score22 === void 0) {
-          return "";
-        } else if (descriptor && descriptor.render) {
-          return descriptor.render(score22);
-        } else {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: String(score22) });
-        }
-      };
-      const scorerDescriptor = (sample2, scoreLabel) => {
-        return {
-          metadata: () => {
-            return scoreMetadata(sample2, scoreLabel.scorer) || {};
-          },
-          explanation: () => {
-            return scoreExplanation(sample2, scoreLabel.scorer) || "";
-          },
-          answer: () => {
-            return scoreAnswer(sample2, scoreLabel) || "";
-          },
-          scores: () => {
-            if (!sample2 || !sample2.scores) {
-              return [];
-            }
-            const myScoreDescriptor = scoreDescriptor(scoreLabel);
-            if (!myScoreDescriptor) {
-              return [];
-            }
-            const scoreNames = scores2.map((score22) => {
-              return score22.name;
-            });
-            const sampleScorer = sample2.scores[scoreLabel.scorer];
-            const scoreVal = sampleScorer.value;
-            if (typeof scoreVal === "object") {
-              const names = Object.keys(scoreVal);
-              if (names.find((name2) => {
-                return scoreNames.includes(name2);
-              })) {
-                const scores22 = names.map((name2) => {
-                  return {
-                    name: name2,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal);
-                    }
-                  };
-                });
-                return scores22;
-              } else {
-                return [
-                  {
-                    name: scoreLabel.scorer,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal);
-                    }
-                  }
-                ];
-              }
-            } else {
-              return [
-                {
-                  name: scoreLabel.scorer,
-                  rendered: () => {
-                    return myScoreDescriptor.render(scoreVal);
-                  }
-                }
-              ];
-            }
-          }
-        };
-      };
-      const score2 = (sample2, scoreLabel) => {
-        if (!scoreLabel) {
-          return void 0;
-        }
-        return {
-          value: scoreValue(sample2, scoreLabel),
-          render: () => {
-            return scoreRendered(sample2, scoreLabel);
-          }
-        };
-      };
-      return {
-        scores: scores2,
-        scorerDescriptor,
-        scoreDescriptor,
-        score: score2,
-        scoreAnswer
-      };
-    };
-    const createSamplesDescriptor = (samples, evalDescriptor, selectedScore) => {
-      const sizes = samples.reduce(
-        (previous, current2) => {
-          var _a2;
-          const text2 = inputString(current2.input).join(" ");
-          const score2 = selectedScore ? evalDescriptor.score(current2, selectedScore) : void 0;
-          const scoreValue = score2 == null ? void 0 : score2.value;
-          const scoreText = scoreValue ? String(scoreValue) : current2.error ? String(current2.error) : "";
-          previous[0] = Math.min(Math.max(previous[0], text2.length), 200);
-          previous[1] = Math.min(
-            Math.max(previous[1], arrayToString(current2.target).length),
-            300
-          );
-          previous[2] = Math.min(
-            Math.max(
-              previous[2],
-              selectedScore ? ((_a2 = evalDescriptor.scoreAnswer(current2, selectedScore)) == null ? void 0 : _a2.length) || 0 : 0
-            ),
-            300
-          );
-          previous[3] = Math.min(
-            Math.max(previous[3], current2.limit ? current2.limit.length : 0),
-            50
-          );
-          previous[4] = Math.min(
-            Math.max(
-              previous[4],
-              current2.retries ? String(current2.retries).length : 0
-            ),
-            50
-          );
-          previous[5] = Math.min(
-            Math.max(previous[5], String(current2.id).length),
-            10
-          );
-          previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
-          return previous;
-        },
-        [0, 0, 0, 0, 0, 0, 0]
-      );
-      const maxSizes = {
-        input: Math.min(sizes[0], 300),
-        target: Math.min(sizes[1], 300),
-        answer: Math.min(sizes[2], 300),
-        limit: Math.min(sizes[3], 50),
-        retries: Math.min(sizes[4], 50),
-        id: Math.min(sizes[5], 10),
-        score: Math.min(sizes[6], 30)
-      };
-      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.retries + maxSizes.id + maxSizes.score || 1;
-      const inputNormalized = maxSizes.input / base2;
-      const targetNormalized = maxSizes.target / base2 > 0 ? Math.max(maxSizes.target / base2, inputNormalized / 10) : 0;
-      const answerNormalized = maxSizes.answer / base2 > 0 ? Math.max(maxSizes.answer / base2, inputNormalized / 10) : 0;
-      const messageShape = {
-        raw: {
-          input: sizes[0],
-          target: sizes[1],
-          answer: sizes[2],
-          limit: sizes[3],
-          retries: sizes[4],
-          id: sizes[5],
-          score: sizes[6]
-        },
-        normalized: {
-          input: inputNormalized,
-          target: targetNormalized,
-          answer: answerNormalized,
-          limit: maxSizes.limit / base2,
-          retries: maxSizes.retries / base2,
-          id: maxSizes.id / base2,
-          score: maxSizes.score / base2
-        }
-      };
-      return {
-        evalDescriptor,
-        messageShape,
-        selectedScore: (sample2) => selectedScore ? evalDescriptor.score(sample2, selectedScore) : void 0,
-        selectedScorerDescriptor: (sample2) => selectedScore ? evalDescriptor.scorerDescriptor(sample2, selectedScore) : void 0
-      };
-    };
-    const scoreLabelKey = (scoreLabel) => {
-      return `${scoreLabel == null ? void 0 : scoreLabel.scorer}.${scoreLabel.name}`;
-    };
-    var _parser = function() {
-      var parser2 = {
-        trace: function trace() {
-        },
-        yy: {},
-        symbols_: {
-          error: 2,
-          expressions: 3,
-          e: 4,
-          EndOfExpression: 5,
-          "-": 6,
-          "+": 7,
-          "*": 8,
-          "/": 9,
-          "^": 10,
-          mod: 11,
-          and: 12,
-          or: 13,
-          not: 14,
-          if: 15,
-          then: 16,
-          else: 17,
-          in: 18,
-          notIn: 19,
-          "(": 20,
-          ")": 21,
-          Arguments: 22,
-          ",": 23,
-          Number: 24,
-          Symbol: 25,
-          String: 26,
-          of: 27,
-          Relation: 28,
-          "%": 29,
-          "?": 30,
-          ":": 31,
-          RelationalOperator: 32,
-          "==": 33,
-          "!=": 34,
-          "~=": 35,
-          "<": 36,
-          "<=": 37,
-          ">=": 38,
-          ">": 39,
-          $accept: 0,
-          $end: 1
-        },
-        terminals_: {
-          2: "error",
-          5: "EndOfExpression",
-          6: "-",
-          7: "+",
-          8: "*",
-          9: "/",
-          10: "^",
-          11: "mod",
-          12: "and",
-          13: "or",
-          14: "not",
-          15: "if",
-          16: "then",
-          17: "else",
-          18: "in",
-          19: "notIn",
-          20: "(",
-          21: ")",
-          23: ",",
-          24: "Number",
-          25: "Symbol",
-          26: "String",
-          27: "of",
-          29: "%",
-          30: "?",
-          31: ":",
-          33: "==",
-          34: "!=",
-          35: "~=",
-          36: "<",
-          37: "<=",
-          38: ">=",
-          39: ">"
-        },
-        productions_: [
-          0,
-          [3, 2],
-          [4, 2],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 2],
-          [4, 6],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 5],
-          [4, 1],
-          [4, 1],
-          [4, 1],
-          [4, 3],
-          [4, 3],
-          [4, 4],
-          [4, 1],
-          [4, 3],
-          [4, 5],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [28, 3],
-          [28, 3],
-          [22, 1],
-          [22, 3]
-        ],
-        performAction: function anonymous(yytext, yyleng, yylineno, yy, yystate, $$, _$) {
-          var $0 = $$.length - 1;
-          switch (yystate) {
-            case 1:
-              return $$[$0 - 1];
-            case 2:
-              this.$ = ["(", "ops['-'](", $$[$0], ")", ")"];
-              break;
-            case 3:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 4:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 5:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 6:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 7:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 8:
-              this.$ = ["(", "ops.mod(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
-              break;
-            case 9:
-              this.$ = [
-                "(",
-                "",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 2],
-                ") && ",
-                "std.coerceBoolean",
-                "(",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 10:
-              this.$ = [
-                "(",
-                "",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 2],
-                ") || ",
-                "std.coerceBoolean",
-                "(",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 11:
-              this.$ = ["(", "! ", "std.coerceBoolean", "(", $$[$0], ")", ")"];
-              break;
-            case 12:
-              this.$ = [
-                "(",
-                "",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 4],
-                ") ? ",
-                $$[$0 - 2],
-                " : ",
-                $$[$0],
-                "",
-                ")"
-              ];
-              break;
-            case 13:
-              this.$ = ["(", "std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
-              break;
-            case 14:
-              this.$ = ["(", "!std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
-              break;
-            case 15:
-              this.$ = ["(", "", $$[$0 - 1], "", ")"];
-              break;
-            case 16:
-              this.$ = ["(", "[ ", $$[$0 - 3], ", ", $$[$0 - 1], " ]", ")"];
-              break;
-            case 17:
-              this.$ = ["", $$[$0], ""];
-              break;
-            case 18:
-              this.$ = ["prop(", $$[$0], ", data)"];
-              break;
-            case 19:
-              this.$ = ["", $$[$0], ""];
-              break;
-            case 20:
-              this.$ = ["prop(", $$[$0 - 2], ", ", $$[$0], ")"];
-              break;
-            case 21:
-              this.$ = ["call(", $$[$0 - 2], ")"];
-              break;
-            case 22:
-              this.$ = ["call(", $$[$0 - 3], ", ", $$[$0 - 1], ")"];
-              break;
-            case 23:
-              this.$ = yy.reduceRelation($$[$0]);
-              break;
-            case 24:
-              this.$ = [
-                "std.warnDeprecated('modulo', ops['mod'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                "))"
-              ];
-              break;
-            case 25:
-              this.$ = [
-                "std.warnDeprecated('ternary', ",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 4],
-                ") ? ",
-                $$[$0 - 2],
-                " : ",
-                $$[$0],
-                ")"
-              ];
-              break;
-            case 26:
-              this.$ = ["=="];
-              break;
-            case 27:
-              this.$ = ["!="];
-              break;
-            case 28:
-              this.$ = ["~="];
-              break;
-            case 29:
-              this.$ = ["<"];
-              break;
-            case 30:
-              this.$ = ["<="];
-              break;
-            case 31:
-              this.$ = [">="];
-              break;
-            case 32:
-              this.$ = [">"];
-              break;
-            case 33:
-              this.$ = [$$[$0 - 2], $$[$0 - 1], ...$$[$0]];
-              break;
-            case 34:
-              this.$ = [$$[$0 - 2], $$[$0 - 1], $$[$0]];
-              break;
-            case 35:
-              this.$ = ["", $$[$0], ""];
-              break;
-            case 36:
-              this.$ = ["", $$[$0 - 2], ", ", $$[$0], ""];
-              break;
-          }
-        },
-        table: [
-          {
-            3: 1,
-            4: 2,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            1: [3]
-          },
-          {
-            5: [1, 11],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 32,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 33,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 34,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 35,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            22: 36,
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 17],
-            6: [2, 17],
-            7: [2, 17],
-            8: [2, 17],
-            9: [2, 17],
-            10: [2, 17],
-            11: [2, 17],
-            12: [2, 17],
-            13: [2, 17],
-            16: [2, 17],
-            17: [2, 17],
-            18: [2, 17],
-            19: [2, 17],
-            21: [2, 17],
-            23: [2, 17],
-            29: [2, 17],
-            30: [2, 17],
-            31: [2, 17],
-            33: [2, 17],
-            34: [2, 17],
-            35: [2, 17],
-            36: [2, 17],
-            37: [2, 17],
-            38: [2, 17],
-            39: [2, 17]
-          },
-          {
-            5: [2, 18],
-            6: [2, 18],
-            7: [2, 18],
-            8: [2, 18],
-            9: [2, 18],
-            10: [2, 18],
-            11: [2, 18],
-            12: [2, 18],
-            13: [2, 18],
-            16: [2, 18],
-            17: [2, 18],
-            18: [2, 18],
-            19: [2, 18],
-            20: [1, 38],
-            21: [2, 18],
-            23: [2, 18],
-            27: [1, 37],
-            29: [2, 18],
-            30: [2, 18],
-            31: [2, 18],
-            33: [2, 18],
-            34: [2, 18],
-            35: [2, 18],
-            36: [2, 18],
-            37: [2, 18],
-            38: [2, 18],
-            39: [2, 18]
-          },
-          {
-            5: [2, 19],
-            6: [2, 19],
-            7: [2, 19],
-            8: [2, 19],
-            9: [2, 19],
-            10: [2, 19],
-            11: [2, 19],
-            12: [2, 19],
-            13: [2, 19],
-            16: [2, 19],
-            17: [2, 19],
-            18: [2, 19],
-            19: [2, 19],
-            21: [2, 19],
-            23: [2, 19],
-            29: [2, 19],
-            30: [2, 19],
-            31: [2, 19],
-            33: [2, 19],
-            34: [2, 19],
-            35: [2, 19],
-            36: [2, 19],
-            37: [2, 19],
-            38: [2, 19],
-            39: [2, 19]
-          },
-          {
-            5: [2, 23],
-            6: [2, 23],
-            7: [2, 23],
-            8: [2, 23],
-            9: [2, 23],
-            10: [2, 23],
-            11: [2, 23],
-            12: [2, 23],
-            13: [2, 23],
-            16: [2, 23],
-            17: [2, 23],
-            18: [2, 23],
-            19: [2, 23],
-            21: [2, 23],
-            23: [2, 23],
-            29: [2, 23],
-            30: [2, 23],
-            31: [2, 23],
-            33: [2, 23],
-            34: [2, 23],
-            35: [2, 23],
-            36: [2, 23],
-            37: [2, 23],
-            38: [2, 23],
-            39: [2, 23]
-          },
-          {
-            1: [2, 1]
-          },
-          {
-            4: 39,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 40,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 41,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 42,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 43,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 44,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 45,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 46,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 47,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 48,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 49,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 50,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 52,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 51
-          },
-          {
-            6: [2, 26],
-            14: [2, 26],
-            15: [2, 26],
-            20: [2, 26],
-            24: [2, 26],
-            25: [2, 26],
-            26: [2, 26]
-          },
-          {
-            6: [2, 27],
-            14: [2, 27],
-            15: [2, 27],
-            20: [2, 27],
-            24: [2, 27],
-            25: [2, 27],
-            26: [2, 27]
-          },
-          {
-            6: [2, 28],
-            14: [2, 28],
-            15: [2, 28],
-            20: [2, 28],
-            24: [2, 28],
-            25: [2, 28],
-            26: [2, 28]
-          },
-          {
-            6: [2, 29],
-            14: [2, 29],
-            15: [2, 29],
-            20: [2, 29],
-            24: [2, 29],
-            25: [2, 29],
-            26: [2, 29]
-          },
-          {
-            6: [2, 30],
-            14: [2, 30],
-            15: [2, 30],
-            20: [2, 30],
-            24: [2, 30],
-            25: [2, 30],
-            26: [2, 30]
-          },
-          {
-            6: [2, 31],
-            14: [2, 31],
-            15: [2, 31],
-            20: [2, 31],
-            24: [2, 31],
-            25: [2, 31],
-            26: [2, 31]
-          },
-          {
-            6: [2, 32],
-            14: [2, 32],
-            15: [2, 32],
-            20: [2, 32],
-            24: [2, 32],
-            25: [2, 32],
-            26: [2, 32]
-          },
-          {
-            5: [2, 2],
-            6: [2, 2],
-            7: [2, 2],
-            8: [2, 2],
-            9: [2, 2],
-            10: [1, 16],
-            11: [2, 2],
-            12: [2, 2],
-            13: [2, 2],
-            16: [2, 2],
-            17: [2, 2],
-            18: [2, 2],
-            19: [2, 2],
-            21: [2, 2],
-            23: [2, 2],
-            29: [2, 2],
-            30: [2, 2],
-            31: [2, 2],
-            32: 24,
-            33: [2, 2],
-            34: [2, 2],
-            35: [2, 2],
-            36: [2, 2],
-            37: [2, 2],
-            38: [2, 2],
-            39: [2, 2]
-          },
-          {
-            5: [2, 11],
-            6: [2, 11],
-            7: [2, 11],
-            8: [2, 11],
-            9: [2, 11],
-            10: [1, 16],
-            11: [2, 11],
-            12: [2, 11],
-            13: [2, 11],
-            16: [2, 11],
-            17: [2, 11],
-            18: [2, 11],
-            19: [2, 11],
-            21: [2, 11],
-            23: [2, 11],
-            29: [2, 11],
-            30: [2, 11],
-            31: [2, 11],
-            32: 24,
-            33: [2, 11],
-            34: [2, 11],
-            35: [2, 11],
-            36: [2, 11],
-            37: [2, 11],
-            38: [2, 11],
-            39: [2, 11]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            16: [1, 53],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [1, 54],
-            23: [2, 35],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            23: [1, 55]
-          },
-          {
-            4: 56,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 59,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            21: [1, 57],
-            22: 58,
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 3],
-            6: [2, 3],
-            7: [2, 3],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 3],
-            13: [2, 3],
-            16: [2, 3],
-            17: [2, 3],
-            18: [2, 3],
-            19: [2, 3],
-            21: [2, 3],
-            23: [2, 3],
-            29: [1, 22],
-            30: [2, 3],
-            31: [2, 3],
-            32: 24,
-            33: [2, 3],
-            34: [2, 3],
-            35: [2, 3],
-            36: [2, 3],
-            37: [2, 3],
-            38: [2, 3],
-            39: [2, 3]
-          },
-          {
-            5: [2, 4],
-            6: [2, 4],
-            7: [2, 4],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 4],
-            13: [2, 4],
-            16: [2, 4],
-            17: [2, 4],
-            18: [2, 4],
-            19: [2, 4],
-            21: [2, 4],
-            23: [2, 4],
-            29: [1, 22],
-            30: [2, 4],
-            31: [2, 4],
-            32: 24,
-            33: [2, 4],
-            34: [2, 4],
-            35: [2, 4],
-            36: [2, 4],
-            37: [2, 4],
-            38: [2, 4],
-            39: [2, 4]
-          },
-          {
-            5: [2, 5],
-            6: [2, 5],
-            7: [2, 5],
-            8: [2, 5],
-            9: [2, 5],
-            10: [1, 16],
-            11: [2, 5],
-            12: [2, 5],
-            13: [2, 5],
-            16: [2, 5],
-            17: [2, 5],
-            18: [2, 5],
-            19: [2, 5],
-            21: [2, 5],
-            23: [2, 5],
-            29: [2, 5],
-            30: [2, 5],
-            31: [2, 5],
-            32: 24,
-            33: [2, 5],
-            34: [2, 5],
-            35: [2, 5],
-            36: [2, 5],
-            37: [2, 5],
-            38: [2, 5],
-            39: [2, 5]
-          },
-          {
-            5: [2, 6],
-            6: [2, 6],
-            7: [2, 6],
-            8: [2, 6],
-            9: [2, 6],
-            10: [1, 16],
-            11: [2, 6],
-            12: [2, 6],
-            13: [2, 6],
-            16: [2, 6],
-            17: [2, 6],
-            18: [2, 6],
-            19: [2, 6],
-            21: [2, 6],
-            23: [2, 6],
-            29: [2, 6],
-            30: [2, 6],
-            31: [2, 6],
-            32: 24,
-            33: [2, 6],
-            34: [2, 6],
-            35: [2, 6],
-            36: [2, 6],
-            37: [2, 6],
-            38: [2, 6],
-            39: [2, 6]
-          },
-          {
-            5: [2, 7],
-            6: [2, 7],
-            7: [2, 7],
-            8: [2, 7],
-            9: [2, 7],
-            10: [1, 16],
-            11: [2, 7],
-            12: [2, 7],
-            13: [2, 7],
-            16: [2, 7],
-            17: [2, 7],
-            18: [2, 7],
-            19: [2, 7],
-            21: [2, 7],
-            23: [2, 7],
-            29: [2, 7],
-            30: [2, 7],
-            31: [2, 7],
-            32: 24,
-            33: [2, 7],
-            34: [2, 7],
-            35: [2, 7],
-            36: [2, 7],
-            37: [2, 7],
-            38: [2, 7],
-            39: [2, 7]
-          },
-          {
-            5: [2, 8],
-            6: [2, 8],
-            7: [2, 8],
-            8: [2, 8],
-            9: [2, 8],
-            10: [1, 16],
-            11: [2, 8],
-            12: [2, 8],
-            13: [2, 8],
-            16: [2, 8],
-            17: [2, 8],
-            18: [2, 8],
-            19: [2, 8],
-            21: [2, 8],
-            23: [2, 8],
-            29: [2, 8],
-            30: [2, 8],
-            31: [2, 8],
-            32: 24,
-            33: [2, 8],
-            34: [2, 8],
-            35: [2, 8],
-            36: [2, 8],
-            37: [2, 8],
-            38: [2, 8],
-            39: [2, 8]
-          },
-          {
-            5: [2, 9],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 9],
-            13: [2, 9],
-            16: [2, 9],
-            17: [2, 9],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 9],
-            23: [2, 9],
-            29: [1, 22],
-            30: [2, 9],
-            31: [2, 9],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 10],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [2, 10],
-            16: [2, 10],
-            17: [2, 10],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 10],
-            23: [2, 10],
-            29: [1, 22],
-            30: [2, 10],
-            31: [2, 10],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 13],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 13],
-            13: [2, 13],
-            16: [2, 13],
-            17: [2, 13],
-            18: [2, 13],
-            19: [2, 13],
-            21: [2, 13],
-            23: [2, 13],
-            29: [1, 22],
-            30: [2, 13],
-            31: [2, 13],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 14],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 14],
-            13: [2, 14],
-            16: [2, 14],
-            17: [2, 14],
-            18: [2, 14],
-            19: [2, 14],
-            21: [2, 14],
-            23: [2, 14],
-            29: [1, 22],
-            30: [2, 14],
-            31: [2, 14],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 24],
-            6: [2, 24],
-            7: [2, 24],
-            8: [2, 24],
-            9: [2, 24],
-            10: [1, 16],
-            11: [2, 24],
-            12: [2, 24],
-            13: [2, 24],
-            16: [2, 24],
-            17: [2, 24],
-            18: [2, 24],
-            19: [2, 24],
-            21: [2, 24],
-            23: [2, 24],
-            29: [2, 24],
-            30: [2, 24],
-            31: [2, 24],
-            32: 24,
-            33: [2, 24],
-            34: [2, 24],
-            35: [2, 24],
-            36: [2, 24],
-            37: [2, 24],
-            38: [2, 24],
-            39: [2, 24]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            31: [1, 60],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 33],
-            6: [2, 33],
-            7: [2, 33],
-            8: [2, 33],
-            9: [2, 33],
-            10: [2, 33],
-            11: [2, 33],
-            12: [2, 33],
-            13: [2, 33],
-            16: [2, 33],
-            17: [2, 33],
-            18: [2, 33],
-            19: [2, 33],
-            21: [2, 33],
-            23: [2, 33],
-            29: [2, 33],
-            30: [2, 33],
-            31: [2, 33],
-            33: [2, 33],
-            34: [2, 33],
-            35: [2, 33],
-            36: [2, 33],
-            37: [2, 33],
-            38: [2, 33],
-            39: [2, 33]
-          },
-          {
-            5: [2, 34],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 34],
-            13: [2, 34],
-            16: [2, 34],
-            17: [2, 34],
-            18: [2, 34],
-            19: [2, 34],
-            21: [2, 34],
-            23: [2, 34],
-            29: [1, 22],
-            30: [2, 34],
-            31: [2, 34],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 61,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 15],
-            6: [2, 15],
-            7: [2, 15],
-            8: [2, 15],
-            9: [2, 15],
-            10: [2, 15],
-            11: [2, 15],
-            12: [2, 15],
-            13: [2, 15],
-            16: [2, 15],
-            17: [2, 15],
-            18: [2, 15],
-            19: [2, 15],
-            21: [2, 15],
-            23: [2, 15],
-            29: [2, 15],
-            30: [2, 15],
-            31: [2, 15],
-            33: [2, 15],
-            34: [2, 15],
-            35: [2, 15],
-            36: [2, 15],
-            37: [2, 15],
-            38: [2, 15],
-            39: [2, 15]
-          },
-          {
-            4: 62,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 20],
-            6: [2, 20],
-            7: [2, 20],
-            8: [2, 20],
-            9: [2, 20],
-            10: [2, 20],
-            11: [2, 20],
-            12: [2, 20],
-            13: [2, 20],
-            16: [2, 20],
-            17: [2, 20],
-            18: [2, 20],
-            19: [2, 20],
-            21: [2, 20],
-            23: [2, 20],
-            29: [2, 20],
-            30: [2, 20],
-            31: [2, 20],
-            32: 24,
-            33: [2, 20],
-            34: [2, 20],
-            35: [2, 20],
-            36: [2, 20],
-            37: [2, 20],
-            38: [2, 20],
-            39: [2, 20]
-          },
-          {
-            5: [2, 21],
-            6: [2, 21],
-            7: [2, 21],
-            8: [2, 21],
-            9: [2, 21],
-            10: [2, 21],
-            11: [2, 21],
-            12: [2, 21],
-            13: [2, 21],
-            16: [2, 21],
-            17: [2, 21],
-            18: [2, 21],
-            19: [2, 21],
-            21: [2, 21],
-            23: [2, 21],
-            29: [2, 21],
-            30: [2, 21],
-            31: [2, 21],
-            33: [2, 21],
-            34: [2, 21],
-            35: [2, 21],
-            36: [2, 21],
-            37: [2, 21],
-            38: [2, 21],
-            39: [2, 21]
-          },
-          {
-            21: [1, 63],
-            23: [1, 64]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 35],
-            23: [2, 35],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 65,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            17: [1, 66],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [1, 67],
-            23: [2, 36],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 22],
-            6: [2, 22],
-            7: [2, 22],
-            8: [2, 22],
-            9: [2, 22],
-            10: [2, 22],
-            11: [2, 22],
-            12: [2, 22],
-            13: [2, 22],
-            16: [2, 22],
-            17: [2, 22],
-            18: [2, 22],
-            19: [2, 22],
-            21: [2, 22],
-            23: [2, 22],
-            29: [2, 22],
-            30: [2, 22],
-            31: [2, 22],
-            33: [2, 22],
-            34: [2, 22],
-            35: [2, 22],
-            36: [2, 22],
-            37: [2, 22],
-            38: [2, 22],
-            39: [2, 22]
-          },
-          {
-            4: 68,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 25],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            16: [2, 25],
-            17: [2, 25],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 25],
-            23: [2, 25],
-            29: [1, 22],
-            30: [1, 23],
-            31: [2, 25],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 69,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 16],
-            6: [2, 16],
-            7: [2, 16],
-            8: [2, 16],
-            9: [2, 16],
-            10: [2, 16],
-            11: [2, 16],
-            12: [2, 16],
-            13: [2, 16],
-            16: [2, 16],
-            17: [2, 16],
-            18: [2, 16],
-            19: [2, 16],
-            21: [2, 16],
-            23: [2, 16],
-            29: [2, 16],
-            30: [2, 16],
-            31: [2, 16],
-            33: [2, 16],
-            34: [2, 16],
-            35: [2, 16],
-            36: [2, 16],
-            37: [2, 16],
-            38: [2, 16],
-            39: [2, 16]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 36],
-            23: [2, 36],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 12],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            16: [2, 12],
-            17: [2, 12],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 12],
-            23: [2, 12],
-            29: [1, 22],
-            30: [1, 23],
-            31: [2, 12],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          }
-        ],
-        defaultActions: {
-          11: [2, 1]
-        },
-        parseError: function parseError(str2, hash2) {
-          throw new Error(str2);
-        },
-        parse: function parse2(input2) {
-          var self2 = this, stack2 = [0], vstack = [null], lstack = [], table2 = this.table, yytext = "", yylineno = 0, yyleng = 0, recovering = 0, TERROR = 2, EOF = 1;
-          this.lexer.setInput(input2);
-          this.lexer.yy = this.yy;
-          this.yy.lexer = this.lexer;
-          this.yy.parser = this;
-          if (typeof this.lexer.yylloc == "undefined") this.lexer.yylloc = {};
-          var yyloc = this.lexer.yylloc;
-          lstack.push(yyloc);
-          var ranges = this.lexer.options && this.lexer.options.ranges;
-          if (typeof this.yy.parseError === "function")
-            this.parseError = this.yy.parseError;
-          function popStack(n) {
-            stack2.length = stack2.length - 2 * n;
-            vstack.length = vstack.length - n;
-            lstack.length = lstack.length - n;
-          }
-          function lex2() {
-            var token2;
-            token2 = self2.lexer.lex() || 1;
-            if (typeof token2 !== "number") {
-              token2 = self2.symbols_[token2] || token2;
-            }
-            return token2;
-          }
-          var symbol, preErrorSymbol, state, action, r2, yyval = {}, p, len, newState, expected;
-          while (true) {
-            state = stack2[stack2.length - 1];
-            if (this.defaultActions[state]) {
-              action = this.defaultActions[state];
-            } else {
-              if (symbol === null || typeof symbol == "undefined") {
-                symbol = lex2();
-              }
-              action = table2[state] && table2[state][symbol];
-            }
-            if (typeof action === "undefined" || !action.length || !action[0]) {
-              var errStr = "";
-              if (!recovering) {
-                expected = [];
-                for (p in table2[state])
-                  if (this.terminals_[p] && p > 2) {
-                    expected.push("'" + this.terminals_[p] + "'");
-                  }
-                if (this.lexer.showPosition) {
-                  errStr = "Parse error on line " + (yylineno + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + expected.join(", ") + ", got '" + (this.terminals_[symbol] || symbol) + "'";
-                } else {
-                  errStr = "Parse error on line " + (yylineno + 1) + ": Unexpected " + (symbol == 1 ? "end of input" : "'" + (this.terminals_[symbol] || symbol) + "'");
-                }
-                this.parseError(errStr, {
-                  text: this.lexer.match,
-                  token: this.terminals_[symbol] || symbol,
-                  line: this.lexer.yylineno,
-                  loc: yyloc,
-                  expected
-                });
-              }
-              if (recovering == 3) {
-                if (symbol == EOF) {
-                  throw new Error(errStr || "Parsing halted.");
-                }
-                yyleng = this.lexer.yyleng;
-                yytext = this.lexer.yytext;
-                yylineno = this.lexer.yylineno;
-                yyloc = this.lexer.yylloc;
-                symbol = lex2();
-              }
-              while (1) {
-                if (TERROR.toString() in table2[state]) {
-                  break;
-                }
-                if (state === 0) {
-                  throw new Error(errStr || "Parsing halted.");
-                }
-                popStack(1);
-                state = stack2[stack2.length - 1];
-              }
-              preErrorSymbol = symbol == 2 ? null : symbol;
-              symbol = TERROR;
-              state = stack2[stack2.length - 1];
-              action = table2[state] && table2[state][TERROR];
-              recovering = 3;
-            }
-            if (action[0] instanceof Array && action.length > 1) {
-              throw new Error(
-                "Parse Error: multiple actions possible at state: " + state + ", token: " + symbol
-              );
-            }
-            switch (action[0]) {
-              case 1:
-                stack2.push(symbol);
-                vstack.push(this.lexer.yytext);
-                lstack.push(this.lexer.yylloc);
-                stack2.push(action[1]);
-                symbol = null;
-                if (!preErrorSymbol) {
-                  yyleng = this.lexer.yyleng;
-                  yytext = this.lexer.yytext;
-                  yylineno = this.lexer.yylineno;
-                  yyloc = this.lexer.yylloc;
-                  if (recovering > 0) recovering--;
-                } else {
-                  symbol = preErrorSymbol;
-                  preErrorSymbol = null;
-                }
-                break;
-              case 2:
-                len = this.productions_[action[1]][1];
-                yyval.$ = vstack[vstack.length - len];
-                yyval._$ = {
-                  first_line: lstack[lstack.length - (len || 1)].first_line,
-                  last_line: lstack[lstack.length - 1].last_line,
-                  first_column: lstack[lstack.length - (len || 1)].first_column,
-                  last_column: lstack[lstack.length - 1].last_column
-                };
-                if (ranges) {
-                  yyval._$.range = [
-                    lstack[lstack.length - (len || 1)].range[0],
-                    lstack[lstack.length - 1].range[1]
-                  ];
-                }
-                r2 = this.performAction.call(
-                  yyval,
-                  yytext,
-                  yyleng,
-                  yylineno,
-                  this.yy,
-                  action[1],
-                  vstack,
-                  lstack
-                );
-                if (typeof r2 !== "undefined") {
-                  return r2;
-                }
-                if (len) {
-                  stack2 = stack2.slice(0, -1 * len * 2);
-                  vstack = vstack.slice(0, -1 * len);
-                  lstack = lstack.slice(0, -1 * len);
-                }
-                stack2.push(this.productions_[action[1]][0]);
-                vstack.push(yyval.$);
-                lstack.push(yyval._$);
-                newState = table2[stack2[stack2.length - 2]][stack2[stack2.length - 1]];
-                stack2.push(newState);
-                break;
-              case 3:
-                return true;
-            }
-          }
-          return true;
-        }
-      };
-      var lexer = function() {
-        var lexer2 = {
-          EOF: 1,
-          parseError: function parseError(str2, hash2) {
-            if (this.yy.parser) {
-              this.yy.parser.parseError(str2, hash2);
-            } else {
-              throw new Error(str2);
-            }
-          },
-          setInput: function(input2) {
-            this._input = input2;
-            this._more = this._less = this.done = false;
-            this.yylineno = this.yyleng = 0;
-            this.yytext = this.matched = this.match = "";
-            this.conditionStack = ["INITIAL"];
-            this.yylloc = {
-              first_line: 1,
-              first_column: 0,
-              last_line: 1,
-              last_column: 0
-            };
-            if (this.options.ranges) this.yylloc.range = [0, 0];
-            this.offset = 0;
-            return this;
-          },
-          input: function() {
-            var ch3 = this._input[0];
-            this.yytext += ch3;
-            this.yyleng++;
-            this.offset++;
-            this.match += ch3;
-            this.matched += ch3;
-            var lines = ch3.match(/(?:\r\n?|\n).*/g);
-            if (lines) {
-              this.yylineno++;
-              this.yylloc.last_line++;
-            } else {
-              this.yylloc.last_column++;
-            }
-            if (this.options.ranges) this.yylloc.range[1]++;
-            this._input = this._input.slice(1);
-            return ch3;
-          },
-          unput: function(ch3) {
-            var len = ch3.length;
-            var lines = ch3.split(/(?:\r\n?|\n)/g);
-            this._input = ch3 + this._input;
-            this.yytext = this.yytext.substr(0, this.yytext.length - len - 1);
-            this.offset -= len;
-            var oldLines = this.match.split(/(?:\r\n?|\n)/g);
-            this.match = this.match.substr(0, this.match.length - 1);
-            this.matched = this.matched.substr(0, this.matched.length - 1);
-            if (lines.length - 1) this.yylineno -= lines.length - 1;
-            var r2 = this.yylloc.range;
-            this.yylloc = {
-              first_line: this.yylloc.first_line,
-              last_line: this.yylineno + 1,
-              first_column: this.yylloc.first_column,
-              last_column: lines ? (lines.length === oldLines.length ? this.yylloc.first_column : 0) + oldLines[oldLines.length - lines.length].length - lines[0].length : this.yylloc.first_column - len
-            };
-            if (this.options.ranges) {
-              this.yylloc.range = [r2[0], r2[0] + this.yyleng - len];
-            }
-            return this;
-          },
-          more: function() {
-            this._more = true;
-            return this;
-          },
-          less: function(n) {
-            this.unput(this.match.slice(n));
-          },
-          pastInput: function() {
-            var past = this.matched.substr(
-              0,
-              this.matched.length - this.match.length
-            );
-            return (past.length > 20 ? "..." : "") + past.substr(-20).replace(/\n/g, "");
-          },
-          upcomingInput: function() {
-            var next = this.match;
-            if (next.length < 20) {
-              next += this._input.substr(0, 20 - next.length);
-            }
-            return (next.substr(0, 20) + (next.length > 20 ? "..." : "")).replace(
-              /\n/g,
-              ""
-            );
-          },
-          showPosition: function() {
-            var pre2 = this.pastInput();
-            var c2 = new Array(pre2.length + 1).join("-");
-            return pre2 + this.upcomingInput() + "\n" + c2 + "^";
-          },
-          next: function() {
-            if (this.done) {
-              return this.EOF;
-            }
-            if (!this._input) this.done = true;
-            var token2, match, tempMatch, index2, lines;
-            if (!this._more) {
-              this.yytext = "";
-              this.match = "";
-            }
-            var rules = this._currentRules();
-            for (var i2 = 0; i2 < rules.length; i2++) {
-              tempMatch = this._input.match(this.rules[rules[i2]]);
-              if (tempMatch && (!match || tempMatch[0].length > match[0].length)) {
-                match = tempMatch;
-                index2 = i2;
-                if (!this.options.flex) break;
-              }
-            }
-            if (match) {
-              lines = match[0].match(/(?:\r\n?|\n).*/g);
-              if (lines) this.yylineno += lines.length;
-              this.yylloc = {
-                first_line: this.yylloc.last_line,
-                last_line: this.yylineno + 1,
-                first_column: this.yylloc.last_column,
-                last_column: lines ? lines[lines.length - 1].length - lines[lines.length - 1].match(/\r?\n?/)[0].length : this.yylloc.last_column + match[0].length
-              };
-              this.yytext += match[0];
-              this.match += match[0];
-              this.matches = match;
-              this.yyleng = this.yytext.length;
-              if (this.options.ranges) {
-                this.yylloc.range = [this.offset, this.offset += this.yyleng];
-              }
-              this._more = false;
-              this._input = this._input.slice(match[0].length);
-              this.matched += match[0];
-              token2 = this.performAction.call(
-                this,
-                this.yy,
-                this,
-                rules[index2],
-                this.conditionStack[this.conditionStack.length - 1]
-              );
-              if (this.done && this._input) this.done = false;
-              if (token2) return token2;
-              else return;
-            }
-            if (this._input === "") {
-              return this.EOF;
-            } else {
-              return this.parseError(
-                "Lexical error on line " + (this.yylineno + 1) + ". Unrecognized text.\n" + this.showPosition(),
-                {
-                  text: "",
-                  token: null,
-                  line: this.yylineno
-                }
-              );
-            }
-          },
-          lex: function lex2() {
-            var r2 = this.next();
-            if (typeof r2 !== "undefined") {
-              return r2;
-            } else {
-              return this.lex();
-            }
-          },
-          begin: function begin(condition) {
-            this.conditionStack.push(condition);
-          },
-          popState: function popState() {
-            return this.conditionStack.pop();
-          },
-          _currentRules: function _currentRules() {
-            return this.conditions[this.conditionStack[this.conditionStack.length - 1]].rules;
-          },
-          topState: function() {
-            return this.conditionStack[this.conditionStack.length - 2];
-          },
-          pushState: function begin(condition) {
-            this.begin(condition);
-          }
-        };
-        lexer2.options = {};
-        lexer2.performAction = function anonymous(yy, yy_, $avoiding_name_collisions, YY_START) {
-          switch ($avoiding_name_collisions) {
-            case 0:
-              return "*";
-            case 1:
-              return "/";
-            case 2:
-              return "-";
-            case 3:
-              return "+";
-            case 4:
-              return "^";
-            case 5:
-              return "(";
-            case 6:
-              return ")";
-            case 7:
-              return ",";
-            case 8:
-              return "==";
-            case 9:
-              return "!=";
-            case 10:
-              return "~=";
-            case 11:
-              return ">=";
-            case 12:
-              return "<=";
-            case 13:
-              return "<";
-            case 14:
-              return ">";
-            case 15:
-              return "notIn";
-            case 16:
-              return "and";
-            case 17:
-              return "or";
-            case 18:
-              return "not";
-            case 19:
-              return "in";
-            case 20:
-              return "of";
-            case 21:
-              return "if";
-            case 22:
-              return "then";
-            case 23:
-              return "else";
-            case 24:
-              return "mod";
-            case 25:
-              break;
-            case 26:
-              return "Number";
-            case 27:
-              yy_.yytext = JSON.stringify({
-                name: yy_.yytext,
-                type: "unescaped"
-              });
-              return "Symbol";
-            case 28:
-              yy_.yytext = JSON.stringify({
-                name: yy.buildString("'", yy_.yytext),
-                type: "single-quoted"
-              });
-              return "Symbol";
-            case 29:
-              yy_.yytext = JSON.stringify(yy.buildString('"', yy_.yytext));
-              return "String";
-            case 30:
-              return "%";
-            case 31:
-              return "?";
-            case 32:
-              return ":";
-            case 33:
-              return "EndOfExpression";
-          }
-        };
-        lexer2.rules = [
-          /^(?:\*)/,
-          /^(?:\/)/,
-          /^(?:-)/,
-          /^(?:\+)/,
-          /^(?:\^)/,
-          /^(?:\()/,
-          /^(?:\))/,
-          /^(?:\,)/,
-          /^(?:==)/,
-          /^(?:\!=)/,
-          /^(?:\~=)/,
-          /^(?:>=)/,
-          /^(?:<=)/,
-          /^(?:<)/,
-          /^(?:>)/,
-          /^(?:not\s+in[^\w])/,
-          /^(?:and[^\w])/,
-          /^(?:or[^\w])/,
-          /^(?:not[^\w])/,
-          /^(?:in[^\w])/,
-          /^(?:of[^\w])/,
-          /^(?:if[^\w])/,
-          /^(?:then[^\w])/,
-          /^(?:else[^\w])/,
-          /^(?:mod[^\w])/,
-          /^(?:\s+)/,
-          /^(?:[0-9]+(?:\.[0-9]+)?(?![0-9\.]))/,
-          /^(?:[a-zA-Z$_][\.a-zA-Z0-9$_]*)/,
-          /^(?:'(?:\\'|\\\\|[^'\\])*')/,
-          /^(?:"(?:\\"|\\\\|[^"\\])*")/,
-          /^(?:\%)/,
-          /^(?:\?)/,
-          /^(?::)/,
-          /^(?:$)/
-        ];
-        lexer2.conditions = {
-          INITIAL: {
-            rules: [
-              0,
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-              10,
-              11,
-              12,
-              13,
-              14,
-              15,
-              16,
-              17,
-              18,
-              19,
-              20,
-              21,
-              22,
-              23,
-              24,
-              25,
-              26,
-              27,
-              28,
-              29,
-              30,
-              31,
-              32,
-              33
-            ],
-            inclusive: true
-          }
-        };
-        return lexer2;
-      }();
-      parser2.lexer = lexer;
-      function Parser2() {
-        this.yy = {};
-      }
-      Parser2.prototype = parser2;
-      parser2.Parser = Parser2;
-      return new Parser2();
-    }();
-    const parser = _parser;
-    _parser.Parser;
-    class UnknownFunctionError extends ReferenceError {
-      constructor(funcName) {
-        super(`Unknown function: ${funcName}()`);
-        __publicField(this, "I18N_STRING", "UNKNOWN_FUNCTION");
-        this.functionName = funcName;
-      }
-    }
-    class UnknownPropertyError extends ReferenceError {
-      constructor(propName) {
-        super(`Property “${propName}” does not exist.`);
-        __publicField(this, "I18N_STRING", "UNKNOWN_PROPERTY");
-        this.propertyName = propName;
-      }
-    }
-    class UnknownOptionError extends TypeError {
-      constructor(key2) {
-        super(`Unknown option: ${key2}`);
-        __publicField(this, "I18N_STRING", "UNKNOWN_OPTION");
-        this.keyName = key2;
-      }
-    }
-    class UnexpectedTypeError extends TypeError {
-      constructor(expected, got) {
-        super(`Expected a ${expected}, but got a ${got} instead.`);
-        __publicField(this, "I18N_STRING", "UNEXPECTED_TYPE");
-        this.expectedType = expected;
-        this.recievedType = got;
-      }
-    }
-    class InternalError extends Error {
-      constructor(message2) {
-        super(message2);
-        __publicField(this, "I18N_STRING", "INTERNAL");
-      }
-    }
-    function hasOwnProperty(obj, prop) {
-      if (typeof obj === "object" || typeof obj === "function") {
-        return Object.prototype.hasOwnProperty.call(obj, prop);
-      }
-      return false;
-    }
-    function mod(a, b) {
-      return (a % b + b) % b;
-    }
-    function unbox(value2) {
-      if (typeof value2 !== "object") return value2;
-      if (value2 instanceof Number || value2 instanceof String || value2 instanceof Boolean)
-        return value2.valueOf();
-    }
-    function unwrap$1(value2) {
-      if (Array.isArray(value2) && value2.length === 1) value2 = value2[0];
-      return unbox(value2);
-    }
-    function prettyType(value2) {
-      value2 = unwrap$1(value2);
-      if (value2 === void 0) return "undefined";
-      if (value2 === null) return "null";
-      if (value2 === true) return "true";
-      if (value2 === false) return "false";
-      if (typeof value2 === "number") return "number";
-      if (typeof value2 === "string") return "text";
-      if (typeof value2 !== "object" && typeof value2 !== "function")
-        return "unknown type";
-      if (Array.isArray(value2)) return "list";
-      return "object";
-    }
-    function num(value2) {
-      value2 = unwrap$1(value2);
-      if (typeof value2 === "number") return value2;
-      throw new UnexpectedTypeError("number", prettyType(value2));
-    }
-    function str(value2) {
-      value2 = unwrap$1(value2);
-      if (typeof value2 === "string") return value2;
-      throw new UnexpectedTypeError("text", prettyType(value2));
-    }
-    function numstr(value2) {
-      value2 = unwrap$1(value2);
-      if (typeof value2 === "string" || typeof value2 === "number") return value2;
-      throw new UnexpectedTypeError("text or number", prettyType(value2));
-    }
-    function bool(value2) {
-      value2 = unwrap$1(value2);
-      if (typeof value2 === "boolean") return value2;
-      throw new UnexpectedTypeError(
-        "logical value (“true” or “false”)",
-        prettyType(value2)
-      );
-    }
-    function arr(value2) {
-      if (value2 === void 0 || value2 === null) {
-        throw new UnexpectedTypeError("list", prettyType(value2));
-      }
-      if (Array.isArray(value2)) {
-        return value2;
-      } else {
-        return [value2];
-      }
-    }
-    function flatten$1(input2) {
-      const stack2 = [...input2];
-      const res = [];
-      while (stack2.length) {
-        const next = stack2.pop();
-        if (Array.isArray(next)) {
-          stack2.push(...next);
-        } else {
-          res.push(next);
-        }
-      }
-      return res.reverse();
-    }
-    const std = {
-      isfn(fns, funcName) {
-        return hasOwnProperty(fns, funcName) && typeof fns[funcName] === "function";
-      },
-      unknown(funcName) {
-        throw new UnknownFunctionError(funcName);
-      },
-      coerceArray: arr,
-      coerceNumber: num,
-      coerceNumberOrString: numstr,
-      coerceBoolean: bool,
-      isSubset(a, b) {
-        const A2 = arr(a);
-        const B = arr(b);
-        return A2.every((val) => B.includes(val));
-      },
-      warnDeprecated: /* @__PURE__ */ function() {
-        const warnMax = 3;
-        let warnedTimes = {
-          ternary: 0,
-          modulo: 0
-        };
-        return (cause, value2) => {
-          switch (cause) {
-            case "ternary":
-              if (warnedTimes.ternary++ >= warnMax) break;
-              console.warn(
-                "The use of ? and : as conditional operators has been deprecated in Filtrex v3 in favor of the if..then..else ternary operator. See issue #34 for more information."
-              );
-              break;
-            case "modulo":
-              if (warnedTimes.modulo++ >= warnMax) break;
-              console.warn(
-                "The use of '%' as a modulo operator has been deprecated in Filtrex v3 in favor of the 'mod' operator. You can use it like this: '3 mod 2 == 1'. See issue #48 for more information."
-              );
-              break;
-          }
-          return value2;
-        };
-      }(),
-      buildString(quote, literal2) {
-        quote = String(quote)[0];
-        literal2 = String(literal2);
-        let built = "";
-        if (literal2[0] !== quote || literal2[literal2.length - 1] !== quote)
-          throw new InternalError(
-            `Unexpected internal error: String literal doesn't begin/end with the right quotation mark.`
-          );
-        for (let i2 = 1; i2 < literal2.length - 1; i2++) {
-          if (literal2[i2] === "\\") {
-            i2++;
-            if (i2 >= literal2.length - 1)
-              throw new InternalError(
-                `Unexpected internal error: Unescaped backslash at the end of string literal.`
-              );
-            if (literal2[i2] === "\\") built += "\\";
-            else if (literal2[i2] === quote) built += quote;
-            else
-              throw new InternalError(
-                `Unexpected internal error: Invalid escaped character in string literal: ${literal2[i2]}`
-              );
-          } else if (literal2[i2] === quote) {
-            throw new InternalError(
-              `Unexpected internal error: String literal contains unescaped quotation mark.`
-            );
-          } else {
-            built += literal2[i2];
-          }
-        }
-        return built;
-      },
-      reduceRelation(arr2) {
-        const declarations = [];
-        const comparisons = [];
-        let previousExpression = flatten$1([arr2[0]]).join("");
-        let j2 = 0;
-        for (let i2 = 1; i2 < arr2.length - 1; i2 += 2) {
-          const expr = flatten$1([arr2[i2 + 1]]).join("");
-          const tempVar = `tmp${j2++}`;
-          comparisons.push(
-            `ops["${arr2[i2]}"](${previousExpression}, ${tempVar} = ${expr})`
-          );
-          previousExpression = tempVar;
-          declarations.push(tempVar);
-        }
-        return `(function(){ var ${declarations.join(", ")}; return ${comparisons.join(" && ")};})()`;
-      }
-    };
-    parser.yy = Object.create(std);
-    function compileExpression(expression, options2) {
-      if (arguments.length > 2) throw new TypeError("Too many arguments.");
-      options2 = typeof options2 === "object" ? options2 : {};
-      const knownOptions = [
-        "extraFunctions",
-        "constants",
-        "customProp",
-        "operators"
-      ];
-      let { extraFunctions, constants, customProp, operators } = options2;
-      for (const key2 of Object.keys(options2))
-        if (!knownOptions.includes(key2)) throw new UnknownOptionError(key2);
-      let functions2 = {
-        abs: Math.abs,
-        ceil: Math.ceil,
-        floor: Math.floor,
-        log: Math.log,
-        log2: Math.log2,
-        log10: Math.log10,
-        max: Math.max,
-        min: Math.min,
-        round: Math.round,
-        sqrt: Math.sqrt,
-        exists: (v2) => v2 !== void 0 && v2 !== null,
-        empty: (v2) => v2 === void 0 || v2 === null || v2 === "" || Array.isArray(v2) && v2.length === 0
-      };
-      if (extraFunctions) {
-        for (const name2 of Object.keys(extraFunctions)) {
-          functions2[name2] = extraFunctions[name2];
-        }
-      }
-      let defaultOperators = {
-        "+": (a, b) => numstr(a) + numstr(b),
-        "-": (a, b) => b === void 0 ? -num(a) : num(a) - num(b),
-        "*": (a, b) => num(a) * num(b),
-        "/": (a, b) => num(a) / num(b),
-        "^": (a, b) => Math.pow(num(a), num(b)),
-        mod: (a, b) => mod(num(a), num(b)),
-        "==": (a, b) => a === b,
-        "!=": (a, b) => a !== b,
-        "<": (a, b) => num(a) < num(b),
-        "<=": (a, b) => num(a) <= num(b),
-        ">=": (a, b) => num(a) >= num(b),
-        ">": (a, b) => num(a) > num(b),
-        "~=": (a, b) => RegExp(str(b)).test(str(a))
-      };
-      if (operators) {
-        for (const name2 of Object.keys(operators)) {
-          defaultOperators[name2] = operators[name2];
-        }
-      }
-      operators = defaultOperators;
-      constants = constants ?? {};
-      let js = flatten$1(parser.parse(expression));
-      js.unshift("return ");
-      js.push(";");
-      function nakedProp(name2, obj, type) {
-        if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
-        throw new UnknownPropertyError(name2);
-      }
-      function safeGetter(obj) {
-        return function get2(name2) {
-          if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
-          throw new UnknownPropertyError(name2);
-        };
-      }
-      if (typeof customProp === "function") {
-        nakedProp = (name2, obj, type) => customProp(name2, safeGetter(obj), obj, type);
-      }
-      function createCall(fns) {
-        return function call(_ref) {
-          let { name: name2 } = _ref;
-          for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-            args[_key - 1] = arguments[_key];
-          }
-          if (hasOwnProperty(fns, name2) && typeof fns[name2] === "function")
-            return fns[name2](...args);
-          throw new UnknownFunctionError(name2);
-        };
-      }
-      function prop(_ref2, obj) {
-        let { name: name2, type } = _ref2;
-        if (type === "unescaped" && hasOwnProperty(constants, name2))
-          return constants[name2];
-        return nakedProp(name2, obj, type);
-      }
-      let func = new Function("call", "ops", "std", "prop", "data", js.join(""));
-      return function(data) {
-        try {
-          return func(createCall(functions2), operators, std, prop, data);
-        } catch (e) {
-          return e;
-        }
-      };
-    }
-    const coerceValue = (value2, descriptor) => {
-      if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
-        return Boolean(value2);
-      } else {
-        return value2;
-      }
-    };
-    const isFilteringSupportedForValue = (value2) => ["string", "number", "boolean"].includes(typeof value2) || value2 === null;
-    const bannedShortScoreNames = (scores2) => {
-      const used = /* @__PURE__ */ new Set();
-      const banned = /* @__PURE__ */ new Set();
-      for (const { scorer: scorer2, name: name2 } of scores2) {
-        banned.add(scorer2);
-        if (used.has(name2)) {
-          banned.add(name2);
-        } else {
-          used.add(name2);
-        }
-      }
-      return banned;
-    };
-    const filterExpressionConstants = {
-      True: true,
-      False: false,
-      None: null
-    };
-    const scoreVariables = (evalDescriptor, sampleScores) => {
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
-      const variables = {};
-      const addScore = (variableName, scoreLabel, value2) => {
-        const coercedValue = coerceValue(
-          value2,
-          evalDescriptor.scoreDescriptor(scoreLabel)
-        );
-        if (isFilteringSupportedForValue(coercedValue)) {
-          variables[variableName] = coercedValue;
-        }
-      };
-      for (const [scorer2, score2] of Object.entries(sampleScores || {})) {
-        addScore(scorer2, { scorer: scorer2, name: scorer2 }, score2.value);
-        if (typeof score2.value === "object") {
-          for (const [name2, value2] of Object.entries(score2.value)) {
-            addScore(`${scorer2}.${name2}`, { scorer: scorer2, name: name2 }, value2);
-            if (!bannedShortNames.has(name2)) {
-              addScore(name2, { scorer: scorer2, name: name2 }, value2);
-            }
-          }
-        }
-      }
-      return variables;
-    };
-    const sampleVariables = (sample2) => {
-      return {
-        has_error: !!sample2.error,
-        has_retries: sample2.retries !== void 0 && sample2.retries > 0
-      };
-    };
-    const sampleFilterItems = (evalDescriptor) => {
-      const items = [];
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
-      const valueToString = (value2) => typeof value2 === "string" ? `"${value2}"` : String(value2);
-      const addScore = (scoreLabel, shortName, qualifiedName) => {
-        const canonicalName = shortName || qualifiedName;
-        if (!canonicalName) {
-          throw new Error("Unable to create a canonical name for a score");
-        }
-        const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
-        const scoreType = descriptor == null ? void 0 : descriptor.scoreType;
-        if (!descriptor) {
-          items.push({
-            shortName,
-            qualifiedName,
-            canonicalName,
-            tooltip: void 0,
-            categories: [],
-            scoreType
-          });
-          return;
-        }
-        var tooltip = `${canonicalName}: ${descriptor.scoreType}`;
-        var categories = [];
-        if (descriptor.min !== void 0 || descriptor.max !== void 0) {
-          const rounded = (num2) => {
-            return parseFloat(num2.toPrecision(3)).toString();
-          };
-          tooltip += `
-range: ${rounded(descriptor.min || 0)} to ${rounded(descriptor.max || 0)}`;
-        }
-        if (descriptor.categories) {
-          categories = descriptor.categories.map((cat) => {
-            const val = cat.val;
-            return valueToString(val);
-          });
-          tooltip += `
-categories: ${categories.join(" ")}`;
-        }
-        items.push({
-          shortName,
-          qualifiedName,
-          canonicalName,
-          tooltip,
-          categories,
-          scoreType
-        });
-      };
-      for (const { name: name2, scorer: scorer2 } of evalDescriptor.scores) {
-        const hasShortName = name2 === scorer2 || !bannedShortNames.has(name2);
-        const hasQualifiedName = name2 !== scorer2;
-        const shortName = hasShortName ? name2 : void 0;
-        const qualifiedName = hasQualifiedName ? `${scorer2}.${name2}` : void 0;
-        addScore({ name: name2, scorer: scorer2 }, shortName, qualifiedName);
-      }
-      return items;
-    };
-    const filterExpression = (evalDescriptor, sample2, filterValue) => {
-      var _a2, _b2;
-      try {
-        const inputContains = (regex2) => {
-          return inputString(sample2.input).some(
-            (msg) => msg.match(new RegExp(regex2, "i"))
-          );
-        };
-        const targetContains = (regex2) => {
-          let targets = Array.isArray(sample2.target) ? sample2.target : [sample2.target];
-          return targets.some((target2) => target2.match(new RegExp(regex2, "i")));
-        };
-        const errorContains = (regex2) => {
-          var _a3;
-          return !!((_a3 = sample2.error) == null ? void 0 : _a3.match(new RegExp(regex2, "i")));
-        };
-        const extraFunctions = {
-          input_contains: inputContains,
-          target_contains: targetContains,
-          error_contains: errorContains
-        };
-        const mySampleVariables = sampleVariables(sample2);
-        const vars = {
-          ...mySampleVariables,
-          ...scoreVariables(evalDescriptor, sample2.scores)
-        };
-        const resolveVariable = (name2, get2) => {
-          if (name2 in mySampleVariables) {
-            const value2 = get2(name2);
-            return value2;
-          }
-          return sample2.error ? void 0 : get2(name2);
-        };
-        const expression = compileExpression(filterValue, {
-          extraFunctions,
-          constants: filterExpressionConstants,
-          customProp: resolveVariable
-        });
-        const result2 = expression(vars);
-        if (typeof result2 === "boolean") {
-          return { matches: result2, error: void 0 };
-        } else if (result2 instanceof Error) {
-          throw result2;
-        } else {
-          throw new TypeError(
-            `Filter expression returned a non-boolean value: ${result2}`
-          );
-        }
-      } catch (error2) {
-        if (error2 instanceof ReferenceError) {
-          const errorObj = error2;
-          const propertyName2 = errorObj["propertyName"] || "";
-          if (propertyName2) {
-            const regex2 = new RegExp(`\\b${propertyName2}\\b`);
-            const match = regex2.exec(filterValue);
-            if (match) {
-              return {
-                matches: false,
-                error: {
-                  from: match.index,
-                  to: match.index + propertyName2.length,
-                  message: error2.message,
-                  severity: "warning"
-                }
-              };
-            }
-          }
-        }
-        const message2 = error2 instanceof Error ? error2.message : "";
-        if (message2.startsWith("Parse error") || message2.startsWith("Lexical error")) {
-          const from = (_b2 = (_a2 = message2.match(/^(-*)\^$/m)) == null ? void 0 : _a2[1]) == null ? void 0 : _b2.length;
-          return {
-            matches: false,
-            error: {
-              from,
-              message: "Syntax error",
-              severity: "error"
-            }
-          };
-        }
-        return {
-          matches: false,
-          error: {
-            message: message2,
-            severity: "error"
-          }
-        };
-      }
-    };
-    const filterSamples = (evalDescriptor, samples, filterValue) => {
-      let error2 = void 0;
-      let errorCount = 0;
-      const result2 = samples.filter((sample2) => {
-        if (filterValue) {
-          const { matches, error: sampleError } = filterExpression(
-            evalDescriptor,
-            sample2,
-            filterValue
-          );
-          error2 || (error2 = sampleError);
-          if (sampleError) {
-            errorCount++;
-          }
-          return matches;
-        } else {
-          return true;
-        }
-      });
-      return { result: result2, error: error2, allErrors: errorCount === samples.length };
-    };
-    const flex$1 = "_flex_1kye9_1";
-    const label$8 = "_label_1kye9_5";
-    const styles$1a = {
-      flex: flex$1,
-      label: label$8
-    };
-    const SortFilter = ({ sort, setSort, epochs }) => {
-      const options2 = [
-        { label: "sample asc", val: kSampleAscVal },
-        { label: "sample desc", val: kSampleDescVal }
-      ];
-      if (epochs > 1) {
-        options2.push({
-          label: "epoch asc",
-          val: kEpochAscVal
-        });
-        options2.push({
-          label: "epoch desc",
-          val: kEpochDescVal
-        });
-      }
-      options2.push({
-        label: "score asc",
-        val: kScoreAscVal
-      });
-      options2.push({
-        label: "score desc",
-        val: kScoreDescVal
-      });
-      const handleChange = reactExports.useCallback(
-        (e) => {
-          const sel = e.target;
-          setSort(sel.value);
-        },
-        [setSort]
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1a.flex, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "span",
-          {
-            className: clsx(
-              "sort-filter-label",
-              "text-size-smaller",
-              "text-style-label",
-              "text-style-secondary",
-              styles$1a.label
-            ),
-            children: "Sort:"
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "select",
-          {
-            className: clsx("form-select", "form-select-sm", "text-size-smaller"),
-            "aria-label": ".sort-filter-label",
-            value: sort,
-            onChange: handleChange,
-            children: options2.map((option) => {
-              return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: option.val, children: option.label }, option.val);
-            })
-          }
-        )
-      ] });
-    };
-    const byEpoch = (sort) => {
-      return sort === kEpochAscVal || sort === kEpochDescVal;
-    };
-    const bySample = (sort) => {
-      return sort === kSampleAscVal || sort === kSampleDescVal;
-    };
-    const sortId = (a, b) => {
-      if (isNumeric(a.id) && isNumeric(b.id)) {
-        return Number(a.id) - Number(b.id);
-      } else {
-        return String(a.id).localeCompare(String(b.id));
-      }
-    };
-    const sortSamples = (sort, samples, samplesDescriptor, score2) => {
-      const sortedSamples = samples.sort((a, b) => {
-        const scoreDescriptor = score2 ? samplesDescriptor.evalDescriptor.scoreDescriptor(score2) : void 0;
-        switch (sort) {
-          case kSampleAscVal: {
-            const result2 = sortId(a, b);
-            if (result2 !== 0) {
-              return result2;
-            } else {
-              return a.epoch - b.epoch;
-            }
-          }
-          case kSampleDescVal: {
-            const result2 = sortId(b, a);
-            if (result2 !== 0) {
-              return result2;
-            } else {
-              return a.epoch - b.epoch;
-            }
-          }
-          case kEpochAscVal: {
-            const result2 = a.epoch - b.epoch;
-            if (result2 !== 0) {
-              return result2;
-            } else {
-              return sortId(a, b);
-            }
-          }
-          case kEpochDescVal: {
-            const result2 = b.epoch - a.epoch;
-            if (result2 !== 0) {
-              return result2;
-            } else {
-              return sortId(b, a);
-            }
-          }
-          case kScoreAscVal: {
-            const aScore = samplesDescriptor.evalDescriptor.score(a, score2);
-            const bScore = samplesDescriptor.evalDescriptor.score(b, score2);
-            if (aScore === void 0 || bScore === void 0 || scoreDescriptor === void 0) {
-              return 0;
-            }
-            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(aScore, bScore);
-          }
-          case kScoreDescVal: {
-            const aScore = samplesDescriptor.evalDescriptor.score(a, score2);
-            const bScore = samplesDescriptor.evalDescriptor.score(b, score2);
-            if (aScore === void 0 || bScore === void 0 || scoreDescriptor == void 0) {
-              return 0;
-            }
-            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(bScore, aScore);
-          }
-          default:
-            return 0;
-        }
-      });
-      return sortedSamples;
-    };
-    const getScorersFromResults = (results) => {
-      if (!(results == null ? void 0 : results.scores)) {
-        return [];
-      }
-      return results.scores.reduce((uniqueScorers, score2) => {
-        const isDuplicate = uniqueScorers.some(
-          (existing) => existing.scorer === score2.scorer && existing.name === score2.name
-        );
-        if (!isDuplicate) {
-          uniqueScorers.push({
-            name: score2.name,
-            scorer: score2.scorer
-          });
-        }
-        return uniqueScorers;
-      }, []);
-    };
-    const getScorersFromSamples = (samples) => {
-      const scoredSample = samples.find((sample2) => {
-        return !sample2.error && sample2.completed && !!sample2.scores;
-      });
-      return Object.keys((scoredSample == null ? void 0 : scoredSample.scores) || {}).map((key2) => ({
-        name: key2,
-        scorer: key2
-      }));
-    };
-    const getAvailableScorers = (log2, sampleSummaries) => {
-      const resultScorers = log2.results ? getScorersFromResults(log2.results) : [];
-      if (resultScorers.length > 0) {
-        return resultScorers;
-      }
-      const sampleScorers = getScorersFromSamples(sampleSummaries);
-      if (sampleScorers.length > 0) {
-        return sampleScorers;
-      }
-      return void 0;
-    };
-    const getDefaultScorer = (log2, sampleSummaries) => {
-      if (sampleSummaries.length === 0) {
-        return void 0;
-      }
-      const allScorers = getAvailableScorers(log2, sampleSummaries);
-      if (allScorers) {
-        return allScorers[0];
-      } else {
-        return void 0;
-      }
-    };
-    const mergeSampleSummaries = (logSamples, pendingSamples) => {
-      const existingSampleIds = new Set(
-        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
-      );
-      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
-        return { ...sample2, completed: false };
-      });
-      return [...logSamples, ...uniquePendingSamples];
-    };
-    const log$1 = createLogger("hooks");
-    const useEvalSpec = () => {
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      return selectedLogSummary == null ? void 0 : selectedLogSummary.eval;
-    };
-    const useRefreshLog = () => {
-      const setAppStatus = useStore((state) => state.appActions.setStatus);
-      const refreshLog = useStore((state) => state.logActions.refreshLog);
-      const resetFiltering = useStore((state) => state.logActions.resetFiltering);
-      return reactExports.useCallback(() => {
-        try {
-          setAppStatus({ loading: true, error: void 0 });
-          refreshLog();
-          resetFiltering();
-          setAppStatus({ loading: false, error: void 0 });
-        } catch (e) {
-          console.log(e);
-          setAppStatus({ loading: false, error: e });
-        }
-      }, [refreshLog, resetFiltering, setAppStatus]);
-    };
-    const useSampleSummaries = () => {
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const pendingSampleSummaries = useStore(
-        (state) => state.log.pendingSampleSummaries
-      );
-      return reactExports.useMemo(() => {
-        return mergeSampleSummaries(
-          (selectedLogSummary == null ? void 0 : selectedLogSummary.sampleSummaries) || [],
-          (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples) || []
-        );
-      }, [selectedLogSummary, pendingSampleSummaries]);
-    };
-    const useTotalSampleCount = () => {
-      const sampleSummaries = useSampleSummaries();
-      return reactExports.useMemo(() => {
-        return sampleSummaries.length;
-      }, [sampleSummaries]);
-    };
-    const useScore = () => {
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const sampleSummaries = useSampleSummaries();
-      const score2 = useStore((state) => state.log.score);
-      return reactExports.useMemo(() => {
-        if (score2) {
-          return score2;
-        } else if (selectedLogSummary) {
-          return getDefaultScorer(selectedLogSummary, sampleSummaries);
-        } else {
-          return void 0;
-        }
-      }, [selectedLogSummary, sampleSummaries, score2]);
-    };
-    const useScores = () => {
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const sampleSummaries = useSampleSummaries();
-      return reactExports.useMemo(() => {
-        if (!selectedLogSummary) {
-          return [];
-        }
-        const result2 = getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
-        return result2;
-      }, [selectedLogSummary, sampleSummaries]);
-    };
-    const useEvalDescriptor = () => {
-      const scores2 = useScores();
-      const sampleSummaries = useSampleSummaries();
-      return reactExports.useMemo(() => {
-        return scores2 ? createEvalDescriptor(scores2, sampleSummaries) : null;
-      }, [scores2, sampleSummaries]);
-    };
-    const useSampleDescriptor = () => {
-      const evalDescriptor = useEvalDescriptor();
-      const sampleSummaries = useSampleSummaries();
-      const score2 = useScore();
-      return reactExports.useMemo(() => {
-        return evalDescriptor ? createSamplesDescriptor(sampleSummaries, evalDescriptor, score2) : void 0;
-      }, [evalDescriptor, sampleSummaries, score2]);
-    };
-    const useFilteredSamples = () => {
-      const evalDescriptor = useEvalDescriptor();
-      const sampleSummaries = useSampleSummaries();
-      const filter = useStore((state) => state.log.filter);
-      const setFilterError = useStore((state) => state.logActions.setFilterError);
-      const clearFilterError = useStore(
-        (state) => state.logActions.clearFilterError
-      );
-      const epoch = useStore((state) => state.log.epoch);
-      const sort = useStore((state) => state.log.sort);
-      const samplesDescriptor = useSampleDescriptor();
-      const score2 = useScore();
-      return reactExports.useMemo(() => {
-        const { result: result2, error: error2, allErrors } = evalDescriptor && filter ? filterSamples(evalDescriptor, sampleSummaries, filter) : { result: sampleSummaries, error: void 0, allErrors: false };
-        if (error2 && allErrors) {
-          setFilterError(error2);
-        } else {
-          clearFilterError();
-        }
-        const prefiltered = error2 === void 0 || !allErrors ? result2 : sampleSummaries;
-        const filtered = epoch && epoch !== "all" ? prefiltered.filter((sample2) => epoch === String(sample2.epoch)) : prefiltered;
-        const sorted = samplesDescriptor ? sortSamples(sort, filtered, samplesDescriptor, score2) : filtered;
-        return [...sorted];
-      }, [
-        evalDescriptor,
-        sampleSummaries,
-        filter,
-        setFilterError,
-        clearFilterError,
-        epoch,
-        sort,
-        samplesDescriptor,
-        score2
-      ]);
-    };
-    const useGroupBy = () => {
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const sort = useStore((state) => state.log.sort);
-      const epoch = useStore((state) => state.log.epoch);
-      return reactExports.useMemo(() => {
-        var _a2, _b2;
-        const epochs = ((_b2 = (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.config) == null ? void 0 : _b2.epochs) || 1;
-        if (epochs > 1) {
-          if (byEpoch(sort) || epoch !== "all") {
-            return "epoch";
-          } else if (bySample(sort)) {
-            return "sample";
-          }
-        }
-        return "none";
-      }, [selectedLogSummary, sort, epoch]);
-    };
-    const useGroupByOrder = () => {
-      const sort = useStore((state) => state.log.sort);
-      return reactExports.useMemo(() => {
-        return sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc";
-      }, [sort]);
-    };
-    const useSelectedSampleSummary = () => {
-      const filteredSamples = useFilteredSamples();
-      const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
-      return reactExports.useMemo(() => {
-        return filteredSamples[selectedIndex];
-      }, [filteredSamples, selectedIndex]);
-    };
-    const useSampleData = () => {
-      const sampleStatus = useStore((state) => state.sample.sampleStatus);
-      const sampleError = useStore((state) => state.sample.sampleError);
-      const getSelectedSample = useStore(
-        (state) => state.sampleActions.getSelectedSample
-      );
-      const selectedSampleIdentifier = useStore(
-        (state) => state.sample.sample_identifier
-      );
-      const sampleNeedsReload = useStore((state) => state.sample.sampleNeedsReload);
-      const runningEvents = useStore(
-        (state) => state.sample.runningEvents
-      );
-      return reactExports.useMemo(() => {
-        return {
-          selectedSampleIdentifier,
-          status: sampleStatus,
-          sampleNeedsReload,
-          error: sampleError,
-          getSelectedSample,
-          running: runningEvents
-        };
-      }, [
-        sampleStatus,
-        sampleError,
-        getSelectedSample,
-        selectedSampleIdentifier,
-        sampleNeedsReload,
-        runningEvents
-      ]);
-    };
-    const useLogSelection = () => {
-      const selectedSampleSummary = useSelectedSampleSummary();
-      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-      const loadedLog = useStore((state) => state.log.loadedLog);
-      return reactExports.useMemo(() => {
-        return {
-          logFile: selectedLogFile,
-          loadedLog,
-          sample: selectedSampleSummary
-        };
-      }, [selectedLogFile, selectedSampleSummary]);
-    };
-    const useCollapseSampleEvent = (scope, id) => {
-      const collapsed2 = useStore((state) => state.sample.collapsedEvents);
-      const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
-      return reactExports.useMemo(() => {
-        var _a2;
-        const isCollapsed = collapsed2 !== null && ((_a2 = collapsed2[scope]) == null ? void 0 : _a2[id]) === true;
-        const set2 = (value2) => {
-          log$1.debug("Set collapsed", id, value2);
-          collapseEvent(scope, id, value2);
-        };
-        return [isCollapsed, set2];
-      }, [collapsed2, collapseEvent, id]);
-    };
-    const useCollapsibleIds = (key2) => {
-      const collapsedIds = useStore(
-        (state) => state.sample.collapsedIdBuckets[key2]
-      );
-      const setCollapsed = useStore((state) => state.sampleActions.collapseId);
-      const collapseId = reactExports.useCallback(
-        (id, value2) => {
-          setCollapsed(key2, id, value2);
-        },
-        [setCollapsed]
-      );
-      const clearCollapsedIds = useStore(
-        (state) => state.sampleActions.clearCollapsedIds
-      );
-      const clearIds = reactExports.useCallback(() => {
-        clearCollapsedIds(key2);
-      }, [clearCollapsedIds, key2]);
-      return reactExports.useMemo(() => {
-        return [collapsedIds, collapseId, clearIds];
-      }, [collapsedIds, collapseId, clearIds]);
-    };
-    const useCollapsedState = (id, defaultValue, scope) => {
-      const stateId = id;
-      const collapsed2 = useStore(
-        (state) => state.appActions.getCollapsed(stateId, defaultValue)
-      );
-      const setCollapsed = useStore((state) => state.appActions.setCollapsed);
-      return reactExports.useMemo(() => {
-        const set2 = (value2) => {
-          log$1.debug("Set collapsed", id, scope, value2);
-          setCollapsed(stateId, value2);
-        };
-        return [collapsed2, set2];
-      }, [collapsed2, setCollapsed]);
-    };
-    const useMessageVisibility = (id, scope) => {
-      const visible2 = useStore(
-        (state) => state.appActions.getMessageVisible(id, true)
-      );
-      const setVisible = useStore((state) => state.appActions.setMessageVisible);
-      const clearVisible = useStore(
-        (state) => state.appActions.clearMessageVisible
-      );
-      const isFirstRender = reactExports.useRef(true);
-      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-      reactExports.useEffect(() => {
-        if (isFirstRender.current) {
-          isFirstRender.current = false;
-          return;
-        }
-        log$1.debug("clear message (eval)", id);
-        clearVisible(id);
-      }, [selectedLogFile, clearVisible, id]);
-      const selectedSampleIndex = useStore(
-        (state) => state.log.selectedSampleIndex
-      );
-      reactExports.useEffect(() => {
-        if (isFirstRender.current) {
-          return;
-        }
-        if (scope === "sample") {
-          log$1.debug("clear message (sample)", id);
-          clearVisible(id);
-        }
-      }, [selectedSampleIndex, clearVisible, id, scope]);
-      return reactExports.useMemo(() => {
-        log$1.debug("visibility", id, visible2);
-        const set2 = (visible22) => {
-          log$1.debug("set visiblity", id);
-          setVisible(id, visible22);
-        };
-        return [visible2, set2];
-      }, [visible2, setVisible, id]);
-    };
-    function useProperty(id, propertyName2, options2) {
-      options2 = options2 || { cleanup: true };
-      const setPropertyValue = useStore(
-        (state) => state.appActions.setPropertyValue
-      );
-      const removePropertyValue = useStore(
-        (state) => state.appActions.removePropertyValue
-      );
-      const propertyValue = useStore(
-        reactExports.useCallback(
-          (state) => state.appActions.getPropertyValue(
-            id,
-            propertyName2,
-            options2.defaultValue
-          ),
-          [id, propertyName2, options2.defaultValue]
-        )
-      );
-      const setValue = reactExports.useCallback(
-        (value2) => {
-          setPropertyValue(id, propertyName2, value2);
-        },
-        [id, propertyName2, setPropertyValue]
-      );
-      const removeValue = reactExports.useCallback(() => {
-        removePropertyValue(id, propertyName2);
-      }, [id, propertyName2, removePropertyValue]);
-      reactExports.useEffect(() => {
-        return () => {
-          if (options2.cleanup) {
-            removePropertyValue(id, propertyName2);
-          }
-        };
-      }, [id, propertyName2, removePropertyValue]);
-      return [propertyValue, setValue, removeValue];
-    }
-    const usePrevious = (value2) => {
-      const ref = reactExports.useRef(void 0);
-      reactExports.useEffect(() => {
-        ref.current = value2;
-      }, [value2]);
-      return ref.current;
-    };
-    const kPrismRenderMaxSize = 25e4;
-    const usePrismHighlight = (toolCallContent) => {
-      const toolViewRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        if (toolCallContent && toolViewRef.current && toolCallContent.length <= kPrismRenderMaxSize) {
-          requestAnimationFrame(() => {
-            var _a2;
-            const codeBlocks = (_a2 = toolViewRef.current) == null ? void 0 : _a2.querySelectorAll("pre code");
-            codeBlocks == null ? void 0 : codeBlocks.forEach((block2) => {
-              if (block2.className.includes("language-")) {
-                block2.classList.add("sourceCode");
-                prismExports.highlightElement(block2);
-              }
-            });
-          });
-        }
-      }, [toolCallContent]);
-      return toolViewRef;
-    };
-    const useSamplePopover = (id) => {
-      const setVisiblePopover = useStore(
-        (store) => store.sampleActions.setVisiblePopover
-      );
-      const clearVisiblePopover = useStore(
-        (store) => store.sampleActions.clearVisiblePopover
-      );
-      const visiblePopover = useStore((store) => store.sample.visiblePopover);
-      const timerRef = reactExports.useRef(null);
-      const show = reactExports.useCallback(() => {
-        if (timerRef.current) {
-          return;
-        }
-        timerRef.current = window.setTimeout(() => {
-          setVisiblePopover(id);
-          timerRef.current = null;
-        }, 250);
-      }, [id, setVisiblePopover]);
-      const hide2 = reactExports.useCallback(() => {
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-        clearVisiblePopover();
-      }, [clearVisiblePopover]);
-      reactExports.useEffect(() => {
-        return () => {
-          if (timerRef.current) {
-            clearTimeout(timerRef.current);
-          }
-        };
-      }, []);
-      const isShowing = reactExports.useMemo(() => {
-        return visiblePopover === id;
-      }, [id, visiblePopover]);
-      return {
-        show,
-        hide: hide2,
-        isShowing
-      };
-    };
-    const FindBand = () => {
-      const searchBoxRef = reactExports.useRef(null);
-      const storeHideFind = useStore((state) => state.appActions.hideFind);
-      reactExports.useEffect(() => {
-        setTimeout(() => {
-          var _a2;
-          (_a2 = searchBoxRef.current) == null ? void 0 : _a2.focus();
-        }, 10);
-      }, []);
-      const getParentExpandablePanel = reactExports.useCallback(
-        (selection) => {
-          let node2 = selection.anchorNode;
-          while (node2) {
-            if (node2 instanceof HTMLElement && node2.classList.contains("expandable-panel")) {
-              return node2;
-            }
-            node2 = node2.parentElement;
-          }
-          return void 0;
-        },
-        []
-      );
-      const handleSearch = reactExports.useCallback(
-        (back = false) => {
-          var _a2;
-          const searchTerm = ((_a2 = searchBoxRef.current) == null ? void 0 : _a2.value) ?? "";
-          const focusedElement = document.activeElement;
-          const result2 = window.find(
-            searchTerm,
-            false,
-            back,
-            false,
-            false,
-            true,
-            false
-          );
-          const noResultEl = document.getElementById("inspect-find-no-results");
-          if (!noResultEl) return;
-          noResultEl.style.opacity = result2 ? "0" : "1";
-          if (result2) {
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const parentPanel = getParentExpandablePanel(selection);
-              if (parentPanel) {
-                parentPanel.style.display = "block";
-                parentPanel.style.webkitLineClamp = "";
-                parentPanel.style.webkitBoxOrient = "";
-              }
-              const range = selection.getRangeAt(0);
-              const element = range.startContainer.parentElement;
-              if (element) {
-                setTimeout(() => {
-                  element.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center"
-                  });
-                }, 100);
-              }
-            }
-          }
-          focusedElement == null ? void 0 : focusedElement.focus();
-        },
-        [getParentExpandablePanel]
-      );
-      const handleKeyDown = reactExports.useCallback(
-        (e) => {
-          if (e.key === "Escape") {
-            storeHideFind();
-          } else if (e.key === "Enter") {
-            handleSearch(false);
-          }
-        },
-        [storeHideFind, handleSearch]
-      );
-      const showSearch = reactExports.useCallback(() => {
-        handleSearch(true);
-      }, [handleSearch]);
-      const hideSearch = reactExports.useCallback(() => {
-        handleSearch(false);
-      }, [handleSearch]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "input",
-          {
-            type: "text",
-            ref: searchBoxRef,
-            placeholder: "Find",
-            onKeyDown: handleKeyDown
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { id: "inspect-find-no-results", children: "No results" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Previous match",
-            className: "btn next",
-            onClick: showSearch,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.up })
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Next match",
-            className: "btn prev",
-            onClick: hideSearch,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.down })
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Close",
-            className: "btn close",
-            onClick: storeHideFind,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
-          }
-        )
-      ] });
-    };
-    const wrapper$4 = "_wrapper_1tajk_1";
-    const container$j = "_container_1tajk_12";
-    const animate = "_animate_1tajk_21";
-    const styles$19 = {
-      wrapper: wrapper$4,
-      container: container$j,
-      animate
-    };
-    const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$19.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(styles$19.container),
-          role: "progressbar",
-          "aria-label": "Basic example",
-          "aria-valuenow": 25,
-          "aria-valuemin": 0,
-          "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.animate })
-        }
-      ) });
-    };
-    const log = createLogger("scrolling");
-    function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable2 = true) {
-      const getScrollPosition = useStore(
-        (state) => state.appActions.getScrollPosition
-      );
-      const setScrollPosition = useStore(
-        (state) => state.appActions.setScrollPosition
-      );
-      const handleScroll = reactExports.useCallback(
-        debounce$2((e) => {
-          const target2 = e.target;
-          const position = target2.scrollTop;
-          log.debug(`Storing scroll position`, elementKey, position);
-          setScrollPosition(elementKey, position);
-        }, delay),
-        [elementKey, setScrollPosition, delay]
-      );
-      const restoreScrollPosition = reactExports.useCallback(() => {
-        const element = elementRef.current;
-        const savedPosition = getScrollPosition(elementKey);
-        if (element && savedPosition !== void 0) {
-          requestAnimationFrame(() => {
-            element.scrollTop = savedPosition;
-            requestAnimationFrame(() => {
-              if (element.scrollTop !== savedPosition) {
-                element.scrollTop = savedPosition;
-              }
-            });
-          });
-        }
-      }, [elementKey, getScrollPosition, elementRef]);
-      reactExports.useEffect(() => {
-        const element = elementRef.current;
-        if (!element || !scrollable2) {
-          return;
-        }
-        log.debug(`Restore Scroll Hook`, elementKey);
-        const savedPosition = getScrollPosition(elementKey);
-        if (savedPosition !== void 0) {
-          log.debug(`Restoring scroll position`, savedPosition);
-          const tryRestoreScroll = () => {
-            if (element.scrollHeight > element.clientHeight) {
-              if (element.scrollTop !== savedPosition) {
-                element.scrollTop = savedPosition;
-                log.debug(`Scroll position restored to ${savedPosition}`);
-              }
-              return true;
-            }
-            return false;
-          };
-          if (!tryRestoreScroll()) {
-            let attempts = 0;
-            const maxAttempts = 5;
-            const pollForRender = () => {
-              if (tryRestoreScroll() || attempts >= maxAttempts) {
-                if (attempts >= maxAttempts) {
-                  log.debug(
-                    `Failed to restore scroll after ${maxAttempts} attempts`
-                  );
-                }
-                return;
-              }
-              attempts++;
-              setTimeout(pollForRender, 1e3);
-            };
-            setTimeout(pollForRender, 1e3);
-          }
-        }
-        if (element.addEventListener) {
-          element.addEventListener("scroll", handleScroll);
-        } else {
-          log.warn("Element has no way to add event listener", element);
-        }
-        return () => {
-          if (element.removeEventListener) {
-            element.removeEventListener("scroll", handleScroll);
-          } else {
-            log.warn("Element has no way to remove event listener", element);
-          }
-        };
-      }, [elementKey, elementRef, handleScroll]);
-      return { restoreScrollPosition };
-    }
-    const useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
-      const restoreState = useStore(
-        reactExports.useCallback((state) => state.app.listPositions[elementKey], [elementKey])
-      );
-      const setListPosition = useStore(
-        reactExports.useCallback((state) => state.appActions.setListPosition, [])
-      );
-      const clearListPosition = useStore(
-        reactExports.useCallback((state) => state.appActions.clearListPosition, [])
-      );
-      const debouncedFnRef = reactExports.useRef(null);
-      const handleStateChange = reactExports.useCallback(
-        (state) => {
-          log.debug(`Storing list state: [${elementKey}]`, state);
-          setListPosition(elementKey, state);
-        },
-        [elementKey, setListPosition]
-      );
-      reactExports.useEffect(() => {
-        debouncedFnRef.current = debounce$2((isScrolling2) => {
-          log.debug("List scroll", isScrolling2);
-          const element = virtuosoRef.current;
-          if (!element) {
-            return;
-          }
-          element.getState(handleStateChange);
-        }, delay);
-        return () => {
-          clearListPosition(elementKey);
-        };
-      }, [delay, elementKey, handleStateChange, clearListPosition, virtuosoRef]);
-      const isScrolling = reactExports.useCallback((scrolling) => {
-        if (!scrolling) {
-          return;
-        }
-        if (debouncedFnRef.current) {
-          debouncedFnRef.current(scrolling);
-        }
-      }, []);
-      const stateRef = reactExports.useRef(restoreState);
-      reactExports.useEffect(() => {
-        stateRef.current = restoreState;
-      }, [restoreState]);
-      const getRestoreState = reactExports.useCallback(() => stateRef.current, []);
-      return { getRestoreState, isScrolling };
-    };
-    function useRafThrottle(callback, dependencies = []) {
-      const rafRef = reactExports.useRef(null);
-      const callbackRef = reactExports.useRef(callback);
-      reactExports.useEffect(() => {
-        callbackRef.current = callback;
-      }, [callback, ...dependencies]);
-      const throttledCallback = reactExports.useCallback((...args) => {
-        if (rafRef.current) {
-          return;
-        }
-        rafRef.current = requestAnimationFrame(() => {
-          callbackRef.current(...args);
-          rafRef.current = null;
-        });
-      }, []);
-      reactExports.useEffect(() => {
-        return () => {
-          if (rafRef.current) {
-            cancelAnimationFrame(rafRef.current);
-            rafRef.current = null;
-          }
-        };
-      }, []);
-      return throttledCallback;
-    }
-    function useScrollTrack(elementIds, onElementVisible, scrollRef, options2) {
-      const currentVisibleRef = reactExports.useRef(null);
-      const lastCheckRef = reactExports.useRef(0);
-      const rafRef = reactExports.useRef(null);
-      const findTopmostVisibleElement = reactExports.useCallback(() => {
-        const container2 = scrollRef == null ? void 0 : scrollRef.current;
-        const containerRect = container2 == null ? void 0 : container2.getBoundingClientRect();
-        const topOffset = 50;
-        const viewportTop = containerRect ? containerRect.top + topOffset : topOffset;
-        const viewportBottom = containerRect ? containerRect.bottom : window.innerHeight;
-        const viewportHeight = viewportBottom - viewportTop;
-        let detectionPoint = viewportTop;
-        if (container2) {
-          const scrollHeight = container2.scrollHeight;
-          const scrollTop = container2.scrollTop;
-          const clientHeight = container2.clientHeight;
-          const maxScroll = scrollHeight - clientHeight;
-          const scrollProgress = maxScroll > 0 ? scrollTop / maxScroll : 0;
-          const slideThreshold = 0.8;
-          if (scrollProgress > slideThreshold) {
-            const slideProgress = (scrollProgress - slideThreshold) / (1 - slideThreshold);
-            const easedProgress = Math.pow(slideProgress, 3);
-            detectionPoint = viewportTop + viewportHeight * 0.9 * easedProgress;
-          }
-          if (scrollProgress >= 0.99) {
-            detectionPoint = viewportBottom - 50;
-          }
-        }
-        let closestId = null;
-        let closestDistance = Infinity;
-        const elementIdSet = new Set(elementIds);
-        const elements = container2 ? container2.querySelectorAll("[id]") : document.querySelectorAll("[id]");
-        for (const element of elements) {
-          const id = element.id;
-          if (elementIdSet.has(id)) {
-            const rect = element.getBoundingClientRect();
-            if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
-              const elementCenter = rect.top + rect.height / 2;
-              const distance = Math.abs(elementCenter - detectionPoint);
-              if (distance < closestDistance) {
-                closestDistance = distance;
-                closestId = id;
-              }
-            }
-          }
-        }
-        return closestId;
-      }, [elementIds, scrollRef, options2 == null ? void 0 : options2.topOffset]);
-      const checkVisibility = reactExports.useCallback(() => {
-        const now2 = Date.now();
-        const checkInterval = 100;
-        if (now2 - lastCheckRef.current < checkInterval) {
-          return;
-        }
-        lastCheckRef.current = now2;
-        const topmostId = findTopmostVisibleElement();
-        if (topmostId !== currentVisibleRef.current) {
-          currentVisibleRef.current = topmostId;
-          if (topmostId) {
-            onElementVisible(topmostId);
-          }
-        }
-      }, [findTopmostVisibleElement, onElementVisible, options2 == null ? void 0 : options2.checkInterval]);
-      const handleScroll = reactExports.useCallback(() => {
-        if (rafRef.current !== null) {
-          cancelAnimationFrame(rafRef.current);
-        }
-        rafRef.current = requestAnimationFrame(() => {
-          checkVisibility();
-          rafRef.current = null;
-        });
-      }, [checkVisibility]);
-      reactExports.useEffect(() => {
-        if (elementIds.length === 0) return;
-        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || window;
-        checkVisibility();
-        scrollElement.addEventListener("scroll", handleScroll, { passive: true });
-        const intervalId = setInterval(checkVisibility, 1e3);
-        return () => {
-          scrollElement.removeEventListener("scroll", handleScroll);
-          clearInterval(intervalId);
-          if (rafRef.current !== null) {
-            cancelAnimationFrame(rafRef.current);
-          }
-        };
-      }, [elementIds, scrollRef, handleScroll, checkVisibility]);
-    }
-    const dirname$1 = "_dirname_1qban_1";
-    const directoryLink = "_directoryLink_1qban_7";
-    const styles$18 = {
-      dirname: dirname$1,
-      directoryLink
-    };
-    const LogDirectoryTitleView = ({
-      log_dir
-    }) => {
-      const offCanvas = useStore((state) => state.app.offcanvas);
-      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const handleClick = reactExports.useCallback(() => {
-        if (offCanvas) {
-          setOffCanvas(false);
-        }
-      }, [offCanvas, setOffCanvas]);
-      if (log_dir) {
-        const displayDir = prettyDir(log_dir);
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$18.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "span",
-            {
-              className: clsx(
-                "text-style-secondary",
-                "text-style-label",
-                "text-size-small"
-              ),
-              children: "Log Directory"
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "span",
-            {
-              title: displayDir,
-              className: clsx("text-size-base", styles$18.dirname),
-              children: offCanvas ? displayDir : ""
-            }
-          )
-        ] }) });
-      } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$18.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
-      }
-    };
-    const prettyDir = (path) => {
-      try {
-        let url = new URL(path);
-        if (url.protocol === "file:") {
-          return url.pathname;
-        } else {
-          return path;
-        }
-      } catch {
-        return path;
-      }
-    };
-    const sidebar = "_sidebar_1essr_1";
-    const sidebarClosed = "_sidebarClosed_1essr_15";
-    const sidebarOpen = "_sidebarOpen_1essr_19";
-    const header$3 = "_header_1essr_23";
-    const toggle$2 = "_toggle_1essr_39";
-    const progress$3 = "_progress_1essr_46";
-    const list = "_list_1essr_50";
-    const backdrop$1 = "_backdrop_1essr_55";
-    const active = "_active_1essr_63";
-    const item$2 = "_item_1essr_67";
-    const logLink = "_logLink_1essr_72";
-    const styles$17 = {
-      sidebar,
-      sidebarClosed,
-      sidebarOpen,
-      header: header$3,
-      toggle: toggle$2,
-      progress: progress$3,
-      list,
-      backdrop: backdrop$1,
-      active,
-      item: item$2,
-      logLink
-    };
-    const error$1 = "_error_srruf_1";
-    const running = "_running_srruf_6";
-    const cancelled = "_cancelled_srruf_13";
-    const styles$16 = {
-      error: error$1,
-      running,
-      cancelled
-    };
-    const metricDisplayName = (metric2) => {
-      let modifier = void 0;
-      for (const metricModifier of metricModifiers) {
-        modifier = metricModifier(metric2);
-        if (modifier) {
-          break;
-        }
-      }
-      const metricName2 = !modifier ? metric2.name : `${metric2.name}[${modifier}]`;
-      return metricName2;
-    };
-    const clusterMetricModifier = (metric2) => {
-      if (metric2.name !== "stderr") {
-        return void 0;
-      }
-      const clusterValue = (metric2.params || {})["cluster"];
-      if (clusterValue === void 0 || typeof clusterValue !== "string") {
-        return void 0;
-      }
-      return clusterValue;
-    };
-    const metricModifiers = [clusterMetricModifier];
-    const container$i = "_container_1frsg_1";
-    const metric = "_metric_1frsg_8";
-    const metricName$1 = "_metricName_1frsg_17";
-    const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$15 = {
-      container: container$i,
-      metric,
-      metricName: metricName$1,
-      metricReducer: metricReducer$1
-    };
-    const SidebarScoreView = ({ scorer: scorer2 }) => {
-      const showReducer = !!scorer2.reducer;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.container, children: Object.keys(scorer2.metrics).map((metric2) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$15.metric, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-style-secondary",
-                "text-style-label",
-                "text-size-small",
-                styles$15.metricName
-              ),
-              children: metricDisplayName(scorer2.metrics[metric2])
-            }
-          ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$15.metricReducer), children: scorer2.reducer || "default" }) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer2.metrics[metric2].value) })
-        ] }, metric2);
-      }) });
-    };
-    const container$h = "_container_5kpg1_1";
-    const scoreWrapper = "_scoreWrapper_5kpg1_9";
-    const metricName = "_metricName_5kpg1_16";
-    const metricReducer = "_metricReducer_5kpg1_22";
-    const metricValues = "_metricValues_5kpg1_27";
-    const metricValue = "_metricValue_5kpg1_27";
-    const styles$14 = {
-      container: container$h,
-      scoreWrapper,
-      metricName,
-      metricReducer,
-      metricValues,
-      metricValue
-    };
-    const SidebarScoresView = ({ scores: scores2 }) => {
-      const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.container, children: scores2.map((score2, idx) => {
-        const name2 = score2.name;
-        const reducer = score2.reducer;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$14.scoreWrapper, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-style-secondary",
-                "text-style-label",
-                "text-size-small",
-                styles$14.metricName
-              ),
-              children: name2
-            }
-          ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-size-small",
-                "text-style-label",
-                "text-style-secondary",
-                styles$14.metricReducer
-              ),
-              children: reducer || "default"
-            }
-          ) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$14.metricValues), children: Object.keys(score2.metrics).map((key2) => {
-            const metric2 = score2.metrics[key2];
-            return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.metricValue, children: formatPrettyDecimal(metric2.value) })
-            ] }, key2);
-          }) })
-        ] }, `scorer-${name2}-${idx}`);
-      }) });
-    };
-    const EvalStatus = ({ logHeader }) => {
-      var _a2, _b2;
-      switch (logHeader == null ? void 0 : logHeader.status) {
-        case "error":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusError, { message: "Error" });
-        case "cancelled":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusCancelled, { message: "Cancelled" });
-        case "started":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusRunning, { message: "Running" });
-        default:
-          if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
-            if (logHeader.results.scores.length === 1) {
-              return /* @__PURE__ */ jsxRuntimeExports.jsx(SidebarScoreView, { scorer: logHeader.results.scores[0] });
-            } else {
-              return /* @__PURE__ */ jsxRuntimeExports.jsx(SidebarScoresView, { scores: logHeader.results.scores });
-            }
-          } else {
-            return null;
-          }
-      }
-    };
-    const StatusCancelled = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(
-            "text-style-secondary",
-            "text-style-label",
-            "text-size-small",
-            styles$16.cancelled
-          ),
-          children: message2
-        }
-      );
-    };
-    const StatusRunning = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(
-            "text-style-secondary",
-            "text-style-label",
-            "text-size-small",
-            styles$16.running
-          ),
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: message2 })
-        }
-      );
-    };
-    const StatusError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.error, "text-size-small"), children: message2 });
-    };
-    const entry = "_entry_12m5n_1";
-    const title$3 = "_title_12m5n_7";
-    const task = "_task_12m5n_12";
-    const params = "_params_12m5n_18";
-    const scores$1 = "_scores_12m5n_22";
-    const styles$13 = {
-      entry,
-      title: title$3,
-      task,
-      params,
-      scores: scores$1
-    };
-    const SidebarLogEntry = ({
-      logHeader,
-      task: task2
-    }) => {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const hyperparameters = {
-        ...((_a2 = logHeader == null ? void 0 : logHeader.plan) == null ? void 0 : _a2.config) || {},
-        ...((_b2 = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _b2.task_args) || {}
-      };
-      const model2 = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
-      const datasetName = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset.name;
-      const uniqScorers = /* @__PURE__ */ new Set();
-      (_f = (_e2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e2.scores) == null ? void 0 : _f.forEach((scorer2) => {
-        uniqScorers.add(scorer2.name);
-      });
-      const scorerNames = Array.from(uniqScorers).join(",");
-      const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
-      const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
-      const time = completed ? new Date(completed) : void 0;
-      const timeStr = time ? `${time.toDateString()}
-    ${time.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit"
-      })}` : "";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.entry, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.title, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$13.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
-            model2 && model2 !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$13.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-          const val = hyperparameters[key2];
-          if (Array.isArray(val) || typeof val === "object") {
-            return `${key2}: ${JSON.stringify(val)}`;
-          } else {
-            return `${key2}: ${val}`;
-          }
-        }).join(", ") : "" }) }),
-        (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx("text-truncate", "text-size-small", styles$13.scores),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                "dataset: ",
-                datasetName || "(samples)"
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$13.scoreInfo), children: [
-                scorerLabel,
-                ": ",
-                scorerNames || "(none)"
-              ] })
-            ]
-          }
-        ) : ""
-      ] });
-    };
-    const Sidebar = ({
-      logHeaders,
-      loading,
-      selectedIndex,
-      onSelectedIndexChanged
-    }) => {
-      const logs = useStore((state) => state.logs.logs);
-      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const offCanvas = useStore((state) => state.app.offcanvas);
-      const handleToggle = reactExports.useCallback(() => {
-        setOffCanvas(!offCanvas);
-      }, [offCanvas, setOffCanvas]);
-      const sidebarContentsRef = reactExports.useRef(null);
-      useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1e3);
-      const itemRefs = reactExports.useRef({});
-      reactExports.useEffect(() => {
-        var _a2;
-        if (itemRefs.current[selectedIndex]) {
-          (_a2 = itemRefs.current[selectedIndex]) == null ? void 0 : _a2.scrollIntoView({
-            behavior: "smooth",
-            block: "nearest"
-          });
-        }
-      }, [selectedIndex]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$17.backdrop, onClick: handleToggle }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              styles$17.sidebar,
-              offCanvas ? styles$17.sidebarOpen : styles$17.sidebarClosed
-            ),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$17.header, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    onClick: handleToggle,
-                    className: clsx("btn", styles$17.toggle),
-                    type: "button",
-                    "aria-label": "Close sidebar",
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$17.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "ul",
-                {
-                  ref: sidebarContentsRef,
-                  className: clsx("list-group", styles$17.list),
-                  children: logs.files.map((file, index2) => {
-                    const logHeader = logHeaders[file.name];
-                    return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      "li",
-                      {
-                        ref: (el) => {
-                          itemRefs.current[index2] = el;
-                        },
-                        className: clsx(
-                          "list-group-item",
-                          "list-group-item-action",
-                          styles$17.item,
-                          selectedIndex === index2 ? styles$17.active : void 0
-                        ),
-                        "data-index": index2,
-                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          Link,
-                          {
-                            to: logUrl(file.name, logs.log_dir),
-                            className: styles$17.logLink,
-                            onClick: () => {
-                              onSelectedIndexChanged(index2);
-                            },
-                            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                              SidebarLogEntry,
-                              {
-                                logHeader,
-                                task: file.task || "unknown task"
-                              }
-                            )
-                          }
-                        )
-                      },
-                      file.name
-                    );
-                  })
-                }
-              )
-            ]
-          }
-        )
-      ] });
-    };
-    const EmptyPanel = ({ children: children2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
-    };
-    const tabs$1 = "_tabs_jdywf_1";
-    const tabContents = "_tabContents_jdywf_5";
-    const scrollable = "_scrollable_jdywf_10";
-    const tab$1 = "_tab_jdywf_1";
-    const tabItem = "_tabItem_jdywf_24";
-    const tabIcon = "_tabIcon_jdywf_28";
-    const tabTools = "_tabTools_jdywf_32";
-    const tabStyle = "_tabStyle_jdywf_42";
-    const moduleStyles = {
-      tabs: tabs$1,
-      tabContents,
-      scrollable,
-      tab: tab$1,
-      tabItem,
-      tabIcon,
-      tabTools,
-      tabStyle
-    };
-    const TabSet = ({
-      id,
-      type = "tabs",
-      className: className2,
-      tabPanelsClassName,
-      tabControlsClassName,
-      tools: tools2,
-      tabsRef,
-      children: children2
-    }) => {
-      const validTabs = flattenChildren(children2);
-      if (validTabs.length === 0) return null;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "ul",
-          {
-            ref: tabsRef,
-            id,
-            className: clsx(
-              "nav",
-              `nav-${type}`,
-              type === "tabs" ? moduleStyles.tabStyle : void 0,
-              className2,
-              moduleStyles.tabs
-            ),
-            role: "tablist",
-            "aria-orientation": "horizontal",
-            children: [
-              validTabs.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-                Tab,
-                {
-                  index: index2,
-                  type,
-                  tab: tab2,
-                  className: tabControlsClassName
-                },
-                tab2.props.id
-              )),
-              tools2 && /* @__PURE__ */ jsxRuntimeExports.jsx(TabTools, { tools: tools2 })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanels, { id, tabs: validTabs, className: tabPanelsClassName })
-      ] });
-    };
-    const Tab = ({ type = "tabs", tab: tab2, index: index2, className: className2 }) => {
-      const tabId = tab2.props.id || computeTabId("tabset", index2);
-      const tabContentsId = computeTabContentsId(tab2.props.id);
-      const isActive = tab2.props.selected;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { role: "presentation", className: clsx("nav-item", moduleStyles.tabItem), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "button",
-        {
-          id: tabId,
-          className: clsx(
-            "nav-link",
-            className2,
-            isActive && "active",
-            type === "pills" ? moduleStyles.pill : moduleStyles.tab,
-            "text-size-small",
-            "text-style-label"
-          ),
-          type: "button",
-          role: "tab",
-          "aria-controls": tabContentsId,
-          "aria-selected": isActive,
-          onClick: tab2.props.onSelected,
-          children: [
-            tab2.props.icon && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }),
-            tab2.props.title
-          ]
-        }
-      ) });
-    };
-    const TabPanels = ({ id, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanel, { ...tab2.props, index: index2 }, tab2.props.id)) });
-    const TabPanel = ({
-      id,
-      selected: selected2,
-      style: style2,
-      scrollable: scrollable2 = true,
-      scrollRef,
-      className: className2,
-      children: children2
-    }) => {
-      const tabContentsId = computeTabContentsId(id);
-      const panelRef = reactExports.useRef(null);
-      const tabContentsRef = scrollRef || panelRef;
-      useStatefulScrollPosition(tabContentsRef, tabContentsId, 1e3, scrollable2);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          id: tabContentsId,
-          ref: tabContentsRef,
-          className: clsx(
-            "tab-pane",
-            selected2 && "show active",
-            className2,
-            moduleStyles.tabContents,
-            scrollable2 && moduleStyles.scrollable
-          ),
-          style: style2,
-          children: selected2 ? children2 : null
-        }
-      );
-    };
-    const TabTools = ({ tools: tools2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-tools", moduleStyles.tabTools), children: tools2 });
-    const computeTabId = (id, index2) => `${id}-${index2}`;
-    const computeTabContentsId = (id) => `${id}-contents`;
-    const flattenChildren = (children2) => {
-      return reactExports.Children.toArray(children2).flatMap((child) => {
-        if (reactExports.isValidElement(child)) {
-          const element = child;
-          if (element.type === reactExports.Fragment) {
-            return flattenChildren(element.props.children);
-          }
-          return element;
-        }
-        return [];
-      });
-    };
-    const navbarWrapper = "_navbarWrapper_838qu_48";
-    const styles$12 = {
-      navbarWrapper
-    };
-    const filename = (path) => {
-      if (!path) {
-        return "";
-      }
-      const pathparts = path.split("/");
-      const basename = pathparts.slice(-1)[0];
-      if (basename.startsWith(".") && !basename.substring(1).includes(".")) {
-        return basename;
-      }
-      const match = basename.match(/(.*)\.\S+$/);
-      if (match) {
-        return match[1];
-      } else {
-        return path;
-      }
-    };
-    const dirname = (path) => {
-      const pathparts = path.split("/");
-      if (pathparts.length > 1) {
-        pathparts.pop();
-        return pathparts.join("/");
-      }
-      return "";
-    };
-    const container$g = "_container_q17yq_1";
-    const grid$6 = "_grid_q17yq_10";
-    const styles$11 = {
-      container: container$g,
-      grid: grid$6
-    };
-    const ModelRolesView = ({ roles }) => {
-      roles = roles || {};
-      const singleLine = Object.keys(roles).length !== 1;
-      const modelEls = Object.keys(roles).map((key2) => {
-        const role2 = key2;
-        const roleData = roles[role2];
-        const model2 = roleData.model;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              singleLine ? styles$11.grid : void 0,
-              "text-style-secondary",
-              "text-size-smallest"
-            ),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("text-style-label"), children: [
-                role2,
-                ":"
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: model2 })
-            ]
-          },
-          key2
-        );
-      });
-      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$11.container, children: modelEls }) : void 0;
-    };
-    const container$f = "_container_291sb_1";
-    const wrapper$3 = "_wrapper_291sb_8";
-    const toggle$1 = "_toggle_291sb_14";
-    const body$1 = "_body_291sb_19";
-    const bodyContainer = "_bodyContainer_291sb_25";
-    const taskTitle = "_taskTitle_291sb_31";
-    const taskModel = "_taskModel_291sb_36";
-    const taskStatus = "_taskStatus_291sb_40";
-    const secondaryContainer = "_secondaryContainer_291sb_47";
-    const styles$10 = {
-      container: container$f,
-      wrapper: wrapper$3,
-      toggle: toggle$1,
-      body: body$1,
-      bodyContainer,
-      taskTitle,
-      taskModel,
-      taskStatus,
-      secondaryContainer
-    };
-    const button = "_button_12472_1";
-    const label$7 = "_label_12472_14";
-    const styles$$ = {
-      button,
-      label: label$7
-    };
-    const LinkButton = ({
-      id,
-      text: text2,
-      icon: icon2,
-      className: className2,
-      onClick
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "button",
-        {
-          id,
-          onClick,
-          className: clsx(className2, styles$$.button, "text-size-smaller"),
-          children: [
-            icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0,
-            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$$.label), children: text2 }) : void 0
-          ]
-        }
-      );
-    };
-    const modal$1 = "_modal_1tvha_1";
-    const header$2 = "_header_1tvha_14";
-    const modalTitle = "_modalTitle_1tvha_18";
-    const btnClose = "_btnClose_1tvha_22";
-    const backdrop = "_backdrop_1tvha_28";
-    const styles$_ = {
-      modal: modal$1,
-      header: header$2,
-      modalTitle,
-      btnClose,
-      backdrop
-    };
-    const Modal = ({
-      id,
-      title: title2,
-      showing,
-      setShowing,
-      children: children2,
-      className: className2
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$_.backdrop, onClick: () => setShowing(false) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            id,
-            className: clsx("modal", "fade", showing ? "show" : "", className2),
-            tabIndex: -1,
-            style: { display: showing ? "block" : "none" },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$_.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$_.header), children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "div",
-                  {
-                    className: clsx(
-                      "modal-title",
-                      "text-size-base",
-                      styles$_.modalTitle
-                    ),
-                    children: title2
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    type: "button",
-                    className: clsx(
-                      "btn-close",
-                      "text-size-smaller",
-                      styles$_.btnClose
-                    ),
-                    "data-bs-dismiss": "modal",
-                    "aria-label": "Close",
-                    onClick: () => {
-                      setShowing(!showing);
-                    }
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", children: children2 }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "button",
-                {
-                  type: "button",
-                  className: "btn btn-secondary",
-                  "data-bs-dismiss": "modal",
-                  onClick: () => {
-                    setShowing(!showing);
-                  },
-                  children: "Close"
-                }
-              ) })
-            ] }) })
-          }
-        )
-      ] });
-    };
-    const simpleMetricsRows = "_simpleMetricsRows_yha6g_1";
-    const verticalMetricReducer = "_verticalMetricReducer_yha6g_26";
-    const verticalMetricName = "_verticalMetricName_yha6g_33";
-    const verticalMetricValue = "_verticalMetricValue_yha6g_41";
-    const moreButton = "_moreButton_yha6g_91";
-    const metricsSummary = "_metricsSummary_yha6g_97";
-    const modalScores = "_modalScores_yha6g_103";
-    const styles$Z = {
-      simpleMetricsRows,
-      verticalMetricReducer,
-      verticalMetricName,
-      verticalMetricValue,
-      moreButton,
-      metricsSummary,
-      modalScores
-    };
-    const table$1 = "_table_12koy_1";
-    const scorer = "_scorer_12koy_5";
-    const value$1 = "_value_12koy_6";
-    const label$6 = "_label_12koy_11";
-    const groupSeparator = "_groupSeparator_12koy_28";
-    const tableBody = "_tableBody_12koy_33";
-    const tableSeparator = "_tableSeparator_12koy_45";
-    const styles$Y = {
-      table: table$1,
-      scorer,
-      value: value$1,
-      label: label$6,
-      groupSeparator,
-      tableBody,
-      tableSeparator
-    };
-    const ScoreGrid = ({
-      scoreGroups,
-      showReducer,
-      className: className2,
-      striped
-    }) => {
-      const columnCount = scoreGroups.reduce((prev, group) => {
-        return Math.max(prev, group[0].metrics.length);
-      }, 0);
-      const subTables = [];
-      let index2 = 0;
-      for (const scoreGroup of scoreGroups) {
-        const metrics2 = scoreGroup[0].metrics;
-        const cells = [];
-        for (let i2 = 0; i2 < columnCount; i2++) {
-          if (metrics2.length > i2) {
-            cells.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "th",
-                {
-                  className: clsx(
-                    "text-style-label",
-                    "text-style-secondary",
-                    "text-size-small",
-                    styles$Y.label
-                  ),
-                  children: metrics2[i2].name
-                }
-              )
-            );
-          } else {
-            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
-          }
-        }
-        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$Y.headerRow), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
-          cells
-        ] }) });
-        const rows = [];
-        scoreGroup.forEach((g) => {
-          const cells2 = [];
-          for (let i2 = 0; i2 < columnCount; i2++) {
-            if (metrics2.length > i2) {
-              cells2.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$Y.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
-              );
-            } else {
-              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$Y.value) }));
-            }
-          }
-          rows.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$Y.scorer, "text-size-small"), children: [
-                g.scorer,
-                " ",
-                showReducer && g.reducer ? `(${g.reducer})` : void 0
-              ] }),
-              cells2
-            ] })
-          );
-        });
-        subTables.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$Y.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "td",
-              {
-                colSpan: columnCount + 1,
-                className: clsx(styles$Y.groupSeparator)
-              }
-            ) }) }) : void 0,
-            headerRow,
-            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$Y.tableBody), children: rows })
-          ] })
-        );
-        index2++;
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "table",
-        {
-          className: clsx(
-            className2,
-            "table",
-            striped ? "table-striped" : void 0,
-            styles$Y.table,
-            "table-bordered"
-          ),
-          children: subTables
-        }
-      );
-    };
-    const kMaxPrimaryScoreRows = 4;
-    const displayScorersFromRunningMetrics = (metrics2) => {
-      if (!metrics2) {
-        return [];
-      }
-      const getKey = (metric2) => {
-        return metric2.reducer ? `${metric2.scorer}-${metric2.reducer}` : metric2.scorer;
-      };
-      const scorers = {};
-      metrics2.forEach((metric2) => {
-        if (metric2.value !== void 0 && metric2.value !== null) {
-          const key2 = getKey(metric2);
-          if (scorers[key2]) {
-            scorers[key2].metrics.push({
-              name: metric2.name,
-              value: metric2.value
-            });
-          } else {
-            scorers[key2] = {
-              scorer: metric2.scorer,
-              reducer: metric2.reducer,
-              metrics: [
-                {
-                  name: metric2.name,
-                  value: metric2.value
-                }
-              ]
-            };
-          }
-        }
-      });
-      return Object.values(scorers);
-    };
-    const toDisplayScorers = (scores2) => {
-      if (!scores2) {
-        return [];
-      }
-      return scores2.map((score2) => {
-        return {
-          scorer: score2.name,
-          reducer: score2.reducer === null ? void 0 : score2.reducer,
-          metrics: Object.keys(score2.metrics).map((key2) => {
-            const metric2 = score2.metrics[key2];
-            return {
-              name: metric2.name,
-              value: metric2.value,
-              params: metric2.params
-            };
-          })
-        };
-      });
-    };
-    const ResultsPanel = ({ scorers }) => {
-      const [showing, setShowing] = useProperty(
-        "results-panel-metrics",
-        "modal-showing",
-        {
-          defaultValue: false
-        }
-      );
-      if (!scorers || scorers.length === 0) {
-        return void 0;
-      }
-      if (scorers.length === 1) {
-        const showReducer = !!scorers[0].reducer;
-        const metrics2 = scorers[0].metrics;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.simpleMetricsRows, children: metrics2.map((metric2, i2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            VerticalMetric,
-            {
-              reducer: scorers[0].reducer,
-              metric: metric2,
-              isFirst: i2 === 0,
-              showReducer
-            },
-            `simple-metric-${i2}`
-          );
-        }) });
-      } else {
-        const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
-        const grouped = groupMetrics(scorers);
-        let primaryResults = grouped[0];
-        let showMore = grouped.length > 1;
-        if (primaryResults.length > kMaxPrimaryScoreRows) {
-          const shorterResults = grouped.find((g) => {
-            return g.length <= kMaxPrimaryScoreRows;
-          });
-          if (shorterResults) {
-            primaryResults = shorterResults;
-          }
-          if (primaryResults.length > kMaxPrimaryScoreRows) {
-            primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
-            showMore = true;
-          }
-        }
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Z.metricsSummary), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults], showReducer }),
-          showMore ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              Modal,
-              {
-                id: "results-metrics",
-                showing,
-                setShowing,
-                title: "Scoring Detail",
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ScoreGrid,
-                  {
-                    scoreGroups: grouped,
-                    showReducer,
-                    className: styles$Z.modalScores,
-                    striped: false
-                  }
-                )
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              LinkButton,
-              {
-                className: styles$Z.moreButton,
-                text: "All scoring...",
-                onClick: () => {
-                  setShowing(true);
-                }
-              }
-            )
-          ] }) : void 0
-        ] });
-      }
-    };
-    const metricsKey = (metrics2) => {
-      const metricKey = metrics2.map((m) => m.name).join("");
-      return metricKey;
-    };
-    const groupMetrics = (scorers) => {
-      const results = {};
-      scorers.forEach((scorer2) => {
-        if (scorer2.metrics.length > 0) {
-          const key2 = metricsKey(scorer2.metrics);
-          results[key2] = results[key2] || [];
-          results[key2].push(scorer2);
-        }
-      });
-      return Object.values(results);
-    };
-    const VerticalMetric = ({
-      metric: metric2,
-      reducer,
-      isFirst,
-      showReducer
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { paddingLeft: isFirst ? "0" : "1em" }, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "vertical-metric-label",
-              "text-style-label",
-              "text-style-secondary",
-              styles$Z.verticalMetricName
-            ),
-            children: metricDisplayName(metric2)
-          }
-        ),
-        showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "text-style-label",
-              "text-style-secondary",
-              styles$Z.verticalMetricReducer
-            ),
-            children: reducer || "default"
-          }
-        ) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "vertical-metric-value",
-              "text-size-largest",
-              styles$Z.verticalMetricValue
-            ),
-            children: metric2.value !== void 0 && metric2.value !== null ? formatPrettyDecimal(metric2.value) : "n/a"
-          }
-        )
-      ] });
-    };
-    const statusContainer = "_statusContainer_1sckj_1";
-    const status = "_status_1sckj_1";
-    const statusText = "_statusText_1sckj_11";
-    const icon$2 = "_icon_1sckj_24";
-    const styles$X = {
-      statusContainer,
-      status,
-      statusText,
-      icon: icon$2
-    };
-    const RunningStatusPanel = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$X.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$X.status), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$X.icon) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              styles$X.statusText,
-              "text-style-label",
-              "text-size-smaller"
-            ),
-            children: [
-              "Running (",
-              sampleCount,
-              " samples)"
-            ]
-          }
-        )
-      ] }) }) });
-    };
-    const statusPanel = "_statusPanel_66f9o_1";
-    const statusIcon = "_statusIcon_66f9o_11";
-    const styles$W = {
-      statusPanel,
-      statusIcon
-    };
-    const CancelledPanel = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        StatusPanel,
-        {
-          icon: ApplicationIcons.logging["info"],
-          status: "Cancelled",
-          sampleCount
-        }
-      );
-    };
-    const ErroredPanel = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        StatusPanel,
-        {
-          icon: ApplicationIcons.logging["error"],
-          status: "Task Failed",
-          sampleCount
-        }
-      );
-    };
-    const StatusPanel = ({
-      icon: icon2,
-      status: status2,
-      sampleCount
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$W.statusPanel, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$W.statusIcon), style: {} }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: status2 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-            "(",
-            sampleCount,
-            " ",
-            sampleCount === 1 ? "sample" : "samples",
-            ")"
-          ] })
-        ] })
-      ] });
-    };
-    const PrimaryBar = ({
-      showToggle,
-      status: status2,
-      evalResults,
-      runningMetrics,
-      evalSpec,
-      sampleCount
-    }) => {
-      const offCanvas = useStore((state) => state.app.offcanvas);
-      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const streamSamples = useStore((state) => state.capabilities.streamSamples);
-      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-      const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
-      const handleToggle = reactExports.useCallback(() => {
-        setOffCanvas(!offCanvas);
-      }, [offCanvas, setOffCanvas]);
-      const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$10.wrapper), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              "navbar-brand",
-              "navbar-text",
-              "mb-0",
-              styles$10.container
-            ),
-            children: [
-              showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "button",
-                {
-                  id: "sidebarToggle",
-                  onClick: handleToggle,
-                  className: clsx(
-                    "btn",
-                    offCanvas ? "d-md-none" : void 0,
-                    styles$10.toggle
-                  ),
-                  type: "button",
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.menu })
-                }
-              ) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$10.body, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$10.bodyContainer, children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      id: "task-title",
-                      className: clsx("task-title", "text-truncate", styles$10.taskTitle),
-                      title: evalSpec == null ? void 0 : evalSpec.task,
-                      children: evalSpec == null ? void 0 : evalSpec.task
-                    }
-                  ),
-                  (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      id: "task-model",
-                      className: clsx(
-                        "task-model",
-                        "text-truncate",
-                        styles$10.taskModel,
-                        "text-size-base"
-                      ),
-                      title: evalSpec == null ? void 0 : evalSpec.model,
-                      children: evalSpec == null ? void 0 : evalSpec.model
-                    }
-                  ) : ""
-                ] }),
-                (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$10.secondaryContainer), children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
-                  selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
-                ] })
-              ] })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$10.taskStatus, "navbar-text"), children: [
-          status2 === "success" || status2 === "started" && streamSamples && hasRunningMetrics ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ResultsPanel,
-            {
-              scorers: runningMetrics ? displayScorersFromRunningMetrics(runningMetrics) : toDisplayScorers(evalResults == null ? void 0 : evalResults.scores)
-            }
-          ) : void 0,
-          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: sampleCount || 0 }) : void 0,
-          status2 === "started" && (!streamSamples || !hasRunningMetrics) ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: sampleCount || 0 }) : void 0,
-          status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: sampleCount || 0 }) : void 0
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
-      ] });
     };
     const LabeledValue = ({
       layout = "column",
@@ -45055,415 +38627,6 @@ categories: ${categories.join(" ")}`;
           ]
         }
       );
-    };
-    const staticCol = "_staticCol_xzzhl_1";
-    const justifyLeft = "_justifyLeft_xzzhl_5";
-    const justifyCenter = "_justifyCenter_xzzhl_9";
-    const justifyRight = "_justifyRight_xzzhl_13";
-    const valueGrid = "_valueGrid_xzzhl_17";
-    const container$e = "_container_xzzhl_25";
-    const styles$V = {
-      staticCol,
-      justifyLeft,
-      justifyCenter,
-      justifyRight,
-      valueGrid,
-      container: container$e
-    };
-    const SecondaryBar = ({
-      evalSpec,
-      evalPlan,
-      evalResults,
-      evalStats,
-      status: status2,
-      sampleCount
-    }) => {
-      const evalDescriptor = useEvalDescriptor();
-      if (!evalSpec || status2 !== "success") {
-        return null;
-      }
-      const epochs = evalSpec.config.epochs || 1;
-      const hyperparameters = {
-        ...(evalPlan == null ? void 0 : evalPlan.config) || {},
-        ...evalSpec.task_args || {}
-      };
-      const hasConfig = Object.keys(hyperparameters).length > 0;
-      const values = [];
-      values.push({
-        size: "minmax(12%, auto)",
-        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          LabeledValue,
-          {
-            label: "Dataset",
-            className: clsx(styles$V.staticCol, "text-size-small"),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              DatasetSummary,
-              {
-                dataset: evalSpec.dataset,
-                sampleCount,
-                epochs
-              }
-            )
-          },
-          "sb-dataset"
-        )
-      });
-      const label2 = (evalResults == null ? void 0 : evalResults.scores) && evalResults.scores.length > 1 ? "Scorers" : "Scorer";
-      values.push({
-        size: "minmax(12%, auto)",
-        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          LabeledValue,
-          {
-            label: label2,
-            className: clsx(
-              styles$V.staticCol,
-              hasConfig ? styles$V.justifyLeft : styles$V.justifyCenter,
-              "text-size-small"
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
-          },
-          "sb-scorer"
-        )
-      });
-      if (hasConfig) {
-        values.push({
-          size: "minmax(12%, auto)",
-          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            LabeledValue,
-            {
-              label: "Config",
-              className: clsx(styles$V.justifyRight, "text-size-small"),
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters })
-            },
-            "sb-params"
-          )
-        });
-      }
-      if (evalStats) {
-        const totalDuration = formatDuration(
-          new Date(evalStats == null ? void 0 : evalStats.started_at),
-          new Date(evalStats == null ? void 0 : evalStats.completed_at)
-        );
-        values.push({
-          size: "minmax(12%, auto)",
-          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            LabeledValue,
-            {
-              label: "Duration",
-              className: clsx(styles$V.justifyRight, "text-size-small"),
-              children: totalDuration
-            },
-            "sb-duration"
-          )
-        });
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        ExpandablePanel,
-        {
-          id: "secondary-nav-bar",
-          className: clsx(styles$V.container, "text-size-small"),
-          collapse: true,
-          lines: 5,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: styles$V.valueGrid,
-              style: {
-                gridTemplateColumns: `${values.map((val) => {
-                  return val.size;
-                }).join(" ")}`
-              },
-              children: values.map((val) => {
-                return val.value;
-              })
-            }
-          )
-        }
-      );
-    };
-    const DatasetSummary = ({
-      sampleCount,
-      dataset,
-      epochs
-    }) => {
-      if (!dataset) {
-        return null;
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: sampleCount ? formatDataset(sampleCount, epochs, dataset.name) : "" });
-    };
-    const ScorerSummary = ({ evalDescriptor }) => {
-      if (!evalDescriptor) {
-        return null;
-      }
-      const items = sampleFilterItems(evalDescriptor);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { title: item2.tooltip, children: item2.canonicalName }),
-        index2 < array.length - 1 ? ", " : ""
-      ] }, index2)) });
-    };
-    const ParamSummary = ({ params: params2 }) => {
-      if (!params2) {
-        return null;
-      }
-      const paraValues = Object.keys(params2).map((key2) => {
-        const val = params2[key2];
-        if (Array.isArray(val) || typeof val === "object") {
-          return `${key2}: ${JSON.stringify(val)}`;
-        } else {
-          return `${key2}: ${val}`;
-        }
-      });
-      if (paraValues.length > 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { style: { padding: 0, color: "var(--bs-body-color)" }, children: paraValues.join(", ") });
-      } else {
-        return null;
-      }
-    };
-    const Navbar = ({
-      evalSpec,
-      evalPlan,
-      evalResults,
-      evalStats,
-      showToggle,
-      status: status2,
-      runningMetrics
-    }) => {
-      const totalSampleCount = useTotalSampleCount();
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$12.navbarWrapper), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          PrimaryBar,
-          {
-            evalSpec,
-            evalResults,
-            showToggle,
-            status: status2,
-            runningMetrics,
-            sampleCount: totalSampleCount
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SecondaryBar,
-          {
-            evalSpec,
-            evalPlan,
-            evalResults,
-            evalStats,
-            status: status2,
-            sampleCount: totalSampleCount
-          }
-        )
-      ] });
-    };
-    const useLogNavigation = () => {
-      const navigate = useNavigate();
-      const { logPath } = useParams();
-      const logs = useStore((state) => state.logs.logs);
-      const loadedLog = useStore((state) => state.log.loadedLog);
-      const selectTab = reactExports.useCallback(
-        (tabId) => {
-          if (loadedLog && logPath) {
-            const url = logUrlRaw(logPath, tabId);
-            navigate(url);
-          } else if (loadedLog) {
-            const url = logUrl(loadedLog, logs.log_dir, tabId);
-            navigate(url);
-          }
-        },
-        [loadedLog, logPath, logs.log_dir, navigate]
-      );
-      return {
-        selectTab
-      };
-    };
-    const useSampleNavigation = () => {
-      const navigate = useNavigate();
-      const logDirectory = useStore((state) => state.logs.logs.log_dir);
-      const { logPath, tabId, sampleTabId } = useParams();
-      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-      const resolveLogPath = reactExports.useCallback(() => {
-        if (logPath) {
-          return logPath;
-        }
-        if (selectedLogFile) {
-          return directoryRelativeUrl(selectedLogFile, logDirectory);
-        }
-        return void 0;
-      }, [logPath, selectedLogFile, logDirectory]);
-      const sampleSummaries = useFilteredSamples();
-      const selectedSampleIndex = useStore(
-        (state) => state.log.selectedSampleIndex
-      );
-      const selectSample = useStore((state) => state.logActions.selectSample);
-      const setShowingSampleDialog = useStore(
-        (state) => state.appActions.setShowingSampleDialog
-      );
-      const showSample = reactExports.useCallback(
-        (index2, specifiedSampleTabId) => {
-          if (sampleSummaries && index2 >= 0 && index2 < sampleSummaries.length) {
-            const sample2 = sampleSummaries[index2];
-            const resolvedPath = resolveLogPath();
-            if (resolvedPath) {
-              selectSample(index2);
-              setShowingSampleDialog(true);
-              const currentSampleTabId = specifiedSampleTabId || sampleTabId;
-              const url = sampleUrl(
-                resolvedPath,
-                sample2.id,
-                sample2.epoch,
-                currentSampleTabId
-              );
-              navigate(url);
-            }
-          }
-        },
-        [
-          sampleSummaries,
-          resolveLogPath,
-          selectSample,
-          setShowingSampleDialog,
-          navigate,
-          tabId,
-          sampleTabId
-        ]
-      );
-      const nextSample = reactExports.useCallback(() => {
-        const itemsCount = sampleSummaries.length;
-        const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
-        if (next > -1) {
-          selectSample(next);
-        }
-      }, [selectedSampleIndex, showSample, sampleTabId]);
-      const previousSample = reactExports.useCallback(() => {
-        const prev = selectedSampleIndex - 1;
-        if (prev > -1) {
-          selectSample(prev);
-        }
-      }, [selectedSampleIndex, showSample, sampleTabId]);
-      const getSampleUrl = reactExports.useCallback(
-        (sampleId, epoch, specificSampleTabId) => {
-          const resolvedPath = resolveLogPath();
-          if (resolvedPath) {
-            const currentSampleTabId = specificSampleTabId || sampleTabId;
-            const url = sampleUrl(
-              resolvedPath,
-              sampleId,
-              epoch,
-              currentSampleTabId
-            );
-            return url;
-          }
-          return void 0;
-        },
-        [resolveLogPath, tabId, sampleTabId]
-      );
-      const clearSampleUrl = reactExports.useCallback(() => {
-        const resolvedPath = resolveLogPath();
-        if (resolvedPath) {
-          const url = logUrlRaw(resolvedPath, tabId);
-          navigate(url);
-        }
-      }, [resolveLogPath, navigate, tabId]);
-      return {
-        showSample,
-        nextEnabled: selectedSampleIndex < sampleSummaries.length - 1,
-        nextSample,
-        previousEnabled: selectedSampleIndex > 0,
-        previousSample,
-        getSampleUrl,
-        clearSampleUrl
-      };
-    };
-    const useSampleDetailNavigation = () => {
-      const [searchParams, _setSearchParams] = useSearchParams();
-      const message2 = searchParams.get("message");
-      const event = searchParams.get("event");
-      return {
-        message: message2,
-        event
-      };
-    };
-    const workspace = "_workspace_1r3mu_1";
-    const tabContainer = "_tabContainer_1r3mu_6";
-    const tabSet = "_tabSet_1r3mu_14";
-    const tabs = "_tabs_1r3mu_21";
-    const tabPanels = "_tabPanels_1r3mu_29";
-    const styles$U = {
-      workspace,
-      tabContainer,
-      tabSet,
-      tabs,
-      tabPanels
-    };
-    const MessageBand = ({
-      id,
-      message: message2,
-      type,
-      scope = "eval"
-    }) => {
-      const className2 = [type];
-      const [visible2, setVisible] = useMessageVisibility(id, scope);
-      const handleClick = reactExports.useCallback(() => {
-        setVisible(false);
-      }, [setVisible]);
-      if (!visible2) {
-        className2.push("hidden");
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("message-band", className2), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.logging[type] }),
-        message2,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            className: clsx("btn", "message-band-btn", type),
-            title: "Close",
-            onClick: handleClick,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
-          }
-        )
-      ] });
-    };
-    const CardHeader = ({
-      id,
-      icon: icon2,
-      label: label2,
-      className: className2,
-      children: children2
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx("card-header-container", "text-style-label", className2),
-          id: id || "",
-          children: [
-            icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("card-header-icon", icon2) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "card-header-icon" }),
-            label2 ? label2 : "",
-            " ",
-            children2
-          ]
-        }
-      );
-    };
-    const CardBody = ({
-      id,
-      children: children2,
-      className: className2,
-      padded: padded2 = true
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(
-            "card-body",
-            className2,
-            !padded2 ? "card-no-padding" : void 0
-          ),
-          id: id || "",
-          children: children2
-        }
-      );
-    };
-    const Card = ({ id, children: children2, className: className2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
     const we = 0, zt = 1, qt = 2, En = 4;
     function ln(t2) {
@@ -48538,11 +41701,252 @@ categories: ${categories.join(" ")}`;
     function Hn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, mt.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
+    const log$1 = createLogger("scrolling");
+    function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable2 = true) {
+      const getScrollPosition = useStore(
+        (state) => state.appActions.getScrollPosition
+      );
+      const setScrollPosition = useStore(
+        (state) => state.appActions.setScrollPosition
+      );
+      const handleScroll = reactExports.useCallback(
+        debounce$2((e) => {
+          const target2 = e.target;
+          const position = target2.scrollTop;
+          log$1.debug(`Storing scroll position`, elementKey, position);
+          setScrollPosition(elementKey, position);
+        }, delay),
+        [elementKey, setScrollPosition, delay]
+      );
+      const restoreScrollPosition = reactExports.useCallback(() => {
+        const element = elementRef.current;
+        const savedPosition = getScrollPosition(elementKey);
+        if (element && savedPosition !== void 0) {
+          requestAnimationFrame(() => {
+            element.scrollTop = savedPosition;
+            requestAnimationFrame(() => {
+              if (element.scrollTop !== savedPosition) {
+                element.scrollTop = savedPosition;
+              }
+            });
+          });
+        }
+      }, [elementKey, getScrollPosition, elementRef]);
+      reactExports.useEffect(() => {
+        const element = elementRef.current;
+        if (!element || !scrollable2) {
+          return;
+        }
+        log$1.debug(`Restore Scroll Hook`, elementKey);
+        const savedPosition = getScrollPosition(elementKey);
+        if (savedPosition !== void 0) {
+          log$1.debug(`Restoring scroll position`, savedPosition);
+          const tryRestoreScroll = () => {
+            if (element.scrollHeight > element.clientHeight) {
+              if (element.scrollTop !== savedPosition) {
+                element.scrollTop = savedPosition;
+                log$1.debug(`Scroll position restored to ${savedPosition}`);
+              }
+              return true;
+            }
+            return false;
+          };
+          if (!tryRestoreScroll()) {
+            let attempts = 0;
+            const maxAttempts = 5;
+            const pollForRender = () => {
+              if (tryRestoreScroll() || attempts >= maxAttempts) {
+                if (attempts >= maxAttempts) {
+                  log$1.debug(
+                    `Failed to restore scroll after ${maxAttempts} attempts`
+                  );
+                }
+                return;
+              }
+              attempts++;
+              setTimeout(pollForRender, 1e3);
+            };
+            setTimeout(pollForRender, 1e3);
+          }
+        }
+        if (element.addEventListener) {
+          element.addEventListener("scroll", handleScroll);
+        } else {
+          log$1.warn("Element has no way to add event listener", element);
+        }
+        return () => {
+          if (element.removeEventListener) {
+            element.removeEventListener("scroll", handleScroll);
+          } else {
+            log$1.warn("Element has no way to remove event listener", element);
+          }
+        };
+      }, [elementKey, elementRef, handleScroll]);
+      return { restoreScrollPosition };
+    }
+    const useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
+      const restoreState = useStore(
+        reactExports.useCallback((state) => state.app.listPositions[elementKey], [elementKey])
+      );
+      const setListPosition = useStore(
+        reactExports.useCallback((state) => state.appActions.setListPosition, [])
+      );
+      const clearListPosition = useStore(
+        reactExports.useCallback((state) => state.appActions.clearListPosition, [])
+      );
+      const debouncedFnRef = reactExports.useRef(null);
+      const handleStateChange = reactExports.useCallback(
+        (state) => {
+          log$1.debug(`Storing list state: [${elementKey}]`, state);
+          setListPosition(elementKey, state);
+        },
+        [elementKey, setListPosition]
+      );
+      reactExports.useEffect(() => {
+        debouncedFnRef.current = debounce$2((isScrolling2) => {
+          log$1.debug("List scroll", isScrolling2);
+          const element = virtuosoRef.current;
+          if (!element) {
+            return;
+          }
+          element.getState(handleStateChange);
+        }, delay);
+        return () => {
+          clearListPosition(elementKey);
+        };
+      }, [delay, elementKey, handleStateChange, clearListPosition, virtuosoRef]);
+      const isScrolling = reactExports.useCallback((scrolling) => {
+        if (!scrolling) {
+          return;
+        }
+        if (debouncedFnRef.current) {
+          debouncedFnRef.current(scrolling);
+        }
+      }, []);
+      const stateRef = reactExports.useRef(restoreState);
+      reactExports.useEffect(() => {
+        stateRef.current = restoreState;
+      }, [restoreState]);
+      const getRestoreState = reactExports.useCallback(() => stateRef.current, []);
+      return { getRestoreState, isScrolling };
+    };
+    function useRafThrottle(callback, dependencies = []) {
+      const rafRef = reactExports.useRef(null);
+      const callbackRef = reactExports.useRef(callback);
+      reactExports.useEffect(() => {
+        callbackRef.current = callback;
+      }, [callback, ...dependencies]);
+      const throttledCallback = reactExports.useCallback((...args) => {
+        if (rafRef.current) {
+          return;
+        }
+        rafRef.current = requestAnimationFrame(() => {
+          callbackRef.current(...args);
+          rafRef.current = null;
+        });
+      }, []);
+      reactExports.useEffect(() => {
+        return () => {
+          if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+        };
+      }, []);
+      return throttledCallback;
+    }
+    function useScrollTrack(elementIds, onElementVisible, scrollRef, options2) {
+      const currentVisibleRef = reactExports.useRef(null);
+      const lastCheckRef = reactExports.useRef(0);
+      const rafRef = reactExports.useRef(null);
+      const findTopmostVisibleElement = reactExports.useCallback(() => {
+        const container2 = scrollRef == null ? void 0 : scrollRef.current;
+        const containerRect = container2 == null ? void 0 : container2.getBoundingClientRect();
+        const topOffset = 50;
+        const viewportTop = containerRect ? containerRect.top + topOffset : topOffset;
+        const viewportBottom = containerRect ? containerRect.bottom : window.innerHeight;
+        const viewportHeight = viewportBottom - viewportTop;
+        let detectionPoint = viewportTop;
+        if (container2) {
+          const scrollHeight = container2.scrollHeight;
+          const scrollTop = container2.scrollTop;
+          const clientHeight = container2.clientHeight;
+          const maxScroll = scrollHeight - clientHeight;
+          const scrollProgress = maxScroll > 0 ? scrollTop / maxScroll : 0;
+          const slideThreshold = 0.8;
+          if (scrollProgress > slideThreshold) {
+            const slideProgress = (scrollProgress - slideThreshold) / (1 - slideThreshold);
+            const easedProgress = Math.pow(slideProgress, 3);
+            detectionPoint = viewportTop + viewportHeight * 0.9 * easedProgress;
+          }
+          if (scrollProgress >= 0.99) {
+            detectionPoint = viewportBottom - 50;
+          }
+        }
+        let closestId = null;
+        let closestDistance = Infinity;
+        const elementIdSet = new Set(elementIds);
+        const elements = container2 ? container2.querySelectorAll("[id]") : document.querySelectorAll("[id]");
+        for (const element of elements) {
+          const id = element.id;
+          if (elementIdSet.has(id)) {
+            const rect = element.getBoundingClientRect();
+            if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
+              const elementCenter = rect.top + rect.height / 2;
+              const distance = Math.abs(elementCenter - detectionPoint);
+              if (distance < closestDistance) {
+                closestDistance = distance;
+                closestId = id;
+              }
+            }
+          }
+        }
+        return closestId;
+      }, [elementIds, scrollRef, options2 == null ? void 0 : options2.topOffset]);
+      const checkVisibility = reactExports.useCallback(() => {
+        const now2 = Date.now();
+        const checkInterval = 100;
+        if (now2 - lastCheckRef.current < checkInterval) {
+          return;
+        }
+        lastCheckRef.current = now2;
+        const topmostId = findTopmostVisibleElement();
+        if (topmostId !== currentVisibleRef.current) {
+          currentVisibleRef.current = topmostId;
+          if (topmostId) {
+            onElementVisible(topmostId);
+          }
+        }
+      }, [findTopmostVisibleElement, onElementVisible, options2 == null ? void 0 : options2.checkInterval]);
+      const handleScroll = reactExports.useCallback(() => {
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+        }
+        rafRef.current = requestAnimationFrame(() => {
+          checkVisibility();
+          rafRef.current = null;
+        });
+      }, [checkVisibility]);
+      reactExports.useEffect(() => {
+        if (elementIds.length === 0) return;
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || window;
+        checkVisibility();
+        scrollElement.addEventListener("scroll", handleScroll, { passive: true });
+        const intervalId = setInterval(checkVisibility, 1e3);
+        return () => {
+          scrollElement.removeEventListener("scroll", handleScroll);
+          clearInterval(intervalId);
+          if (rafRef.current !== null) {
+            cancelAnimationFrame(rafRef.current);
+          }
+        };
+      }, [elementIds, scrollRef, handleScroll, checkVisibility]);
+    }
     const keyPairContainer = "_keyPairContainer_1ltuo_1";
     const key = "_key_1ltuo_1";
     const pre = "_pre_1ltuo_16";
     const treeIcon = "_treeIcon_1ltuo_20";
-    const styles$T = {
+    const styles$1p = {
       keyPairContainer,
       key,
       pre,
@@ -48724,7 +42128,7 @@ categories: ${categories.join(" ")}`;
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$T.keyPairContainer, "text-size-small"),
+            className: clsx(styles$1p.keyPairContainer, "text-size-small"),
             style: {
               paddingLeft: `${item2.depth * 20}px`
             },
@@ -48735,7 +42139,7 @@ categories: ${categories.join(" ")}`;
                   "data-index": index2,
                   className: clsx(
                     kRecordTreeKey,
-                    styles$T.key,
+                    styles$1p.key,
                     "font-monospace",
                     "text-style-secondary"
                   ),
@@ -48745,16 +42149,16 @@ categories: ${categories.join(" ")}`;
                     setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$T.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1p.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
-                          styles$T.treeIcon
+                          styles$1p.treeIcon
                         )
                       }
                     ) }) : void 0 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$T.pre), children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1p.pre), children: [
                       item2.key,
                       ":"
                     ] })
@@ -48777,6 +42181,18 @@ categories: ${categories.join(" ")}`;
           item2.id
         );
       };
+      if (!scrollRef) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            id,
+            className: clsx(className2, "samples-list"),
+            style: { width: "100%" },
+            tabIndex: 0,
+            children: items.map((_2, index2) => renderRow(index2))
+          }
+        );
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         Kr,
         {
@@ -48893,6 +42309,6852 @@ categories: ${categories.join(" ")}`;
     };
     const isPrimitiveOrNull = (value2) => {
       return value2 === null || value2 === void 0 || typeof value2 === "string" || typeof value2 === "number" || typeof value2 === "boolean";
+    };
+    const directoryRelativeUrl = (file, dir) => {
+      if (!dir) {
+        return encodeURIComponent(file);
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      if (normalizedFile.startsWith(dirWithSlash)) {
+        const relativePath = normalizedFile.substring(dirWithSlash.length);
+        const segments = relativePath.split("/");
+        const encodedSegments = segments.map(
+          (segment) => encodeURIComponent(segment)
+        );
+        return encodedSegments.join("/");
+      }
+      return encodeURIComponent(file);
+    };
+    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
+    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+    const baseUrl = (logPath, sampleId, sampleEpoch) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return sampleUrl(logPath, sampleId, sampleEpoch);
+      } else {
+        return logUrl(logPath);
+      }
+    };
+    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+      } else {
+        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
+      }
+    };
+    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleTranscriptTabId
+      );
+      return `${baseUrl2}?event=${eventId}`;
+    };
+    const useSampleMessageUrl = (messageId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return messageId && targetLogPath ? sampleMessageUrl(
+          messageId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
+        ) : void 0;
+      }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const useSampleEventUrl = (eventId, sampleId, sampleEpoch) => {
+      const {
+        logPath: urlLogPath,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const log_file = useStore((state) => state.logs.selectedLogFile);
+      const log_dir = useStore((state) => state.logs.logs.log_dir);
+      let targetLogPath = urlLogPath;
+      if (!targetLogPath && log_file) {
+        targetLogPath = makeLogPath(log_file, log_dir);
+      }
+      const eventUrl = reactExports.useMemo(() => {
+        return targetLogPath ? sampleEventUrl(
+          eventId,
+          targetLogPath,
+          urlSampleId,
+          urlEpoch
+        ) : void 0;
+      }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+      return eventUrl;
+    };
+    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleMessagesTabId
+      );
+      return `${baseUrl2}?message=${messageId}`;
+    };
+    const logUrl = (log_file, log_dir, tabId) => {
+      return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
+    };
+    const makeLogPath = (log_file, log_dir) => {
+      const pathSegment = directoryRelativeUrl(log_file, log_dir);
+      return pathSegment;
+    };
+    const logUrlRaw = (log_segment, tabId) => {
+      if (tabId) {
+        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+      } else {
+        return `/logs/${encodeURIComponent(log_segment)}`;
+      }
+    };
+    const supportsLinking = () => {
+      return (
+        //location.hostname !== "localhost" &&
+        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
+      );
+    };
+    const toFullUrl = (path) => {
+      return `${window.location.origin}${window.location.pathname}#${path}`;
+    };
+    const message$1 = "_message_1ivu3_1";
+    const systemRole = "_systemRole_1ivu3_8";
+    const messageGrid = "_messageGrid_1ivu3_12";
+    const messageContents = "_messageContents_1ivu3_20";
+    const indented = "_indented_1ivu3_25";
+    const copyLink$1 = "_copyLink_1ivu3_29";
+    const metadataLabel = "_metadataLabel_1ivu3_39";
+    const styles$1o = {
+      message: message$1,
+      systemRole,
+      messageGrid,
+      messageContents,
+      indented,
+      copyLink: copyLink$1,
+      metadataLabel
+    };
+    const webSearch = "_webSearch_1376z_1";
+    const query$1 = "_query_1376z_8";
+    const styles$1n = {
+      webSearch,
+      query: query$1
+    };
+    const WebSearch = ({ query: query2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1n.webSearch, "text-size-smaller"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1n.query, "text-size-smallest"), children: query2 })
+      ] });
+    };
+    const contentData = "_contentData_1sd1z_1";
+    const styles$1m = {
+      contentData
+    };
+    const result$1 = "_result_1mixg_12";
+    const styles$1l = {
+      result: result$1
+    };
+    const WebSearchResults = ({
+      results
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              styles$1l.label,
+              "text-style-label",
+              "text-style-secondary",
+              "text-size-smaller"
+            ),
+            children: "Results"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx(styles$1l.results, "text-size-smaller"), children: results.map((result2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
+          {
+            className: clsx(styles$1l.result, "text-style-secondary"),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                href: result2.url,
+                target: "_blank",
+                rel: "noopener noreferrer",
+                title: result2.url + (result2.page_age ? `
+(Age: ${result2.page_age})` : ""),
+                children: result2.title
+              }
+            )
+          },
+          index2
+        )) })
+      ] });
+    };
+    const ContentDataView = ({ id, contentData: contentData2 }) => {
+      const renderableData = contentData2.data;
+      const renderer = contentDataRenderers.find(
+        (r2) => r2.canRender(renderableData)
+      );
+      if (!renderer) {
+        const { encrypted_content, ...record } = renderableData;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          RecordTree,
+          {
+            id: `${id}-tree`,
+            record,
+            className: clsx(styles$1m.data),
+            defaultExpandLevel: 0
+          }
+        ) });
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: renderer.render(renderableData) });
+    };
+    const webSearchServerToolRenderer = {
+      name: "WebSearch",
+      canRender: (data) => {
+        return data.type === "server_tool_use" && data.name === "web_search";
+      },
+      render: (data) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(WebSearch, { query: data.input.query });
+      }
+    };
+    const webSearchResultsServerToolRenderer = {
+      name: "WebSearchResults",
+      canRender: (data) => {
+        return data.type === "web_search_tool_result" && Array.isArray(data.content);
+      },
+      render: (data) => {
+        const results = data.content;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(WebSearchResults, { results });
+      }
+    };
+    const serverToolRenderer = {
+      name: "ServerTool",
+      canRender: (data) => data.type === "server_tool_use",
+      render: (data) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "text-style-label",
+                "text-style-secondary",
+                "text-size-smaller"
+              ),
+              children: "Server Tool"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RecordTree,
+            {
+              id: data.name || "server-tool",
+              record: data,
+              className: clsx(styles$1m.data)
+            }
+          )
+        ] });
+      }
+    };
+    const contentDataRenderers = [
+      webSearchServerToolRenderer,
+      webSearchResultsServerToolRenderer,
+      serverToolRenderer
+    ];
+    function escapeSelector(id) {
+      return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+    }
+    const decodeHtmlEntities = (text2) => {
+      const parser2 = new DOMParser();
+      const doc2 = parser2.parseFromString(text2, "text/html");
+      return doc2.documentElement.textContent || text2;
+    };
+    const citations = "_citations_t2k1z_1";
+    const citationLink = "_citationLink_t2k1z_9";
+    const styles$1k = {
+      citations,
+      citationLink
+    };
+    const MessageCitations = ({ citations: citations2 }) => {
+      if (citations2.length === 0) {
+        return void 0;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitation, { citation })
+      ] }, index2)) });
+    };
+    const MessageCitation = ({ citation }) => {
+      const innards = decodeHtmlEntities(
+        citation.title ?? (typeof citation.cited_text === "string" ? citation.cited_text : "")
+      );
+      return citation.type === "url" ? /* @__PURE__ */ jsxRuntimeExports.jsx(UrlCitation, { citation, children: innards }) : /* @__PURE__ */ jsxRuntimeExports.jsx(OtherCitation, { children: innards });
+    };
+    const UrlCitation = ({
+      children: children2,
+      citation
+    }) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "a",
+      {
+        href: citation.url,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        className: clsx(styles$1k.citationLink),
+        title: `${citation.cited_text || ""}
+${citation.url}`,
+        children: children2
+      }
+    );
+    const OtherCitation = ({ children: children2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: children2 });
+    const contentImage = "_contentImage_8rgix_1";
+    const reasoning = "_reasoning_8rgix_6";
+    const styles$1j = {
+      contentImage,
+      reasoning
+    };
+    const toolImage = "_toolImage_bv5nm_1";
+    const output = "_output_bv5nm_6";
+    const textOutput = "_textOutput_bv5nm_10";
+    const textCode = "_textCode_bv5nm_18";
+    const styles$1i = {
+      toolImage,
+      output,
+      textOutput,
+      textCode
+    };
+    const ToolOutput = ({ output: output2 }) => {
+      if (!output2) {
+        return null;
+      }
+      const outputs = [];
+      if (Array.isArray(output2)) {
+        output2.forEach((out, idx) => {
+          const key2 = `tool-output-${idx}`;
+          if (out.type === "text") {
+            outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: out.text }, key2));
+          } else {
+            if (out.image.startsWith("data:")) {
+              outputs.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "img",
+                  {
+                    className: clsx(styles$1i.toolImage),
+                    src: out.image
+                  },
+                  key2
+                )
+              );
+            } else {
+              outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(out.image) }, key2));
+            }
+          }
+        });
+      } else {
+        outputs.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
+        );
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.output), children: outputs });
+    };
+    const ToolTextOutput = ({ text: text2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1i.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1i.textCode), children: text2.trim() }) });
+    };
+    const MessageContent = ({
+      contents: contents2,
+      context
+    }) => {
+      const normalized = normalizeContent$2(contents2);
+      if (Array.isArray(normalized)) {
+        return normalized.map((content2, index2) => {
+          if (typeof content2 === "string") {
+            return messageRenderers["text"].render(
+              `text-content-${index2}`,
+              {
+                type: "text",
+                text: content2,
+                refusal: null,
+                internal: null,
+                citations: null
+              },
+              index2 === contents2.length - 1,
+              context
+            );
+          } else {
+            if (content2) {
+              const renderer = messageRenderers[content2.type];
+              if (renderer) {
+                return renderer.render(
+                  `text-${content2.type}-${index2}`,
+                  content2,
+                  index2 === contents2.length - 1,
+                  context
+                );
+              } else {
+                console.error(`Unknown message content type '${content2.type}'`);
+              }
+            }
+          }
+        });
+      } else {
+        const contentText = {
+          type: "text",
+          text: normalized,
+          refusal: null,
+          internal: null,
+          citations: null
+        };
+        return messageRenderers["text"].render(
+          "text-message-content",
+          contentText,
+          true,
+          context
+        );
+      }
+    };
+    const messageRenderers = {
+      text: {
+        render: (key2, content2, isLast) => {
+          const c2 = content2;
+          const cites = c2.citations ?? [];
+          if (!c2.text && !cites.length) {
+            return void 0;
+          }
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MarkdownDiv,
+              {
+                markdown: c2.text || "",
+                className: isLast ? "no-last-para-padding" : ""
+              },
+              key2
+            ),
+            c2.citations ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitations, { citations: c2.citations }) : void 0
+          ] });
+        }
+      },
+      reasoning: {
+        render: (key2, content2, isLast) => {
+          const r2 = content2;
+          if (!r2.reasoning && !r2.redacted) {
+            return void 0;
+          }
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1j.reasoning, "text-size-small"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "text-style-label",
+                  "text-style-secondary",
+                  isLast ? "no-last-para-padding" : ""
+                ),
+                children: "Reasoning"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${key2}-reasoning`, collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MarkdownDiv,
+              {
+                markdown: r2.redacted ? "Reasoning encrypted by model provider." : r2.reasoning
+              }
+            ) })
+          ] }, key2);
+        }
+      },
+      image: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          if (c2.image.startsWith("data:")) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1j.contentImage }, key2);
+          } else {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
+          }
+        }
+      },
+      audio: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("audio", { controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.audio, type: mimeTypeForFormat(c2.format) }) }, key2);
+        }
+      },
+      video: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("video", { width: "500", height: "375", controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.video, type: mimeTypeForFormat(c2.format) }) }, key2);
+        }
+      },
+      tool: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ToolOutput, { output: c2.content }, key2);
+        }
+      },
+      data: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ContentDataView, { id: key2, contentData: c2 });
+        }
+      }
+    };
+    const mimeTypeForFormat = (format2) => {
+      switch (format2) {
+        case "mov":
+          return "video/quicktime";
+        case "wav":
+          return "audio/wav";
+        case "mp3":
+          return "audio/mpeg";
+        case "mp4":
+          return "video/mp4";
+        case "mpeg":
+          return "video/mpeg";
+        default:
+          return "video/mp4";
+      }
+    };
+    const normalizeContent$2 = (contents2) => {
+      if (typeof contents2 === "string") {
+        return contents2;
+      }
+      if (contents2.length > 0 && typeof contents2[0] === "string") {
+        return contents2;
+      }
+      const result2 = [];
+      const collection = [];
+      const collect = () => {
+        if (collection.length > 0) {
+          const filteredCitations = collection.flatMap((c2) => c2.citations || []);
+          let citeCount = 0;
+          const textWithCites = collection.map((c2) => {
+            var _a2;
+            const positionalCites = (c2.citations ?? []).filter(isCitationWithRange).sort((a, b) => b.cited_text[1] - a.cited_text[1]);
+            const endCites = (_a2 = c2.citations) == null ? void 0 : _a2.filter(
+              (citation) => !isCitationWithRange(citation)
+            );
+            let textWithCites2 = c2.text;
+            for (let i2 = 0; i2 < positionalCites.length; i2++) {
+              const end_index = positionalCites[i2].cited_text[1];
+              textWithCites2 = textWithCites2.slice(0, end_index) + `<sup>${positionalCites.length - i2}</sup>` + textWithCites2.slice(end_index);
+            }
+            citeCount = citeCount + positionalCites.length;
+            const citeText = endCites == null ? void 0 : endCites.map((_citation) => `${++citeCount}`);
+            let inlineCites = "";
+            if (citeText && citeText.length > 0) {
+              inlineCites = `<sup>${citeText.join(",")}</sup>`;
+            }
+            return (textWithCites2 || "") + inlineCites;
+          }).join("");
+          result2.push({
+            type: "text",
+            text: textWithCites,
+            refusal: null,
+            internal: null,
+            citations: filteredCitations
+          });
+          collection.length = 0;
+        }
+      };
+      for (const content2 of contents2) {
+        if (typeof content2 === "string") {
+          result2.push({
+            type: "text",
+            text: content2,
+            refusal: null,
+            internal: null,
+            citations: null
+          });
+          continue;
+        }
+        if (content2.type === "text") {
+          collection.push(content2);
+          continue;
+        } else {
+          collect();
+          result2.push(content2);
+        }
+      }
+      collect();
+      return result2;
+    };
+    const isCitationWithRange = (citation) => Array.isArray(citation.cited_text);
+    const resolveToolInput = (fn2, toolArgs) => {
+      const toolName = fn2;
+      const [inputKey, highlightLanguage] = extractInputMetadata(toolName);
+      const { input: input2, args } = extractInput(
+        toolArgs,
+        inputKey
+      );
+      const functionCall = args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
+      return {
+        functionCall,
+        input: input2,
+        highlightLanguage
+      };
+    };
+    const extractInputMetadata = (toolName) => {
+      if (toolName === "bash") {
+        return ["cmd", "bash"];
+      } else if (toolName === "python") {
+        return ["code", "python"];
+      } else if (toolName === "web_search") {
+        return ["query", "text"];
+      } else {
+        return [void 0, void 0];
+      }
+    };
+    const extractInput = (args, inputKey) => {
+      const formatArg = (key2, value2) => {
+        const quotedValue = value2 === null ? "None" : typeof value2 === "string" ? `"${value2}"` : typeof value2 === "object" || Array.isArray(value2) ? JSON.stringify(value2, void 0, 2) : String(value2);
+        return `${key2}: ${quotedValue}`;
+      };
+      if (args) {
+        if (inputKey && args[inputKey]) {
+          const input2 = args[inputKey];
+          const filteredArgs = Object.keys(args).filter((key2) => {
+            return key2 !== inputKey;
+          }).map((key2) => {
+            return formatArg(key2, args[key2]);
+          });
+          return {
+            input: String(input2),
+            args: filteredArgs
+          };
+        } else {
+          const formattedArgs = Object.keys(args).map((key2) => {
+            return formatArg(key2, args[key2]);
+          });
+          return {
+            input: void 0,
+            args: formattedArgs
+          };
+        }
+      }
+      return {
+        input: void 0,
+        args: []
+      };
+    };
+    const toolCallView = "_toolCallView_16q6n_1";
+    const styles$1h = {
+      toolCallView
+    };
+    const outputPre = "_outputPre_1jznn_1";
+    const toolView = "_toolView_1jznn_7";
+    const outputCode = "_outputCode_1jznn_15";
+    const styles$1g = {
+      outputPre,
+      toolView,
+      outputCode
+    };
+    const ToolInput = (props) => {
+      const { highlightLanguage, contents: contents2, toolCallView: toolCallView2 } = props;
+      const prismParentRef = usePrismHighlight(toolCallView2 == null ? void 0 : toolCallView2.content);
+      if (!contents2 && !(toolCallView2 == null ? void 0 : toolCallView2.content)) return null;
+      if (toolCallView2) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          MarkdownDiv,
+          {
+            markdown: toolCallView2.content,
+            ref: prismParentRef,
+            className: clsx("tool-output", styles$1g.toolView)
+          }
+        );
+      }
+      const formattedContent = typeof contents2 === "object" ? JSON.stringify(contents2) : contents2;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "pre",
+        {
+          className: clsx("tool-output", styles$1g.outputPre, styles$1g.bottomMargin),
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "code",
+            {
+              className: clsx(
+                "source-code",
+                "sourceCode",
+                highlightLanguage ? `language-${highlightLanguage}` : void 0,
+                styles$1g.outputCode
+              ),
+              children: formattedContent
+            }
+          )
+        }
+      ) });
+    };
+    const image = "_image_a8byr_1";
+    const toolTitle = "_toolTitle_a8byr_6";
+    const styles$1f = {
+      image,
+      toolTitle
+    };
+    const ToolTitle = ({ title: title2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1f.image) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1f.toolTitle), children: title2 })
+      ] });
+    };
+    const ToolCallView = ({
+      id,
+      functionCall,
+      input: input2,
+      highlightLanguage,
+      view,
+      output: output2,
+      mode
+    }) => {
+      function isContentImage(value2) {
+        if (value2 && typeof value2 === "object") {
+          if (value2.type === "image") {
+            return true;
+          } else if (value2.type === "tool") {
+            if (Array.isArray(value2.content) && value2.content.some(isContentImage)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+      const collapse = Array.isArray(output2) ? output2.every((item2) => !isContentImage(item2)) : !isContentImage(output2);
+      const normalizedContent = reactExports.useMemo(() => normalizeContent$1(output2), [output2]);
+      const hasContent = normalizedContent.find((c2) => {
+        if (c2.type === "tool") {
+          for (const t2 of c2.content) {
+            if (t2.type === "text") {
+              if (t2.text) {
+                return true;
+              }
+            } else {
+              return true;
+            }
+          }
+          return false;
+        } else {
+          return true;
+        }
+      });
+      const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
+      const context = defaultContext();
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1h.toolCallView), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ToolInput,
+            {
+              highlightLanguage,
+              contents: contents2,
+              toolCallView: view
+            }
+          )
+        ] }),
+        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ExpandablePanel,
+          {
+            id: `${id}-tool-input`,
+            collapse,
+            border: true,
+            lines: 15,
+            className: clsx("text-size-small"),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent, context })
+          }
+        ) : void 0
+      ] });
+    };
+    const normalizeContent$1 = (output2) => {
+      if (Array.isArray(output2)) {
+        return output2;
+      } else {
+        return [
+          {
+            type: "tool",
+            content: [
+              {
+                type: "text",
+                text: String(output2),
+                refusal: null,
+                internal: null,
+                citations: null
+              }
+            ]
+          }
+        ];
+      }
+    };
+    const content$2 = "_content_1b2jp_1";
+    const codeCompact = "_codeCompact_1b2jp_5";
+    const styles$1e = {
+      content: content$2,
+      codeCompact
+    };
+    const defaultContext = () => {
+      return {
+        citeOffset: 0,
+        citations: []
+      };
+    };
+    const MessageContents = ({
+      id,
+      message: message2,
+      toolMessages,
+      toolCallStyle
+    }) => {
+      const context = defaultContext();
+      if (message2.role === "assistant" && message2.tool_calls && message2.tool_calls.length) {
+        const toolCalls = message2.tool_calls.map((tool_call, idx) => {
+          const { input: input2, functionCall, highlightLanguage } = resolveToolInput(
+            tool_call.function,
+            tool_call.arguments
+          );
+          let toolMessage;
+          if (tool_call.id) {
+            toolMessage = toolMessages.find((msg) => {
+              return msg.tool_call_id === tool_call.id;
+            });
+          } else {
+            toolMessage = toolMessages[idx];
+          }
+          const resolvedToolOutput = resolveToolMessage(toolMessage);
+          if (toolCallStyle === "compact") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1e.codeCompact), children: [
+              "tool: ",
+              functionCall
+            ] }) }, `tool-call-${idx}`);
+          } else if (toolCallStyle === "omit") {
+            return void 0;
+          } else {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToolCallView,
+              {
+                id: `${id}-tool-call`,
+                functionCall,
+                input: input2,
+                highlightLanguage,
+                output: resolvedToolOutput
+              },
+              `tool-call-${idx}`
+            );
+          }
+        });
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) }),
+          toolCalls
+        ] });
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) });
+      }
+    };
+    const resolveToolMessage = (toolMessage) => {
+      if (!toolMessage) {
+        return [];
+      }
+      const content2 = toolMessage.error !== null && toolMessage.error ? toolMessage.error.message : toolMessage.content;
+      if (typeof content2 === "string") {
+        return [
+          {
+            type: "tool",
+            content: [
+              {
+                type: "text",
+                text: content2,
+                refusal: null,
+                internal: null,
+                citations: null
+              }
+            ]
+          }
+        ];
+      } else {
+        const result2 = content2.map((con) => {
+          if (typeof con === "string") {
+            return {
+              type: "tool",
+              content: [
+                {
+                  type: "text",
+                  text: con,
+                  refusal: null,
+                  internal: null,
+                  citations: null
+                }
+              ]
+            };
+          } else if (con.type === "text") {
+            return {
+              content: [con],
+              type: "tool"
+            };
+          } else if (con.type === "image") {
+            return {
+              content: [con],
+              type: "tool"
+            };
+          }
+        }).filter((con) => con !== void 0);
+        return result2;
+      }
+    };
+    const ChatMessage = ({
+      id,
+      message: message2,
+      toolMessages,
+      indented: indented2,
+      toolCallStyle
+    }) => {
+      const messageUrl = useSampleMessageUrl(message2.id);
+      const collapse = message2.role === "system" || message2.role === "user";
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: clsx(
+            message2.role,
+            "text-size-base",
+            styles$1o.message,
+            message2.role === "system" ? styles$1o.systemRole : void 0,
+            message2.role === "user" ? styles$1o.userRole : void 0
+          ),
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.messageGrid, "text-style-label"), children: [
+              message2.role,
+              supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                CopyButton,
+                {
+                  icon: ApplicationIcons.link,
+                  value: toFullUrl(messageUrl),
+                  className: clsx(styles$1o.copyLink)
+                }
+              ) : ""
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                className: clsx(
+                  styles$1o.messageContents,
+                  indented2 ? styles$1o.indented : void 0
+                ),
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    ExpandablePanel,
+                    {
+                      id: `${id}-message`,
+                      collapse,
+                      lines: collapse ? 15 : 25,
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        MessageContents,
+                        {
+                          id: `${id}-contents`,
+                          message: message2,
+                          toolMessages,
+                          toolCallStyle
+                        },
+                        `${id}-contents`
+                      )
+                    }
+                  ),
+                  message2.metadata && Object.keys(message2.metadata).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    LabeledValue,
+                    {
+                      label: "Metadata",
+                      className: clsx(styles$1o.metadataLabel, "text-size-smaller"),
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        RecordTree,
+                        {
+                          record: message2.metadata,
+                          id: `${id}-metadata`,
+                          defaultExpandLevel: 1
+                        }
+                      )
+                    }
+                  ) : ""
+                ]
+              }
+            )
+          ]
+        }
+      );
+    };
+    const grid$7 = "_grid_rmdrx_1";
+    const number$1 = "_number_rmdrx_7";
+    const user = "_user_rmdrx_11";
+    const container$k = "_container_rmdrx_16";
+    const styles$1d = {
+      grid: grid$7,
+      number: number$1,
+      user,
+      container: container$k
+    };
+    const ChatMessageRow = ({
+      parentName,
+      number: number2,
+      resolvedMessage,
+      toolCallStyle,
+      indented: indented2,
+      highlightUserMessage
+    }) => {
+      if (number2) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              className: clsx(
+                styles$1d.grid,
+                styles$1d.container,
+                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1d.user : void 0
+              ),
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: clsx(
+                      "text-size-smaller",
+                      "text-style-secondary",
+                      styles$1d.number
+                    ),
+                    children: number2
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ChatMessage,
+                  {
+                    id: `${parentName}-chat-messages`,
+                    message: resolvedMessage.message,
+                    toolMessages: resolvedMessage.toolMessages,
+                    indented: indented2,
+                    toolCallStyle
+                  }
+                )
+              ]
+            }
+          ),
+          resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
+        ] });
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              styles$1d.container,
+              styles$1d.simple,
+              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1d.user : void 0
+            ),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ChatMessage,
+                {
+                  id: `${parentName}-chat-messages`,
+                  message: resolvedMessage.message,
+                  toolMessages: resolvedMessage.toolMessages,
+                  indented: indented2,
+                  toolCallStyle
+                }
+              ),
+              resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
+            ]
+          }
+        );
+      }
+    };
+    const resolveMessages = (messages) => {
+      const resolvedMessages = [];
+      let index2 = 0;
+      for (const message2 of messages) {
+        if (message2.role === "tool") {
+          if (resolvedMessages.length > 0) {
+            const msg = resolvedMessages[resolvedMessages.length - 1];
+            msg.toolMessages = msg.toolMessages || [];
+            msg.toolMessages.push(message2);
+          }
+        } else {
+          resolvedMessages.push({ message: message2, toolMessages: [] });
+        }
+        if (message2.id === void 0) {
+          message2.id = `msg-${index2}`;
+        }
+        index2++;
+      }
+      const systemMessages = [];
+      const collapsedMessages = resolvedMessages.map((resolved) => {
+        if (resolved.message.role === "system") {
+          systemMessages.push(resolved.message);
+        }
+        return resolved;
+      }).filter((resolved) => {
+        return resolved.message.role !== "system";
+      });
+      const systemContent = [];
+      for (const systemMessage2 of systemMessages) {
+        const contents2 = Array.isArray(systemMessage2.content) ? systemMessage2.content : [systemMessage2.content];
+        systemContent.push(...contents2.map(normalizeContent));
+      }
+      const systemMessage = {
+        id: "sys-message-6815A84B062A",
+        role: "system",
+        content: systemContent,
+        source: "input",
+        internal: null,
+        metadata: null
+      };
+      if (systemMessage && systemMessage.content.length > 0) {
+        collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
+      }
+      return collapsedMessages;
+    };
+    const normalizeContent = (content2) => {
+      if (typeof content2 === "string") {
+        return {
+          type: "text",
+          text: content2,
+          refusal: null,
+          internal: null,
+          citations: null
+        };
+      } else {
+        return content2;
+      }
+    };
+    const messagesFromEvents = (runningEvents) => {
+      const messages = /* @__PURE__ */ new Map();
+      runningEvents.filter((e) => e.event === "model").forEach((e) => {
+        for (const m of e.input) {
+          const inputMessage = m;
+          if (inputMessage.id && !messages.has(inputMessage.id)) {
+            messages.set(inputMessage.id, inputMessage);
+          }
+        }
+        const outputMessage = e.output.choices[0].message;
+        if (outputMessage.id) {
+          messages.set(outputMessage.id, outputMessage);
+        }
+      });
+      if (messages.size > 0) {
+        return messages.values().toArray();
+      } else {
+        return [];
+      }
+    };
+    const ChatView = ({
+      id,
+      messages,
+      toolCallStyle = "complete",
+      indented: indented2,
+      numbered = true,
+      className: className2
+    }) => {
+      const collapsedMessages = resolveMessages(messages);
+      const result2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(className2), children: collapsedMessages.map((msg, index2) => {
+        const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ChatMessageRow,
+          {
+            parentName: id || "chat-view",
+            number: number2,
+            resolvedMessage: msg,
+            indented: indented2,
+            toolCallStyle
+          },
+          `${id}-msg-${index2}`
+        );
+      }) });
+      return result2;
+    };
+    const ChatMessageRenderer = {
+      bucket: Buckets.first,
+      canRender: (entry2) => {
+        var _a2, _b2;
+        const val = entry2.value;
+        return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
+      },
+      render: (id, entry2) => {
+        return {
+          rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { id: `${id}-navpills`, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry2.value }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry2.value })
+          ] })
+        };
+      }
+    };
+    const ChatSummary = ({ id, messages }) => {
+      const summaryMessages = [];
+      for (const message2 of messages.slice().reverse()) {
+        summaryMessages.unshift(message2);
+        if (message2.role === "user") {
+          break;
+        }
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
+    };
+    const table$2 = "_table_1t3ts_1";
+    const cell$3 = "_cell_1t3ts_11";
+    const compact = "_compact_1t3ts_15";
+    const cellKey = "_cellKey_1t3ts_19";
+    const cellValue = "_cellValue_1t3ts_31";
+    const styles$1c = {
+      table: table$2,
+      cell: cell$3,
+      compact,
+      cellKey,
+      cellValue
+    };
+    const MetaDataView = ({
+      id,
+      style: style2,
+      entries,
+      tableOptions,
+      compact: compact2,
+      className: className2
+    }) => {
+      const baseId = "metadataview";
+      tableOptions = tableOptions || "sm";
+      const tblClz = (tableOptions || "").split(",").map((option) => {
+        return `table-${option}`;
+      });
+      const coercedEntries = toNameValues(entries);
+      const entryEls = (coercedEntries || []).map((entry2, index2) => {
+        const id2 = `${baseId}-value-${index2}`;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "td",
+            {
+              className: clsx(
+                styles$1c.cell,
+                styles$1c.cellKey,
+                "text-size-small",
+                "text-style-label"
+              ),
+              children: entry2.name
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1c.cell, styles$1c.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+        ] }, id2);
+      });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "table",
+        {
+          id,
+          className: clsx(
+            "table",
+            tblClz,
+            styles$1c.table,
+            compact2 ? styles$1c.compact : void 0,
+            className2
+          ),
+          style: style2,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
+        }
+      );
+    };
+    const toNameValues = (entries) => {
+      if (entries) {
+        if (Array.isArray(entries)) {
+          const filtered = entries.filter((entry2) => {
+            if (entry2 && typeof entry2 === "object") {
+              return "name" in entry2 && "value" in entry2;
+            }
+            return false;
+          });
+          return filtered;
+        } else {
+          return Object.entries(entries || {}).map(([key2, value2]) => {
+            return { name: key2, value: value2 };
+          });
+        }
+      } else {
+        return entries;
+      }
+    };
+    const query = "_query_seqs2_1";
+    const summary$3 = "_summary_seqs2_6";
+    const preWrap = "_preWrap_seqs2_10";
+    const preCompact = "_preCompact_seqs2_15";
+    const styles$1b = {
+      query,
+      summary: summary$3,
+      preWrap,
+      preCompact
+    };
+    const RenderedContent = ({
+      id,
+      entry: entry2,
+      renderOptions = { renderString: "markdown" },
+      renderObject
+    }) => {
+      if (entry2.value === null) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
+      }
+      const renderers = contentRenderers(renderObject);
+      const renderer = Object.keys(renderers).map((key2) => {
+        return renderers[key2];
+      }).sort((a, b) => {
+        return a.bucket - b.bucket;
+      }).find((renderer2) => {
+        return renderer2.canRender(entry2);
+      });
+      if (renderer) {
+        const { rendered } = renderer.render(id, entry2, renderOptions);
+        if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
+          return rendered;
+        }
+      }
+      const displayValue = (() => {
+        try {
+          if (typeof entry2.value === "object") {
+            return JSON.stringify(entry2.value);
+          }
+          return String(entry2.value).trim();
+        } catch (e) {
+          return "[Unable to display value]";
+        }
+      })();
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: displayValue });
+    };
+    const contentRenderers = (renderObject) => {
+      const contentRenderers2 = {
+        AnsiString: {
+          bucket: Buckets.first,
+          canRender: (entry2) => {
+            return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
+            };
+          }
+        },
+        JsonString: {
+          bucket: Buckets.first,
+          canRender: (entry2) => {
+            if (typeof entry2.value === "string") {
+              const trimmed = entry2.value.trim();
+              return isJson(trimmed);
+            }
+            return false;
+          },
+          render: (_id, entry2, _options) => {
+            const obj = lib$1.parse(entry2.value);
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj })
+            };
+          }
+        },
+        Model: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object" && entry2.value._model;
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
+                " ",
+                entry2.value._model
+              ] })
+            };
+          }
+        },
+        Boolean: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "boolean";
+          },
+          render: (id, entry2, options2) => {
+            entry2.value = entry2.value.toString();
+            return contentRenderers2.String.render(id, entry2, options2);
+          }
+        },
+        Number: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "number";
+          },
+          render: (id, entry2, options2) => {
+            entry2.value = formatNumber(entry2.value);
+            return contentRenderers2.String.render(id, entry2, options2);
+          }
+        },
+        String: {
+          bucket: Buckets.final,
+          canRender: (entry2) => {
+            return typeof entry2.value === "string";
+          },
+          render: (_id, entry2, options2) => {
+            const rendered = entry2.value.trim();
+            if (options2.renderString === "markdown") {
+              return {
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: rendered })
+              };
+            } else {
+              return {
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1b.preWrap, styles$1b.preCompact), children: rendered })
+              };
+            }
+          }
+        },
+        Array: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            const isArray = Array.isArray(entry2.value);
+            if (isArray) {
+              if (entry2.value.length === 0 || entry2.value.length === 1) {
+                return true;
+              }
+              const types2 = new Set(
+                entry2.value.filter((e) => e !== null).map((e) => {
+                  return typeof e;
+                })
+              );
+              return types2.size === 1;
+            } else {
+              return false;
+            }
+          },
+          render: (id, entry2, _options) => {
+            const arrayMap = {};
+            entry2.value.forEach((e, index2) => {
+              arrayMap[`[${index2}]`] = e;
+            });
+            const arrayRendered = renderObject ? renderObject(arrayMap) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MetaDataView,
+              {
+                id,
+                className: "font-size-small",
+                entries: arrayMap,
+                tableOptions: "borderless,sm",
+                compact: true
+              }
+            );
+            return { rendered: arrayRendered };
+          }
+        },
+        ChatMessage: ChatMessageRenderer,
+        web_search: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object" && entry2.name === "web_search";
+          },
+          render: (_id, entry2, _options) => {
+            const results = [];
+            results.push(
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1b.query, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
+                " ",
+                entry2.value.query
+              ] })
+            );
+            entry2.value.results.forEach(
+              (result2) => {
+                results.push(
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
+                );
+                results.push(
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1b.summary), children: result2.summary })
+                );
+              }
+            );
+            return {
+              rendered: results
+            };
+          }
+        },
+        web_browser: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            var _a2;
+            return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1b.preWrap, children: entry2.value })
+            };
+          }
+        },
+        Html: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object" && entry2.value._html;
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: entry2.value._html
+            };
+          }
+        },
+        Image: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
+          },
+          render: (_id, entry2, _options) => {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
+            };
+          }
+        },
+        Object: {
+          bucket: Buckets.intermediate,
+          canRender: (entry2) => {
+            return typeof entry2.value === "object";
+          },
+          render: (id, entry2, _options) => {
+            if (renderObject) {
+              return { rendered: renderObject(entry2.value) };
+            } else {
+              return {
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MetaDataView,
+                  {
+                    id,
+                    className: "text-size-smaller",
+                    entries: entry2.value,
+                    tableOptions: "borderless,sm",
+                    compact: true
+                  }
+                )
+              };
+            }
+          }
+        }
+      };
+      return contentRenderers2;
+    };
+    const otherScoreDescriptor = () => {
+      return {
+        scoreType: kScoreTypeOther,
+        compare: () => {
+          return 0;
+        },
+        render: (score2) => {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RenderedContent,
+            {
+              id: "other-score-value",
+              entry: { name: "other-score-value", value: score2 }
+            }
+          );
+        }
+      };
+    };
+    const circle = "_circle_1iagp_1";
+    const green = "_green_1iagp_12";
+    const red = "_red_1iagp_18";
+    const orange = "_orange_1iagp_24";
+    const styles$1a = {
+      circle,
+      green,
+      red,
+      orange
+    };
+    const passFailScoreDescriptor = (values) => {
+      const categories = [];
+      if (values.includes("C")) {
+        categories.push({
+          val: "C",
+          text: "Correct"
+        });
+      }
+      if (values.includes("P")) {
+        categories.push({
+          val: "P",
+          text: "Partial"
+        });
+      }
+      if (values.includes("I")) {
+        categories.push({
+          val: "I",
+          text: "Incorrect"
+        });
+      }
+      if (values.includes("N")) {
+        categories.push({
+          val: "N",
+          text: "Refusal"
+        });
+      }
+      const order2 = ["C", "P", "I", "N"];
+      return {
+        scoreType: kScoreTypePassFail,
+        categories,
+        render: (score2) => {
+          if (score2 === "C") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "span",
+              {
+                className: clsx("text-size-small", styles$1a.circle, styles$1a.green),
+                children: "C"
+              }
+            );
+          } else if (score2 === "I") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1a.circle, styles$1a.red), children: "I" });
+          } else if (score2 === "P") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "span",
+              {
+                className: clsx("text-size-small", styles$1a.circle, styles$1a.orange),
+                children: "P"
+              }
+            );
+          } else if (score2 === "N") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1a.circle, styles$1a.red), children: "N" });
+          } else {
+            return String(score2);
+          }
+        },
+        compare: (a, b) => {
+          if (typeof a.value !== "string" && typeof b.value !== "string") {
+            return 0;
+          } else if (typeof a.value === "string" && typeof b.value !== "string") {
+            return -1;
+          } else if (typeof a.value !== "string" && typeof b.value === "string") {
+            return 1;
+          } else {
+            const sort = order2.indexOf(String(a.value || "")) - order2.indexOf(String(b.value || ""));
+            return sort;
+          }
+        }
+      };
+    };
+    const getScoreDescriptorForValues = (uniqScoreValues, uniqScoreTypes) => {
+      for (const categorizer of scoreCategorizers) {
+        const scoreDescriptor = categorizer.describe(
+          uniqScoreValues,
+          uniqScoreTypes
+        );
+        if (scoreDescriptor) {
+          return scoreDescriptor;
+        }
+      }
+    };
+    const scoreCategorizers = [
+      {
+        describe: (_values, types2) => {
+          if (types2 && types2.length === 1 && types2[0] === "boolean") {
+            return booleanScoreDescriptor();
+          }
+        }
+      },
+      {
+        describe: (values, _types) => {
+          if (values.length === 2 && values.every((val) => {
+            return val === 1 || val === 0;
+          })) {
+            return booleanScoreDescriptor();
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (types2 && types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
+            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+          })) {
+            return passFailScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (values.length < 10 && types2 && types2.length === 1 && types2[0] === "string") {
+            return categoricalScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (types2 && types2.length !== 0 && types2[0] === "number") {
+            return numericScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (types2 && types2.length !== 0 && types2[0] === "object") {
+            return objectScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (_values, _types) => {
+          return otherScoreDescriptor();
+        }
+      }
+    ];
+    const createEvalDescriptor = (scores2, samples) => {
+      if (!samples) {
+        return void 0;
+      }
+      const scoreValue = (sample2, scoreLabel) => {
+        if (sample2.scores === null || Object.keys(sample2.scores).length === 0 || !scoreLabel) {
+          return void 0;
+        }
+        if (scoreLabel.scorer !== scoreLabel.name && sample2.scores[scoreLabel.scorer] && sample2.scores[scoreLabel.scorer].value) {
+          if (typeof sample2.scores[scoreLabel.scorer].value === "object") {
+            return sample2.scores[scoreLabel.scorer].value[scoreLabel.name];
+          } else {
+            return sample2.scores[scoreLabel.scorer].value;
+          }
+        } else if (sample2.scores[scoreLabel.name]) {
+          return sample2.scores[scoreLabel.name].value;
+        } else {
+          return void 0;
+        }
+      };
+      const scoreAnswer = (sample2, scorer2) => {
+        if (sample2 && sample2.scores) {
+          const sampleScore = sample2.scores[scorer2.name];
+          if (sampleScore && sampleScore.answer) {
+            return sampleScore.answer;
+          }
+        } else {
+          return void 0;
+        }
+      };
+      const scoreExplanation = (sample2, scorer2) => {
+        if (sample2 && sample2.scores) {
+          const sampleScore = sample2.scores[scorer2];
+          if (sampleScore && sampleScore.explanation) {
+            return sampleScore.explanation;
+          }
+        }
+        return void 0;
+      };
+      const scoreMetadata = (sample2, scorer2) => {
+        if (sample2 && sample2.scores) {
+          const sampleScore = sample2.scores[scorer2];
+          if (sampleScore && sampleScore.metadata) {
+            return sampleScore.metadata;
+          }
+        }
+        return void 0;
+      };
+      const scoreDescriptorMap = {};
+      for (const scoreLabel of scores2) {
+        const uniqScoreValues = [
+          ...new Set(
+            samples.filter((sample2) => !!sample2.scores).filter((sample2) => {
+              if (!scoreLabel) {
+                return true;
+              }
+              if (!sample2.scores) {
+                return false;
+              }
+              if (scoreLabel.scorer !== scoreLabel.name) {
+                return Object.keys(sample2.scores).includes(scoreLabel.scorer) && Object.keys(sample2.scores[scoreLabel.scorer].value).includes(
+                  scoreLabel.name
+                );
+              } else {
+                return Object.keys(sample2.scores).includes(scoreLabel.name);
+              }
+            }).map((sample2) => {
+              return scoreValue(sample2, scoreLabel);
+            }).filter((value2) => {
+              return value2 !== null;
+            }).filter((value2) => {
+              return value2 !== void 0;
+            })
+          )
+        ];
+        const uniqScoreTypes = [
+          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+        ];
+        const scoreDescriptor2 = getScoreDescriptorForValues(
+          uniqScoreValues,
+          uniqScoreTypes
+        );
+        if (scoreDescriptor2) {
+          scoreDescriptorMap[scoreLabelKey(scoreLabel)] = scoreDescriptor2;
+        }
+      }
+      const scoreDescriptor = (scoreLabel) => {
+        return scoreDescriptorMap[scoreLabelKey(scoreLabel)];
+      };
+      const scoreRendered = (sample2, scoreLabel) => {
+        const descriptor = scoreDescriptor(scoreLabel);
+        const score22 = scoreValue(sample2, scoreLabel);
+        if (score22 === null) {
+          return "null";
+        } else if (score22 === void 0) {
+          return "";
+        } else if (descriptor && descriptor.render) {
+          return descriptor.render(score22);
+        } else {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: String(score22) });
+        }
+      };
+      const scorerDescriptor = (sample2, scoreLabel) => {
+        return {
+          metadata: () => {
+            return scoreMetadata(sample2, scoreLabel.scorer) || {};
+          },
+          explanation: () => {
+            return scoreExplanation(sample2, scoreLabel.scorer) || "";
+          },
+          answer: () => {
+            return scoreAnswer(sample2, scoreLabel) || "";
+          },
+          scores: () => {
+            if (!sample2 || !sample2.scores) {
+              return [];
+            }
+            const myScoreDescriptor = scoreDescriptor(scoreLabel);
+            if (!myScoreDescriptor) {
+              return [];
+            }
+            const scoreNames = scores2.map((score22) => {
+              return score22.name;
+            });
+            const sampleScorer = sample2.scores[scoreLabel.scorer];
+            const scoreVal = sampleScorer.value;
+            if (typeof scoreVal === "object") {
+              const names = Object.keys(scoreVal);
+              if (names.find((name2) => {
+                return scoreNames.includes(name2);
+              })) {
+                const scores22 = names.map((name2) => {
+                  return {
+                    name: name2,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal);
+                    }
+                  };
+                });
+                return scores22;
+              } else {
+                return [
+                  {
+                    name: scoreLabel.scorer,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal);
+                    }
+                  }
+                ];
+              }
+            } else {
+              return [
+                {
+                  name: scoreLabel.scorer,
+                  rendered: () => {
+                    return myScoreDescriptor.render(scoreVal);
+                  }
+                }
+              ];
+            }
+          }
+        };
+      };
+      const score2 = (sample2, scoreLabel) => {
+        if (!scoreLabel) {
+          return void 0;
+        }
+        return {
+          value: scoreValue(sample2, scoreLabel),
+          render: () => {
+            return scoreRendered(sample2, scoreLabel);
+          }
+        };
+      };
+      return {
+        scores: scores2,
+        scorerDescriptor,
+        scoreDescriptor,
+        score: score2,
+        scoreAnswer
+      };
+    };
+    const createSamplesDescriptor = (samples, evalDescriptor, selectedScore) => {
+      const sizes = samples.reduce(
+        (previous, current2) => {
+          var _a2;
+          const text2 = inputString(current2.input).join(" ");
+          const score2 = selectedScore ? evalDescriptor.score(current2, selectedScore) : void 0;
+          const scoreValue = score2 == null ? void 0 : score2.value;
+          const scoreText = scoreValue ? String(scoreValue) : current2.error ? String(current2.error) : "";
+          previous[0] = Math.min(Math.max(previous[0], text2.length), 200);
+          previous[1] = Math.min(
+            Math.max(previous[1], arrayToString(current2.target).length),
+            300
+          );
+          previous[2] = Math.min(
+            Math.max(
+              previous[2],
+              selectedScore ? ((_a2 = evalDescriptor.scoreAnswer(current2, selectedScore)) == null ? void 0 : _a2.length) || 0 : 0
+            ),
+            300
+          );
+          previous[3] = Math.min(
+            Math.max(previous[3], current2.limit ? current2.limit.length : 0),
+            50
+          );
+          previous[4] = Math.min(
+            Math.max(
+              previous[4],
+              current2.retries ? String(current2.retries).length : 0
+            ),
+            50
+          );
+          previous[5] = Math.min(
+            Math.max(previous[5], String(current2.id).length),
+            10
+          );
+          previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
+          return previous;
+        },
+        [0, 0, 0, 0, 0, 0, 0]
+      );
+      const maxSizes = {
+        input: Math.min(sizes[0], 300),
+        target: Math.min(sizes[1], 300),
+        answer: Math.min(sizes[2], 300),
+        limit: Math.min(sizes[3], 50),
+        retries: Math.min(sizes[4], 50),
+        id: Math.min(sizes[5], 10),
+        score: Math.min(sizes[6], 30)
+      };
+      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.retries + maxSizes.id + maxSizes.score || 1;
+      const inputNormalized = maxSizes.input / base2;
+      const targetNormalized = maxSizes.target / base2 > 0 ? Math.max(maxSizes.target / base2, inputNormalized / 10) : 0;
+      const answerNormalized = maxSizes.answer / base2 > 0 ? Math.max(maxSizes.answer / base2, inputNormalized / 10) : 0;
+      const messageShape = {
+        raw: {
+          input: sizes[0],
+          target: sizes[1],
+          answer: sizes[2],
+          limit: sizes[3],
+          retries: sizes[4],
+          id: sizes[5],
+          score: sizes[6]
+        },
+        normalized: {
+          input: inputNormalized,
+          target: targetNormalized,
+          answer: answerNormalized,
+          limit: maxSizes.limit / base2,
+          retries: maxSizes.retries / base2,
+          id: maxSizes.id / base2,
+          score: maxSizes.score / base2
+        }
+      };
+      return {
+        evalDescriptor,
+        messageShape,
+        selectedScore: (sample2) => selectedScore ? evalDescriptor.score(sample2, selectedScore) : void 0,
+        selectedScorerDescriptor: (sample2) => selectedScore ? evalDescriptor.scorerDescriptor(sample2, selectedScore) : void 0
+      };
+    };
+    const scoreLabelKey = (scoreLabel) => {
+      return `${scoreLabel == null ? void 0 : scoreLabel.scorer}.${scoreLabel.name}`;
+    };
+    var _parser = function() {
+      var parser2 = {
+        trace: function trace() {
+        },
+        yy: {},
+        symbols_: {
+          error: 2,
+          expressions: 3,
+          e: 4,
+          EndOfExpression: 5,
+          "-": 6,
+          "+": 7,
+          "*": 8,
+          "/": 9,
+          "^": 10,
+          mod: 11,
+          and: 12,
+          or: 13,
+          not: 14,
+          if: 15,
+          then: 16,
+          else: 17,
+          in: 18,
+          notIn: 19,
+          "(": 20,
+          ")": 21,
+          Arguments: 22,
+          ",": 23,
+          Number: 24,
+          Symbol: 25,
+          String: 26,
+          of: 27,
+          Relation: 28,
+          "%": 29,
+          "?": 30,
+          ":": 31,
+          RelationalOperator: 32,
+          "==": 33,
+          "!=": 34,
+          "~=": 35,
+          "<": 36,
+          "<=": 37,
+          ">=": 38,
+          ">": 39,
+          $accept: 0,
+          $end: 1
+        },
+        terminals_: {
+          2: "error",
+          5: "EndOfExpression",
+          6: "-",
+          7: "+",
+          8: "*",
+          9: "/",
+          10: "^",
+          11: "mod",
+          12: "and",
+          13: "or",
+          14: "not",
+          15: "if",
+          16: "then",
+          17: "else",
+          18: "in",
+          19: "notIn",
+          20: "(",
+          21: ")",
+          23: ",",
+          24: "Number",
+          25: "Symbol",
+          26: "String",
+          27: "of",
+          29: "%",
+          30: "?",
+          31: ":",
+          33: "==",
+          34: "!=",
+          35: "~=",
+          36: "<",
+          37: "<=",
+          38: ">=",
+          39: ">"
+        },
+        productions_: [
+          0,
+          [3, 2],
+          [4, 2],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 2],
+          [4, 6],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 5],
+          [4, 1],
+          [4, 1],
+          [4, 1],
+          [4, 3],
+          [4, 3],
+          [4, 4],
+          [4, 1],
+          [4, 3],
+          [4, 5],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [28, 3],
+          [28, 3],
+          [22, 1],
+          [22, 3]
+        ],
+        performAction: function anonymous(yytext, yyleng, yylineno, yy, yystate, $$, _$) {
+          var $0 = $$.length - 1;
+          switch (yystate) {
+            case 1:
+              return $$[$0 - 1];
+            case 2:
+              this.$ = ["(", "ops['-'](", $$[$0], ")", ")"];
+              break;
+            case 3:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 4:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 5:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 6:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 7:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 8:
+              this.$ = ["(", "ops.mod(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 9:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 2],
+                ") && ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 10:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 2],
+                ") || ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 11:
+              this.$ = ["(", "! ", "std.coerceBoolean", "(", $$[$0], ")", ")"];
+              break;
+            case 12:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 4],
+                ") ? ",
+                $$[$0 - 2],
+                " : ",
+                $$[$0],
+                "",
+                ")"
+              ];
+              break;
+            case 13:
+              this.$ = ["(", "std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 14:
+              this.$ = ["(", "!std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 15:
+              this.$ = ["(", "", $$[$0 - 1], "", ")"];
+              break;
+            case 16:
+              this.$ = ["(", "[ ", $$[$0 - 3], ", ", $$[$0 - 1], " ]", ")"];
+              break;
+            case 17:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 18:
+              this.$ = ["prop(", $$[$0], ", data)"];
+              break;
+            case 19:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 20:
+              this.$ = ["prop(", $$[$0 - 2], ", ", $$[$0], ")"];
+              break;
+            case 21:
+              this.$ = ["call(", $$[$0 - 2], ")"];
+              break;
+            case 22:
+              this.$ = ["call(", $$[$0 - 3], ", ", $$[$0 - 1], ")"];
+              break;
+            case 23:
+              this.$ = yy.reduceRelation($$[$0]);
+              break;
+            case 24:
+              this.$ = [
+                "std.warnDeprecated('modulo', ops['mod'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                "))"
+              ];
+              break;
+            case 25:
+              this.$ = [
+                "std.warnDeprecated('ternary', ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 4],
+                ") ? ",
+                $$[$0 - 2],
+                " : ",
+                $$[$0],
+                ")"
+              ];
+              break;
+            case 26:
+              this.$ = ["=="];
+              break;
+            case 27:
+              this.$ = ["!="];
+              break;
+            case 28:
+              this.$ = ["~="];
+              break;
+            case 29:
+              this.$ = ["<"];
+              break;
+            case 30:
+              this.$ = ["<="];
+              break;
+            case 31:
+              this.$ = [">="];
+              break;
+            case 32:
+              this.$ = [">"];
+              break;
+            case 33:
+              this.$ = [$$[$0 - 2], $$[$0 - 1], ...$$[$0]];
+              break;
+            case 34:
+              this.$ = [$$[$0 - 2], $$[$0 - 1], $$[$0]];
+              break;
+            case 35:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 36:
+              this.$ = ["", $$[$0 - 2], ", ", $$[$0], ""];
+              break;
+          }
+        },
+        table: [
+          {
+            3: 1,
+            4: 2,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            1: [3]
+          },
+          {
+            5: [1, 11],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 32,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 33,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 34,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 35,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            22: 36,
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 17],
+            6: [2, 17],
+            7: [2, 17],
+            8: [2, 17],
+            9: [2, 17],
+            10: [2, 17],
+            11: [2, 17],
+            12: [2, 17],
+            13: [2, 17],
+            16: [2, 17],
+            17: [2, 17],
+            18: [2, 17],
+            19: [2, 17],
+            21: [2, 17],
+            23: [2, 17],
+            29: [2, 17],
+            30: [2, 17],
+            31: [2, 17],
+            33: [2, 17],
+            34: [2, 17],
+            35: [2, 17],
+            36: [2, 17],
+            37: [2, 17],
+            38: [2, 17],
+            39: [2, 17]
+          },
+          {
+            5: [2, 18],
+            6: [2, 18],
+            7: [2, 18],
+            8: [2, 18],
+            9: [2, 18],
+            10: [2, 18],
+            11: [2, 18],
+            12: [2, 18],
+            13: [2, 18],
+            16: [2, 18],
+            17: [2, 18],
+            18: [2, 18],
+            19: [2, 18],
+            20: [1, 38],
+            21: [2, 18],
+            23: [2, 18],
+            27: [1, 37],
+            29: [2, 18],
+            30: [2, 18],
+            31: [2, 18],
+            33: [2, 18],
+            34: [2, 18],
+            35: [2, 18],
+            36: [2, 18],
+            37: [2, 18],
+            38: [2, 18],
+            39: [2, 18]
+          },
+          {
+            5: [2, 19],
+            6: [2, 19],
+            7: [2, 19],
+            8: [2, 19],
+            9: [2, 19],
+            10: [2, 19],
+            11: [2, 19],
+            12: [2, 19],
+            13: [2, 19],
+            16: [2, 19],
+            17: [2, 19],
+            18: [2, 19],
+            19: [2, 19],
+            21: [2, 19],
+            23: [2, 19],
+            29: [2, 19],
+            30: [2, 19],
+            31: [2, 19],
+            33: [2, 19],
+            34: [2, 19],
+            35: [2, 19],
+            36: [2, 19],
+            37: [2, 19],
+            38: [2, 19],
+            39: [2, 19]
+          },
+          {
+            5: [2, 23],
+            6: [2, 23],
+            7: [2, 23],
+            8: [2, 23],
+            9: [2, 23],
+            10: [2, 23],
+            11: [2, 23],
+            12: [2, 23],
+            13: [2, 23],
+            16: [2, 23],
+            17: [2, 23],
+            18: [2, 23],
+            19: [2, 23],
+            21: [2, 23],
+            23: [2, 23],
+            29: [2, 23],
+            30: [2, 23],
+            31: [2, 23],
+            33: [2, 23],
+            34: [2, 23],
+            35: [2, 23],
+            36: [2, 23],
+            37: [2, 23],
+            38: [2, 23],
+            39: [2, 23]
+          },
+          {
+            1: [2, 1]
+          },
+          {
+            4: 39,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 40,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 41,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 42,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 43,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 44,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 45,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 46,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 47,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 48,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 49,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 50,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 52,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 51
+          },
+          {
+            6: [2, 26],
+            14: [2, 26],
+            15: [2, 26],
+            20: [2, 26],
+            24: [2, 26],
+            25: [2, 26],
+            26: [2, 26]
+          },
+          {
+            6: [2, 27],
+            14: [2, 27],
+            15: [2, 27],
+            20: [2, 27],
+            24: [2, 27],
+            25: [2, 27],
+            26: [2, 27]
+          },
+          {
+            6: [2, 28],
+            14: [2, 28],
+            15: [2, 28],
+            20: [2, 28],
+            24: [2, 28],
+            25: [2, 28],
+            26: [2, 28]
+          },
+          {
+            6: [2, 29],
+            14: [2, 29],
+            15: [2, 29],
+            20: [2, 29],
+            24: [2, 29],
+            25: [2, 29],
+            26: [2, 29]
+          },
+          {
+            6: [2, 30],
+            14: [2, 30],
+            15: [2, 30],
+            20: [2, 30],
+            24: [2, 30],
+            25: [2, 30],
+            26: [2, 30]
+          },
+          {
+            6: [2, 31],
+            14: [2, 31],
+            15: [2, 31],
+            20: [2, 31],
+            24: [2, 31],
+            25: [2, 31],
+            26: [2, 31]
+          },
+          {
+            6: [2, 32],
+            14: [2, 32],
+            15: [2, 32],
+            20: [2, 32],
+            24: [2, 32],
+            25: [2, 32],
+            26: [2, 32]
+          },
+          {
+            5: [2, 2],
+            6: [2, 2],
+            7: [2, 2],
+            8: [2, 2],
+            9: [2, 2],
+            10: [1, 16],
+            11: [2, 2],
+            12: [2, 2],
+            13: [2, 2],
+            16: [2, 2],
+            17: [2, 2],
+            18: [2, 2],
+            19: [2, 2],
+            21: [2, 2],
+            23: [2, 2],
+            29: [2, 2],
+            30: [2, 2],
+            31: [2, 2],
+            32: 24,
+            33: [2, 2],
+            34: [2, 2],
+            35: [2, 2],
+            36: [2, 2],
+            37: [2, 2],
+            38: [2, 2],
+            39: [2, 2]
+          },
+          {
+            5: [2, 11],
+            6: [2, 11],
+            7: [2, 11],
+            8: [2, 11],
+            9: [2, 11],
+            10: [1, 16],
+            11: [2, 11],
+            12: [2, 11],
+            13: [2, 11],
+            16: [2, 11],
+            17: [2, 11],
+            18: [2, 11],
+            19: [2, 11],
+            21: [2, 11],
+            23: [2, 11],
+            29: [2, 11],
+            30: [2, 11],
+            31: [2, 11],
+            32: 24,
+            33: [2, 11],
+            34: [2, 11],
+            35: [2, 11],
+            36: [2, 11],
+            37: [2, 11],
+            38: [2, 11],
+            39: [2, 11]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [1, 53],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [1, 54],
+            23: [2, 35],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            23: [1, 55]
+          },
+          {
+            4: 56,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 59,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            21: [1, 57],
+            22: 58,
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 3],
+            6: [2, 3],
+            7: [2, 3],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 3],
+            13: [2, 3],
+            16: [2, 3],
+            17: [2, 3],
+            18: [2, 3],
+            19: [2, 3],
+            21: [2, 3],
+            23: [2, 3],
+            29: [1, 22],
+            30: [2, 3],
+            31: [2, 3],
+            32: 24,
+            33: [2, 3],
+            34: [2, 3],
+            35: [2, 3],
+            36: [2, 3],
+            37: [2, 3],
+            38: [2, 3],
+            39: [2, 3]
+          },
+          {
+            5: [2, 4],
+            6: [2, 4],
+            7: [2, 4],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 4],
+            13: [2, 4],
+            16: [2, 4],
+            17: [2, 4],
+            18: [2, 4],
+            19: [2, 4],
+            21: [2, 4],
+            23: [2, 4],
+            29: [1, 22],
+            30: [2, 4],
+            31: [2, 4],
+            32: 24,
+            33: [2, 4],
+            34: [2, 4],
+            35: [2, 4],
+            36: [2, 4],
+            37: [2, 4],
+            38: [2, 4],
+            39: [2, 4]
+          },
+          {
+            5: [2, 5],
+            6: [2, 5],
+            7: [2, 5],
+            8: [2, 5],
+            9: [2, 5],
+            10: [1, 16],
+            11: [2, 5],
+            12: [2, 5],
+            13: [2, 5],
+            16: [2, 5],
+            17: [2, 5],
+            18: [2, 5],
+            19: [2, 5],
+            21: [2, 5],
+            23: [2, 5],
+            29: [2, 5],
+            30: [2, 5],
+            31: [2, 5],
+            32: 24,
+            33: [2, 5],
+            34: [2, 5],
+            35: [2, 5],
+            36: [2, 5],
+            37: [2, 5],
+            38: [2, 5],
+            39: [2, 5]
+          },
+          {
+            5: [2, 6],
+            6: [2, 6],
+            7: [2, 6],
+            8: [2, 6],
+            9: [2, 6],
+            10: [1, 16],
+            11: [2, 6],
+            12: [2, 6],
+            13: [2, 6],
+            16: [2, 6],
+            17: [2, 6],
+            18: [2, 6],
+            19: [2, 6],
+            21: [2, 6],
+            23: [2, 6],
+            29: [2, 6],
+            30: [2, 6],
+            31: [2, 6],
+            32: 24,
+            33: [2, 6],
+            34: [2, 6],
+            35: [2, 6],
+            36: [2, 6],
+            37: [2, 6],
+            38: [2, 6],
+            39: [2, 6]
+          },
+          {
+            5: [2, 7],
+            6: [2, 7],
+            7: [2, 7],
+            8: [2, 7],
+            9: [2, 7],
+            10: [1, 16],
+            11: [2, 7],
+            12: [2, 7],
+            13: [2, 7],
+            16: [2, 7],
+            17: [2, 7],
+            18: [2, 7],
+            19: [2, 7],
+            21: [2, 7],
+            23: [2, 7],
+            29: [2, 7],
+            30: [2, 7],
+            31: [2, 7],
+            32: 24,
+            33: [2, 7],
+            34: [2, 7],
+            35: [2, 7],
+            36: [2, 7],
+            37: [2, 7],
+            38: [2, 7],
+            39: [2, 7]
+          },
+          {
+            5: [2, 8],
+            6: [2, 8],
+            7: [2, 8],
+            8: [2, 8],
+            9: [2, 8],
+            10: [1, 16],
+            11: [2, 8],
+            12: [2, 8],
+            13: [2, 8],
+            16: [2, 8],
+            17: [2, 8],
+            18: [2, 8],
+            19: [2, 8],
+            21: [2, 8],
+            23: [2, 8],
+            29: [2, 8],
+            30: [2, 8],
+            31: [2, 8],
+            32: 24,
+            33: [2, 8],
+            34: [2, 8],
+            35: [2, 8],
+            36: [2, 8],
+            37: [2, 8],
+            38: [2, 8],
+            39: [2, 8]
+          },
+          {
+            5: [2, 9],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 9],
+            13: [2, 9],
+            16: [2, 9],
+            17: [2, 9],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 9],
+            23: [2, 9],
+            29: [1, 22],
+            30: [2, 9],
+            31: [2, 9],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 10],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [2, 10],
+            16: [2, 10],
+            17: [2, 10],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 10],
+            23: [2, 10],
+            29: [1, 22],
+            30: [2, 10],
+            31: [2, 10],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 13],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 13],
+            13: [2, 13],
+            16: [2, 13],
+            17: [2, 13],
+            18: [2, 13],
+            19: [2, 13],
+            21: [2, 13],
+            23: [2, 13],
+            29: [1, 22],
+            30: [2, 13],
+            31: [2, 13],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 14],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 14],
+            13: [2, 14],
+            16: [2, 14],
+            17: [2, 14],
+            18: [2, 14],
+            19: [2, 14],
+            21: [2, 14],
+            23: [2, 14],
+            29: [1, 22],
+            30: [2, 14],
+            31: [2, 14],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 24],
+            6: [2, 24],
+            7: [2, 24],
+            8: [2, 24],
+            9: [2, 24],
+            10: [1, 16],
+            11: [2, 24],
+            12: [2, 24],
+            13: [2, 24],
+            16: [2, 24],
+            17: [2, 24],
+            18: [2, 24],
+            19: [2, 24],
+            21: [2, 24],
+            23: [2, 24],
+            29: [2, 24],
+            30: [2, 24],
+            31: [2, 24],
+            32: 24,
+            33: [2, 24],
+            34: [2, 24],
+            35: [2, 24],
+            36: [2, 24],
+            37: [2, 24],
+            38: [2, 24],
+            39: [2, 24]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            31: [1, 60],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 33],
+            6: [2, 33],
+            7: [2, 33],
+            8: [2, 33],
+            9: [2, 33],
+            10: [2, 33],
+            11: [2, 33],
+            12: [2, 33],
+            13: [2, 33],
+            16: [2, 33],
+            17: [2, 33],
+            18: [2, 33],
+            19: [2, 33],
+            21: [2, 33],
+            23: [2, 33],
+            29: [2, 33],
+            30: [2, 33],
+            31: [2, 33],
+            33: [2, 33],
+            34: [2, 33],
+            35: [2, 33],
+            36: [2, 33],
+            37: [2, 33],
+            38: [2, 33],
+            39: [2, 33]
+          },
+          {
+            5: [2, 34],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 34],
+            13: [2, 34],
+            16: [2, 34],
+            17: [2, 34],
+            18: [2, 34],
+            19: [2, 34],
+            21: [2, 34],
+            23: [2, 34],
+            29: [1, 22],
+            30: [2, 34],
+            31: [2, 34],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 61,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 15],
+            6: [2, 15],
+            7: [2, 15],
+            8: [2, 15],
+            9: [2, 15],
+            10: [2, 15],
+            11: [2, 15],
+            12: [2, 15],
+            13: [2, 15],
+            16: [2, 15],
+            17: [2, 15],
+            18: [2, 15],
+            19: [2, 15],
+            21: [2, 15],
+            23: [2, 15],
+            29: [2, 15],
+            30: [2, 15],
+            31: [2, 15],
+            33: [2, 15],
+            34: [2, 15],
+            35: [2, 15],
+            36: [2, 15],
+            37: [2, 15],
+            38: [2, 15],
+            39: [2, 15]
+          },
+          {
+            4: 62,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 20],
+            6: [2, 20],
+            7: [2, 20],
+            8: [2, 20],
+            9: [2, 20],
+            10: [2, 20],
+            11: [2, 20],
+            12: [2, 20],
+            13: [2, 20],
+            16: [2, 20],
+            17: [2, 20],
+            18: [2, 20],
+            19: [2, 20],
+            21: [2, 20],
+            23: [2, 20],
+            29: [2, 20],
+            30: [2, 20],
+            31: [2, 20],
+            32: 24,
+            33: [2, 20],
+            34: [2, 20],
+            35: [2, 20],
+            36: [2, 20],
+            37: [2, 20],
+            38: [2, 20],
+            39: [2, 20]
+          },
+          {
+            5: [2, 21],
+            6: [2, 21],
+            7: [2, 21],
+            8: [2, 21],
+            9: [2, 21],
+            10: [2, 21],
+            11: [2, 21],
+            12: [2, 21],
+            13: [2, 21],
+            16: [2, 21],
+            17: [2, 21],
+            18: [2, 21],
+            19: [2, 21],
+            21: [2, 21],
+            23: [2, 21],
+            29: [2, 21],
+            30: [2, 21],
+            31: [2, 21],
+            33: [2, 21],
+            34: [2, 21],
+            35: [2, 21],
+            36: [2, 21],
+            37: [2, 21],
+            38: [2, 21],
+            39: [2, 21]
+          },
+          {
+            21: [1, 63],
+            23: [1, 64]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 35],
+            23: [2, 35],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 65,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            17: [1, 66],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [1, 67],
+            23: [2, 36],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 22],
+            6: [2, 22],
+            7: [2, 22],
+            8: [2, 22],
+            9: [2, 22],
+            10: [2, 22],
+            11: [2, 22],
+            12: [2, 22],
+            13: [2, 22],
+            16: [2, 22],
+            17: [2, 22],
+            18: [2, 22],
+            19: [2, 22],
+            21: [2, 22],
+            23: [2, 22],
+            29: [2, 22],
+            30: [2, 22],
+            31: [2, 22],
+            33: [2, 22],
+            34: [2, 22],
+            35: [2, 22],
+            36: [2, 22],
+            37: [2, 22],
+            38: [2, 22],
+            39: [2, 22]
+          },
+          {
+            4: 68,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 25],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [2, 25],
+            17: [2, 25],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 25],
+            23: [2, 25],
+            29: [1, 22],
+            30: [1, 23],
+            31: [2, 25],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 69,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 16],
+            6: [2, 16],
+            7: [2, 16],
+            8: [2, 16],
+            9: [2, 16],
+            10: [2, 16],
+            11: [2, 16],
+            12: [2, 16],
+            13: [2, 16],
+            16: [2, 16],
+            17: [2, 16],
+            18: [2, 16],
+            19: [2, 16],
+            21: [2, 16],
+            23: [2, 16],
+            29: [2, 16],
+            30: [2, 16],
+            31: [2, 16],
+            33: [2, 16],
+            34: [2, 16],
+            35: [2, 16],
+            36: [2, 16],
+            37: [2, 16],
+            38: [2, 16],
+            39: [2, 16]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 36],
+            23: [2, 36],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 12],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [2, 12],
+            17: [2, 12],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 12],
+            23: [2, 12],
+            29: [1, 22],
+            30: [1, 23],
+            31: [2, 12],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          }
+        ],
+        defaultActions: {
+          11: [2, 1]
+        },
+        parseError: function parseError(str2, hash2) {
+          throw new Error(str2);
+        },
+        parse: function parse2(input2) {
+          var self2 = this, stack2 = [0], vstack = [null], lstack = [], table2 = this.table, yytext = "", yylineno = 0, yyleng = 0, recovering = 0, TERROR = 2, EOF = 1;
+          this.lexer.setInput(input2);
+          this.lexer.yy = this.yy;
+          this.yy.lexer = this.lexer;
+          this.yy.parser = this;
+          if (typeof this.lexer.yylloc == "undefined") this.lexer.yylloc = {};
+          var yyloc = this.lexer.yylloc;
+          lstack.push(yyloc);
+          var ranges = this.lexer.options && this.lexer.options.ranges;
+          if (typeof this.yy.parseError === "function")
+            this.parseError = this.yy.parseError;
+          function popStack(n) {
+            stack2.length = stack2.length - 2 * n;
+            vstack.length = vstack.length - n;
+            lstack.length = lstack.length - n;
+          }
+          function lex2() {
+            var token2;
+            token2 = self2.lexer.lex() || 1;
+            if (typeof token2 !== "number") {
+              token2 = self2.symbols_[token2] || token2;
+            }
+            return token2;
+          }
+          var symbol, preErrorSymbol, state, action, r2, yyval = {}, p, len, newState, expected;
+          while (true) {
+            state = stack2[stack2.length - 1];
+            if (this.defaultActions[state]) {
+              action = this.defaultActions[state];
+            } else {
+              if (symbol === null || typeof symbol == "undefined") {
+                symbol = lex2();
+              }
+              action = table2[state] && table2[state][symbol];
+            }
+            if (typeof action === "undefined" || !action.length || !action[0]) {
+              var errStr = "";
+              if (!recovering) {
+                expected = [];
+                for (p in table2[state])
+                  if (this.terminals_[p] && p > 2) {
+                    expected.push("'" + this.terminals_[p] + "'");
+                  }
+                if (this.lexer.showPosition) {
+                  errStr = "Parse error on line " + (yylineno + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + expected.join(", ") + ", got '" + (this.terminals_[symbol] || symbol) + "'";
+                } else {
+                  errStr = "Parse error on line " + (yylineno + 1) + ": Unexpected " + (symbol == 1 ? "end of input" : "'" + (this.terminals_[symbol] || symbol) + "'");
+                }
+                this.parseError(errStr, {
+                  text: this.lexer.match,
+                  token: this.terminals_[symbol] || symbol,
+                  line: this.lexer.yylineno,
+                  loc: yyloc,
+                  expected
+                });
+              }
+              if (recovering == 3) {
+                if (symbol == EOF) {
+                  throw new Error(errStr || "Parsing halted.");
+                }
+                yyleng = this.lexer.yyleng;
+                yytext = this.lexer.yytext;
+                yylineno = this.lexer.yylineno;
+                yyloc = this.lexer.yylloc;
+                symbol = lex2();
+              }
+              while (1) {
+                if (TERROR.toString() in table2[state]) {
+                  break;
+                }
+                if (state === 0) {
+                  throw new Error(errStr || "Parsing halted.");
+                }
+                popStack(1);
+                state = stack2[stack2.length - 1];
+              }
+              preErrorSymbol = symbol == 2 ? null : symbol;
+              symbol = TERROR;
+              state = stack2[stack2.length - 1];
+              action = table2[state] && table2[state][TERROR];
+              recovering = 3;
+            }
+            if (action[0] instanceof Array && action.length > 1) {
+              throw new Error(
+                "Parse Error: multiple actions possible at state: " + state + ", token: " + symbol
+              );
+            }
+            switch (action[0]) {
+              case 1:
+                stack2.push(symbol);
+                vstack.push(this.lexer.yytext);
+                lstack.push(this.lexer.yylloc);
+                stack2.push(action[1]);
+                symbol = null;
+                if (!preErrorSymbol) {
+                  yyleng = this.lexer.yyleng;
+                  yytext = this.lexer.yytext;
+                  yylineno = this.lexer.yylineno;
+                  yyloc = this.lexer.yylloc;
+                  if (recovering > 0) recovering--;
+                } else {
+                  symbol = preErrorSymbol;
+                  preErrorSymbol = null;
+                }
+                break;
+              case 2:
+                len = this.productions_[action[1]][1];
+                yyval.$ = vstack[vstack.length - len];
+                yyval._$ = {
+                  first_line: lstack[lstack.length - (len || 1)].first_line,
+                  last_line: lstack[lstack.length - 1].last_line,
+                  first_column: lstack[lstack.length - (len || 1)].first_column,
+                  last_column: lstack[lstack.length - 1].last_column
+                };
+                if (ranges) {
+                  yyval._$.range = [
+                    lstack[lstack.length - (len || 1)].range[0],
+                    lstack[lstack.length - 1].range[1]
+                  ];
+                }
+                r2 = this.performAction.call(
+                  yyval,
+                  yytext,
+                  yyleng,
+                  yylineno,
+                  this.yy,
+                  action[1],
+                  vstack,
+                  lstack
+                );
+                if (typeof r2 !== "undefined") {
+                  return r2;
+                }
+                if (len) {
+                  stack2 = stack2.slice(0, -1 * len * 2);
+                  vstack = vstack.slice(0, -1 * len);
+                  lstack = lstack.slice(0, -1 * len);
+                }
+                stack2.push(this.productions_[action[1]][0]);
+                vstack.push(yyval.$);
+                lstack.push(yyval._$);
+                newState = table2[stack2[stack2.length - 2]][stack2[stack2.length - 1]];
+                stack2.push(newState);
+                break;
+              case 3:
+                return true;
+            }
+          }
+          return true;
+        }
+      };
+      var lexer = function() {
+        var lexer2 = {
+          EOF: 1,
+          parseError: function parseError(str2, hash2) {
+            if (this.yy.parser) {
+              this.yy.parser.parseError(str2, hash2);
+            } else {
+              throw new Error(str2);
+            }
+          },
+          setInput: function(input2) {
+            this._input = input2;
+            this._more = this._less = this.done = false;
+            this.yylineno = this.yyleng = 0;
+            this.yytext = this.matched = this.match = "";
+            this.conditionStack = ["INITIAL"];
+            this.yylloc = {
+              first_line: 1,
+              first_column: 0,
+              last_line: 1,
+              last_column: 0
+            };
+            if (this.options.ranges) this.yylloc.range = [0, 0];
+            this.offset = 0;
+            return this;
+          },
+          input: function() {
+            var ch3 = this._input[0];
+            this.yytext += ch3;
+            this.yyleng++;
+            this.offset++;
+            this.match += ch3;
+            this.matched += ch3;
+            var lines = ch3.match(/(?:\r\n?|\n).*/g);
+            if (lines) {
+              this.yylineno++;
+              this.yylloc.last_line++;
+            } else {
+              this.yylloc.last_column++;
+            }
+            if (this.options.ranges) this.yylloc.range[1]++;
+            this._input = this._input.slice(1);
+            return ch3;
+          },
+          unput: function(ch3) {
+            var len = ch3.length;
+            var lines = ch3.split(/(?:\r\n?|\n)/g);
+            this._input = ch3 + this._input;
+            this.yytext = this.yytext.substr(0, this.yytext.length - len - 1);
+            this.offset -= len;
+            var oldLines = this.match.split(/(?:\r\n?|\n)/g);
+            this.match = this.match.substr(0, this.match.length - 1);
+            this.matched = this.matched.substr(0, this.matched.length - 1);
+            if (lines.length - 1) this.yylineno -= lines.length - 1;
+            var r2 = this.yylloc.range;
+            this.yylloc = {
+              first_line: this.yylloc.first_line,
+              last_line: this.yylineno + 1,
+              first_column: this.yylloc.first_column,
+              last_column: lines ? (lines.length === oldLines.length ? this.yylloc.first_column : 0) + oldLines[oldLines.length - lines.length].length - lines[0].length : this.yylloc.first_column - len
+            };
+            if (this.options.ranges) {
+              this.yylloc.range = [r2[0], r2[0] + this.yyleng - len];
+            }
+            return this;
+          },
+          more: function() {
+            this._more = true;
+            return this;
+          },
+          less: function(n) {
+            this.unput(this.match.slice(n));
+          },
+          pastInput: function() {
+            var past = this.matched.substr(
+              0,
+              this.matched.length - this.match.length
+            );
+            return (past.length > 20 ? "..." : "") + past.substr(-20).replace(/\n/g, "");
+          },
+          upcomingInput: function() {
+            var next = this.match;
+            if (next.length < 20) {
+              next += this._input.substr(0, 20 - next.length);
+            }
+            return (next.substr(0, 20) + (next.length > 20 ? "..." : "")).replace(
+              /\n/g,
+              ""
+            );
+          },
+          showPosition: function() {
+            var pre2 = this.pastInput();
+            var c2 = new Array(pre2.length + 1).join("-");
+            return pre2 + this.upcomingInput() + "\n" + c2 + "^";
+          },
+          next: function() {
+            if (this.done) {
+              return this.EOF;
+            }
+            if (!this._input) this.done = true;
+            var token2, match, tempMatch, index2, lines;
+            if (!this._more) {
+              this.yytext = "";
+              this.match = "";
+            }
+            var rules = this._currentRules();
+            for (var i2 = 0; i2 < rules.length; i2++) {
+              tempMatch = this._input.match(this.rules[rules[i2]]);
+              if (tempMatch && (!match || tempMatch[0].length > match[0].length)) {
+                match = tempMatch;
+                index2 = i2;
+                if (!this.options.flex) break;
+              }
+            }
+            if (match) {
+              lines = match[0].match(/(?:\r\n?|\n).*/g);
+              if (lines) this.yylineno += lines.length;
+              this.yylloc = {
+                first_line: this.yylloc.last_line,
+                last_line: this.yylineno + 1,
+                first_column: this.yylloc.last_column,
+                last_column: lines ? lines[lines.length - 1].length - lines[lines.length - 1].match(/\r?\n?/)[0].length : this.yylloc.last_column + match[0].length
+              };
+              this.yytext += match[0];
+              this.match += match[0];
+              this.matches = match;
+              this.yyleng = this.yytext.length;
+              if (this.options.ranges) {
+                this.yylloc.range = [this.offset, this.offset += this.yyleng];
+              }
+              this._more = false;
+              this._input = this._input.slice(match[0].length);
+              this.matched += match[0];
+              token2 = this.performAction.call(
+                this,
+                this.yy,
+                this,
+                rules[index2],
+                this.conditionStack[this.conditionStack.length - 1]
+              );
+              if (this.done && this._input) this.done = false;
+              if (token2) return token2;
+              else return;
+            }
+            if (this._input === "") {
+              return this.EOF;
+            } else {
+              return this.parseError(
+                "Lexical error on line " + (this.yylineno + 1) + ". Unrecognized text.\n" + this.showPosition(),
+                {
+                  text: "",
+                  token: null,
+                  line: this.yylineno
+                }
+              );
+            }
+          },
+          lex: function lex2() {
+            var r2 = this.next();
+            if (typeof r2 !== "undefined") {
+              return r2;
+            } else {
+              return this.lex();
+            }
+          },
+          begin: function begin(condition) {
+            this.conditionStack.push(condition);
+          },
+          popState: function popState() {
+            return this.conditionStack.pop();
+          },
+          _currentRules: function _currentRules() {
+            return this.conditions[this.conditionStack[this.conditionStack.length - 1]].rules;
+          },
+          topState: function() {
+            return this.conditionStack[this.conditionStack.length - 2];
+          },
+          pushState: function begin(condition) {
+            this.begin(condition);
+          }
+        };
+        lexer2.options = {};
+        lexer2.performAction = function anonymous(yy, yy_, $avoiding_name_collisions, YY_START) {
+          switch ($avoiding_name_collisions) {
+            case 0:
+              return "*";
+            case 1:
+              return "/";
+            case 2:
+              return "-";
+            case 3:
+              return "+";
+            case 4:
+              return "^";
+            case 5:
+              return "(";
+            case 6:
+              return ")";
+            case 7:
+              return ",";
+            case 8:
+              return "==";
+            case 9:
+              return "!=";
+            case 10:
+              return "~=";
+            case 11:
+              return ">=";
+            case 12:
+              return "<=";
+            case 13:
+              return "<";
+            case 14:
+              return ">";
+            case 15:
+              return "notIn";
+            case 16:
+              return "and";
+            case 17:
+              return "or";
+            case 18:
+              return "not";
+            case 19:
+              return "in";
+            case 20:
+              return "of";
+            case 21:
+              return "if";
+            case 22:
+              return "then";
+            case 23:
+              return "else";
+            case 24:
+              return "mod";
+            case 25:
+              break;
+            case 26:
+              return "Number";
+            case 27:
+              yy_.yytext = JSON.stringify({
+                name: yy_.yytext,
+                type: "unescaped"
+              });
+              return "Symbol";
+            case 28:
+              yy_.yytext = JSON.stringify({
+                name: yy.buildString("'", yy_.yytext),
+                type: "single-quoted"
+              });
+              return "Symbol";
+            case 29:
+              yy_.yytext = JSON.stringify(yy.buildString('"', yy_.yytext));
+              return "String";
+            case 30:
+              return "%";
+            case 31:
+              return "?";
+            case 32:
+              return ":";
+            case 33:
+              return "EndOfExpression";
+          }
+        };
+        lexer2.rules = [
+          /^(?:\*)/,
+          /^(?:\/)/,
+          /^(?:-)/,
+          /^(?:\+)/,
+          /^(?:\^)/,
+          /^(?:\()/,
+          /^(?:\))/,
+          /^(?:\,)/,
+          /^(?:==)/,
+          /^(?:\!=)/,
+          /^(?:\~=)/,
+          /^(?:>=)/,
+          /^(?:<=)/,
+          /^(?:<)/,
+          /^(?:>)/,
+          /^(?:not\s+in[^\w])/,
+          /^(?:and[^\w])/,
+          /^(?:or[^\w])/,
+          /^(?:not[^\w])/,
+          /^(?:in[^\w])/,
+          /^(?:of[^\w])/,
+          /^(?:if[^\w])/,
+          /^(?:then[^\w])/,
+          /^(?:else[^\w])/,
+          /^(?:mod[^\w])/,
+          /^(?:\s+)/,
+          /^(?:[0-9]+(?:\.[0-9]+)?(?![0-9\.]))/,
+          /^(?:[a-zA-Z$_][\.a-zA-Z0-9$_]*)/,
+          /^(?:'(?:\\'|\\\\|[^'\\])*')/,
+          /^(?:"(?:\\"|\\\\|[^"\\])*")/,
+          /^(?:\%)/,
+          /^(?:\?)/,
+          /^(?::)/,
+          /^(?:$)/
+        ];
+        lexer2.conditions = {
+          INITIAL: {
+            rules: [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33
+            ],
+            inclusive: true
+          }
+        };
+        return lexer2;
+      }();
+      parser2.lexer = lexer;
+      function Parser2() {
+        this.yy = {};
+      }
+      Parser2.prototype = parser2;
+      parser2.Parser = Parser2;
+      return new Parser2();
+    }();
+    const parser = _parser;
+    _parser.Parser;
+    class UnknownFunctionError extends ReferenceError {
+      constructor(funcName) {
+        super(`Unknown function: ${funcName}()`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_FUNCTION");
+        this.functionName = funcName;
+      }
+    }
+    class UnknownPropertyError extends ReferenceError {
+      constructor(propName) {
+        super(`Property “${propName}” does not exist.`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_PROPERTY");
+        this.propertyName = propName;
+      }
+    }
+    class UnknownOptionError extends TypeError {
+      constructor(key2) {
+        super(`Unknown option: ${key2}`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_OPTION");
+        this.keyName = key2;
+      }
+    }
+    class UnexpectedTypeError extends TypeError {
+      constructor(expected, got) {
+        super(`Expected a ${expected}, but got a ${got} instead.`);
+        __publicField(this, "I18N_STRING", "UNEXPECTED_TYPE");
+        this.expectedType = expected;
+        this.recievedType = got;
+      }
+    }
+    class InternalError extends Error {
+      constructor(message2) {
+        super(message2);
+        __publicField(this, "I18N_STRING", "INTERNAL");
+      }
+    }
+    function hasOwnProperty(obj, prop) {
+      if (typeof obj === "object" || typeof obj === "function") {
+        return Object.prototype.hasOwnProperty.call(obj, prop);
+      }
+      return false;
+    }
+    function mod(a, b) {
+      return (a % b + b) % b;
+    }
+    function unbox(value2) {
+      if (typeof value2 !== "object") return value2;
+      if (value2 instanceof Number || value2 instanceof String || value2 instanceof Boolean)
+        return value2.valueOf();
+    }
+    function unwrap$1(value2) {
+      if (Array.isArray(value2) && value2.length === 1) value2 = value2[0];
+      return unbox(value2);
+    }
+    function prettyType(value2) {
+      value2 = unwrap$1(value2);
+      if (value2 === void 0) return "undefined";
+      if (value2 === null) return "null";
+      if (value2 === true) return "true";
+      if (value2 === false) return "false";
+      if (typeof value2 === "number") return "number";
+      if (typeof value2 === "string") return "text";
+      if (typeof value2 !== "object" && typeof value2 !== "function")
+        return "unknown type";
+      if (Array.isArray(value2)) return "list";
+      return "object";
+    }
+    function num(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "number") return value2;
+      throw new UnexpectedTypeError("number", prettyType(value2));
+    }
+    function str(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "string") return value2;
+      throw new UnexpectedTypeError("text", prettyType(value2));
+    }
+    function numstr(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "string" || typeof value2 === "number") return value2;
+      throw new UnexpectedTypeError("text or number", prettyType(value2));
+    }
+    function bool(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "boolean") return value2;
+      throw new UnexpectedTypeError(
+        "logical value (“true” or “false”)",
+        prettyType(value2)
+      );
+    }
+    function arr(value2) {
+      if (value2 === void 0 || value2 === null) {
+        throw new UnexpectedTypeError("list", prettyType(value2));
+      }
+      if (Array.isArray(value2)) {
+        return value2;
+      } else {
+        return [value2];
+      }
+    }
+    function flatten$1(input2) {
+      const stack2 = [...input2];
+      const res = [];
+      while (stack2.length) {
+        const next = stack2.pop();
+        if (Array.isArray(next)) {
+          stack2.push(...next);
+        } else {
+          res.push(next);
+        }
+      }
+      return res.reverse();
+    }
+    const std = {
+      isfn(fns, funcName) {
+        return hasOwnProperty(fns, funcName) && typeof fns[funcName] === "function";
+      },
+      unknown(funcName) {
+        throw new UnknownFunctionError(funcName);
+      },
+      coerceArray: arr,
+      coerceNumber: num,
+      coerceNumberOrString: numstr,
+      coerceBoolean: bool,
+      isSubset(a, b) {
+        const A2 = arr(a);
+        const B = arr(b);
+        return A2.every((val) => B.includes(val));
+      },
+      warnDeprecated: /* @__PURE__ */ function() {
+        const warnMax = 3;
+        let warnedTimes = {
+          ternary: 0,
+          modulo: 0
+        };
+        return (cause, value2) => {
+          switch (cause) {
+            case "ternary":
+              if (warnedTimes.ternary++ >= warnMax) break;
+              console.warn(
+                "The use of ? and : as conditional operators has been deprecated in Filtrex v3 in favor of the if..then..else ternary operator. See issue #34 for more information."
+              );
+              break;
+            case "modulo":
+              if (warnedTimes.modulo++ >= warnMax) break;
+              console.warn(
+                "The use of '%' as a modulo operator has been deprecated in Filtrex v3 in favor of the 'mod' operator. You can use it like this: '3 mod 2 == 1'. See issue #48 for more information."
+              );
+              break;
+          }
+          return value2;
+        };
+      }(),
+      buildString(quote, literal2) {
+        quote = String(quote)[0];
+        literal2 = String(literal2);
+        let built = "";
+        if (literal2[0] !== quote || literal2[literal2.length - 1] !== quote)
+          throw new InternalError(
+            `Unexpected internal error: String literal doesn't begin/end with the right quotation mark.`
+          );
+        for (let i2 = 1; i2 < literal2.length - 1; i2++) {
+          if (literal2[i2] === "\\") {
+            i2++;
+            if (i2 >= literal2.length - 1)
+              throw new InternalError(
+                `Unexpected internal error: Unescaped backslash at the end of string literal.`
+              );
+            if (literal2[i2] === "\\") built += "\\";
+            else if (literal2[i2] === quote) built += quote;
+            else
+              throw new InternalError(
+                `Unexpected internal error: Invalid escaped character in string literal: ${literal2[i2]}`
+              );
+          } else if (literal2[i2] === quote) {
+            throw new InternalError(
+              `Unexpected internal error: String literal contains unescaped quotation mark.`
+            );
+          } else {
+            built += literal2[i2];
+          }
+        }
+        return built;
+      },
+      reduceRelation(arr2) {
+        const declarations = [];
+        const comparisons = [];
+        let previousExpression = flatten$1([arr2[0]]).join("");
+        let j2 = 0;
+        for (let i2 = 1; i2 < arr2.length - 1; i2 += 2) {
+          const expr = flatten$1([arr2[i2 + 1]]).join("");
+          const tempVar = `tmp${j2++}`;
+          comparisons.push(
+            `ops["${arr2[i2]}"](${previousExpression}, ${tempVar} = ${expr})`
+          );
+          previousExpression = tempVar;
+          declarations.push(tempVar);
+        }
+        return `(function(){ var ${declarations.join(", ")}; return ${comparisons.join(" && ")};})()`;
+      }
+    };
+    parser.yy = Object.create(std);
+    function compileExpression(expression, options2) {
+      if (arguments.length > 2) throw new TypeError("Too many arguments.");
+      options2 = typeof options2 === "object" ? options2 : {};
+      const knownOptions = [
+        "extraFunctions",
+        "constants",
+        "customProp",
+        "operators"
+      ];
+      let { extraFunctions, constants, customProp, operators } = options2;
+      for (const key2 of Object.keys(options2))
+        if (!knownOptions.includes(key2)) throw new UnknownOptionError(key2);
+      let functions2 = {
+        abs: Math.abs,
+        ceil: Math.ceil,
+        floor: Math.floor,
+        log: Math.log,
+        log2: Math.log2,
+        log10: Math.log10,
+        max: Math.max,
+        min: Math.min,
+        round: Math.round,
+        sqrt: Math.sqrt,
+        exists: (v2) => v2 !== void 0 && v2 !== null,
+        empty: (v2) => v2 === void 0 || v2 === null || v2 === "" || Array.isArray(v2) && v2.length === 0
+      };
+      if (extraFunctions) {
+        for (const name2 of Object.keys(extraFunctions)) {
+          functions2[name2] = extraFunctions[name2];
+        }
+      }
+      let defaultOperators = {
+        "+": (a, b) => numstr(a) + numstr(b),
+        "-": (a, b) => b === void 0 ? -num(a) : num(a) - num(b),
+        "*": (a, b) => num(a) * num(b),
+        "/": (a, b) => num(a) / num(b),
+        "^": (a, b) => Math.pow(num(a), num(b)),
+        mod: (a, b) => mod(num(a), num(b)),
+        "==": (a, b) => a === b,
+        "!=": (a, b) => a !== b,
+        "<": (a, b) => num(a) < num(b),
+        "<=": (a, b) => num(a) <= num(b),
+        ">=": (a, b) => num(a) >= num(b),
+        ">": (a, b) => num(a) > num(b),
+        "~=": (a, b) => RegExp(str(b)).test(str(a))
+      };
+      if (operators) {
+        for (const name2 of Object.keys(operators)) {
+          defaultOperators[name2] = operators[name2];
+        }
+      }
+      operators = defaultOperators;
+      constants = constants ?? {};
+      let js = flatten$1(parser.parse(expression));
+      js.unshift("return ");
+      js.push(";");
+      function nakedProp(name2, obj, type) {
+        if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
+        throw new UnknownPropertyError(name2);
+      }
+      function safeGetter(obj) {
+        return function get2(name2) {
+          if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
+          throw new UnknownPropertyError(name2);
+        };
+      }
+      if (typeof customProp === "function") {
+        nakedProp = (name2, obj, type) => customProp(name2, safeGetter(obj), obj, type);
+      }
+      function createCall(fns) {
+        return function call(_ref) {
+          let { name: name2 } = _ref;
+          for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+            args[_key - 1] = arguments[_key];
+          }
+          if (hasOwnProperty(fns, name2) && typeof fns[name2] === "function")
+            return fns[name2](...args);
+          throw new UnknownFunctionError(name2);
+        };
+      }
+      function prop(_ref2, obj) {
+        let { name: name2, type } = _ref2;
+        if (type === "unescaped" && hasOwnProperty(constants, name2))
+          return constants[name2];
+        return nakedProp(name2, obj, type);
+      }
+      let func = new Function("call", "ops", "std", "prop", "data", js.join(""));
+      return function(data) {
+        try {
+          return func(createCall(functions2), operators, std, prop, data);
+        } catch (e) {
+          return e;
+        }
+      };
+    }
+    const kSampleIdVariable = "id";
+    const kSampleMetadataVariable = "metadata";
+    const kSampleMetadataPrefix = kSampleMetadataVariable + ".";
+    const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
+    const MATH_FUNCTIONS = [
+      ["min", "Minimum of two or more values"],
+      ["max", "Maximum of two or more values"],
+      ["abs", "Absolute value"],
+      ["round", "Round to the nearest integer"],
+      ["floor", "Round down to the nearest integer"],
+      ["ceil", "Round up to the nearest integer"],
+      ["sqrt", "Square root"],
+      ["log", "Natural logarithm"],
+      ["log2", "Base 2 logarithm"],
+      ["log10", "Base 10 logarithm"]
+    ];
+    const SAMPLE_VARIABLES = [
+      ["has_error", "Checks if the sample has an error"],
+      ["has_retries", "Checks if the sample has been retried"],
+      [kSampleIdVariable, "The unique identifier of the sample"],
+      [kSampleMetadataVariable, "Metadata associated with the sample"]
+    ];
+    const SAMPLE_FUNCTIONS = [
+      ["input_contains", "Checks if input contains a regular expression"],
+      ["target_contains", "Checks if target contains a regular expression"],
+      ["error_contains", "Checks if error contains a regular expression"]
+    ];
+    const coerceValue = (value2, descriptor) => {
+      if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
+        return Boolean(value2);
+      } else {
+        return value2;
+      }
+    };
+    const isFilteringSupportedForValue = (value2) => ["string", "number", "boolean"].includes(typeof value2) || value2 === null;
+    const bannedShortScoreNames = (scores2) => {
+      const used = /* @__PURE__ */ new Set();
+      const banned = /* @__PURE__ */ new Set();
+      for (const { scorer: scorer2, name: name2 } of scores2) {
+        banned.add(scorer2);
+        if (used.has(name2)) {
+          banned.add(name2);
+        } else {
+          used.add(name2);
+        }
+      }
+      return banned;
+    };
+    const filterExpressionConstants = {
+      True: true,
+      False: false,
+      None: null
+    };
+    const scoreVariables = (evalDescriptor, sampleScores) => {
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+      const variables = {};
+      const addScore = (variableName, scoreLabel, value2) => {
+        const coercedValue = coerceValue(
+          value2,
+          evalDescriptor.scoreDescriptor(scoreLabel)
+        );
+        if (isFilteringSupportedForValue(coercedValue)) {
+          variables[variableName] = coercedValue;
+        }
+      };
+      for (const [scorer2, score2] of Object.entries(sampleScores || {})) {
+        addScore(scorer2, { scorer: scorer2, name: scorer2 }, score2.value);
+        if (typeof score2.value === "object") {
+          for (const [name2, value2] of Object.entries(score2.value)) {
+            addScore(`${scorer2}.${name2}`, { scorer: scorer2, name: name2 }, value2);
+            if (!bannedShortNames.has(name2)) {
+              addScore(name2, { scorer: scorer2, name: name2 }, value2);
+            }
+          }
+        }
+      }
+      return variables;
+    };
+    const getNestedPropertyValue = (obj, path) => {
+      const keys = path.split(".");
+      let current2 = obj;
+      for (const key2 of keys) {
+        if (current2 && typeof current2 === "object" && key2 in current2) {
+          current2 = current2[key2];
+        } else {
+          return void 0;
+        }
+      }
+      return current2;
+    };
+    const sampleVariables = (sample2) => {
+      return {
+        has_error: !!sample2.error,
+        has_retries: sample2.retries !== void 0 && sample2.retries > 0,
+        id: sample2.id,
+        metadata: sample2.metadata
+      };
+    };
+    const sampleFilterItems = (evalDescriptor) => {
+      const items = [];
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+      const valueToString = (value2) => typeof value2 === "string" ? `"${value2}"` : String(value2);
+      const addScore = (scoreLabel, shortName, qualifiedName) => {
+        const canonicalName = shortName || qualifiedName;
+        if (!canonicalName) {
+          throw new Error("Unable to create a canonical name for a score");
+        }
+        const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
+        const scoreType = descriptor == null ? void 0 : descriptor.scoreType;
+        if (!descriptor) {
+          items.push({
+            shortName,
+            qualifiedName,
+            canonicalName,
+            tooltip: void 0,
+            categories: [],
+            scoreType
+          });
+          return;
+        }
+        var tooltip = `${canonicalName}: ${descriptor.scoreType}`;
+        var categories = [];
+        if (descriptor.min !== void 0 || descriptor.max !== void 0) {
+          const rounded = (num2) => {
+            return parseFloat(num2.toPrecision(3)).toString();
+          };
+          tooltip += `
+range: ${rounded(descriptor.min || 0)} to ${rounded(descriptor.max || 0)}`;
+        }
+        if (descriptor.categories) {
+          categories = descriptor.categories.map((cat) => {
+            const val = cat.val;
+            return valueToString(val);
+          });
+          tooltip += `
+categories: ${categories.join(" ")}`;
+        }
+        items.push({
+          shortName,
+          qualifiedName,
+          canonicalName,
+          tooltip,
+          categories,
+          scoreType
+        });
+      };
+      for (const { name: name2, scorer: scorer2 } of evalDescriptor.scores) {
+        const hasShortName = name2 === scorer2 || !bannedShortNames.has(name2);
+        const hasQualifiedName = name2 !== scorer2;
+        const shortName = hasShortName ? name2 : void 0;
+        const qualifiedName = hasQualifiedName ? `${scorer2}.${name2}` : void 0;
+        addScore({ name: name2, scorer: scorer2 }, shortName, qualifiedName);
+      }
+      return items;
+    };
+    const filterExpression = (evalDescriptor, sample2, filterValue) => {
+      var _a2, _b2;
+      try {
+        const inputContains = (regex2) => {
+          return inputString(sample2.input).some(
+            (msg) => msg.match(new RegExp(regex2, "i"))
+          );
+        };
+        const targetContains = (regex2) => {
+          let targets = Array.isArray(sample2.target) ? sample2.target : [sample2.target];
+          return targets.some((target2) => target2.match(new RegExp(regex2, "i")));
+        };
+        const errorContains = (regex2) => {
+          var _a3;
+          return !!((_a3 = sample2.error) == null ? void 0 : _a3.match(new RegExp(regex2, "i")));
+        };
+        const extraFunctions = {
+          input_contains: inputContains,
+          target_contains: targetContains,
+          error_contains: errorContains
+        };
+        const mySampleVariables = sampleVariables(sample2);
+        const vars = {
+          ...mySampleVariables,
+          ...scoreVariables(evalDescriptor, sample2.scores)
+        };
+        const resolveVariable = (name2, get2) => {
+          if (name2 in mySampleVariables) {
+            const value2 = get2(name2);
+            return value2;
+          }
+          if (name2.startsWith(kSampleMetadataPrefix)) {
+            const propertyPath = name2.substring(kSampleMetadataPrefix.length);
+            const metadata2 = sample2.metadata || {};
+            return getNestedPropertyValue(metadata2, propertyPath);
+          }
+          return sample2.error ? void 0 : get2(name2);
+        };
+        const expression = compileExpression(filterValue, {
+          extraFunctions,
+          constants: filterExpressionConstants,
+          customProp: resolveVariable
+        });
+        const result2 = expression(vars);
+        if (typeof result2 === "boolean") {
+          return { matches: result2, error: void 0 };
+        } else if (result2 instanceof Error) {
+          throw result2;
+        } else {
+          throw new TypeError(
+            `Filter expression returned a non-boolean value: ${result2}`
+          );
+        }
+      } catch (error2) {
+        if (error2 instanceof ReferenceError) {
+          const errorObj = error2;
+          const propertyName2 = errorObj["propertyName"] || "";
+          if (propertyName2) {
+            if (propertyName2.startsWith(kSampleMetadataPrefix)) {
+              return { matches: false, error: void 0 };
+            }
+            const regex2 = new RegExp(`\\b${propertyName2}\\b`);
+            const match = regex2.exec(filterValue);
+            if (match) {
+              return {
+                matches: false,
+                error: {
+                  from: match.index,
+                  to: match.index + propertyName2.length,
+                  message: error2.message,
+                  severity: "warning"
+                }
+              };
+            }
+          }
+        }
+        const message2 = error2 instanceof Error ? error2.message : "";
+        if (message2.startsWith("Parse error") || message2.startsWith("Lexical error")) {
+          const from = (_b2 = (_a2 = message2.match(/^(-*)\^$/m)) == null ? void 0 : _a2[1]) == null ? void 0 : _b2.length;
+          return {
+            matches: false,
+            error: {
+              from,
+              message: "Syntax error",
+              severity: "error"
+            }
+          };
+        }
+        return {
+          matches: false,
+          error: {
+            message: message2,
+            severity: "error"
+          }
+        };
+      }
+    };
+    const filterSamples = (evalDescriptor, samples, filterValue) => {
+      let error2 = void 0;
+      let errorCount = 0;
+      const result2 = samples.filter((sample2) => {
+        if (filterValue) {
+          const { matches, error: sampleError } = filterExpression(
+            evalDescriptor,
+            sample2,
+            filterValue
+          );
+          error2 || (error2 = sampleError);
+          if (sampleError) {
+            errorCount++;
+          }
+          return matches;
+        } else {
+          return true;
+        }
+      });
+      return { result: result2, error: error2, allErrors: errorCount === samples.length };
+    };
+    const flex$1 = "_flex_1kye9_1";
+    const label$8 = "_label_1kye9_5";
+    const styles$19 = {
+      flex: flex$1,
+      label: label$8
+    };
+    const SortFilter = ({ sort, setSort, epochs }) => {
+      const options2 = [
+        { label: "sample asc", val: kSampleAscVal },
+        { label: "sample desc", val: kSampleDescVal }
+      ];
+      if (epochs > 1) {
+        options2.push({
+          label: "epoch asc",
+          val: kEpochAscVal
+        });
+        options2.push({
+          label: "epoch desc",
+          val: kEpochDescVal
+        });
+      }
+      options2.push({
+        label: "score asc",
+        val: kScoreAscVal
+      });
+      options2.push({
+        label: "score desc",
+        val: kScoreDescVal
+      });
+      const handleChange = reactExports.useCallback(
+        (e) => {
+          const sel = e.target;
+          setSort(sel.value);
+        },
+        [setSort]
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.flex, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "span",
+          {
+            className: clsx(
+              "sort-filter-label",
+              "text-size-smaller",
+              "text-style-label",
+              "text-style-secondary",
+              styles$19.label
+            ),
+            children: "Sort:"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "select",
+          {
+            className: clsx("form-select", "form-select-sm", "text-size-smaller"),
+            "aria-label": ".sort-filter-label",
+            value: sort,
+            onChange: handleChange,
+            children: options2.map((option) => {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: option.val, children: option.label }, option.val);
+            })
+          }
+        )
+      ] });
+    };
+    const byEpoch = (sort) => {
+      return sort === kEpochAscVal || sort === kEpochDescVal;
+    };
+    const bySample = (sort) => {
+      return sort === kSampleAscVal || sort === kSampleDescVal;
+    };
+    const sortId = (a, b) => {
+      if (isNumeric(a.id) && isNumeric(b.id)) {
+        return Number(a.id) - Number(b.id);
+      } else {
+        return String(a.id).localeCompare(String(b.id));
+      }
+    };
+    const sortSamples = (sort, samples, samplesDescriptor, score2) => {
+      const sortedSamples = samples.sort((a, b) => {
+        const scoreDescriptor = score2 ? samplesDescriptor.evalDescriptor.scoreDescriptor(score2) : void 0;
+        switch (sort) {
+          case kSampleAscVal: {
+            const result2 = sortId(a, b);
+            if (result2 !== 0) {
+              return result2;
+            } else {
+              return a.epoch - b.epoch;
+            }
+          }
+          case kSampleDescVal: {
+            const result2 = sortId(b, a);
+            if (result2 !== 0) {
+              return result2;
+            } else {
+              return a.epoch - b.epoch;
+            }
+          }
+          case kEpochAscVal: {
+            const result2 = a.epoch - b.epoch;
+            if (result2 !== 0) {
+              return result2;
+            } else {
+              return sortId(a, b);
+            }
+          }
+          case kEpochDescVal: {
+            const result2 = b.epoch - a.epoch;
+            if (result2 !== 0) {
+              return result2;
+            } else {
+              return sortId(b, a);
+            }
+          }
+          case kScoreAscVal: {
+            const aScore = samplesDescriptor.evalDescriptor.score(a, score2);
+            const bScore = samplesDescriptor.evalDescriptor.score(b, score2);
+            if (aScore === void 0 || bScore === void 0 || scoreDescriptor === void 0) {
+              return 0;
+            }
+            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(aScore, bScore);
+          }
+          case kScoreDescVal: {
+            const aScore = samplesDescriptor.evalDescriptor.score(a, score2);
+            const bScore = samplesDescriptor.evalDescriptor.score(b, score2);
+            if (aScore === void 0 || bScore === void 0 || scoreDescriptor == void 0) {
+              return 0;
+            }
+            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(bScore, aScore);
+          }
+          default:
+            return 0;
+        }
+      });
+      return sortedSamples;
+    };
+    const getScorersFromResults = (results) => {
+      if (!(results == null ? void 0 : results.scores)) {
+        return [];
+      }
+      return results.scores.reduce((uniqueScorers, score2) => {
+        const isDuplicate = uniqueScorers.some(
+          (existing) => existing.scorer === score2.scorer && existing.name === score2.name
+        );
+        if (!isDuplicate) {
+          uniqueScorers.push({
+            name: score2.name,
+            scorer: score2.scorer
+          });
+        }
+        return uniqueScorers;
+      }, []);
+    };
+    const getScorersFromSamples = (samples) => {
+      const scoredSample = samples.find((sample2) => {
+        return !sample2.error && sample2.completed && !!sample2.scores;
+      });
+      return Object.keys((scoredSample == null ? void 0 : scoredSample.scores) || {}).map((key2) => ({
+        name: key2,
+        scorer: key2
+      }));
+    };
+    const getAvailableScorers = (log2, sampleSummaries) => {
+      const resultScorers = log2.results ? getScorersFromResults(log2.results) : [];
+      if (resultScorers.length > 0) {
+        return resultScorers;
+      }
+      const sampleScorers = getScorersFromSamples(sampleSummaries);
+      if (sampleScorers.length > 0) {
+        return sampleScorers;
+      }
+      return void 0;
+    };
+    const getDefaultScorer = (log2, sampleSummaries) => {
+      if (sampleSummaries.length === 0) {
+        return void 0;
+      }
+      const allScorers = getAvailableScorers(log2, sampleSummaries);
+      if (allScorers) {
+        return allScorers[0];
+      } else {
+        return void 0;
+      }
+    };
+    const mergeSampleSummaries = (logSamples, pendingSamples) => {
+      const existingSampleIds = new Set(
+        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
+      );
+      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
+        return { ...sample2, completed: false };
+      });
+      return [...logSamples, ...uniquePendingSamples];
+    };
+    const log = createLogger("hooks");
+    const useEvalSpec = () => {
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      return selectedLogSummary == null ? void 0 : selectedLogSummary.eval;
+    };
+    const useRefreshLog = () => {
+      const setAppStatus = useStore((state) => state.appActions.setStatus);
+      const refreshLog = useStore((state) => state.logActions.refreshLog);
+      const resetFiltering = useStore((state) => state.logActions.resetFiltering);
+      return reactExports.useCallback(() => {
+        try {
+          setAppStatus({ loading: true, error: void 0 });
+          refreshLog();
+          resetFiltering();
+          setAppStatus({ loading: false, error: void 0 });
+        } catch (e) {
+          console.log(e);
+          setAppStatus({ loading: false, error: e });
+        }
+      }, [refreshLog, resetFiltering, setAppStatus]);
+    };
+    const useSampleSummaries = () => {
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const pendingSampleSummaries = useStore(
+        (state) => state.log.pendingSampleSummaries
+      );
+      return reactExports.useMemo(() => {
+        return mergeSampleSummaries(
+          (selectedLogSummary == null ? void 0 : selectedLogSummary.sampleSummaries) || [],
+          (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples) || []
+        );
+      }, [selectedLogSummary, pendingSampleSummaries]);
+    };
+    const useTotalSampleCount = () => {
+      const sampleSummaries = useSampleSummaries();
+      return reactExports.useMemo(() => {
+        return sampleSummaries.length;
+      }, [sampleSummaries]);
+    };
+    const useScore = () => {
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const sampleSummaries = useSampleSummaries();
+      const score2 = useStore((state) => state.log.score);
+      return reactExports.useMemo(() => {
+        if (score2) {
+          return score2;
+        } else if (selectedLogSummary) {
+          return getDefaultScorer(selectedLogSummary, sampleSummaries);
+        } else {
+          return void 0;
+        }
+      }, [selectedLogSummary, sampleSummaries, score2]);
+    };
+    const useScores = () => {
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const sampleSummaries = useSampleSummaries();
+      return reactExports.useMemo(() => {
+        if (!selectedLogSummary) {
+          return [];
+        }
+        const result2 = getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+        return result2;
+      }, [selectedLogSummary, sampleSummaries]);
+    };
+    const useEvalDescriptor = () => {
+      const scores2 = useScores();
+      const sampleSummaries = useSampleSummaries();
+      return reactExports.useMemo(() => {
+        return scores2 ? createEvalDescriptor(scores2, sampleSummaries) : null;
+      }, [scores2, sampleSummaries]);
+    };
+    const useSampleDescriptor = () => {
+      const evalDescriptor = useEvalDescriptor();
+      const sampleSummaries = useSampleSummaries();
+      const score2 = useScore();
+      return reactExports.useMemo(() => {
+        return evalDescriptor ? createSamplesDescriptor(sampleSummaries, evalDescriptor, score2) : void 0;
+      }, [evalDescriptor, sampleSummaries, score2]);
+    };
+    const useFilteredSamples = () => {
+      const evalDescriptor = useEvalDescriptor();
+      const sampleSummaries = useSampleSummaries();
+      const filter = useStore((state) => state.log.filter);
+      const setFilterError = useStore((state) => state.logActions.setFilterError);
+      const clearFilterError = useStore(
+        (state) => state.logActions.clearFilterError
+      );
+      const epoch = useStore((state) => state.log.epoch);
+      const sort = useStore((state) => state.log.sort);
+      const samplesDescriptor = useSampleDescriptor();
+      const score2 = useScore();
+      return reactExports.useMemo(() => {
+        const { result: result2, error: error2, allErrors } = evalDescriptor && filter ? filterSamples(evalDescriptor, sampleSummaries, filter) : { result: sampleSummaries, error: void 0, allErrors: false };
+        if (error2 && allErrors) {
+          setFilterError(error2);
+        } else {
+          clearFilterError();
+        }
+        const prefiltered = error2 === void 0 || !allErrors ? result2 : sampleSummaries;
+        const filtered = epoch && epoch !== "all" ? prefiltered.filter((sample2) => epoch === String(sample2.epoch)) : prefiltered;
+        const sorted = samplesDescriptor ? sortSamples(sort, filtered, samplesDescriptor, score2) : filtered;
+        return [...sorted];
+      }, [
+        evalDescriptor,
+        sampleSummaries,
+        filter,
+        setFilterError,
+        clearFilterError,
+        epoch,
+        sort,
+        samplesDescriptor,
+        score2
+      ]);
+    };
+    const useGroupBy = () => {
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const sort = useStore((state) => state.log.sort);
+      const epoch = useStore((state) => state.log.epoch);
+      return reactExports.useMemo(() => {
+        var _a2, _b2;
+        const epochs = ((_b2 = (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.config) == null ? void 0 : _b2.epochs) || 1;
+        if (epochs > 1) {
+          if (byEpoch(sort) || epoch !== "all") {
+            return "epoch";
+          } else if (bySample(sort)) {
+            return "sample";
+          }
+        }
+        return "none";
+      }, [selectedLogSummary, sort, epoch]);
+    };
+    const useGroupByOrder = () => {
+      const sort = useStore((state) => state.log.sort);
+      return reactExports.useMemo(() => {
+        return sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc";
+      }, [sort]);
+    };
+    const useSelectedSampleSummary = () => {
+      const filteredSamples = useFilteredSamples();
+      const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
+      return reactExports.useMemo(() => {
+        return filteredSamples[selectedIndex];
+      }, [filteredSamples, selectedIndex]);
+    };
+    const useSampleData = () => {
+      const sampleStatus = useStore((state) => state.sample.sampleStatus);
+      const sampleError = useStore((state) => state.sample.sampleError);
+      const getSelectedSample = useStore(
+        (state) => state.sampleActions.getSelectedSample
+      );
+      const selectedSampleIdentifier = useStore(
+        (state) => state.sample.sample_identifier
+      );
+      const sampleNeedsReload = useStore((state) => state.sample.sampleNeedsReload);
+      const runningEvents = useStore(
+        (state) => state.sample.runningEvents
+      );
+      return reactExports.useMemo(() => {
+        return {
+          selectedSampleIdentifier,
+          status: sampleStatus,
+          sampleNeedsReload,
+          error: sampleError,
+          getSelectedSample,
+          running: runningEvents
+        };
+      }, [
+        sampleStatus,
+        sampleError,
+        getSelectedSample,
+        selectedSampleIdentifier,
+        sampleNeedsReload,
+        runningEvents
+      ]);
+    };
+    const useLogSelection = () => {
+      const selectedSampleSummary = useSelectedSampleSummary();
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+      const loadedLog = useStore((state) => state.log.loadedLog);
+      return reactExports.useMemo(() => {
+        return {
+          logFile: selectedLogFile,
+          loadedLog,
+          sample: selectedSampleSummary
+        };
+      }, [selectedLogFile, selectedSampleSummary]);
+    };
+    const useCollapseSampleEvent = (scope, id) => {
+      const collapsed2 = useStore((state) => state.sample.collapsedEvents);
+      const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+      return reactExports.useMemo(() => {
+        var _a2;
+        const isCollapsed = collapsed2 !== null && ((_a2 = collapsed2[scope]) == null ? void 0 : _a2[id]) === true;
+        const set2 = (value2) => {
+          log.debug("Set collapsed", id, value2);
+          collapseEvent(scope, id, value2);
+        };
+        return [isCollapsed, set2];
+      }, [collapsed2, collapseEvent, id]);
+    };
+    const useCollapsibleIds = (key2) => {
+      const collapsedIds = useStore(
+        (state) => state.sample.collapsedIdBuckets[key2]
+      );
+      const setCollapsed = useStore((state) => state.sampleActions.collapseId);
+      const collapseId = reactExports.useCallback(
+        (id, value2) => {
+          setCollapsed(key2, id, value2);
+        },
+        [setCollapsed]
+      );
+      const clearCollapsedIds = useStore(
+        (state) => state.sampleActions.clearCollapsedIds
+      );
+      const clearIds = reactExports.useCallback(() => {
+        clearCollapsedIds(key2);
+      }, [clearCollapsedIds, key2]);
+      return reactExports.useMemo(() => {
+        return [collapsedIds, collapseId, clearIds];
+      }, [collapsedIds, collapseId, clearIds]);
+    };
+    const useCollapsedState = (id, defaultValue, scope) => {
+      const stateId = id;
+      const collapsed2 = useStore(
+        (state) => state.appActions.getCollapsed(stateId, defaultValue)
+      );
+      const setCollapsed = useStore((state) => state.appActions.setCollapsed);
+      return reactExports.useMemo(() => {
+        const set2 = (value2) => {
+          log.debug("Set collapsed", id, scope, value2);
+          setCollapsed(stateId, value2);
+        };
+        return [collapsed2, set2];
+      }, [collapsed2, setCollapsed]);
+    };
+    const useMessageVisibility = (id, scope) => {
+      const visible2 = useStore(
+        (state) => state.appActions.getMessageVisible(id, true)
+      );
+      const setVisible = useStore((state) => state.appActions.setMessageVisible);
+      const clearVisible = useStore(
+        (state) => state.appActions.clearMessageVisible
+      );
+      const isFirstRender = reactExports.useRef(true);
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+      reactExports.useEffect(() => {
+        if (isFirstRender.current) {
+          isFirstRender.current = false;
+          return;
+        }
+        log.debug("clear message (eval)", id);
+        clearVisible(id);
+      }, [selectedLogFile, clearVisible, id]);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      reactExports.useEffect(() => {
+        if (isFirstRender.current) {
+          return;
+        }
+        if (scope === "sample") {
+          log.debug("clear message (sample)", id);
+          clearVisible(id);
+        }
+      }, [selectedSampleIndex, clearVisible, id, scope]);
+      return reactExports.useMemo(() => {
+        log.debug("visibility", id, visible2);
+        const set2 = (visible22) => {
+          log.debug("set visiblity", id);
+          setVisible(id, visible22);
+        };
+        return [visible2, set2];
+      }, [visible2, setVisible, id]);
+    };
+    function useProperty(id, propertyName2, options2) {
+      options2 = options2 || { cleanup: true };
+      const setPropertyValue = useStore(
+        (state) => state.appActions.setPropertyValue
+      );
+      const removePropertyValue = useStore(
+        (state) => state.appActions.removePropertyValue
+      );
+      const propertyValue = useStore(
+        reactExports.useCallback(
+          (state) => state.appActions.getPropertyValue(
+            id,
+            propertyName2,
+            options2.defaultValue
+          ),
+          [id, propertyName2, options2.defaultValue]
+        )
+      );
+      const setValue = reactExports.useCallback(
+        (value2) => {
+          setPropertyValue(id, propertyName2, value2);
+        },
+        [id, propertyName2, setPropertyValue]
+      );
+      const removeValue = reactExports.useCallback(() => {
+        removePropertyValue(id, propertyName2);
+      }, [id, propertyName2, removePropertyValue]);
+      reactExports.useEffect(() => {
+        return () => {
+          if (options2.cleanup) {
+            removePropertyValue(id, propertyName2);
+          }
+        };
+      }, [id, propertyName2, removePropertyValue]);
+      return [propertyValue, setValue, removeValue];
+    }
+    const usePrevious = (value2) => {
+      const ref = reactExports.useRef(void 0);
+      reactExports.useEffect(() => {
+        ref.current = value2;
+      }, [value2]);
+      return ref.current;
+    };
+    const kPrismRenderMaxSize = 25e4;
+    const usePrismHighlight = (toolCallContent) => {
+      const toolViewRef = reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        if (toolCallContent && toolViewRef.current && toolCallContent.length <= kPrismRenderMaxSize) {
+          requestAnimationFrame(() => {
+            var _a2;
+            const codeBlocks = (_a2 = toolViewRef.current) == null ? void 0 : _a2.querySelectorAll("pre code");
+            codeBlocks == null ? void 0 : codeBlocks.forEach((block2) => {
+              if (block2.className.includes("language-")) {
+                block2.classList.add("sourceCode");
+                prismExports.highlightElement(block2);
+              }
+            });
+          });
+        }
+      }, [toolCallContent]);
+      return toolViewRef;
+    };
+    const useSamplePopover = (id) => {
+      const setVisiblePopover = useStore(
+        (store) => store.sampleActions.setVisiblePopover
+      );
+      const clearVisiblePopover = useStore(
+        (store) => store.sampleActions.clearVisiblePopover
+      );
+      const visiblePopover = useStore((store) => store.sample.visiblePopover);
+      const timerRef = reactExports.useRef(null);
+      const show = reactExports.useCallback(() => {
+        if (timerRef.current) {
+          return;
+        }
+        timerRef.current = window.setTimeout(() => {
+          setVisiblePopover(id);
+          timerRef.current = null;
+        }, 250);
+      }, [id, setVisiblePopover]);
+      const hide2 = reactExports.useCallback(() => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        clearVisiblePopover();
+      }, [clearVisiblePopover]);
+      reactExports.useEffect(() => {
+        return () => {
+          if (timerRef.current) {
+            clearTimeout(timerRef.current);
+          }
+        };
+      }, []);
+      const isShowing = reactExports.useMemo(() => {
+        return visiblePopover === id;
+      }, [id, visiblePopover]);
+      return {
+        show,
+        hide: hide2,
+        isShowing
+      };
+    };
+    const FindBand = () => {
+      const searchBoxRef = reactExports.useRef(null);
+      const storeHideFind = useStore((state) => state.appActions.hideFind);
+      reactExports.useEffect(() => {
+        setTimeout(() => {
+          var _a2;
+          (_a2 = searchBoxRef.current) == null ? void 0 : _a2.focus();
+        }, 10);
+      }, []);
+      const getParentExpandablePanel = reactExports.useCallback(
+        (selection) => {
+          let node2 = selection.anchorNode;
+          while (node2) {
+            if (node2 instanceof HTMLElement && node2.classList.contains("expandable-panel")) {
+              return node2;
+            }
+            node2 = node2.parentElement;
+          }
+          return void 0;
+        },
+        []
+      );
+      const handleSearch = reactExports.useCallback(
+        (back = false) => {
+          var _a2;
+          const searchTerm = ((_a2 = searchBoxRef.current) == null ? void 0 : _a2.value) ?? "";
+          const focusedElement = document.activeElement;
+          const result2 = window.find(
+            searchTerm,
+            false,
+            back,
+            false,
+            false,
+            true,
+            false
+          );
+          const noResultEl = document.getElementById("inspect-find-no-results");
+          if (!noResultEl) return;
+          noResultEl.style.opacity = result2 ? "0" : "1";
+          if (result2) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+              const parentPanel = getParentExpandablePanel(selection);
+              if (parentPanel) {
+                parentPanel.style.display = "block";
+                parentPanel.style.webkitLineClamp = "";
+                parentPanel.style.webkitBoxOrient = "";
+              }
+              const range = selection.getRangeAt(0);
+              const element = range.startContainer.parentElement;
+              if (element) {
+                setTimeout(() => {
+                  element.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                  });
+                }, 100);
+              }
+            }
+          }
+          focusedElement == null ? void 0 : focusedElement.focus();
+        },
+        [getParentExpandablePanel]
+      );
+      const handleKeyDown = reactExports.useCallback(
+        (e) => {
+          if (e.key === "Escape") {
+            storeHideFind();
+          } else if (e.key === "Enter") {
+            handleSearch(false);
+          }
+        },
+        [storeHideFind, handleSearch]
+      );
+      const showSearch = reactExports.useCallback(() => {
+        handleSearch(true);
+      }, [handleSearch]);
+      const hideSearch = reactExports.useCallback(() => {
+        handleSearch(false);
+      }, [handleSearch]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "text",
+            ref: searchBoxRef,
+            placeholder: "Find",
+            onKeyDown: handleKeyDown
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { id: "inspect-find-no-results", children: "No results" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Previous match",
+            className: "btn next",
+            onClick: showSearch,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.up })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Next match",
+            className: "btn prev",
+            onClick: hideSearch,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.down })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Close",
+            className: "btn close",
+            onClick: storeHideFind,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
+          }
+        )
+      ] });
+    };
+    const wrapper$4 = "_wrapper_1tajk_1";
+    const container$j = "_container_1tajk_12";
+    const animate = "_animate_1tajk_21";
+    const styles$18 = {
+      wrapper: wrapper$4,
+      container: container$j,
+      animate
+    };
+    const ProgressBar = ({ animating }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(styles$18.container),
+          role: "progressbar",
+          "aria-label": "Basic example",
+          "aria-valuenow": 25,
+          "aria-valuemin": 0,
+          "aria-valuemax": 100,
+          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.animate })
+        }
+      ) });
+    };
+    const dirname$1 = "_dirname_1qban_1";
+    const directoryLink = "_directoryLink_1qban_7";
+    const styles$17 = {
+      dirname: dirname$1,
+      directoryLink
+    };
+    const LogDirectoryTitleView = ({
+      log_dir
+    }) => {
+      const offCanvas = useStore((state) => state.app.offcanvas);
+      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const handleClick = reactExports.useCallback(() => {
+        if (offCanvas) {
+          setOffCanvas(false);
+        }
+      }, [offCanvas, setOffCanvas]);
+      if (log_dir) {
+        const displayDir = prettyDir(log_dir);
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$17.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "span",
+            {
+              className: clsx(
+                "text-style-secondary",
+                "text-style-label",
+                "text-size-small"
+              ),
+              children: "Log Directory"
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "span",
+            {
+              title: displayDir,
+              className: clsx("text-size-base", styles$17.dirname),
+              children: offCanvas ? displayDir : ""
+            }
+          )
+        ] }) });
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$17.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
+      }
+    };
+    const prettyDir = (path) => {
+      try {
+        let url = new URL(path);
+        if (url.protocol === "file:") {
+          return url.pathname;
+        } else {
+          return path;
+        }
+      } catch {
+        return path;
+      }
+    };
+    const sidebar = "_sidebar_1essr_1";
+    const sidebarClosed = "_sidebarClosed_1essr_15";
+    const sidebarOpen = "_sidebarOpen_1essr_19";
+    const header$3 = "_header_1essr_23";
+    const toggle$2 = "_toggle_1essr_39";
+    const progress$3 = "_progress_1essr_46";
+    const list = "_list_1essr_50";
+    const backdrop$1 = "_backdrop_1essr_55";
+    const active = "_active_1essr_63";
+    const item$2 = "_item_1essr_67";
+    const logLink = "_logLink_1essr_72";
+    const styles$16 = {
+      sidebar,
+      sidebarClosed,
+      sidebarOpen,
+      header: header$3,
+      toggle: toggle$2,
+      progress: progress$3,
+      list,
+      backdrop: backdrop$1,
+      active,
+      item: item$2,
+      logLink
+    };
+    const error$1 = "_error_srruf_1";
+    const running = "_running_srruf_6";
+    const cancelled = "_cancelled_srruf_13";
+    const styles$15 = {
+      error: error$1,
+      running,
+      cancelled
+    };
+    const metricDisplayName = (metric2) => {
+      let modifier = void 0;
+      for (const metricModifier of metricModifiers) {
+        modifier = metricModifier(metric2);
+        if (modifier) {
+          break;
+        }
+      }
+      const metricName2 = !modifier ? metric2.name : `${metric2.name}[${modifier}]`;
+      return metricName2;
+    };
+    const clusterMetricModifier = (metric2) => {
+      if (metric2.name !== "stderr") {
+        return void 0;
+      }
+      const clusterValue = (metric2.params || {})["cluster"];
+      if (clusterValue === void 0 || typeof clusterValue !== "string") {
+        return void 0;
+      }
+      return clusterValue;
+    };
+    const metricModifiers = [clusterMetricModifier];
+    const container$i = "_container_1frsg_1";
+    const metric = "_metric_1frsg_8";
+    const metricName$1 = "_metricName_1frsg_17";
+    const metricReducer$1 = "_metricReducer_1frsg_21";
+    const styles$14 = {
+      container: container$i,
+      metric,
+      metricName: metricName$1,
+      metricReducer: metricReducer$1
+    };
+    const SidebarScoreView = ({ scorer: scorer2 }) => {
+      const showReducer = !!scorer2.reducer;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.container, children: Object.keys(scorer2.metrics).map((metric2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$14.metric, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "text-style-secondary",
+                "text-style-label",
+                "text-size-small",
+                styles$14.metricName
+              ),
+              children: metricDisplayName(scorer2.metrics[metric2])
+            }
+          ),
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$14.metricReducer), children: scorer2.reducer || "default" }) : "",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer2.metrics[metric2].value) })
+        ] }, metric2);
+      }) });
+    };
+    const container$h = "_container_5kpg1_1";
+    const scoreWrapper = "_scoreWrapper_5kpg1_9";
+    const metricName = "_metricName_5kpg1_16";
+    const metricReducer = "_metricReducer_5kpg1_22";
+    const metricValues = "_metricValues_5kpg1_27";
+    const metricValue = "_metricValue_5kpg1_27";
+    const styles$13 = {
+      container: container$h,
+      scoreWrapper,
+      metricName,
+      metricReducer,
+      metricValues,
+      metricValue
+    };
+    const SidebarScoresView = ({ scores: scores2 }) => {
+      const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.container, children: scores2.map((score2, idx) => {
+        const name2 = score2.name;
+        const reducer = score2.reducer;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.scoreWrapper, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "text-style-secondary",
+                "text-style-label",
+                "text-size-small",
+                styles$13.metricName
+              ),
+              children: name2
+            }
+          ),
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "text-size-small",
+                "text-style-label",
+                "text-style-secondary",
+                styles$13.metricReducer
+              ),
+              children: reducer || "default"
+            }
+          ) : "",
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$13.metricValues), children: Object.keys(score2.metrics).map((key2) => {
+            const metric2 = score2.metrics[key2];
+            return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.metricValue, children: formatPrettyDecimal(metric2.value) })
+            ] }, key2);
+          }) })
+        ] }, `scorer-${name2}-${idx}`);
+      }) });
+    };
+    const EvalStatus = ({ logHeader }) => {
+      var _a2, _b2;
+      switch (logHeader == null ? void 0 : logHeader.status) {
+        case "error":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusError, { message: "Error" });
+        case "cancelled":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusCancelled, { message: "Cancelled" });
+        case "started":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusRunning, { message: "Running" });
+        default:
+          if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
+            if (logHeader.results.scores.length === 1) {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(SidebarScoreView, { scorer: logHeader.results.scores[0] });
+            } else {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(SidebarScoresView, { scores: logHeader.results.scores });
+            }
+          } else {
+            return null;
+          }
+      }
+    };
+    const StatusCancelled = ({ message: message2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(
+            "text-style-secondary",
+            "text-style-label",
+            "text-size-small",
+            styles$15.cancelled
+          ),
+          children: message2
+        }
+      );
+    };
+    const StatusRunning = ({ message: message2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(
+            "text-style-secondary",
+            "text-style-label",
+            "text-size-small",
+            styles$15.running
+          ),
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: message2 })
+        }
+      );
+    };
+    const StatusError = ({ message: message2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.error, "text-size-small"), children: message2 });
+    };
+    const entry = "_entry_12m5n_1";
+    const title$3 = "_title_12m5n_7";
+    const task = "_task_12m5n_12";
+    const params = "_params_12m5n_18";
+    const scores$1 = "_scores_12m5n_22";
+    const styles$12 = {
+      entry,
+      title: title$3,
+      task,
+      params,
+      scores: scores$1
+    };
+    const SidebarLogEntry = ({
+      logHeader,
+      task: task2
+    }) => {
+      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
+      const hyperparameters = {
+        ...((_a2 = logHeader == null ? void 0 : logHeader.plan) == null ? void 0 : _a2.config) || {},
+        ...((_b2 = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _b2.task_args) || {}
+      };
+      const model2 = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
+      const datasetName = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset.name;
+      const uniqScorers = /* @__PURE__ */ new Set();
+      (_f = (_e2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e2.scores) == null ? void 0 : _f.forEach((scorer2) => {
+        uniqScorers.add(scorer2.name);
+      });
+      const scorerNames = Array.from(uniqScorers).join(",");
+      const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
+      const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
+      const time = completed ? new Date(completed) : void 0;
+      const timeStr = time ? `${time.toDateString()}
+    ${time.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      })}` : "";
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.entry, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.title, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
+            model2 && model2 !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
+          const val = hyperparameters[key2];
+          if (Array.isArray(val) || typeof val === "object") {
+            return `${key2}: ${JSON.stringify(val)}`;
+          } else {
+            return `${key2}: ${val}`;
+          }
+        }).join(", ") : "" }) }),
+        (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx("text-truncate", "text-size-small", styles$12.scores),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                "dataset: ",
+                datasetName || "(samples)"
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$12.scoreInfo), children: [
+                scorerLabel,
+                ": ",
+                scorerNames || "(none)"
+              ] })
+            ]
+          }
+        ) : ""
+      ] });
+    };
+    const Sidebar = ({
+      logHeaders,
+      loading,
+      selectedIndex,
+      onSelectedIndexChanged
+    }) => {
+      const logs = useStore((state) => state.logs.logs);
+      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const offCanvas = useStore((state) => state.app.offcanvas);
+      const handleToggle = reactExports.useCallback(() => {
+        setOffCanvas(!offCanvas);
+      }, [offCanvas, setOffCanvas]);
+      const sidebarContentsRef = reactExports.useRef(null);
+      useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1e3);
+      const itemRefs = reactExports.useRef({});
+      reactExports.useEffect(() => {
+        var _a2;
+        if (itemRefs.current[selectedIndex]) {
+          (_a2 = itemRefs.current[selectedIndex]) == null ? void 0 : _a2.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest"
+          });
+        }
+      }, [selectedIndex]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.backdrop, onClick: handleToggle }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              styles$16.sidebar,
+              offCanvas ? styles$16.sidebarOpen : styles$16.sidebarClosed
+            ),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$16.header, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "button",
+                  {
+                    onClick: handleToggle,
+                    className: clsx("btn", styles$16.toggle),
+                    type: "button",
+                    "aria-label": "Close sidebar",
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "ul",
+                {
+                  ref: sidebarContentsRef,
+                  className: clsx("list-group", styles$16.list),
+                  children: logs.files.map((file, index2) => {
+                    const logHeader = logHeaders[file.name];
+                    return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "li",
+                      {
+                        ref: (el) => {
+                          itemRefs.current[index2] = el;
+                        },
+                        className: clsx(
+                          "list-group-item",
+                          "list-group-item-action",
+                          styles$16.item,
+                          selectedIndex === index2 ? styles$16.active : void 0
+                        ),
+                        "data-index": index2,
+                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          Link,
+                          {
+                            to: logUrl(file.name, logs.log_dir),
+                            className: styles$16.logLink,
+                            onClick: () => {
+                              onSelectedIndexChanged(index2);
+                            },
+                            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                              SidebarLogEntry,
+                              {
+                                logHeader,
+                                task: file.task || "unknown task"
+                              }
+                            )
+                          }
+                        )
+                      },
+                      file.name
+                    );
+                  })
+                }
+              )
+            ]
+          }
+        )
+      ] });
+    };
+    const EmptyPanel = ({ children: children2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
+    };
+    const tabs$1 = "_tabs_jdywf_1";
+    const tabContents = "_tabContents_jdywf_5";
+    const scrollable = "_scrollable_jdywf_10";
+    const tab$1 = "_tab_jdywf_1";
+    const tabItem = "_tabItem_jdywf_24";
+    const tabIcon = "_tabIcon_jdywf_28";
+    const tabTools = "_tabTools_jdywf_32";
+    const tabStyle = "_tabStyle_jdywf_42";
+    const moduleStyles = {
+      tabs: tabs$1,
+      tabContents,
+      scrollable,
+      tab: tab$1,
+      tabItem,
+      tabIcon,
+      tabTools,
+      tabStyle
+    };
+    const TabSet = ({
+      id,
+      type = "tabs",
+      className: className2,
+      tabPanelsClassName,
+      tabControlsClassName,
+      tools: tools2,
+      tabsRef,
+      children: children2
+    }) => {
+      const validTabs = flattenChildren(children2);
+      if (validTabs.length === 0) return null;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "ul",
+          {
+            ref: tabsRef,
+            id,
+            className: clsx(
+              "nav",
+              `nav-${type}`,
+              type === "tabs" ? moduleStyles.tabStyle : void 0,
+              className2,
+              moduleStyles.tabs
+            ),
+            role: "tablist",
+            "aria-orientation": "horizontal",
+            children: [
+              validTabs.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                Tab,
+                {
+                  index: index2,
+                  type,
+                  tab: tab2,
+                  className: tabControlsClassName
+                },
+                tab2.props.id
+              )),
+              tools2 && /* @__PURE__ */ jsxRuntimeExports.jsx(TabTools, { tools: tools2 })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanels, { id, tabs: validTabs, className: tabPanelsClassName })
+      ] });
+    };
+    const Tab = ({ type = "tabs", tab: tab2, index: index2, className: className2 }) => {
+      const tabId = tab2.props.id || computeTabId("tabset", index2);
+      const tabContentsId = computeTabContentsId(tab2.props.id);
+      const isActive = tab2.props.selected;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { role: "presentation", className: clsx("nav-item", moduleStyles.tabItem), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          id: tabId,
+          className: clsx(
+            "nav-link",
+            className2,
+            isActive && "active",
+            type === "pills" ? moduleStyles.pill : moduleStyles.tab,
+            "text-size-small",
+            "text-style-label"
+          ),
+          type: "button",
+          role: "tab",
+          "aria-controls": tabContentsId,
+          "aria-selected": isActive,
+          onClick: tab2.props.onSelected,
+          children: [
+            tab2.props.icon && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }),
+            tab2.props.title
+          ]
+        }
+      ) });
+    };
+    const TabPanels = ({ id, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanel, { ...tab2.props, index: index2 }, tab2.props.id)) });
+    const TabPanel = ({
+      id,
+      selected: selected2,
+      style: style2,
+      scrollable: scrollable2 = true,
+      scrollRef,
+      className: className2,
+      children: children2
+    }) => {
+      const tabContentsId = computeTabContentsId(id);
+      const panelRef = reactExports.useRef(null);
+      const tabContentsRef = scrollRef || panelRef;
+      useStatefulScrollPosition(tabContentsRef, tabContentsId, 1e3, scrollable2);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          id: tabContentsId,
+          ref: tabContentsRef,
+          className: clsx(
+            "tab-pane",
+            selected2 && "show active",
+            className2,
+            moduleStyles.tabContents,
+            scrollable2 && moduleStyles.scrollable
+          ),
+          style: style2,
+          children: selected2 ? children2 : null
+        }
+      );
+    };
+    const TabTools = ({ tools: tools2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-tools", moduleStyles.tabTools), children: tools2 });
+    const computeTabId = (id, index2) => `${id}-${index2}`;
+    const computeTabContentsId = (id) => `${id}-contents`;
+    const flattenChildren = (children2) => {
+      return reactExports.Children.toArray(children2).flatMap((child) => {
+        if (reactExports.isValidElement(child)) {
+          const element = child;
+          if (element.type === reactExports.Fragment) {
+            return flattenChildren(element.props.children);
+          }
+          return element;
+        }
+        return [];
+      });
+    };
+    const navbarWrapper = "_navbarWrapper_838qu_48";
+    const styles$11 = {
+      navbarWrapper
+    };
+    const filename = (path) => {
+      if (!path) {
+        return "";
+      }
+      const pathparts = path.split("/");
+      const basename = pathparts.slice(-1)[0];
+      if (basename.startsWith(".") && !basename.substring(1).includes(".")) {
+        return basename;
+      }
+      const match = basename.match(/(.*)\.\S+$/);
+      if (match) {
+        return match[1];
+      } else {
+        return path;
+      }
+    };
+    const dirname = (path) => {
+      const pathparts = path.split("/");
+      if (pathparts.length > 1) {
+        pathparts.pop();
+        return pathparts.join("/");
+      }
+      return "";
+    };
+    const container$g = "_container_q17yq_1";
+    const grid$6 = "_grid_q17yq_10";
+    const styles$10 = {
+      container: container$g,
+      grid: grid$6
+    };
+    const ModelRolesView = ({ roles }) => {
+      roles = roles || {};
+      const singleLine = Object.keys(roles).length !== 1;
+      const modelEls = Object.keys(roles).map((key2) => {
+        const role2 = key2;
+        const roleData = roles[role2];
+        const model2 = roleData.model;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              singleLine ? styles$10.grid : void 0,
+              "text-style-secondary",
+              "text-size-smallest"
+            ),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("text-style-label"), children: [
+                role2,
+                ":"
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: model2 })
+            ]
+          },
+          key2
+        );
+      });
+      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$10.container, children: modelEls }) : void 0;
+    };
+    const container$f = "_container_291sb_1";
+    const wrapper$3 = "_wrapper_291sb_8";
+    const toggle$1 = "_toggle_291sb_14";
+    const body$1 = "_body_291sb_19";
+    const bodyContainer = "_bodyContainer_291sb_25";
+    const taskTitle = "_taskTitle_291sb_31";
+    const taskModel = "_taskModel_291sb_36";
+    const taskStatus = "_taskStatus_291sb_40";
+    const secondaryContainer = "_secondaryContainer_291sb_47";
+    const styles$$ = {
+      container: container$f,
+      wrapper: wrapper$3,
+      toggle: toggle$1,
+      body: body$1,
+      bodyContainer,
+      taskTitle,
+      taskModel,
+      taskStatus,
+      secondaryContainer
+    };
+    const button = "_button_12472_1";
+    const label$7 = "_label_12472_14";
+    const styles$_ = {
+      button,
+      label: label$7
+    };
+    const LinkButton = ({
+      id,
+      text: text2,
+      icon: icon2,
+      className: className2,
+      onClick
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          id,
+          onClick,
+          className: clsx(className2, styles$_.button, "text-size-smaller"),
+          children: [
+            icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0,
+            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$_.label), children: text2 }) : void 0
+          ]
+        }
+      );
+    };
+    const modal$1 = "_modal_1tvha_1";
+    const header$2 = "_header_1tvha_14";
+    const modalTitle = "_modalTitle_1tvha_18";
+    const btnClose = "_btnClose_1tvha_22";
+    const backdrop = "_backdrop_1tvha_28";
+    const styles$Z = {
+      modal: modal$1,
+      header: header$2,
+      modalTitle,
+      btnClose,
+      backdrop
+    };
+    const Modal = ({
+      id,
+      title: title2,
+      showing,
+      setShowing,
+      children: children2,
+      className: className2
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.backdrop, onClick: () => setShowing(false) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            id,
+            className: clsx("modal", "fade", showing ? "show" : "", className2),
+            tabIndex: -1,
+            style: { display: showing ? "block" : "none" },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$Z.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$Z.header), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: clsx(
+                      "modal-title",
+                      "text-size-base",
+                      styles$Z.modalTitle
+                    ),
+                    children: title2
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "button",
+                  {
+                    type: "button",
+                    className: clsx(
+                      "btn-close",
+                      "text-size-smaller",
+                      styles$Z.btnClose
+                    ),
+                    "data-bs-dismiss": "modal",
+                    "aria-label": "Close",
+                    onClick: () => {
+                      setShowing(!showing);
+                    }
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", children: children2 }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  type: "button",
+                  className: "btn btn-secondary",
+                  "data-bs-dismiss": "modal",
+                  onClick: () => {
+                    setShowing(!showing);
+                  },
+                  children: "Close"
+                }
+              ) })
+            ] }) })
+          }
+        )
+      ] });
+    };
+    const simpleMetricsRows = "_simpleMetricsRows_yha6g_1";
+    const verticalMetricReducer = "_verticalMetricReducer_yha6g_26";
+    const verticalMetricName = "_verticalMetricName_yha6g_33";
+    const verticalMetricValue = "_verticalMetricValue_yha6g_41";
+    const moreButton = "_moreButton_yha6g_91";
+    const metricsSummary = "_metricsSummary_yha6g_97";
+    const modalScores = "_modalScores_yha6g_103";
+    const styles$Y = {
+      simpleMetricsRows,
+      verticalMetricReducer,
+      verticalMetricName,
+      verticalMetricValue,
+      moreButton,
+      metricsSummary,
+      modalScores
+    };
+    const table$1 = "_table_12koy_1";
+    const scorer = "_scorer_12koy_5";
+    const value$1 = "_value_12koy_6";
+    const label$6 = "_label_12koy_11";
+    const groupSeparator = "_groupSeparator_12koy_28";
+    const tableBody = "_tableBody_12koy_33";
+    const tableSeparator = "_tableSeparator_12koy_45";
+    const styles$X = {
+      table: table$1,
+      scorer,
+      value: value$1,
+      label: label$6,
+      groupSeparator,
+      tableBody,
+      tableSeparator
+    };
+    const ScoreGrid = ({
+      scoreGroups,
+      showReducer,
+      className: className2,
+      striped
+    }) => {
+      const columnCount = scoreGroups.reduce((prev, group) => {
+        return Math.max(prev, group[0].metrics.length);
+      }, 0);
+      const subTables = [];
+      let index2 = 0;
+      for (const scoreGroup of scoreGroups) {
+        const metrics2 = scoreGroup[0].metrics;
+        const cells = [];
+        for (let i2 = 0; i2 < columnCount; i2++) {
+          if (metrics2.length > i2) {
+            cells.push(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "th",
+                {
+                  className: clsx(
+                    "text-style-label",
+                    "text-style-secondary",
+                    "text-size-small",
+                    styles$X.label
+                  ),
+                  children: metrics2[i2].name
+                }
+              )
+            );
+          } else {
+            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
+          }
+        }
+        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$X.headerRow), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
+          cells
+        ] }) });
+        const rows = [];
+        scoreGroup.forEach((g) => {
+          const cells2 = [];
+          for (let i2 = 0; i2 < columnCount; i2++) {
+            if (metrics2.length > i2) {
+              cells2.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$X.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
+              );
+            } else {
+              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$X.value) }));
+            }
+          }
+          rows.push(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$X.scorer, "text-size-small"), children: [
+                g.scorer,
+                " ",
+                showReducer && g.reducer ? `(${g.reducer})` : void 0
+              ] }),
+              cells2
+            ] })
+          );
+        });
+        subTables.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$X.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "td",
+              {
+                colSpan: columnCount + 1,
+                className: clsx(styles$X.groupSeparator)
+              }
+            ) }) }) : void 0,
+            headerRow,
+            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$X.tableBody), children: rows })
+          ] })
+        );
+        index2++;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "table",
+        {
+          className: clsx(
+            className2,
+            "table",
+            striped ? "table-striped" : void 0,
+            styles$X.table,
+            "table-bordered"
+          ),
+          children: subTables
+        }
+      );
+    };
+    const kMaxPrimaryScoreRows = 4;
+    const displayScorersFromRunningMetrics = (metrics2) => {
+      if (!metrics2) {
+        return [];
+      }
+      const getKey = (metric2) => {
+        return metric2.reducer ? `${metric2.scorer}-${metric2.reducer}` : metric2.scorer;
+      };
+      const scorers = {};
+      metrics2.forEach((metric2) => {
+        if (metric2.value !== void 0 && metric2.value !== null) {
+          const key2 = getKey(metric2);
+          if (scorers[key2]) {
+            scorers[key2].metrics.push({
+              name: metric2.name,
+              value: metric2.value
+            });
+          } else {
+            scorers[key2] = {
+              scorer: metric2.scorer,
+              reducer: metric2.reducer,
+              metrics: [
+                {
+                  name: metric2.name,
+                  value: metric2.value
+                }
+              ]
+            };
+          }
+        }
+      });
+      return Object.values(scorers);
+    };
+    const toDisplayScorers = (scores2) => {
+      if (!scores2) {
+        return [];
+      }
+      return scores2.map((score2) => {
+        return {
+          scorer: score2.name,
+          reducer: score2.reducer === null ? void 0 : score2.reducer,
+          metrics: Object.keys(score2.metrics).map((key2) => {
+            const metric2 = score2.metrics[key2];
+            return {
+              name: metric2.name,
+              value: metric2.value,
+              params: metric2.params
+            };
+          })
+        };
+      });
+    };
+    const ResultsPanel = ({ scorers }) => {
+      const [showing, setShowing] = useProperty(
+        "results-panel-metrics",
+        "modal-showing",
+        {
+          defaultValue: false
+        }
+      );
+      if (!scorers || scorers.length === 0) {
+        return void 0;
+      }
+      if (scorers.length === 1) {
+        const showReducer = !!scorers[0].reducer;
+        const metrics2 = scorers[0].metrics;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Y.simpleMetricsRows, children: metrics2.map((metric2, i2) => {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            VerticalMetric,
+            {
+              reducer: scorers[0].reducer,
+              metric: metric2,
+              isFirst: i2 === 0,
+              showReducer
+            },
+            `simple-metric-${i2}`
+          );
+        }) });
+      } else {
+        const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
+        const grouped = groupMetrics(scorers);
+        let primaryResults = grouped[0];
+        let showMore = grouped.length > 1;
+        if (primaryResults.length > kMaxPrimaryScoreRows) {
+          const shorterResults = grouped.find((g) => {
+            return g.length <= kMaxPrimaryScoreRows;
+          });
+          if (shorterResults) {
+            primaryResults = shorterResults;
+          }
+          if (primaryResults.length > kMaxPrimaryScoreRows) {
+            primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
+            showMore = true;
+          }
+        }
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Y.metricsSummary), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults], showReducer }),
+          showMore ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              Modal,
+              {
+                id: "results-metrics",
+                showing,
+                setShowing,
+                title: "Scoring Detail",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ScoreGrid,
+                  {
+                    scoreGroups: grouped,
+                    showReducer,
+                    className: styles$Y.modalScores,
+                    striped: false
+                  }
+                )
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              LinkButton,
+              {
+                className: styles$Y.moreButton,
+                text: "All scoring...",
+                onClick: () => {
+                  setShowing(true);
+                }
+              }
+            )
+          ] }) : void 0
+        ] });
+      }
+    };
+    const metricsKey = (metrics2) => {
+      const metricKey = metrics2.map((m) => m.name).join("");
+      return metricKey;
+    };
+    const groupMetrics = (scorers) => {
+      const results = {};
+      scorers.forEach((scorer2) => {
+        if (scorer2.metrics.length > 0) {
+          const key2 = metricsKey(scorer2.metrics);
+          results[key2] = results[key2] || [];
+          results[key2].push(scorer2);
+        }
+      });
+      return Object.values(results);
+    };
+    const VerticalMetric = ({
+      metric: metric2,
+      reducer,
+      isFirst,
+      showReducer
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { paddingLeft: isFirst ? "0" : "1em" }, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "vertical-metric-label",
+              "text-style-label",
+              "text-style-secondary",
+              styles$Y.verticalMetricName
+            ),
+            children: metricDisplayName(metric2)
+          }
+        ),
+        showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "text-style-label",
+              "text-style-secondary",
+              styles$Y.verticalMetricReducer
+            ),
+            children: reducer || "default"
+          }
+        ) : void 0,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "vertical-metric-value",
+              "text-size-largest",
+              styles$Y.verticalMetricValue
+            ),
+            children: metric2.value !== void 0 && metric2.value !== null ? formatPrettyDecimal(metric2.value) : "n/a"
+          }
+        )
+      ] });
+    };
+    const statusContainer = "_statusContainer_1sckj_1";
+    const status = "_status_1sckj_1";
+    const statusText = "_statusText_1sckj_11";
+    const icon$2 = "_icon_1sckj_24";
+    const styles$W = {
+      statusContainer,
+      status,
+      statusText,
+      icon: icon$2
+    };
+    const RunningStatusPanel = ({ sampleCount }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$W.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$W.status), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$W.icon) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              styles$W.statusText,
+              "text-style-label",
+              "text-size-smaller"
+            ),
+            children: [
+              "Running (",
+              sampleCount,
+              " samples)"
+            ]
+          }
+        )
+      ] }) }) });
+    };
+    const statusPanel = "_statusPanel_66f9o_1";
+    const statusIcon = "_statusIcon_66f9o_11";
+    const styles$V = {
+      statusPanel,
+      statusIcon
+    };
+    const CancelledPanel = ({ sampleCount }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        StatusPanel,
+        {
+          icon: ApplicationIcons.logging["info"],
+          status: "Cancelled",
+          sampleCount
+        }
+      );
+    };
+    const ErroredPanel = ({ sampleCount }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        StatusPanel,
+        {
+          icon: ApplicationIcons.logging["error"],
+          status: "Task Failed",
+          sampleCount
+        }
+      );
+    };
+    const StatusPanel = ({
+      icon: icon2,
+      status: status2,
+      sampleCount
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$V.statusPanel, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$V.statusIcon), style: {} }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: status2 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            "(",
+            sampleCount,
+            " ",
+            sampleCount === 1 ? "sample" : "samples",
+            ")"
+          ] })
+        ] })
+      ] });
+    };
+    const PrimaryBar = ({
+      showToggle,
+      status: status2,
+      evalResults,
+      runningMetrics,
+      evalSpec,
+      sampleCount
+    }) => {
+      const offCanvas = useStore((state) => state.app.offcanvas);
+      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const streamSamples = useStore((state) => state.capabilities.streamSamples);
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+      const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
+      const handleToggle = reactExports.useCallback(() => {
+        setOffCanvas(!offCanvas);
+      }, [offCanvas, setOffCanvas]);
+      const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$$.wrapper), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              "navbar-brand",
+              "navbar-text",
+              "mb-0",
+              styles$$.container
+            ),
+            children: [
+              showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  id: "sidebarToggle",
+                  onClick: handleToggle,
+                  className: clsx(
+                    "btn",
+                    offCanvas ? "d-md-none" : void 0,
+                    styles$$.toggle
+                  ),
+                  type: "button",
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.menu })
+                }
+              ) : "",
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.body, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.bodyContainer, children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      id: "task-title",
+                      className: clsx("task-title", "text-truncate", styles$$.taskTitle),
+                      title: evalSpec == null ? void 0 : evalSpec.task,
+                      children: evalSpec == null ? void 0 : evalSpec.task
+                    }
+                  ),
+                  (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      id: "task-model",
+                      className: clsx(
+                        "task-model",
+                        "text-truncate",
+                        styles$$.taskModel,
+                        "text-size-base"
+                      ),
+                      title: evalSpec == null ? void 0 : evalSpec.model,
+                      children: evalSpec == null ? void 0 : evalSpec.model
+                    }
+                  ) : ""
+                ] }),
+                (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$$.secondaryContainer), children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
+                  selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
+                ] })
+              ] })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$$.taskStatus, "navbar-text"), children: [
+          status2 === "success" || status2 === "started" && streamSamples && hasRunningMetrics ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ResultsPanel,
+            {
+              scorers: runningMetrics ? displayScorersFromRunningMetrics(runningMetrics) : toDisplayScorers(evalResults == null ? void 0 : evalResults.scores)
+            }
+          ) : void 0,
+          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: sampleCount || 0 }) : void 0,
+          status2 === "started" && (!streamSamples || !hasRunningMetrics) ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: sampleCount || 0 }) : void 0,
+          status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: sampleCount || 0 }) : void 0
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
+      ] });
+    };
+    const staticCol = "_staticCol_xzzhl_1";
+    const justifyLeft = "_justifyLeft_xzzhl_5";
+    const justifyCenter = "_justifyCenter_xzzhl_9";
+    const justifyRight = "_justifyRight_xzzhl_13";
+    const valueGrid = "_valueGrid_xzzhl_17";
+    const container$e = "_container_xzzhl_25";
+    const styles$U = {
+      staticCol,
+      justifyLeft,
+      justifyCenter,
+      justifyRight,
+      valueGrid,
+      container: container$e
+    };
+    const SecondaryBar = ({
+      evalSpec,
+      evalPlan,
+      evalResults,
+      evalStats,
+      status: status2,
+      sampleCount
+    }) => {
+      const evalDescriptor = useEvalDescriptor();
+      if (!evalSpec || status2 !== "success") {
+        return null;
+      }
+      const epochs = evalSpec.config.epochs || 1;
+      const hyperparameters = {
+        ...(evalPlan == null ? void 0 : evalPlan.config) || {},
+        ...evalSpec.task_args || {}
+      };
+      const hasConfig = Object.keys(hyperparameters).length > 0;
+      const values = [];
+      values.push({
+        size: "minmax(12%, auto)",
+        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          LabeledValue,
+          {
+            label: "Dataset",
+            className: clsx(styles$U.staticCol, "text-size-small"),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              DatasetSummary,
+              {
+                dataset: evalSpec.dataset,
+                sampleCount,
+                epochs
+              }
+            )
+          },
+          "sb-dataset"
+        )
+      });
+      const label2 = (evalResults == null ? void 0 : evalResults.scores) && evalResults.scores.length > 1 ? "Scorers" : "Scorer";
+      values.push({
+        size: "minmax(12%, auto)",
+        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          LabeledValue,
+          {
+            label: label2,
+            className: clsx(
+              styles$U.staticCol,
+              hasConfig ? styles$U.justifyLeft : styles$U.justifyCenter,
+              "text-size-small"
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
+          },
+          "sb-scorer"
+        )
+      });
+      if (hasConfig) {
+        values.push({
+          size: "minmax(12%, auto)",
+          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            LabeledValue,
+            {
+              label: "Config",
+              className: clsx(styles$U.justifyRight, "text-size-small"),
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters })
+            },
+            "sb-params"
+          )
+        });
+      }
+      if (evalStats) {
+        const totalDuration = formatDuration(
+          new Date(evalStats == null ? void 0 : evalStats.started_at),
+          new Date(evalStats == null ? void 0 : evalStats.completed_at)
+        );
+        values.push({
+          size: "minmax(12%, auto)",
+          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            LabeledValue,
+            {
+              label: "Duration",
+              className: clsx(styles$U.justifyRight, "text-size-small"),
+              children: totalDuration
+            },
+            "sb-duration"
+          )
+        });
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ExpandablePanel,
+        {
+          id: "secondary-nav-bar",
+          className: clsx(styles$U.container, "text-size-small"),
+          collapse: true,
+          lines: 5,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: styles$U.valueGrid,
+              style: {
+                gridTemplateColumns: `${values.map((val) => {
+                  return val.size;
+                }).join(" ")}`
+              },
+              children: values.map((val) => {
+                return val.value;
+              })
+            }
+          )
+        }
+      );
+    };
+    const DatasetSummary = ({
+      sampleCount,
+      dataset,
+      epochs
+    }) => {
+      if (!dataset) {
+        return null;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: sampleCount ? formatDataset(sampleCount, epochs, dataset.name) : "" });
+    };
+    const ScorerSummary = ({ evalDescriptor }) => {
+      if (!evalDescriptor) {
+        return null;
+      }
+      const items = sampleFilterItems(evalDescriptor);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { title: item2.tooltip, children: item2.canonicalName }),
+        index2 < array.length - 1 ? ", " : ""
+      ] }, index2)) });
+    };
+    const ParamSummary = ({ params: params2 }) => {
+      if (!params2) {
+        return null;
+      }
+      const paraValues = Object.keys(params2).map((key2) => {
+        const val = params2[key2];
+        if (Array.isArray(val) || typeof val === "object") {
+          return `${key2}: ${JSON.stringify(val)}`;
+        } else {
+          return `${key2}: ${val}`;
+        }
+      });
+      if (paraValues.length > 0) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { style: { padding: 0, color: "var(--bs-body-color)" }, children: paraValues.join(", ") });
+      } else {
+        return null;
+      }
+    };
+    const Navbar = ({
+      evalSpec,
+      evalPlan,
+      evalResults,
+      evalStats,
+      showToggle,
+      status: status2,
+      runningMetrics
+    }) => {
+      const totalSampleCount = useTotalSampleCount();
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$11.navbarWrapper), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          PrimaryBar,
+          {
+            evalSpec,
+            evalResults,
+            showToggle,
+            status: status2,
+            runningMetrics,
+            sampleCount: totalSampleCount
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          SecondaryBar,
+          {
+            evalSpec,
+            evalPlan,
+            evalResults,
+            evalStats,
+            status: status2,
+            sampleCount: totalSampleCount
+          }
+        )
+      ] });
+    };
+    const useLogNavigation = () => {
+      const navigate = useNavigate();
+      const { logPath } = useParams();
+      const logs = useStore((state) => state.logs.logs);
+      const loadedLog = useStore((state) => state.log.loadedLog);
+      const selectTab = reactExports.useCallback(
+        (tabId) => {
+          if (loadedLog && logPath) {
+            const url = logUrlRaw(logPath, tabId);
+            navigate(url);
+          } else if (loadedLog) {
+            const url = logUrl(loadedLog, logs.log_dir, tabId);
+            navigate(url);
+          }
+        },
+        [loadedLog, logPath, logs.log_dir, navigate]
+      );
+      return {
+        selectTab
+      };
+    };
+    const workspace = "_workspace_1r3mu_1";
+    const tabContainer = "_tabContainer_1r3mu_6";
+    const tabSet = "_tabSet_1r3mu_14";
+    const tabs = "_tabs_1r3mu_21";
+    const tabPanels = "_tabPanels_1r3mu_29";
+    const styles$T = {
+      workspace,
+      tabContainer,
+      tabSet,
+      tabs,
+      tabPanels
+    };
+    const MessageBand = ({
+      id,
+      message: message2,
+      type,
+      scope = "eval"
+    }) => {
+      const className2 = [type];
+      const [visible2, setVisible] = useMessageVisibility(id, scope);
+      const handleClick = reactExports.useCallback(() => {
+        setVisible(false);
+      }, [setVisible]);
+      if (!visible2) {
+        className2.push("hidden");
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("message-band", className2), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.logging[type] }),
+        message2,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            className: clsx("btn", "message-band-btn", type),
+            title: "Close",
+            onClick: handleClick,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
+          }
+        )
+      ] });
+    };
+    const CardHeader = ({
+      id,
+      icon: icon2,
+      label: label2,
+      className: className2,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: clsx("card-header-container", "text-style-label", className2),
+          id: id || "",
+          children: [
+            icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("card-header-icon", icon2) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "card-header-icon" }),
+            label2 ? label2 : "",
+            " ",
+            children2
+          ]
+        }
+      );
+    };
+    const CardBody = ({
+      id,
+      children: children2,
+      className: className2,
+      padded: padded2 = true
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(
+            "card-body",
+            className2,
+            !padded2 ? "card-no-padding" : void 0
+          ),
+          id: id || "",
+          children: children2
+        }
+      );
+    };
+    const Card = ({ id, children: children2, className: className2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
     const item$1 = "_item_1uzhd_1";
     const styles$S = {
@@ -49525,6 +49787,27 @@ self.onmessage = function (e) {
       )).parsed;
       return result2;
     }
+    async function log_message$1(log_file, message2) {
+      const params2 = new URLSearchParams();
+      params2.append("log_file", log_file);
+      params2.append("message", message2);
+      const request = {
+        headers: {
+          "Content-Type": "text/plain"
+        },
+        parse: async (text2) => {
+          if (text2 !== "") {
+            throw new Error(`Unexpected response from log_message: ${text2}`);
+          }
+          return;
+        }
+      };
+      await apiRequest(
+        "GET",
+        `/api/log-message?${params2.toString()}`,
+        request
+      );
+    }
     async function apiRequest(method, path, request) {
       const responseHeaders = {
         Accept: "application/json",
@@ -49618,6 +49901,7 @@ self.onmessage = function (e) {
       eval_log_size: eval_log_size$1,
       eval_log_bytes: eval_log_bytes$1,
       eval_log_headers: eval_log_headers$1,
+      log_message: log_message$1,
       download_file: download_file$1,
       open_log_file: open_log_file$1,
       eval_pending_samples: eval_pending_samples$1,
@@ -50441,6 +50725,9 @@ self.onmessage = function (e) {
           }
           return void 0;
         },
+        log_message: async (log_file, message2) => {
+          console.log(`[CLIENT MESSAGE] (${log_file}): ${message2}`);
+        },
         eval_log: async (log_file, _headerOnly, _capabilities) => {
           const response = await fetchLogFile(log_file);
           if (response) {
@@ -50557,6 +50844,7 @@ self.onmessage = function (e) {
     const kMethodEvalLogHeaders = "eval_log_headers";
     const kMethodPendingSamples = "eval_log_pending_samples";
     const kMethodSampleData = "eval_log_sample_data";
+    const kMethodLogMessage = "log_message";
     const kJsonRpcVersion = "2.0";
     function webViewJsonRpcClient(vscode2) {
       const target2 = {
@@ -50725,6 +51013,9 @@ self.onmessage = function (e) {
         throw new Error(`Unable to load live sample data ${log_file}.`);
       }
     }
+    async function log_message(log_file, message2) {
+      await vscodeClient(kMethodLogMessage, [log_file, message2]);
+    }
     async function download_file() {
       throw Error("Downloading files is not supported in VS Code");
     }
@@ -50744,6 +51035,7 @@ self.onmessage = function (e) {
       eval_log_size,
       eval_log_bytes,
       eval_log_headers,
+      log_message,
       download_file,
       open_log_file,
       eval_pending_samples,
@@ -51171,6 +51463,9 @@ self.onmessage = function (e) {
         },
         download_file: (download_file2, file_contents) => {
           return api2.download_file(download_file2, file_contents);
+        },
+        log_message: (log_file2, message2) => {
+          return api2.log_message(log_file2, message2);
         },
         get_log_pending_samples: api2.eval_pending_samples ? get_log_pending_samples : void 0,
         get_log_sample_data: api2.eval_log_sample_data ? get_log_sample_data : void 0
@@ -51645,9 +51940,6 @@ self.onmessage = function (e) {
         evalStatus !== "started" && (evalStats == null ? void 0 : evalStats.model_usage) && Object.keys(evalStats.model_usage).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(UsageCard, { stats: evalStats })
       ] }) });
     };
-    function escapeSelector(id) {
-      return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
-    }
     const panel$2 = "_panel_twp3v_1";
     const container$9 = "_container_twp3v_7";
     const styles$H = {
@@ -51704,6 +51996,132 @@ self.onmessage = function (e) {
 <div style="text-align: right;">${time}</div>
 </div>`;
       return headingHtml;
+    };
+    const useSampleNavigation = () => {
+      const navigate = useNavigate();
+      const logDirectory = useStore((state) => state.logs.logs.log_dir);
+      const { logPath, tabId, sampleTabId } = useParams();
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+      const resolveLogPath = reactExports.useCallback(() => {
+        if (logPath) {
+          return logPath;
+        }
+        if (selectedLogFile) {
+          return directoryRelativeUrl(selectedLogFile, logDirectory);
+        }
+        return void 0;
+      }, [logPath, selectedLogFile, logDirectory]);
+      const sampleSummaries = useFilteredSamples();
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const setShowingSampleDialog = useStore(
+        (state) => state.appActions.setShowingSampleDialog
+      );
+      const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
+      const showSample = reactExports.useCallback(
+        (index2, id, epoch, specifiedSampleTabId) => {
+          const resolvedPath = resolveLogPath();
+          if (resolvedPath) {
+            selectSample(index2);
+            setShowingSampleDialog(true);
+            const currentSampleTabId = specifiedSampleTabId || sampleTabId;
+            const url = sampleUrl(resolvedPath, id, epoch, currentSampleTabId);
+            navigate(url);
+          }
+        },
+        [
+          sampleSummaries,
+          resolveLogPath,
+          selectSample,
+          setShowingSampleDialog,
+          navigate,
+          tabId,
+          sampleTabId
+        ]
+      );
+      const navigateSampleIndex = reactExports.useCallback(
+        (index2) => {
+          if (index2 > -1 && index2 < sampleSummaries.length) {
+            if (showingSampleDialog) {
+              const resolvedPath = resolveLogPath();
+              if (resolvedPath) {
+                const summary2 = sampleSummaries[index2];
+                const url = sampleUrl(
+                  resolvedPath,
+                  summary2.id,
+                  summary2.epoch,
+                  sampleTabId
+                );
+                navigate(url);
+              }
+            } else {
+              selectSample(index2);
+            }
+          }
+        },
+        [
+          selectedSampleIndex,
+          showSample,
+          sampleTabId,
+          sampleSummaries,
+          showingSampleDialog,
+          resolveLogPath,
+          navigate
+        ]
+      );
+      const nextSample = reactExports.useCallback(() => {
+        const itemsCount = sampleSummaries.length;
+        const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
+        navigateSampleIndex(next);
+      }, [selectedSampleIndex, navigateSampleIndex, sampleSummaries]);
+      const previousSample = reactExports.useCallback(() => {
+        const prev = selectedSampleIndex - 1;
+        navigateSampleIndex(prev);
+      }, [selectedSampleIndex, navigateSampleIndex]);
+      const getSampleUrl = reactExports.useCallback(
+        (sampleId, epoch, specificSampleTabId) => {
+          const resolvedPath = resolveLogPath();
+          if (resolvedPath) {
+            const currentSampleTabId = specificSampleTabId || sampleTabId;
+            const url = sampleUrl(
+              resolvedPath,
+              sampleId,
+              epoch,
+              currentSampleTabId
+            );
+            return url;
+          }
+          return void 0;
+        },
+        [resolveLogPath, tabId, sampleTabId]
+      );
+      const clearSampleUrl = reactExports.useCallback(() => {
+        const resolvedPath = resolveLogPath();
+        if (resolvedPath) {
+          const url = logUrlRaw(resolvedPath, tabId);
+          navigate(url);
+        }
+      }, [resolveLogPath, navigate, tabId]);
+      return {
+        showSample,
+        nextEnabled: selectedSampleIndex < sampleSummaries.length - 1,
+        nextSample,
+        previousEnabled: selectedSampleIndex > 0,
+        previousSample,
+        getSampleUrl,
+        clearSampleUrl
+      };
+    };
+    const useSampleDetailNavigation = () => {
+      const [searchParams, _setSearchParams] = useSearchParams();
+      const message2 = searchParams.get("message");
+      const event = searchParams.get("event");
+      return {
+        message: message2,
+        event
+      };
     };
     const container$8 = "_container_4p85e_2";
     const dotsContainer = "_dotsContainer_4p85e_8";
@@ -54925,7 +55343,7 @@ self.onmessage = function (e) {
           {
             className: clsx(
               styles$y.eventRow,
-              "text-size-smallest",
+              "text-size-smaller",
               selected2 ? styles$y.selected : ""
             ),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
@@ -56163,7 +56581,7 @@ self.onmessage = function (e) {
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.toolConfig, "text-size-small"), children: toolEls }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$o.toolChoice, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$o.toolChoice, "text-size-small"), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
         ] })
@@ -56258,7 +56676,7 @@ self.onmessage = function (e) {
           case "custom":
             return "Custom Limit Exceeded";
           case "time":
-            return "Time Limit Execeeded";
+            return "Time Limit Exceeded";
           case "message":
             return "Message Limit Exceeded";
           case "token":
@@ -85234,28 +85652,6 @@ ${events}
         ...historyKeymap
       ])
     ])();
-    const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
-    const MATH_FUNCTIONS = [
-      ["min", "Minimum of two or more values"],
-      ["max", "Maximum of two or more values"],
-      ["abs", "Absolute value"],
-      ["round", "Round to the nearest integer"],
-      ["floor", "Round down to the nearest integer"],
-      ["ceil", "Round up to the nearest integer"],
-      ["sqrt", "Square root"],
-      ["log", "Natural logarithm"],
-      ["log2", "Base 2 logarithm"],
-      ["log10", "Base 10 logarithm"]
-    ];
-    const SAMPLE_VARIABLES = [
-      ["has_error", "Checks if the sample has an error"],
-      ["has_retries", "Checks if the sample has been retried"]
-    ];
-    const SAMPLE_FUNCTIONS = [
-      ["input_contains", "Checks if input contains a regular expression"],
-      ["target_contains", "Checks if target contains a regular expression"],
-      ["error_contains", "Checks if error contains a regular expression"]
-    ];
     const TOKEN_PATTERNS = {
       STRING: /^"[^"]*"/,
       UNTERMINATED_STRING: /^"[^"]*/,
@@ -85332,6 +85728,20 @@ ${events}
         selection: { anchor: from + completion.label.length + 1 }
       });
     };
+    const applyWithDot = (view, completion, from, to2) => {
+      view.dispatch({
+        changes: { from, to: to2, insert: `${completion.label}.` },
+        selection: { anchor: from + completion.label.length + 1 }
+      });
+      setTimeout(() => startCompletion(view), 0);
+    };
+    const applyWithSpace = (view, completion, from, to2) => {
+      view.dispatch({
+        changes: { from, to: to2, insert: `${completion.label} ` },
+        selection: { anchor: from + completion.label.length + 1 }
+      });
+      setTimeout(() => startCompletion(view), 0);
+    };
     const makeKeywordCompletion = (k) => ({
       label: k,
       type: "keyword",
@@ -85355,6 +85765,7 @@ ${events}
       label: label2,
       type: "variable",
       info,
+      apply: label2 === kSampleMetadataVariable ? applyWithDot : label2 === kSampleIdVariable ? applyWithSpace : void 0,
       boost: 10
     });
     const makeLiteralCompletion = (k) => ({
@@ -85381,8 +85792,139 @@ ${events}
       var _a2;
       return (_a2 = item2 == null ? void 0 : item2.qualifiedName) == null ? void 0 : _a2.startsWith(`${scorer2}.`);
     });
-    function getCompletions(context, filterItems) {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
+    const getSampleIds = (samples) => {
+      const ids = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        ids.add(sample2.id);
+      }
+      return ids;
+    };
+    const getMetadataPropertyValues = (samples, propertyPath) => {
+      const values = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        if (sample2.metadata) {
+          const value2 = getNestedProperty(sample2.metadata, propertyPath);
+          if (value2 !== void 0 && value2 !== null) {
+            values.add(value2);
+          }
+        }
+      }
+      return values;
+    };
+    const getNestedProperty = (obj, path) => {
+      const keys = path.split(".");
+      let current2 = obj;
+      for (const key2 of keys) {
+        if (current2 && typeof current2 === "object" && key2 in current2) {
+          current2 = current2[key2];
+        } else {
+          return void 0;
+        }
+      }
+      return current2;
+    };
+    const buildMetadataPath = (tokens, currentTokenIndex) => {
+      var _a2;
+      const parts = [];
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if ((token2 == null ? void 0 : token2.text) === kSampleMetadataVariable) {
+          return parts.reverse().join(".");
+        } else if ((token2 == null ? void 0 : token2.type) === "variable") {
+          parts.push(token2.text);
+          index2++;
+          if (((_a2 = tokens[currentTokenIndex - index2]) == null ? void 0 : _a2.text) === ".") {
+            index2++;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+      return null;
+    };
+    const getMetadataKeysForPath = (samples, parentPath) => {
+      const keys = /* @__PURE__ */ new Set();
+      for (const sample2 of samples) {
+        if (sample2.metadata) {
+          const parentObj = parentPath ? getNestedProperty(sample2.metadata, parentPath) : sample2.metadata;
+          if (parentObj && typeof parentObj === "object" && !Array.isArray(parentObj)) {
+            for (const key2 of Object.keys(parentObj)) {
+              keys.add(key2);
+            }
+          }
+        }
+      }
+      return keys;
+    };
+    const buildMetadataPropertyPath = (tokens, currentTokenIndex) => {
+      const parts = [];
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if (!token2) break;
+        if (token2.type === "variable") {
+          if (token2.text === kSampleMetadataVariable) {
+            return parts.reverse().join(".");
+          } else {
+            parts.push(token2.text);
+          }
+        } else if (token2.text !== ".") {
+          break;
+        }
+        index2++;
+      }
+      return null;
+    };
+    const isMetadataProperty = (tokens, currentTokenIndex) => {
+      let index2 = 2;
+      while (index2 <= currentTokenIndex) {
+        const token2 = tokens[currentTokenIndex - index2];
+        if (!token2) break;
+        if (token2.text === kSampleMetadataVariable) {
+          return true;
+        } else if (token2.text === "." || token2.type === "variable") {
+          index2++;
+        } else {
+          break;
+        }
+      }
+      return false;
+    };
+    const makeMetadataKeyCompletion = (key2) => ({
+      label: key2,
+      type: "property",
+      info: `Metadata property: ${key2}`,
+      boost: 25
+    });
+    const makeSampleIdCompletion = (id) => ({
+      label: typeof id === "string" ? `"${id}"` : String(id),
+      type: "text",
+      info: `Sample ID: ${id}`,
+      boost: 25
+    });
+    const makeMetadataValueCompletion = (value2) => {
+      let label2;
+      if (typeof value2 === "string") {
+        label2 = `"${value2}"`;
+      } else if (typeof value2 === "boolean") {
+        label2 = value2 ? "True" : "False";
+      } else if (value2 === null) {
+        label2 = "None";
+      } else {
+        label2 = String(value2);
+      }
+      return {
+        label: label2,
+        type: "text",
+        info: `Metadata value: ${value2}`,
+        boost: 25
+      };
+    };
+    function getCompletions(context, filterItems, samples) {
+      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k, _l, _m;
       const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
       const mathFunctionCompletionItems = MATH_FUNCTIONS.map(
         makeMathFunctionCompletion
@@ -85390,7 +85932,15 @@ ${events}
       const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
         makeSampleFunctionCompletion
       );
-      const sampleVariableCompletionItems = SAMPLE_VARIABLES.map(
+      const availableSampleVariables = SAMPLE_VARIABLES.filter(([label2]) => {
+        if (label2 === kSampleMetadataVariable) {
+          return samples && samples.some(
+            (sample2) => sample2.metadata && Object.keys(sample2.metadata).length > 0
+          );
+        }
+        return true;
+      });
+      const sampleVariableCompletionItems = availableSampleVariables.map(
         makeSampleVariableCompletion
       );
       const variableCompletionItems = filterItems.map(
@@ -85485,7 +86035,7 @@ ${events}
         enforceOrder: true,
         autoSpaceAfter: completingAtEnd
       });
-      const descreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
+      const discreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
         enforceOrder: true,
         autoSpaceAfter: completingAtEnd
       });
@@ -85500,9 +86050,19 @@ ${events}
       const rhsCompletions = (options2) => makeCompletions(options2.map(makeLiteralCompletion));
       if (!prevToken(1)) return newExpressionCompletions();
       if (((_a2 = prevToken(1)) == null ? void 0 : _a2.text) === ".") {
-        const scorer2 = (_b2 = prevToken(2)) == null ? void 0 : _b2.text;
-        if (scorer2) {
-          return memberAccessCompletions(getMemberScoreItems(filterItems, scorer2));
+        const varName = (_b2 = prevToken(2)) == null ? void 0 : _b2.text;
+        const metadataPath = buildMetadataPath(tokens, currentTokenIndex);
+        if (metadataPath !== null && samples) {
+          const metadataKeys = Array.from(
+            getMetadataKeysForPath(samples, metadataPath)
+          );
+          const metadataCompletions = metadataKeys.map(makeMetadataKeyCompletion);
+          return makeCompletions(metadataCompletions, {
+            autocompleteInTheMiddle: true,
+            includeDefault: false
+          });
+        } else if (varName) {
+          return memberAccessCompletions(getMemberScoreItems(filterItems, varName));
         }
       }
       if (((_c = prevToken(1)) == null ? void 0 : _c.text) === "(") {
@@ -85512,11 +86072,24 @@ ${events}
       }
       if (((_f = prevToken(1)) == null ? void 0 : _f.text) === ")") return noCompletions();
       if (((_g = prevToken(1)) == null ? void 0 : _g.type) === "variable") {
-        const scoreType = ((_h = findFilterItem(1)) == null ? void 0 : _h.scoreType) || "";
+        const varName = (_h = prevToken(1)) == null ? void 0 : _h.text;
+        if (isMetadataProperty(tokens, currentTokenIndex)) {
+          return customRelationCompletions();
+        }
+        if (varName === kSampleIdVariable) {
+          return discreteRelationCompletions();
+        }
+        if (varName === kSampleMetadataVariable) {
+          return customRelationCompletions();
+        }
+        if (varName === "has_error" || varName === "has_retries") {
+          return logicalOpCompletions();
+        }
+        const scoreType = ((_i = findFilterItem(1)) == null ? void 0 : _i.scoreType) || "";
         switch (scoreType) {
           case kScoreTypePassFail:
           case kScoreTypeCategorical:
-            return descreteRelationCompletions();
+            return discreteRelationCompletions();
           case kScoreTypeNumeric:
             return continuousRelationCompletions();
           case kScoreTypeOther:
@@ -85527,14 +86100,47 @@ ${events}
             return noCompletions();
         }
       }
-      if (((_i = prevToken(1)) == null ? void 0 : _i.type) === "relation") {
+      if (((_j = prevToken(1)) == null ? void 0 : _j.type) === "relation") {
+        const varName = (_k = prevToken(2)) == null ? void 0 : _k.text;
+        const metadataPropertyPath = buildMetadataPropertyPath(
+          tokens,
+          currentTokenIndex
+        );
+        if (metadataPropertyPath !== null && samples) {
+          const metadataValues = Array.from(
+            getMetadataPropertyValues(samples, metadataPropertyPath)
+          );
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredValues = currentQuery ? metadataValues.filter((value2) => {
+            const label2 = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "boolean" ? value2 ? "True" : "False" : value2 === null ? "None" : String(value2);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : metadataValues;
+          const metadataValueCompletions = filteredValues.map(
+            makeMetadataValueCompletion
+          );
+          return makeCompletions(metadataValueCompletions, {
+            includeDefault: false
+          });
+        }
+        if (varName === kSampleIdVariable && samples) {
+          const sampleIds = Array.from(getSampleIds(samples));
+          const currentQuery = (currentToken == null ? void 0 : currentToken.text) || "";
+          const filteredIds = currentQuery ? sampleIds.filter((id) => {
+            const label2 = typeof id === "string" ? `"${id}"` : String(id);
+            return label2.toLowerCase().startsWith(currentQuery.toLowerCase());
+          }) : sampleIds;
+          const sampleIdCompletions = filteredIds.map(makeSampleIdCompletion);
+          return makeCompletions(sampleIdCompletions, {
+            includeDefault: false
+          });
+        }
         const item2 = findFilterItem(2);
-        if ((_j = item2 == null ? void 0 : item2.categories) == null ? void 0 : _j.length) {
+        if ((_l = item2 == null ? void 0 : item2.categories) == null ? void 0 : _l.length) {
           return rhsCompletions(item2.categories);
         }
         return variableCompletions();
       }
-      if (isLiteral(prevToken(1)) && ((_k = prevToken(2)) == null ? void 0 : _k.type) === "relation") {
+      if (isLiteral(prevToken(1)) && ((_m = prevToken(2)) == null ? void 0 : _m.type) === "relation") {
         return logicalOpCompletions();
       }
       if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
@@ -85554,6 +86160,8 @@ Filter samples by:
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
   • Samples that have been retried: has_retries
+  • Sample Id: e.g. "id == 'sample123'"
+  • Sample metadata: e.g. "metadata.key == 'value'"
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^
@@ -85608,6 +86216,12 @@ Supported expressions:
       },
       ".cm-scroller": {
         overflow: "hidden"
+      },
+      ".cm-line": {
+        "font-size": "var(--inspect-font-size-smallest) !important"
+      },
+      ".token": {
+        "font-size": "var(--inspect-font-size-smallest) !important"
       }
     });
     const ensureOneLine = (tr2) => {
@@ -85651,6 +86265,12 @@ Supported expressions:
       );
       const filter = useStore((state) => state.log.filter);
       const filterError = useStore((state) => state.log.filterError);
+      const samples = useStore(
+        (state) => {
+          var _a2;
+          return (_a2 = state.log.selectedLogSummary) == null ? void 0 : _a2.sampleSummaries;
+        }
+      );
       const setFilter = useStore((state) => state.logActions.setFilter);
       const handleFocus = reactExports.useCallback((event, view) => {
         if (event.isTrusted && view.state.doc.toString() === "") {
@@ -85659,10 +86279,10 @@ Supported expressions:
       }, []);
       const makeAutocompletion = reactExports.useCallback(
         () => autocompletion({
-          override: [(context) => getCompletions(context, filterItems)],
+          override: [(context) => getCompletions(context, filterItems, samples)],
           activateOnCompletion: (c2) => c2.label.endsWith(" ")
         }),
-        []
+        [filterItems, samples]
       );
       const makeLinter = reactExports.useCallback(
         () => linter((view) => getLints(view, filterError)),
@@ -85732,7 +86352,7 @@ Supported expressions:
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
           effects: autocompletionCompartment.current.reconfigure(makeAutocompletion())
         });
-      }, [filterItems]);
+      }, [filterItems, samples]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
@@ -86282,11 +86902,19 @@ Supported expressions:
               e.preventDefault();
               e.stopPropagation();
               break;
-            case "Enter":
-              sampleNavigation.showSample(selectedSampleIndex);
-              e.preventDefault();
-              e.stopPropagation();
+            case "Enter": {
+              const item2 = items[selectedSampleIndex];
+              if (item2.type === "sample") {
+                sampleNavigation.showSample(
+                  item2.index,
+                  item2.data.id,
+                  item2.data.epoch
+                );
+                e.preventDefault();
+                e.stopPropagation();
+              }
               break;
+            }
           }
         },
         [
@@ -86318,7 +86946,11 @@ Supported expressions:
                   item2.data.epoch
                 ),
                 showSample: () => {
-                  sampleNavigation.showSample(item2.index);
+                  sampleNavigation.showSample(
+                    item2.index,
+                    item2.data.id,
+                    item2.data.epoch
+                  );
                 }
               }
             );
@@ -86760,7 +87392,7 @@ Supported expressions:
       }
     };
     const ghCommitUrl = (origin, commit) => {
-      const baseUrl2 = origin.replace(/\.git$/, "");
+      const baseUrl2 = origin.replace(/\.git$/, "").replace(/^git@github.com:/, "https://github.com/");
       return `${baseUrl2}/commit/${commit}`;
     };
     const grid = "_grid_er9fb_1";
@@ -86958,15 +87590,15 @@ Supported expressions:
               showToggle
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$U.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$U.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$T.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$T.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TabSet,
             {
               id: "log-details",
               tools: tabTools2,
               type: "pills",
-              className: clsx(styles$U.tabSet, "text-size-smaller"),
-              tabControlsClassName: clsx(styles$U.tabs, "text-size-smaller"),
-              tabPanelsClassName: clsx(styles$U.tabPanels),
+              className: clsx(styles$T.tabSet, "text-size-smaller"),
+              tabControlsClassName: clsx(styles$T.tabs, "text-size-smaller"),
+              tabPanelsClassName: clsx(styles$T.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
                 const tab2 = tabs2[key2];
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(

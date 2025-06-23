@@ -4,6 +4,7 @@ import {
   ChatMessageTool,
   ChatMessageUser,
   ContentAudio,
+  ContentData,
   ContentImage,
   ContentReasoning,
   ContentText,
@@ -64,6 +65,7 @@ export const resolveMessages = (messages: Messages) => {
     | ContentAudio
     | ContentVideo
     | ContentReasoning
+    | ContentData
   )[] = [];
   for (const systemMessage of systemMessages) {
     const contents = Array.isArray(systemMessage.content)
@@ -78,6 +80,7 @@ export const resolveMessages = (messages: Messages) => {
     content: systemContent,
     source: "input",
     internal: null,
+    metadata: null,
   };
 
   // Converge them
@@ -117,19 +120,22 @@ const normalizeContent = (
     | ContentAudio
     | ContentVideo
     | ContentReasoning
+    | ContentData
     | string,
 ):
   | ContentText
   | ContentImage
   | ContentAudio
   | ContentVideo
-  | ContentReasoning => {
+  | ContentReasoning
+  | ContentData => {
   if (typeof content === "string") {
     return {
       type: "text",
       text: content,
       refusal: null,
       internal: null,
+      citations: null,
     };
   } else {
     return content;

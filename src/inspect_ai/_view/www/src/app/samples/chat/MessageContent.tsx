@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { FC, ReactNode } from "react";
 import {
   ContentAudio,
+  ContentData,
   ContentImage,
   ContentReasoning,
   ContentText,
@@ -13,40 +14,42 @@ import {
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
+import { ContentDataView } from "./content-data/ContentDataView";
+import { MessageCitations } from "./MessageCitations";
 import styles from "./MessageContent.module.css";
+import { MessagesContext } from "./MessageContents";
 import { ToolOutput } from "./tools/ToolOutput";
+import { Citation } from "./types";
 
-type ContentType =
-  | string
-  | string[]
+type ContentObject =
   | ContentText
   | ContentReasoning
   | ContentImage
   | ContentAudio
   | ContentVideo
-  | ContentTool;
+  | ContentTool
+  | ContentData;
+
+type ContentType = string | string[] | ContentObject;
+
+type Contents = string | string[] | ContentObject[];
 
 interface MessageContentProps {
-  contents:
-    | string
-    | string[]
-    | (
-        | ContentText
-        | ContentReasoning
-        | ContentImage
-        | ContentAudio
-        | ContentVideo
-        | ContentTool
-      )[];
+  contents: Contents;
+  context: MessagesContext;
 }
 
 /**
  * Renders message content based on its type.
  * Supports rendering strings, images, and tools using specific renderers.
  */
-export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
-  if (Array.isArray(contents)) {
-    return contents.map((content, index) => {
+export const MessageContent: FC<MessageContentProps> = ({
+  contents,
+  context,
+}) => {
+  const normalized = normalizeContent(contents);
+  if (Array.isArray(normalized)) {
+    return normalized.map((content, index) => {
       if (typeof content === "string") {
         return messageRenderers["text"].render(
           `text-content-${index}`,
@@ -55,8 +58,10 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
             text: content,
             refusal: null,
             internal: null,
+            citations: null,
           },
           index === contents.length - 1,
+          context,
         );
       } else {
         if (content) {
@@ -66,6 +71,7 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
               `text-${content.type}-${index}`,
               content,
               index === contents.length - 1,
+              context,
             );
           } else {
             console.error(`Unknown message content type '${content.type}'`);
@@ -77,32 +83,52 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
     // This is a simple string
     const contentText: ContentText = {
       type: "text",
-      text: contents,
+      text: normalized,
       refusal: null,
       internal: null,
+      citations: null,
     };
     return messageRenderers["text"].render(
       "text-message-content",
       contentText,
       true,
+      context,
     );
   }
 };
 
 interface MessageRenderer {
-  render: (key: string, content: ContentType, isLast: boolean) => ReactNode;
+  render: (
+    key: string,
+    content: ContentType,
+    isLast: boolean,
+    context: MessagesContext,
+  ) => ReactNode;
 }
 
 const messageRenderers: Record<string, MessageRenderer> = {
   text: {
     render: (key, content, isLast) => {
+      // The context provides a way to share context between different
+      // rendering. In this case, we'll use it to keep track of citations
       const c = content as ContentText;
+      const cites = c.citations ?? [];
+
+      if (!c.text && !cites.length) {
+        return undefined;
+      }
+
       return (
-        <MarkdownDiv
-          key={key}
-          markdown={c.text || ""}
-          className={isLast ? "no-last-para-padding" : ""}
-        />
+        <>
+          <MarkdownDiv
+            key={key}
+            markdown={c.text || ""}
+            className={isLast ? "no-last-para-padding" : ""}
+          />
+          {c.citations ? (
+            <MessageCitations citations={c.citations as Citation[]} />
+          ) : undefined}
+        </>
       );
     },
   },
@@ -172,6 +198,12 @@ const messageRenderers: Record<string, MessageRenderer> = {
       return <ToolOutput output={c.content} key={key} />;
     },
   },
+  data: {
+    render: (key, content) => {
+      const c = content as ContentData;
+      return <ContentDataView id={key} contentData={c} />;
+    },
+  },
 };
 
 /**
@@ -190,5 +222,122 @@ const mimeTypeForFormat = (format: Format1 | Format2): string => {
       return "video/mp4";
     case "mpeg":
       return "video/mpeg";
+    default:
+      return "video/mp4"; // Default to mp4 for unknown formats
   }
 };
+
+// This collapses sequential runs of text content into a single text content,
+// adding citations as superscript counters at the end of the text for each block
+// containing citations. The citations are then attached to the content where
+// they can be rendered separately (with coordinating numbers).
+const normalizeContent = (contents: Contents): Contents => {
+  // its a string
+  if (typeof contents === "string") {
+    return contents;
+  }
+
+  // its an array of strings
+  if (contents.length > 0 && typeof contents[0] === "string") {
+    return contents;
+  }
+
+  const result: ContentObject[] = [];
+  const collection: ContentText[] = [];
+
+  const collect = () => {
+    if (collection.length > 0) {
+      // Flatten the citations from the collection
+      const filteredCitations = collection.flatMap((c) => c.citations || []);
+      // Render citations as superscript counters
+      let citeCount = 0;
+      const textWithCites = collection
+        .map((c) => {
+          // separate the cites into those with a position and those without
+          // sort by end_index (to allow for numbering to not affect indexes)
+          // Type guard function to check if cited_text is a range
+          const positionalCites = (c.citations ?? [])
+            .filter(isCitationWithRange)
+            .sort((a, b) => b.cited_text[1] - a.cited_text[1]);
+
+          const endCites = c.citations?.filter(
+            (citation) => !isCitationWithRange(citation),
+          );
+
+          // Process cites with positions
+          let textWithCites = c.text;
+          for (let i = 0; i < positionalCites.length; i++) {
+            const end_index = positionalCites[i].cited_text[1];
+
+            textWithCites =
+              textWithCites.slice(0, end_index) +
+              `<sup>${positionalCites.length - i}</sup>` +
+              textWithCites.slice(end_index);
+          }
+          citeCount = citeCount + positionalCites.length;
+
+          // Process cites without positions (they just attach to the end of the content)
+          const citeText = endCites?.map((_citation) => `${++citeCount}`);
+          let inlineCites = "";
+          if (citeText && citeText.length > 0) {
+            inlineCites = `<sup>${citeText.join(",")}</sup>`;
+          }
+          return (textWithCites || "") + inlineCites;
+        })
+        .join("");
+
+      // Flatten the text from the collection into a single text content
+      result.push({
+        type: "text",
+        text: textWithCites,
+        refusal: null,
+        internal: null,
+        citations: filteredCitations,
+      });
+      collection.length = 0;
+    }
+  };
+
+  for (const content of contents) {
+    if (typeof content === "string") {
+      // this shouldn't happen, but if it does
+      // just convert it to a text content
+      result.push({
+        type: "text",
+        text: content,
+        refusal: null,
+        internal: null,
+        citations: null,
+      });
+      continue;
+    }
+
+    if (content.type === "text") {
+      // Collect text until we hit a  non-text content
+      collection.push(content);
+      continue;
+    } else {
+      // collect any text content before this non-text content
+      collect();
+      result.push(content);
+    }
+  }
+
+  // collect any remaining text content
+  collect();
+
+  return result;
+};
+
+// This is a helper that makes Omit<> work with a union type by distributing
+// the omit over the union members.
+export type DistributiveOmit<TObj, TKey extends PropertyKey> = TObj extends any
+  ? Omit<TObj, TKey>
+  : never;
+
+/** Type guard that allows narrowing down to Citations whose `cited_text` is a range */
+const isCitationWithRange = (
+  citation: Citation,
+): citation is DistributiveOmit<Citation, "cited_text"> & {
+  cited_text: [number, number];
+} => Array.isArray(citation.cited_text);

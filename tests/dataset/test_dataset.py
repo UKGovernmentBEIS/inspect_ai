@@ -180,6 +180,12 @@ def test_dataset_auto_id() -> None:
     assert [sample.id for sample in dataset] == [id for id in range(1, 11)]
 
 
+def test_dataset_zero_seed() -> None:
+    dataset1 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
+    dataset2 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
+    assert [s.target for s in dataset1] == [s.target for s in dataset2]
+
+
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])
 
 

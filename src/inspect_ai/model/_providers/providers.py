@@ -16,7 +16,7 @@ from .._registry import modelapi
 def groq() -> type[ModelAPI]:
     FEATURE = "Groq API"
     PACKAGE = "groq"
-    MIN_VERSION = "0.16.0"
+    MIN_VERSION = "0.28.0"
 
     # verify we have the package
     try:
@@ -59,7 +59,7 @@ def openai_api() -> type[ModelAPI]:
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.49.0"
+    MIN_VERSION = "0.52.0"
 
     # verify we have the package
     try:
@@ -157,7 +157,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.6.0"
+    MIN_VERSION = "1.8.2"
 
     # verify we have the package
     try:
@@ -216,6 +216,17 @@ def openrouter() -> type[ModelAPI]:
     from .openrouter import OpenRouterAPI
 
     return OpenRouterAPI
+
+
+@modelapi(name="perplexity")
+def perplexity() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("Perplexity API")
+
+    # in the clear
+    from .perplexity import PerplexityAPI
+
+    return PerplexityAPI
 
 
 @modelapi(name="llama-cpp-python")

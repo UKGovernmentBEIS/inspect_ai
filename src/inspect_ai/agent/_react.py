@@ -82,9 +82,8 @@ def react(
           the submit tool within the message. Alternatively, an async function
           to call to determine whether the loop should continue and what message
           to play back. Note that this function is called on _every_ iteration of
-          the loop. If you return a `str` with a custom message it will be
-          sent to the model as a user message only in the case that no tool
-          calls were made.
+          the loop so if you only want to send a message back when the model fails
+          to call tools you need to code that behavior explicitly.
        truncation: Truncate the conversation history in the event of a context
           window overflow. Defaults to "disabled" which does no truncation. Pass
           "auto" to use `trim_messages()` to reduce the context size. Pass a
@@ -246,13 +245,12 @@ def react(
                                 )
                             )
                     elif isinstance(do_continue, str):
-                        # if there were no tool calls we need to send back the user message
-                        if not state.output.message.tool_calls:
-                            state.messages.append(
-                                ChatMessageUser(
-                                    content=do_continue.format(submit=submit_tool.name)
-                                )
+                        # send back the user message
+                        state.messages.append(
+                            ChatMessageUser(
+                                content=do_continue.format(submit=submit_tool.name)
                             )
+                        )
                     else:  # do_continue is False
                         break
 
@@ -328,11 +326,14 @@ def react_no_submit(
                 if on_continue:
                     do_continue = await _call_on_continue(on_continue, state)
                     if do_continue is True:
-                        do_continue = DEFAULT_CONTINUE_PROMOT_NO_SUBMIT
-                    if do_continue:
-                        # send back user message if there are no tool calls
                         if not state.output.message.tool_calls:
-                            state.messages.append(ChatMessageUser(content=do_continue))
+                            state.messages.append(
+                                ChatMessageUser(
+                                    content=DEFAULT_CONTINUE_PROMOT_NO_SUBMIT
+                                )
+                            )
+                    elif isinstance(do_continue, str):
+                        state.messages.append(ChatMessageUser(content=do_continue))
                     else:
                         break
                 elif not state.output.message.tool_calls:
@@ -361,13 +362,13 @@ def _prompt_to_system_message(
                 and ("{submit}" not in prompt.assistant_prompt)
                 and prompt.submit_prompt
             ):
-                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt}"
+                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt.format(submit=submit_tool)}"
             else:
-                assistant_prompt = prompt.assistant_prompt
+                assistant_prompt = prompt.assistant_prompt.format(
+                    submit=submit_tool or "submit"
+                )
             prompt_lines.append(assistant_prompt)
-        prompt_content = "\n\n".join(prompt_lines).format(
-            submit=submit_tool or "submit"
-        )
+        prompt_content = "\n\n".join(prompt_lines)
         system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
     else:
         system_message = None
@@ -471,12 +472,34 @@ def _remove_submit_tool(
 
         # remove submit tool from assistant messages
         if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-            tools_calls = [
+            new_tools_calls = [
                 tool_call
                 for tool_call in message.tool_calls
                 if tool_call.function != submit_name
             ]
-            message = message.model_copy(update=dict(tool_calls=tools_calls))
+
+            # If a submit tool call was removed, we need to update the message
+            if len(new_tools_calls) < len(message.tool_calls):
+                message = message.model_copy(
+                    update=dict(
+                        tool_calls=new_tools_calls,
+                        # Some models (OpenAI) don't like to see the reasoning
+                        # content item that led to the submit tool call, so we
+                        # have to remove it too.
+                        content=(
+                            [
+                                content
+                                for content in message.content
+                                if (
+                                    isinstance(content, str)
+                                    or content.type != "reasoning"
+                                )
+                            ]
+                            if isinstance(message.content, list)
+                            else message.content
+                        ),
+                    )
+                )
 
         # always append message
         filtered.append(message)

@@ -216,7 +216,7 @@ const ToolsConfig: FC<ToolConfigProps> = ({ tools, toolChoice }) => {
       <div className={clsx(styles.toolConfig, "text-size-small")}>
         {toolEls}
       </div>
-      <div className={styles.toolChoice}>
+      <div className={clsx(styles.toolChoice, "text-size-small")}>
         <div className={clsx("text-style-label", "text-style-secondary")}>
           Tool Choice
         </div>

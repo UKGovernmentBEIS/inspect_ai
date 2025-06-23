@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._display import display_type
+from inspect_ai.util._display import display_type, display_type_plain
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .prereqs import (
@@ -285,7 +285,7 @@ async def compose_command(
     env = project.env if (project.env and forward_env) else {}
 
     # ansi (apply global override)
-    if display_type() == "plain":
+    if display_type_plain():
         ansi = "never"
     if ansi:
         compose_command = compose_command + ["--ansi", ansi]

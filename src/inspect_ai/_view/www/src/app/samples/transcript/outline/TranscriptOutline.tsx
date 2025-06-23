@@ -16,7 +16,7 @@ import { useScrollTrack, useVirtuosoState } from "../../../../state/scrolling";
 import { useStore } from "../../../../state/store";
 import { flatTree } from "../transform/treeify";
 
-import { useSampleDetailNavigation } from "../../../routing/navigationHooks";
+import { useSampleDetailNavigation } from "../../../routing/sampleNavigation";
 import { kSandboxSignalName } from "../transform/fixups";
 import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";

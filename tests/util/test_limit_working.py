@@ -164,6 +164,12 @@ async def test_outermost_limit_raises_error_when_multiple_limits_exceeded(
     assert exc_info.value.source is outer
 
 
+def test_can_get_limit_value() -> None:
+    limit = working_limit(10)
+
+    assert limit.limit == 10
+
+
 async def test_can_get_usage_while_context_manager_open(mock_time: _MockTime) -> None:
     with working_limit(10) as limit:
         mock_time.advance(3)
@@ -210,6 +216,15 @@ async def test_can_get_usage_after_limit_error(mock_time: _MockTime) -> None:
             check_working_limit()
 
     assert limit.usage == 9
+
+
+async def test_can_get_remaining(mock_time: _MockTime) -> None:
+    limit = working_limit(10)
+    with limit:
+        mock_time.advance(4)
+
+        assert limit.remaining is not None
+        assert limit.remaining == 6
 
 
 async def test_cannot_reuse_context_manager() -> None:

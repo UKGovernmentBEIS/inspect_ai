@@ -1,0 +1,28 @@
+- name: "[Inspect Cyber](https://ukgovernmentbeis.github.io/inspect_cyber/)"
+  description: |
+    Python package that streamlines the process of creating agentic cyber evaluations in Inspect.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
+  categories: ["Framework"]
+
+- name: "[Inspect VS Code](https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai)"
+  description: |
+    VS Code extension that assists with developing and debugging Inspect evaluations.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect-vscode)"
+  categories: ["Tooling"]
+
+- name: "[Docent](https://docent.transluce.org/)"
+  description: |
+    Agent transcript analysis. Identify corrupted tasks, scaffolding issues, unexpected behaviors, and agent weaknesses
+  author: "[Transluce](https://transluce.org/introducing-docent)"
+  categories: ["Analysis"]
+
+- name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
+  description: |
+    Python package that provides a Kubernetes sandbox environment for Inspect.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox)"
+  categories: ["Sandbox"]
+
+- name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  description: Use virtual machines, running within a [Proxmox](https://www.proxmox.com/en/products/proxmox-virtual-environment/overview) instance, as Inspect sandboxes.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  categories: ["Sandbox"]
