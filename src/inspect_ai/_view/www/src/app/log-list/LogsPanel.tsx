@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, useEffect, useMemo } from "react";
+import { FC, useEffect, useMemo, useRef } from "react";
 
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
@@ -54,22 +54,32 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
   // Polling for client events
   const { startPolling, cleanup, stopPolling } = useClientEvents();
 
-  useEffect(() => {
-    return () => {
-      cleanup();
-    };
-  }, []);
+  const previousWatchedLogs = useRef<typeof watchedLogs>(undefined);
 
   useEffect(() => {
-    if (watchedLogs) {
-      startPolling(watchedLogs);
-    } else {
+    // Only restart polling if the watched logs have actually changed
+    const current =
+      watchedLogs
+        ?.map((log) => log.name)
+        .sort()
+        .join(",") || "";
+    const previous =
+      previousWatchedLogs.current === undefined
+        ? undefined
+        : previousWatchedLogs.current
+            ?.map((log) => log.name)
+            .sort()
+            .join(",") || "";
+
+    if (current !== previous) {
+      // Always stop current polling first when logs change
       stopPolling();
+
+      if (watchedLogs !== undefined) {
+        startPolling(watchedLogs);
+      }
+      previousWatchedLogs.current = watchedLogs;
     }
-
-    return () => {
-      stopPolling();
-    };
   }, [watchedLogs]);
 
   // All the items visible in the current directory (might span

@@ -306,7 +306,7 @@ export const createLogsSlice = (
       },
       clearWatchedLogs: () => {
         set((state) => {
-          state.logs.listing.watchedLogs = [];
+          state.logs.listing.watchedLogs = undefined;
         });
       },
     },
