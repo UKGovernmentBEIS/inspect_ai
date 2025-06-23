@@ -33,7 +33,7 @@ class FakeBatcher(Batcher[str, CompletedBatchInfo]):
             batch_tick=0.01,
         ),
     ):
-        super().__init__(config)
+        super().__init__(config, 1000, 100)
         if inflight_batches is not None:
             self._inflight_batches = inflight_batches
         self.mock_create_batch = mocker.AsyncMock(side_effect=self._stub_create_batch)

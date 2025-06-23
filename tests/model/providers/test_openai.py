@@ -27,7 +27,8 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._providers.openai import OpenAIAPI, OpenAIBatcher
+from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.util.batch import Batch, BatchRequest
 
 if TYPE_CHECKING:
