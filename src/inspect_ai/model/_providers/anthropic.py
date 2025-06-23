@@ -144,6 +144,15 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         )
         return batch_info.id
 
+    def _does_request_fit_in_batch(
+        self,
+        request: BatchRequest[Message],
+        batch: list[BatchRequest[Message]],
+    ) -> bool:
+        # TODO: Add opaque return in/out param to cache the aggregate request size
+        # info. For now, just worry about the request count. 256MB limit
+        return len(batch) < 100000
+
     async def _check_batch(self, batch: Batch[Message]) -> CompletedBatchInfo | None:
         batch_info = await self.client.messages.batches.retrieve(batch.id)
         # TODO: What does it mean to be ended but without results_url?

@@ -78,6 +78,15 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         super().__init__(config)
         self.client = client
 
+    def _does_request_fit_in_batch(
+        self,
+        request: BatchRequest[ChatCompletion],
+        batch: list[BatchRequest[ChatCompletion]],
+    ) -> bool:
+        # TODO: Add opaque return in/out param to cache the aggregate request size
+        # info. For now, just worry about the request count. 200MB limit
+        return len(batch) < 50000
+
     async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
         # TODO: support other endpoints
         endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"

@@ -3,6 +3,7 @@ import functools
 import time
 import uuid
 from abc import abstractmethod
+from collections import deque
 from logging import getLogger
 from typing import Any, Generic, TypeVar
 
@@ -13,6 +14,9 @@ from inspect_ai._util._async import run_in_background, tg_collect
 from inspect_ai.model._generate_config import GenerateConfig
 
 DEFAULT_BATCH_TICK = 15
+DEFAULT_MAX_SEND_DELAY = 60
+DEFAULT_MAX_BATCHES = 50
+DEFAULT_BATCH_SIZE = 100
 
 logger = getLogger(__name__)
 
@@ -58,12 +62,12 @@ class Batch(Generic[ResponseT]):
 class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     def __init__(self, config: GenerateConfig) -> None:
         self.config = config
-        self._queue: list[BatchRequest[ResponseT]] = []
-        self.queue_timeout: float | None = None
+        self._intake_queue: deque[BatchRequest[ResponseT]] = deque()
+        self._next_batch: list[BatchRequest[ResponseT]] | None = None
+        self.next_batch_timeout: float | None = None
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
-    # TODO: Think through generate's config argument vs self.config - particularly wrt memoization
     async def generate(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ResponseT:
@@ -73,12 +77,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         batch_request = BatchRequest[ResponseT](
             request=request, result_stream=send_stream
         )
-        self._queue.append(batch_request)
-        self.queue_timeout = min(
-            time.time()
-            + (config.batch_max_send_delay or self.config.batch_max_send_delay or 60),
-            self.queue_timeout or float("inf"),
-        )
+        self._intake_queue.append(batch_request)
 
         if not self._is_batch_worker_running:
             self._is_batch_worker_running = True
@@ -90,18 +89,16 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         return result
 
     async def _batch_worker(self) -> None:
-        assert self.config.batch_size is not None
-        assert self.queue_timeout is not None
-
-        while self._inflight_batches or len(self._queue):
+        while self._inflight_batches or self._intake_queue or self._next_batch:
+            # Check and handle completed inflight batches
             if self._inflight_batches:
                 await self._check_inflight_batches()
 
-            num_queued = len(self._queue)
-            if num_queued and (
-                num_queued >= self.config.batch_size or time.time() > self.queue_timeout
-            ):
-                await self._send_batch()
+            # Process intake queue into next batch
+            self._process_intake_queue()
+
+            # Send next batch when appropriate
+            await self._maybe_send_next_batch()
 
             await anyio.sleep(self.config.batch_tick or DEFAULT_BATCH_TICK)
 
@@ -126,19 +123,6 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         # Send exceptions to any remaining streams that weren't handled
         await self._fail_all_requests(list(batch.requests.values()))
 
-    async def _send_batch(self) -> None:
-        batch_requests = self._queue
-        self._queue = []
-
-        batch_id = await self._safe_create_batch(batch_requests)
-        if batch_id is None:
-            return
-
-        self._inflight_batches[batch_id] = Batch(
-            id=batch_id,
-            requests={request.custom_id: request for request in batch_requests},
-        )
-
     async def _fail_all_requests(
         self,
         batch_requests: list[BatchRequest[ResponseT]],
@@ -152,6 +136,69 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             except anyio.BrokenResourceError:
                 # TODO: VERIFY Stream already closed, ignore
                 pass
+
+    def _process_intake_queue(self) -> None:
+        """Move requests from intake queue to next batch if they fit."""
+        if not self._intake_queue:
+            return
+
+        # Initialize next batch if it doesn't exist
+        if self._next_batch is None:
+            self._next_batch = []
+            self.next_batch_timeout = time.time() + (
+                self.config.batch_max_send_delay or DEFAULT_MAX_SEND_DELAY
+            )
+
+        # Process intake queue, moving requests that fit into next batch
+        while self._intake_queue:
+            request = self._intake_queue[0]  # Peek at the first request
+            # TODO: Update the abstract method to return a opaque cached computation
+            # of the remaining capacity.
+            if self._does_request_fit_in_batch(request, self._next_batch):
+                # Remove from intake queue and add to next batch
+                request = self._intake_queue.popleft()
+                self._next_batch.append(request)
+                print(
+                    f"Batcher._process_intake_queue: Moved request {request.custom_id} to next batch (Next batch size: {len(self._next_batch)})"
+                )
+            else:
+                # Stop processing once we find a request that doesn't fit
+                break
+
+    async def _maybe_send_next_batch(self) -> None:
+        if (
+            not self._next_batch
+            or len(self._inflight_batches) >= DEFAULT_MAX_BATCHES
+            or (
+                len(self._next_batch) < (self.config.batch_size or DEFAULT_BATCH_SIZE)
+                and not (
+                    self.next_batch_timeout and time.time() > self.next_batch_timeout
+                )
+            )
+        ):
+            print(
+                f"Batcher._send_next_batch: Not sending batch of len: {len(self._next_batch) if self._next_batch else 0} inflight batches: {len(self._inflight_batches)}"
+            )
+            return
+
+        # All conditions are met. Send it
+
+        print(
+            f"Batcher._send_next_batch: Sending batch of size {len(self._next_batch)}"
+        )
+
+        batch_requests = self._next_batch
+        self._next_batch = None
+        self.next_batch_timeout = None
+
+        batch_id = await self._safe_create_batch(batch_requests)
+        if batch_id is None:
+            return
+
+        self._inflight_batches[batch_id] = Batch(
+            id=batch_id,
+            requests={request.custom_id: request for request in batch_requests},
+        )
 
     # These _safe_* methods are intended to wrap the abstract methods with the appropriate
     # error handling logic consistent with the batch algorithm. This allows the
@@ -210,6 +257,12 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 )
                 await self._fail_all_requests([*batch.requests.values()], e)
                 batch.requests = {}
+
+    @abstractmethod
+    def _does_request_fit_in_batch(
+        self, request: BatchRequest[ResponseT], batch: list[BatchRequest[ResponseT]]
+    ) -> bool:
+        pass
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
