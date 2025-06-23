@@ -191,8 +191,6 @@ async def test_anthropic_batch(mocker: MockerFixture):
     )
     mocker.patch.object(AsyncBatches, "results", mock_batches_results)
 
-    assert model._batcher is None  # pyright: ignore[reportPrivateUsage]
-
     generations: list[ModelOutput | tuple[ModelOutput | Exception, ModelCall]] = []
 
     async def generate(idx_call: int):
@@ -215,9 +213,11 @@ async def test_anthropic_batch(mocker: MockerFixture):
                 mock_messages_create.assert_not_awaited()
 
                 assert model._batcher is not None  # pyright: ignore[reportPrivateUsage]
-                assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
+                assert (
+                    model._batcher._next_batch and len(model._batcher._next_batch) == 1
+                )  # pyright: ignore[reportPrivateUsage]
 
                 mock_batches_create.assert_not_awaited()
                 mock_batches_retrieve.assert_not_awaited()
@@ -256,7 +256,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
         assert isinstance(generation_call, ModelCall)
 
     assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
-    assert len(model._batcher._queue) == 0  # pyright: ignore[reportPrivateUsage]
+    assert not model._batcher._next_batch  # pyright: ignore[reportPrivateUsage]
 
     await anyio.sleep(2 * batch_tick)
 
