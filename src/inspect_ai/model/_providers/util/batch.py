@@ -23,16 +23,6 @@ logger = getLogger(__name__)
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
 
-# TODO:
-# - [x] One more pass removing dependency on eval_task_group. This code needs to
-#       work when running outside of an eval context - like in a notebook.
-# - [x] Stop mutating across modules. Become more functional. Return new model
-# objects instead. e.g. _handle_batch_result should not mutate the batch that was passed to it.
-# - [x] Write wrappers around calls to abstract methods to localize try/catch'es error handling.
-# - [] Implement error handling strategy for all calls - see TODO's below
-#   - [] _fail_all_requests needs to be enhanced to support sending a specific error to the futures.
-# - [] Review test - in particular, their need for mocking anyio
-
 
 @dataclasses.dataclass
 class BatchRequest(Generic[ResponseT]):
@@ -65,6 +55,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._intake_queue: deque[BatchRequest[ResponseT]] = deque()
         self._next_batch: list[BatchRequest[ResponseT]] | None = None
         self.next_batch_timeout: float | None = None
+        self._next_batch_aggregate_size: int | None = None
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
@@ -90,14 +81,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     async def _batch_worker(self) -> None:
         while self._inflight_batches or self._intake_queue or self._next_batch:
-            # Check and handle completed inflight batches
-            if self._inflight_batches:
-                await self._check_inflight_batches()
+            await self._check_inflight_batches()
 
-            # Process intake queue into next batch
             self._process_intake_queue()
 
-            # Send next batch when appropriate
             await self._maybe_send_next_batch()
 
             await anyio.sleep(self.config.batch_tick or DEFAULT_BATCH_TICK)
@@ -105,12 +92,13 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._is_batch_worker_running = False
 
     async def _check_inflight_batches(self) -> None:
-        await tg_collect(
-            [
-                functools.partial(self._check_inflight_batch, batch)
-                for batch in self._inflight_batches.values()
-            ]
-        )
+        if self._inflight_batches:
+            await tg_collect(
+                [
+                    functools.partial(self._check_inflight_batch, batch)
+                    for batch in self._inflight_batches.values()
+                ]
+            )
 
     async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
         completed_info = await self._safe_check_batch(batch)
@@ -145,6 +133,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         # Initialize next batch if it doesn't exist
         if self._next_batch is None:
             self._next_batch = []
+            self._next_batch_aggregate_size = None
             self.next_batch_timeout = time.time() + (
                 self.config.batch_max_send_delay or DEFAULT_MAX_SEND_DELAY
             )
@@ -152,12 +141,14 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         # Process intake queue, moving requests that fit into next batch
         while self._intake_queue:
             request = self._intake_queue[0]  # Peek at the first request
-            # TODO: Update the abstract method to return a opaque cached computation
-            # of the remaining capacity.
-            if self._does_request_fit_in_batch(request, self._next_batch):
+            new_size = self._does_request_fit_in_batch(
+                request, self._next_batch, self._next_batch_aggregate_size
+            )
+            if new_size is not None:
                 # Remove from intake queue and add to next batch
                 request = self._intake_queue.popleft()
                 self._next_batch.append(request)
+                self._next_batch_aggregate_size = new_size
                 print(
                     f"Batcher._process_intake_queue: Moved request {request.custom_id} to next batch (Next batch size: {len(self._next_batch)})"
                 )
@@ -189,6 +180,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
         batch_requests = self._next_batch
         self._next_batch = None
+        self._next_batch_aggregate_size = None
         self.next_batch_timeout = None
 
         batch_id = await self._safe_create_batch(batch_requests)
@@ -260,8 +252,25 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     @abstractmethod
     def _does_request_fit_in_batch(
-        self, request: BatchRequest[ResponseT], batch: list[BatchRequest[ResponseT]]
-    ) -> bool:
+        self,
+        request: BatchRequest[ResponseT],
+        batch: list[BatchRequest[ResponseT]],
+        current_size: int | None,
+    ) -> int | None:
+        """
+        Check if a request fits in the batch and return new aggregate size if it does.
+
+        Args:
+            request: The request to check
+            batch: The current batch of requests
+            current_size: The current size of the requests
+
+        Returns:
+            int | None:
+                - None if the request does NOT fit (no capacity)
+                - The new size of the requests assuming the request is added to
+                  the batch if the request DOES fit
+        """
         pass
 
     @abstractmethod

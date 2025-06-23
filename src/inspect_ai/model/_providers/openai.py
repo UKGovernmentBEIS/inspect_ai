@@ -72,6 +72,9 @@ class CompletedBatchInfo(TypedDict):
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
 
+MAX_BATCH_SIZE_MB = 200 * 1024 * 1024  # 200MB
+MAX_BATCH_REQUEST_COUNT = 50000
+
 
 class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
     def __init__(self, client: AsyncOpenAI, config: GenerateConfig):
@@ -82,10 +85,18 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         self,
         request: BatchRequest[ChatCompletion],
         batch: list[BatchRequest[ChatCompletion]],
-    ) -> bool:
-        # TODO: Add opaque return in/out param to cache the aggregate request size
-        # info. For now, just worry about the request count. 200MB limit
-        return len(batch) < 50000
+        current_size: int | None = None,
+    ) -> int | None:
+        if len(batch) >= MAX_BATCH_REQUEST_COUNT:
+            return None
+
+        if current_size is None:
+            current_size = sum(len(json.dumps(req.request)) for req in batch)
+
+        new_size = current_size + len(json.dumps(request.request))
+
+        # 200MB limit. Leave 5% buffer
+        return new_size if new_size < MAX_BATCH_SIZE_MB * 0.95 else None
 
     async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
         # TODO: support other endpoints

@@ -1,4 +1,5 @@
 import functools
+import json
 import os
 import re
 from copy import copy
@@ -114,6 +115,10 @@ WEB_SEARCH_COMPATIBLE_MODELS = [
 CompletedBatchInfo: TypeAlias = bool
 
 
+MAX_BATCH_SIZE_MB = 256 * 1024 * 1024  # 256MB
+MAX_BATCH_REQUEST_COUNT = 100000
+
+
 class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     def __init__(
         self,
@@ -148,10 +153,17 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         self,
         request: BatchRequest[Message],
         batch: list[BatchRequest[Message]],
-    ) -> bool:
-        # TODO: Add opaque return in/out param to cache the aggregate request size
-        # info. For now, just worry about the request count. 256MB limit
-        return len(batch) < 100000
+        current_size: int | None,
+    ) -> int | None:
+        if len(batch) >= MAX_BATCH_REQUEST_COUNT:
+            return None
+
+        if current_size is None:
+            current_size = sum(len(json.dumps(req.request)) for req in batch)
+
+        new_size = current_size + len(json.dumps(request.request))
+
+        return new_size if new_size < MAX_BATCH_SIZE_MB * 0.95 else None
 
     async def _check_batch(self, batch: Batch[Message]) -> CompletedBatchInfo | None:
         batch_info = await self.client.messages.batches.retrieve(batch.id)
