@@ -32,7 +32,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         super().__init__(
             config,
             max_batch_request_count=50000,
-            max_batch_size_bytes=200 * 1024 * 1024,
+            max_batch_size_mb=200,
         )
         self.client = client
 

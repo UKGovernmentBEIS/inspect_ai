@@ -60,7 +60,6 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
-from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
@@ -73,6 +72,7 @@ from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
+from ._anthropic_batch import AnthropicBatcher
 from .util import environment_prerequisite_error, model_base_url
 from .util.hooks import HttpxHooks
 

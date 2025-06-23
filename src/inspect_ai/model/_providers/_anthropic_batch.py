@@ -50,7 +50,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         super().__init__(
             config,
             max_batch_request_count=100000,
-            max_batch_size_bytes=256 * 1024 * 1024,
+            max_batch_size_mb=256,
         )
         self.client = client
 

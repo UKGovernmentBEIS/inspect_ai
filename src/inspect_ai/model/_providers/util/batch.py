@@ -55,11 +55,11 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self,
         config: GenerateConfig,
         max_batch_request_count: int,
-        max_batch_size_bytes: int,
+        max_batch_size_mb: int,
     ) -> None:
         self.config = config
         self.max_batch_request_count = max_batch_request_count
-        self.max_batch_size_bytes = max_batch_size_bytes
+        self.max_batch_size_bytes = max_batch_size_mb * 1024 * 1024
         self._intake_queue: deque[BatchRequest[ResponseT]] = deque()
         self._next_batch: list[BatchRequest[ResponseT]] | None = None
         self.next_batch_timeout: float | None = None
