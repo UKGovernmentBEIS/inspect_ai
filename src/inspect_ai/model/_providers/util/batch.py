@@ -12,6 +12,7 @@ import anyio
 import anyio.abc
 
 from inspect_ai._util._async import run_in_background, tg_collect
+from inspect_ai._util.notgiven import sanitize_notgiven
 from inspect_ai.model._generate_config import GenerateConfig
 
 DEFAULT_BATCH_TICK = 15
@@ -23,6 +24,13 @@ logger = getLogger(__name__)
 
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
+"""
+This is model provider specific info that represents the completed result of a batch
+
+It gets returned by the `_check_batch` method and passed to `_handle_batch_result`.
+
+Not all model providers need this
+"""
 
 
 @dataclasses.dataclass
@@ -32,15 +40,6 @@ class BatchRequest(Generic[ResponseT]):
     request: dict[str, Any]
     result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
-
-
-"""
-This is model provider specific info that represents the completed result of a batch
-
-It gets returned by the `_check_batch` method and passed to `_handle_batch_result`.
-
-Not all model providers need this
-"""
 
 
 @dataclasses.dataclass
@@ -270,9 +269,11 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             return None
 
         if current_size is None:
-            current_size = sum(len(json.dumps(req.request)) for req in batch)
+            current_size = sum(
+                len(json.dumps(sanitize_notgiven(req.request))) for req in batch
+            )
 
-        new_size = current_size + len(json.dumps(request.request))
+        new_size = current_size + len(json.dumps(sanitize_notgiven(request.request)))
 
         # Leave 5% buffer
         return new_size if new_size < self.max_batch_size_bytes * 0.95 else None

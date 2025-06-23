@@ -134,7 +134,7 @@ def test_openai_flex_requests_not_available():
 
 
 @pytest.mark.anyio
-@skip_if_no_openai
+# @skip_if_no_openai
 async def test_openai_batch(mocker: MockerFixture):
     batch_tick = 0.01
     batch_max_send_delay = 1.0
@@ -290,7 +290,7 @@ async def test_openai_batch(mocker: MockerFixture):
                 mock_completions_create.assert_not_awaited()
 
                 assert model._batcher is not None  # pyright: ignore[reportPrivateUsage]
-                assert len(model._batcher._queue) == 1  # pyright: ignore[reportPrivateUsage]
+                assert len(model._batcher._next_batch) == 1  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage, reportAttributeNotDeclared]
 
@@ -352,7 +352,7 @@ async def test_openai_batch(mocker: MockerFixture):
         assert isinstance(generation_call, ModelCall)
 
     assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
-    assert len(model._batcher._queue) == 0  # pyright: ignore[reportPrivateUsage]
+    assert model._batcher._next_batch is None  # pyright: ignore[reportPrivateUsage]
 
     await anyio.sleep(2 * batch_tick)
 
