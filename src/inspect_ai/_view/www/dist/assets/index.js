@@ -51558,19 +51558,21 @@ categories: ${categories.join(" ")}`;
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const sortingRef = reactExports.useRef(sorting);
       const loadingHeadersRef = reactExports.useRef(false);
+      const logHeadersRef = reactExports.useRef(logHeaders);
+      logHeadersRef.current = logHeaders;
       const maybeLoadAllHeaders = reactExports.useCallback(async () => {
         if (loadingHeadersRef.current) {
           return;
         }
         loadingHeadersRef.current = true;
         try {
-          const logFiles = items.filter((item2) => item2.type === "file").map((item2) => item2.logFile).filter((file) => file !== void 0).filter((item2) => logHeaders[item2.name] === void 0);
+          const logFiles = items.filter((item2) => item2.type === "file").map((item2) => item2.logFile).filter((file) => file !== void 0).filter((item2) => logHeadersRef.current[item2.name] === void 0);
           await loadHeaders(logFiles);
           setWatchedLogs(logFiles);
         } finally {
           loadingHeadersRef.current = false;
         }
-      }, [loadAllHeaders, items, logHeaders]);
+      }, [loadAllHeaders, items]);
       reactExports.useEffect(() => {
         sortingRef.current = sorting;
       }, [sorting]);
@@ -51654,7 +51656,7 @@ categories: ${categories.join(" ")}`;
           const currentPageItems = items.slice(startIndex2, endIndex2);
           const fileItems = currentPageItems.filter((item2) => item2.type === "file");
           const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0).filter((logFile) => {
-            return logHeaders[logFile.name] === void 0;
+            return logHeadersRef.current[logFile.name] === void 0;
           });
           if (logFiles.length > 0) {
             await loadHeaders(logFiles);
@@ -51662,7 +51664,7 @@ categories: ${categories.join(" ")}`;
           setWatchedLogs(fileItems.map((item2) => item2.logFile));
         };
         exec2();
-      }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
+      }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs]);
       const placeholderText = reactExports.useMemo(() => {
         if (headersLoading || loading) {
           if (globalFilter) {

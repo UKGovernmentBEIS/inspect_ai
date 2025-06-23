@@ -52,6 +52,10 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const sortingRef = useRef(sorting);
   const loadingHeadersRef = useRef(false);
 
+  // Load headers for files on the current page (demand loading)
+  const logHeadersRef = useRef(logHeaders);
+  logHeadersRef.current = logHeaders;
+
   // Protected version of loadAllHeaders that prevents concurrent calls
   const maybeLoadAllHeaders = useCallback(async () => {
     if (loadingHeadersRef.current) {
@@ -64,14 +68,14 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         .filter((item) => item.type === "file")
         .map((item) => item.logFile)
         .filter((file) => file !== undefined)
-        .filter((item) => logHeaders[item.name] === undefined);
+        .filter((item) => logHeadersRef.current[item.name] === undefined);
 
       await loadHeaders(logFiles);
       setWatchedLogs(logFiles);
     } finally {
       loadingHeadersRef.current = false;
     }
-  }, [loadAllHeaders, items, logHeaders]);
+  }, [loadAllHeaders, items]);
 
   // Keep ref updated
   useEffect(() => {
@@ -169,7 +173,6 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     }
   }, [globalFilter, maybeLoadAllHeaders]);
 
-  // Load headers for files on the current page (demand loading)
   useEffect(() => {
     const exec = async () => {
       // Get current page items directly from pagination state
@@ -184,7 +187,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         .filter((file) => file !== undefined)
         .filter((logFile) => {
           // Filter out files that are already loaded
-          return logHeaders[logFile.name] === undefined;
+          return logHeadersRef.current[logFile.name] === undefined;
         });
 
       if (logFiles.length > 0) {
@@ -193,7 +196,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       setWatchedLogs(fileItems.map((item) => item.logFile!));
     };
     exec();
-  }, [page, itemsPerPage, items, loadHeaders, logHeaders]);
+  }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs]);
 
   const placeholderText = useMemo(() => {
     if (headersLoading || loading) {
