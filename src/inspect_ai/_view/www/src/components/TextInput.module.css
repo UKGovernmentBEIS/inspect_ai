@@ -17,6 +17,7 @@
   border: none;
   outline: none;
   background: transparent;
+  color: var(--bs-body-color);
 }
 
 .withIcon {

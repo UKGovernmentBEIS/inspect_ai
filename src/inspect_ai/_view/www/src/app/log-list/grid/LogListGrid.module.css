@@ -51,7 +51,7 @@
 .sortIndicator {
   margin-left: 0.25em;
   font-size: 0.75rem;
-  color: var(--bs-primary);
+  color: var(--bs-link-color);
 }
 
 /* Resizer Styles */
@@ -61,7 +61,8 @@
   top: 0;
   height: 100%;
   width: 5px;
-  background: rgba(0, 0, 0, 0.5);
+  background-color: var(--bs-secondary-bg-subtle);
+
   cursor: col-resize;
   user-select: none;
   touch-action: none;

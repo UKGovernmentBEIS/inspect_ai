@@ -56,6 +56,14 @@ body:not([class^="vscode-"]) button {
   grid-template-rows: max-content max-content max-content 1fr;
 }
 
+a {
+  color: var(--bs-link-color);
+}
+
+a:hover {
+  color: var(--bs-link-hover-color);
+}
+
 .modal {
   --bs-modal-margin: 0.5rem;
 }
@@ -135,6 +143,7 @@ body[class^="vscode-"] {
   --bs-border-radius: 0;
   --bs-border-radius-lg: 0;
   --bs-body-bg: var(--vscode-editor-background);
+  --bs-secondary-bg-subtle: var(--vscode-editorHoverWidget-background);
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
   --bs-light-bg-subtle: var(--vscode-sideBar-background);
@@ -150,12 +159,15 @@ body[class^="vscode-"] {
   --bs-btn-bg: var(--vscode-peekViewTitle-background);
   --bs-primary: var(--vscode-banner-iconForeground);
   --bs-nav-pills-link-active-bg: var(--vscode-banner-iconForeground);
+  --bs-link-color: var(--vscode-textLink-foreground);
+  --bs-link-hover-color: var(--vscode-textLink-activeForeground);
   --bs-secondary: var(--vscode-breadcrumb-foreground);
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
   --bs-warning-bg-subtle: var(--vscode-inputValidation-warningBackground);
   --bs-warning-text-emphasis: var(--vscode-input-foreground);
+  --bs-breadcrumb-divider-color: var(--vscode-foreground);
   --inspect-find-background: var(--vscode-editorWidget-background);
   --inspect-find-foreground: var(--vscode-editorWidget-foreground);
   --inspect-input-background: var(--vscode-input-background);
@@ -326,6 +338,10 @@ body[class^="vscode-"] .sidebar .list-group {
     --vscode-sideBarSectionHeader-background
   );
   --bs-list-group-active-color: var(--vscode-sideBarSectionHeader-foreground);
+}
+
+body[class^="vscode-"] .breadcrumb-item {
+  --bs-breadcrumb-divider-color: var(--vscode-foreground);
 }
 
 body[class^="vscode-"] div.ap-control-bar .ap-fullscreen-button {
