@@ -273,8 +273,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             current_size: The current size of the requests
 
         Returns:
-            int | None: None if the request does NOT fit (no capacity), otherwise
-                the new size of the requests assuming the request is added to the batch
+            None if the request does NOT fit (no capacity), otherwise the new size
+            of the requests assuming the request is added to the batch
         """
         if len(batch) >= self.max_batch_request_count:
             return None

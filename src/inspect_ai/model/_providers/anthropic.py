@@ -3,9 +3,8 @@ import os
 import re
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, TypeAlias, cast
+from typing import Any, Literal, Optional, Tuple, cast
 
-import httpx
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -14,22 +13,13 @@ from anthropic import (
     AsyncAnthropicBedrock,
     AsyncAnthropicVertex,
     BadRequestError,
-    InternalServerError,
     NotGiven,
 )
 from anthropic._types import Body
 from anthropic.types import (
-    APIErrorObject,
-    AuthenticationError,
-    BillingError,
-    GatewayTimeoutError,
     ImageBlockParam,
-    InvalidRequestError,
     Message,
     MessageParam,
-    NotFoundError,
-    OverloadedError,
-    RateLimitError,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
     ServerToolUseBlock,
@@ -48,17 +38,10 @@ from anthropic.types import (
     WebSearchToolResultBlockParam,
     message_create_params,
 )
-from anthropic.types import (
-    PermissionError as AnthropicPermissionError,
-)
 from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
-)
-from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
-from anthropic.types.messages.batch_create_params import (
-    Request as AnthropicBatchRequest,
 )
 from pydantic import JsonValue
 from typing_extensions import override
@@ -77,11 +60,7 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
-from inspect_ai.model._providers.util.batch import (
-    Batch,
-    Batcher,
-    BatchRequest,
-)
+from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
@@ -110,121 +89,6 @@ WEB_SEARCH_COMPATIBLE_MODELS = [
     "claude-3-5-sonnet-latest",
     "claude-3-5-haiku-latest",
 ]
-
-CompletedBatchInfo: TypeAlias = bool
-
-
-class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
-    def __init__(
-        self,
-        client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
-        config: GenerateConfig,
-    ):
-        super().__init__(
-            config,
-            max_batch_request_count=100000,
-            max_batch_size_bytes=256 * 1024 * 1024,
-        )
-        self.client = client
-
-    async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
-        requests: list[AnthropicBatchRequest] = []
-        extra_headers: dict[str, str] = {}
-        for request in batch:
-            extra_headers = request.request.pop("extra_headers", {})
-            request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-            if request_id is not None:
-                request.custom_id = request_id
-            requests.append(
-                AnthropicBatchRequest(
-                    custom_id=request.custom_id,
-                    params=cast(MessageCreateParamsNonStreaming, request.request),
-                )
-            )
-
-        batch_info = await self.client.messages.batches.create(
-            requests=requests,
-            extra_headers=extra_headers or None,
-        )
-        return batch_info.id
-
-    async def _check_batch(self, batch: Batch[Message]) -> CompletedBatchInfo | None:
-        batch_info = await self.client.messages.batches.retrieve(batch.id)
-        # TODO: What does it mean to be ended but without results_url?
-        if batch_info.processing_status != "ended" or not batch_info.results_url:
-            return None
-
-        # We don't need any extra completion info since we retrieve the results
-        # directly via the sdk given the batch id.
-        return True
-
-    async def _handle_batch_result(
-        self,
-        batch: Batch[Message],
-        completion_info: CompletedBatchInfo,
-    ) -> None:
-        import anthropic
-
-        async for result in await self.client.messages.batches.results(batch.id):
-            custom_id = result.custom_id
-            batch_request = batch.requests.pop(custom_id)
-
-            response: Message | Exception
-            match result.result.type:
-                case "succeeded":
-                    response = result.result.message
-                case "errored":
-                    # See anthropic._client.AsyncAnthropic._make_status_error
-                    message = result.result.error.error.message
-                    error_class: type[anthropic.APIStatusError]
-                    match result.result.error.error:
-                        case InvalidRequestError():
-                            error_class = anthropic.BadRequestError
-                        case AuthenticationError():
-                            error_class = anthropic.AuthenticationError
-                        case BillingError():
-                            error_class = anthropic.PermissionDeniedError
-                        case AnthropicPermissionError():
-                            error_class = anthropic.PermissionDeniedError
-                        case NotFoundError():
-                            error_class = anthropic.NotFoundError
-                        case RateLimitError():
-                            error_class = anthropic.RateLimitError
-                        case GatewayTimeoutError():
-                            error_class = anthropic.InternalServerError
-                        case APIErrorObject():
-                            error_class = anthropic.APIStatusError
-                        case OverloadedError():
-                            error_class = anthropic.InternalServerError
-                    response = error_class(
-                        message=message,
-                        response=httpx.Response(status_code=500, text=message),
-                        body=None,
-                    )
-                    response.response.status_code = response.status_code
-                case "canceled":
-                    response = APIConnectionError(
-                        request=httpx.Request(
-                            method="POST",
-                            url="https://api.anthropic.com/v1/messages/batches",
-                        )
-                    )
-                case "expired":
-                    response = APITimeoutError(
-                        request=httpx.Request(
-                            method="POST",
-                            url="https://api.anthropic.com/v1/messages/batches",
-                        )
-                    )
-
-            await batch_request.result_stream.send(response)
-
-    def _get_request_failed_error(self, request: BatchRequest[Message]) -> Exception:
-        return InternalServerError(
-            message="Request failed",
-            response=httpx.Response(status_code=500, text="Request failed"),
-            body=None,
-        )
 
 
 class AnthropicAPI(ModelAPI):
