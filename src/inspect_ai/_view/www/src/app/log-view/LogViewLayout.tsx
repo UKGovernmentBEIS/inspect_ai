@@ -54,6 +54,8 @@ export const LogViewLayout: FC = () => {
         className={clsx(
           "app-main-grid",
           fullScreen ? "full-screen" : undefined,
+          singleFileMode ? "single-file-mode" : undefined,
+          "log-view",
         )}
         tabIndex={0}
         onKeyDown={handleKeyboard}

@@ -14359,7 +14359,7 @@ a:hover {
   --bs-backdrop-opacity: 0.4;
 }
 
-body[class^="vscode-"] .app-main-grid {
+.app-main-grid.single-file-mode {
   grid-template-rows: max-content max-content 1fr;
 }
 

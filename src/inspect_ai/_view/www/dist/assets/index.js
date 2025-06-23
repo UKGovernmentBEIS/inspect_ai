@@ -91958,7 +91958,9 @@ Supported expressions:
           ref: mainAppRef,
           className: clsx(
             "app-main-grid",
-            fullScreen ? "full-screen" : void 0
+            fullScreen ? "full-screen" : void 0,
+            singleFileMode ? "single-file-mode" : void 0,
+            "log-view"
           ),
           tabIndex: 0,
           onKeyDown: handleKeyboard,
