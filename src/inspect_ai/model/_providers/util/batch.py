@@ -186,6 +186,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 )
                 await self._fail_all_requests([*batch.requests.values()], e)
                 del self._inflight_batches[batch.id]
+            return None
 
     async def _safe_handle_batch_result(
         self,
