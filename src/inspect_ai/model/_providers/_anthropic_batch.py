@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from typing import TypeAlias, cast
 
 import httpx
@@ -77,13 +76,6 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
 
     async def _check_batch(self, batch: Batch[Message]) -> CompletedBatchInfo | None:
         batch_info = await self.client.messages.batches.retrieve(batch.id)
-        elapsed_seconds = int(
-            (datetime.now(timezone.utc) - batch_info.created_at).total_seconds()
-        )
-        elapsed_formatted = f"{elapsed_seconds // 3600:02d}:{(elapsed_seconds % 3600) // 60:02d}:{elapsed_seconds % 60:02d}"
-        print(
-            f"Polled batch {batch.id} len: {len(batch.requests)} status: {batch_info.processing_status} elapsed={elapsed_formatted}"
-        )
 
         # TODO: What does it mean to be ended but without results_url?
         if batch_info.processing_status != "ended" or not batch_info.results_url:

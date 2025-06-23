@@ -1,7 +1,6 @@
 import functools
 import json
 import tempfile
-from datetime import datetime, timezone
 from typing import Any, Literal, TypedDict
 
 import httpx
@@ -83,14 +82,6 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         self, batch: Batch[ChatCompletion]
     ) -> CompletedBatchInfo | None:
         batch_info = await self.client.batches.retrieve(batch.id)
-
-        elapsed_seconds = (
-            int(datetime.now(timezone.utc).timestamp()) - batch_info.created_at
-        )
-        elapsed_formatted = f"{elapsed_seconds // 3600:02d}:{(elapsed_seconds % 3600) // 60:02d}:{elapsed_seconds % 60:02d}"
-        print(
-            f"Polled batch {batch.id} len: {len(batch.requests)} {batch_info.request_counts} status: {batch_info.status} elapsed={elapsed_formatted}"
-        )
 
         if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
             return None

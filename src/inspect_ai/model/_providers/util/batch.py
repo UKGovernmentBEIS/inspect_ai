@@ -157,9 +157,6 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 request = self._intake_queue.popleft()
                 self._next_batch.append(request)
                 self._next_batch_aggregate_size = new_size
-                print(
-                    f"Batcher._process_intake_queue: Moved request {request.custom_id} to next batch (Next batch size: {len(self._next_batch)})"
-                )
             else:
                 # Stop processing once we find a request that doesn't fit
                 break
@@ -175,16 +172,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 )
             )
         ):
-            print(
-                f"Batcher._send_next_batch: Not sending batch of len: {len(self._next_batch) if self._next_batch else 0} inflight batches: {len(self._inflight_batches)}"
-            )
             return
 
         # All conditions are met. Send it
-
-        print(
-            f"Batcher._send_next_batch: Sending batch of size {len(self._next_batch)}"
-        )
 
         batch_requests = self._next_batch
         self._next_batch = None
