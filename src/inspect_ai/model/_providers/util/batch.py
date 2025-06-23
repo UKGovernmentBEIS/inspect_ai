@@ -1,5 +1,6 @@
 import dataclasses
 import functools
+import json
 import time
 import uuid
 from abc import abstractmethod
@@ -50,8 +51,15 @@ class Batch(Generic[ResponseT]):
 
 
 class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
-    def __init__(self, config: GenerateConfig) -> None:
+    def __init__(
+        self,
+        config: GenerateConfig,
+        max_batch_request_count: int,
+        max_batch_size_bytes: int,
+    ) -> None:
         self.config = config
+        self.max_batch_request_count = max_batch_request_count
+        self.max_batch_size_bytes = max_batch_size_bytes
         self._intake_queue: deque[BatchRequest[ResponseT]] = deque()
         self._next_batch: list[BatchRequest[ResponseT]] | None = None
         self.next_batch_timeout: float | None = None
@@ -250,7 +258,6 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 await self._fail_all_requests([*batch.requests.values()], e)
                 batch.requests = {}
 
-    @abstractmethod
     def _does_request_fit_in_batch(
         self,
         request: BatchRequest[ResponseT],
@@ -266,12 +273,19 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             current_size: The current size of the requests
 
         Returns:
-            int | None:
-                - None if the request does NOT fit (no capacity)
-                - The new size of the requests assuming the request is added to
-                  the batch if the request DOES fit
+            int | None: None if the request does NOT fit (no capacity), otherwise
+                the new size of the requests assuming the request is added to the batch
         """
-        pass
+        if len(batch) >= self.max_batch_request_count:
+            return None
+
+        if current_size is None:
+            current_size = sum(len(json.dumps(req.request)) for req in batch)
+
+        new_size = current_size + len(json.dumps(request.request))
+
+        # Leave 5% buffer
+        return new_size if new_size < self.max_batch_size_bytes * 0.95 else None
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:

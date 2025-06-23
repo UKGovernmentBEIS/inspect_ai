@@ -1,5 +1,4 @@
 import functools
-import json
 import os
 import re
 from copy import copy
@@ -115,17 +114,17 @@ WEB_SEARCH_COMPATIBLE_MODELS = [
 CompletedBatchInfo: TypeAlias = bool
 
 
-MAX_BATCH_SIZE_MB = 256 * 1024 * 1024  # 256MB
-MAX_BATCH_REQUEST_COUNT = 100000
-
-
 class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     def __init__(
         self,
         client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
         config: GenerateConfig,
     ):
-        super().__init__(config)
+        super().__init__(
+            config,
+            max_batch_request_count=100000,
+            max_batch_size_bytes=256 * 1024 * 1024,
+        )
         self.client = client
 
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
@@ -148,22 +147,6 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
             extra_headers=extra_headers or None,
         )
         return batch_info.id
-
-    def _does_request_fit_in_batch(
-        self,
-        request: BatchRequest[Message],
-        batch: list[BatchRequest[Message]],
-        current_size: int | None,
-    ) -> int | None:
-        if len(batch) >= MAX_BATCH_REQUEST_COUNT:
-            return None
-
-        if current_size is None:
-            current_size = sum(len(json.dumps(req.request)) for req in batch)
-
-        new_size = current_size + len(json.dumps(request.request))
-
-        return new_size if new_size < MAX_BATCH_SIZE_MB * 0.95 else None
 
     async def _check_batch(self, batch: Batch[Message]) -> CompletedBatchInfo | None:
         batch_info = await self.client.messages.batches.retrieve(batch.id)
