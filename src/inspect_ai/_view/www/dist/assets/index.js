@@ -251,8 +251,8 @@ var require_assets = __commonJS({
       exports2.unstable_NormalPriority = 3;
       exports2.unstable_Profiling = null;
       exports2.unstable_UserBlockingPriority = 2;
-      exports2.unstable_cancelCallback = function(task2) {
-        task2.callback = null;
+      exports2.unstable_cancelCallback = function(task) {
+        task.callback = null;
       };
       exports2.unstable_forceFrameRate = function(fps) {
         0 > fps || 125 < fps ? console.error(
@@ -544,9 +544,9 @@ var require_assets = __commonJS({
     }
     function mapChildren(children2, func, context) {
       if (null == children2) return children2;
-      var result2 = [], count = 0;
+      var result2 = [], count2 = 0;
       mapIntoArray(children2, result2, "", "", function(child) {
-        return func.call(context, child, count++);
+        return func.call(context, child, count2++);
       });
       return result2;
     }
@@ -1205,10 +1205,10 @@ var require_assets = __commonJS({
         } catch (err2) {
         }
     }
-    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$9 = Math.log, LN2 = Math.LN2;
+    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$a = Math.log, LN2 = Math.LN2;
     function clz32Fallback(x2) {
       x2 >>>= 0;
-      return 0 === x2 ? 32 : 31 - (log$9(x2) / LN2 | 0) | 0;
+      return 0 === x2 ? 32 : 31 - (log$a(x2) / LN2 | 0) | 0;
     }
     var nextTransitionLane = 256, nextRetryLane = 4194304;
     function getHighestPriorityLanes(lanes) {
@@ -12707,8 +12707,8 @@ var require_assets = __commonJS({
     }
     function unicodeEscape() {
       let buffer2 = "";
-      let count = 4;
-      while (count-- > 0) {
+      let count2 = 4;
+      while (count2-- > 0) {
         const c2 = peek$1();
         if (!util.isHexDigit(c2)) {
           throw invalidChar(read$1());
@@ -13949,9 +13949,9 @@ var require_assets = __commonJS({
           list2.length++;
           return newNode;
         }
-        function removeRange(list2, node2, count) {
+        function removeRange(list2, node2, count2) {
           var next = node2.next;
-          for (var i2 = 0; i2 < count && next !== list2.tail; i2++) {
+          for (var i2 = 0; i2 < count2 && next !== list2.tail; i2++) {
             next = next.next;
           }
           node2.next = next;
@@ -14452,13 +14452,13 @@ var require_assets = __commonJS({
         var STATUS_LOADED = "loaded";
         var STATUS_FAILED = "failed";
         var SELECTOR = "pre[data-src]:not([" + STATUS_ATTR + '="' + STATUS_LOADED + '"]):not([' + STATUS_ATTR + '="' + STATUS_LOADING + '"])';
-        function loadFile(src, success, error2) {
+        function loadFile(src, success2, error2) {
           var xhr = new XMLHttpRequest();
           xhr.open("GET", src, true);
           xhr.onreadystatechange = function() {
             if (xhr.readyState == 4) {
               if (xhr.status < 400 && xhr.responseText) {
-                success(xhr.responseText);
+                success2(xhr.responseText);
               } else {
                 if (xhr.status >= 400) {
                   error2(FAILURE_MESSAGE(xhr.status, xhr.statusText));
@@ -16181,12 +16181,12 @@ var require_assets = __commonJS({
         }
       });
     }
-    function matchRoutes(routes, locationArg, basename = "/") {
-      return matchRoutesImpl(routes, locationArg, basename, false);
+    function matchRoutes(routes, locationArg, basename2 = "/") {
+      return matchRoutesImpl(routes, locationArg, basename2, false);
     }
-    function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
+    function matchRoutesImpl(routes, locationArg, basename2, allowPartial) {
       let location2 = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
-      let pathname = stripBasename(location2.pathname || "/", basename);
+      let pathname = stripBasename(location2.pathname || "/", basename2);
       if (pathname == null) {
         return null;
       }
@@ -16204,11 +16204,11 @@ var require_assets = __commonJS({
       return matches;
     }
     function convertRouteMatchToUiMatch(match, loaderData) {
-      let { route, pathname, params: params2 } = match;
+      let { route, pathname, params } = match;
       return {
         id: route.id,
         pathname,
-        params: params2,
+        params,
         data: loaderData[route.id],
         handle: route.handle
       };
@@ -16383,7 +16383,7 @@ var require_assets = __commonJS({
       let matchedPathname = match[0];
       let pathnameBase = matchedPathname.replace(/(.)\/+$/, "$1");
       let captureGroups = match.slice(1);
-      let params2 = compiledParams.reduce(
+      let params = compiledParams.reduce(
         (memo2, { paramName, isOptional }, index2) => {
           if (paramName === "*") {
             let splatValue = captureGroups[index2] || "";
@@ -16400,7 +16400,7 @@ var require_assets = __commonJS({
         {}
       );
       return {
-        params: params2,
+        params,
         pathname: matchedPathname,
         pathnameBase,
         pattern
@@ -16411,16 +16411,16 @@ var require_assets = __commonJS({
         path === "*" || !path.endsWith("*") || path.endsWith("/*"),
         `Route path "${path}" will be treated as if it were "${path.replace(/\*$/, "/*")}" because the \`*\` character must always follow a \`/\` in the pattern. To get rid of this warning, please change the route path to "${path.replace(/\*$/, "/*")}".`
       );
-      let params2 = [];
+      let params = [];
       let regexpSource = "^" + path.replace(/\/*\*?$/, "").replace(/^\/*/, "/").replace(/[\\.*+^${}|()[\]]/g, "\\$&").replace(
         /\/:([\w-]+)(\?)?/g,
         (_2, paramName, isOptional) => {
-          params2.push({ paramName, isOptional: isOptional != null });
+          params.push({ paramName, isOptional: isOptional != null });
           return isOptional ? "/?([^\\/]+)?" : "/([^\\/]+)";
         }
       );
       if (path.endsWith("*")) {
-        params2.push({ paramName: "*" });
+        params.push({ paramName: "*" });
         regexpSource += path === "*" || path === "/*" ? "(.*)$" : "(?:\\/(.+)|\\/*)$";
       } else if (end2) {
         regexpSource += "\\/*$";
@@ -16428,7 +16428,7 @@ var require_assets = __commonJS({
         regexpSource += "(?:(?=\\/|$))";
       } else ;
       let matcher = new RegExp(regexpSource, caseSensitive ? void 0 : "i");
-      return [matcher, params2];
+      return [matcher, params];
     }
     function decodePath(value2) {
       try {
@@ -16441,12 +16441,12 @@ var require_assets = __commonJS({
         return value2;
       }
     }
-    function stripBasename(pathname, basename) {
-      if (basename === "/") return pathname;
-      if (!pathname.toLowerCase().startsWith(basename.toLowerCase())) {
+    function stripBasename(pathname, basename2) {
+      if (basename2 === "/") return pathname;
+      if (!pathname.toLowerCase().startsWith(basename2.toLowerCase())) {
         return null;
       }
-      let startIndex2 = basename.endsWith("/") ? basename.length - 1 : basename.length;
+      let startIndex2 = basename2.endsWith("/") ? basename2.length - 1 : basename2.length;
       let nextChar = pathname.charAt(startIndex2);
       if (nextChar && nextChar !== "/") {
         return null;
@@ -16623,7 +16623,7 @@ var require_assets = __commonJS({
         manifest
       );
       let inFlightDataRoutes;
-      let basename = init.basename || "/";
+      let basename2 = init.basename || "/";
       let dataStrategyImpl = init.dataStrategy || defaultDataStrategyWithMiddleware;
       let future = {
         unstable_middleware: false,
@@ -16635,7 +16635,7 @@ var require_assets = __commonJS({
       let getScrollRestorationKey2 = null;
       let getScrollPosition = null;
       let initialScrollRestored = init.hydrationData != null;
-      let initialMatches = matchRoutes(dataRoutes, init.history.location, basename);
+      let initialMatches = matchRoutes(dataRoutes, init.history.location, basename2);
       let initialMatchesIsFOW = false;
       let initialErrors = null;
       let initialized;
@@ -16937,7 +16937,7 @@ var require_assets = __commonJS({
         let normalizedPath = normalizeTo(
           state.location,
           state.matches,
-          basename,
+          basename2,
           to2,
           opts == null ? void 0 : opts.fromRouteId,
           opts == null ? void 0 : opts.relative
@@ -17040,7 +17040,7 @@ var require_assets = __commonJS({
         let matches = (opts == null ? void 0 : opts.initialHydration) && state.matches && state.matches.length > 0 && !initialMatchesIsFOW ? (
           // `matchRoutes()` has already been called if we're in here via `router.initialize()`
           state.matches
-        ) : matchRoutes(routesToUse, location2, basename);
+        ) : matchRoutes(routesToUse, location2, basename2);
         let flushSync = (opts && opts.flushSync) === true;
         if (matches && state.initialized && !isRevalidationRequired && isHashChangeOnly(state.location, location2) && !(opts && opts.submission && isMutationMethod(opts.submission.formMethod))) {
           completeNavigation(location2, { matches }, { flushSync });
@@ -17242,7 +17242,7 @@ var require_assets = __commonJS({
             let location22 = normalizeRedirectLocation(
               result2.response.headers.get("Location"),
               new URL(request.url),
-              basename
+              basename2
             );
             replace2 = location22 === state.location.pathname + state.location.search;
           }
@@ -17338,7 +17338,7 @@ var require_assets = __commonJS({
           fetchLoadMatches,
           fetchRedirectIds,
           routesToUse,
-          basename,
+          basename2,
           init.patchRoutesOnNavigation != null,
           pendingActionResult
         );
@@ -17469,12 +17469,12 @@ var require_assets = __commonJS({
         let normalizedPath = normalizeTo(
           state.location,
           state.matches,
-          basename,
+          basename2,
           href2,
           routeId,
           opts == null ? void 0 : opts.relative
         );
-        let matches = matchRoutes(routesToUse, normalizedPath, basename);
+        let matches = matchRoutes(routesToUse, normalizedPath, basename2);
         let fogOfWar = checkFogOfWar(matches, routesToUse, normalizedPath);
         if (fogOfWar.active && fogOfWar.matches) {
           matches = fogOfWar.matches;
@@ -17644,7 +17644,7 @@ var require_assets = __commonJS({
           abortController.signal
         );
         let routesToUse = inFlightDataRoutes || dataRoutes;
-        let matches = state.navigation.state !== "idle" ? matchRoutes(routesToUse, state.navigation.location, basename) : state.matches;
+        let matches = state.navigation.state !== "idle" ? matchRoutes(routesToUse, state.navigation.location, basename2) : state.matches;
         invariant(matches, "Didn't find any matches after fetcher action");
         let loadId = ++incrementingLoadId;
         fetchReloadIds.set(key2, loadId);
@@ -17668,7 +17668,7 @@ var require_assets = __commonJS({
           fetchLoadMatches,
           fetchRedirectIds,
           routesToUse,
-          basename,
+          basename2,
           init.patchRoutesOnNavigation != null,
           [match.route.id, actionResult]
         );
@@ -17863,7 +17863,7 @@ var require_assets = __commonJS({
         location2 = normalizeRedirectLocation(
           location2,
           new URL(request.url),
-          basename
+          basename2
         );
         let redirectLocation = createLocation(state.location, location2, {
           _isRedirect: true
@@ -17876,7 +17876,7 @@ var require_assets = __commonJS({
             const url = createBrowserURLImpl(location2, true);
             isDocumentReload = // Hard reload if it's an absolute URL to a new origin
             url.origin !== routerWindow.location.origin || // Hard reload if it's an absolute URL that does not match our basename
-            stripBasename(url.pathname, basename) == null;
+            stripBasename(url.pathname, basename2) == null;
           }
           if (isDocumentReload) {
             if (replace2) {
@@ -17953,7 +17953,7 @@ var require_assets = __commonJS({
                 request,
                 routeId,
                 matches,
-                basename
+                basename2
               )
             };
           } else {
@@ -18053,12 +18053,12 @@ var require_assets = __commonJS({
         state.fetchers.delete(key2);
       }
       function queueFetcherForDeletion(key2) {
-        let count = (activeFetchers.get(key2) || 0) - 1;
-        if (count <= 0) {
+        let count2 = (activeFetchers.get(key2) || 0) - 1;
+        if (count2 <= 0) {
           activeFetchers.delete(key2);
           fetchersQueuedForDeletion.add(key2);
         } else {
-          activeFetchers.set(key2, count);
+          activeFetchers.set(key2, count2);
         }
         updateState({ fetchers: new Map(state.fetchers) });
       }
@@ -18204,7 +18204,7 @@ var require_assets = __commonJS({
             let fogMatches = matchRoutesImpl(
               routesToUse,
               pathname,
-              basename,
+              basename2,
               true
             );
             return { active: true, matches: fogMatches || [] };
@@ -18213,7 +18213,7 @@ var require_assets = __commonJS({
               let partialMatches = matchRoutesImpl(
                 routesToUse,
                 pathname,
-                basename,
+                basename2,
                 true
               );
               return { active: true, matches: partialMatches };
@@ -18258,14 +18258,14 @@ var require_assets = __commonJS({
           if (signal.aborted) {
             return { type: "aborted" };
           }
-          let newMatches = matchRoutes(routesToUse, pathname, basename);
+          let newMatches = matchRoutes(routesToUse, pathname, basename2);
           if (newMatches) {
             return { type: "success", matches: newMatches };
           }
           let newPartialMatches = matchRoutesImpl(
             routesToUse,
             pathname,
-            basename,
+            basename2,
             true
           );
           if (!newPartialMatches || partialMatches.length === newPartialMatches.length && partialMatches.every(
@@ -18302,7 +18302,7 @@ var require_assets = __commonJS({
       }
       router = {
         get basename() {
-          return basename;
+          return basename2;
         },
         get future() {
           return future;
@@ -18342,7 +18342,7 @@ var require_assets = __commonJS({
     function isSubmissionNavigation(opts) {
       return opts != null && ("formData" in opts && opts.formData != null || "body" in opts && opts.body !== void 0);
     }
-    function normalizeTo(location2, matches, basename, to2, fromRouteId, relative) {
+    function normalizeTo(location2, matches, basename2, to2, fromRouteId, relative) {
       let contextualMatches;
       let activeRouteMatch;
       if (fromRouteId) {
@@ -18361,7 +18361,7 @@ var require_assets = __commonJS({
       let path = resolveTo(
         to2 ? to2 : ".",
         getResolveToMatches(contextualMatches),
-        stripBasename(location2.pathname, basename) || location2.pathname,
+        stripBasename(location2.pathname, basename2) || location2.pathname,
         relative === "path"
       );
       if (to2 == null) {
@@ -18373,16 +18373,16 @@ var require_assets = __commonJS({
         if (activeRouteMatch.route.index && !nakedIndex) {
           path.search = path.search ? path.search.replace(/^\?/, "?index&") : "?index";
         } else if (!activeRouteMatch.route.index && nakedIndex) {
-          let params2 = new URLSearchParams(path.search);
-          let indexValues = params2.getAll("index");
-          params2.delete("index");
-          indexValues.filter((v2) => v2).forEach((v2) => params2.append("index", v2));
-          let qs = params2.toString();
+          let params = new URLSearchParams(path.search);
+          let indexValues = params.getAll("index");
+          params.delete("index");
+          indexValues.filter((v2) => v2).forEach((v2) => params.append("index", v2));
+          let qs = params.toString();
           path.search = qs ? `?${qs}` : "";
         }
       }
-      if (basename !== "/") {
-        path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+      if (basename2 !== "/") {
+        path.pathname = path.pathname === "/" ? basename2 : joinPaths([basename2, path.pathname]);
       }
       return createPath(path);
     }
@@ -18493,7 +18493,7 @@ var require_assets = __commonJS({
       parsedPath.search = `?${searchParams}`;
       return { path: createPath(parsedPath), submission };
     }
-    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, hasPatchRoutesOnNavigation, pendingActionResult) {
+    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename2, hasPatchRoutesOnNavigation, pendingActionResult) {
       var _a2;
       let actionResult = pendingActionResult ? isErrorResult(pendingActionResult[1]) ? pendingActionResult[1].error : pendingActionResult[1].data : void 0;
       let currentUrl = history2.createURL(state.location);
@@ -18574,7 +18574,7 @@ var require_assets = __commonJS({
         }
         let fetcher = state.fetchers.get(key2);
         let isMidInitialLoad = fetcher && fetcher.state !== "idle" && fetcher.data === void 0;
-        let fetcherMatches = matchRoutes(routesToUse, f.path, basename);
+        let fetcherMatches = matchRoutes(routesToUse, f.path, basename2);
         if (!fetcherMatches) {
           if (hasPatchRoutesOnNavigation && isMidInitialLoad) {
             return;
@@ -18920,7 +18920,7 @@ var require_assets = __commonJS({
       );
     }
     async function runMiddlewarePipeline(args, propagateResult, handler, errorHandler) {
-      let { matches, request, params: params2, context } = args;
+      let { matches, request, params, context } = args;
       let middlewareState = {
         handlerResult: void 0
       };
@@ -18929,7 +18929,7 @@ var require_assets = __commonJS({
           (m) => m.route.unstable_middleware ? m.route.unstable_middleware.map((fn2) => [m.route.id, fn2]) : []
         );
         let result2 = await callRouteMiddleware(
-          { request, params: params2, context },
+          { request, params, context },
           tuples,
           propagateResult,
           middlewareState,
@@ -19322,7 +19322,7 @@ var require_assets = __commonJS({
       }
       return { type: "data", data: result2 };
     }
-    function normalizeRelativeRoutingRedirectResponse(response, request, routeId, matches, basename) {
+    function normalizeRelativeRoutingRedirectResponse(response, request, routeId, matches, basename2) {
       let location2 = response.headers.get("Location");
       invariant(
         location2,
@@ -19336,18 +19336,18 @@ var require_assets = __commonJS({
         location2 = normalizeTo(
           new URL(request.url),
           trimmedMatches,
-          basename,
+          basename2,
           location2
         );
         response.headers.set("Location", location2);
       }
       return response;
     }
-    function normalizeRedirectLocation(location2, currentUrl, basename) {
+    function normalizeRedirectLocation(location2, currentUrl, basename2) {
       if (ABSOLUTE_URL_REGEX.test(location2)) {
         let normalizedLocation = location2;
         let url = normalizedLocation.startsWith("//") ? new URL(currentUrl.protocol + normalizedLocation) : new URL(normalizedLocation);
-        let isSameBasename = stripBasename(url.pathname, basename) != null;
+        let isSameBasename = stripBasename(url.pathname, basename2) != null;
         if (url.origin === currentUrl.origin && isSameBasename) {
           return url.pathname + url.search + url.hash;
         }
@@ -19852,11 +19852,11 @@ var require_assets = __commonJS({
         // router loaded. We can help them understand how to avoid that.
         `useHref() may be used only in the context of a <Router> component.`
       );
-      let { basename, navigator: navigator2 } = reactExports.useContext(NavigationContext);
+      let { basename: basename2, navigator: navigator2 } = reactExports.useContext(NavigationContext);
       let { hash: hash2, pathname, search } = useResolvedPath(to2, { relative });
       let joinedPathname = pathname;
-      if (basename !== "/") {
-        joinedPathname = pathname === "/" ? basename : joinPaths([basename, pathname]);
+      if (basename2 !== "/") {
+        joinedPathname = pathname === "/" ? basename2 : joinPaths([basename2, pathname]);
       }
       return navigator2.createHref({ pathname: joinedPathname, search, hash: hash2 });
     }
@@ -19891,7 +19891,7 @@ var require_assets = __commonJS({
         `useNavigate() may be used only in the context of a <Router> component.`
       );
       let dataRouterContext = reactExports.useContext(DataRouterContext);
-      let { basename, navigator: navigator2 } = reactExports.useContext(NavigationContext);
+      let { basename: basename2, navigator: navigator2 } = reactExports.useContext(NavigationContext);
       let { matches } = reactExports.useContext(RouteContext);
       let { pathname: locationPathname } = useLocation();
       let routePathnamesJson = JSON.stringify(getResolveToMatches(matches));
@@ -19913,8 +19913,8 @@ var require_assets = __commonJS({
             locationPathname,
             options2.relative === "path"
           );
-          if (dataRouterContext == null && basename !== "/") {
-            path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+          if (dataRouterContext == null && basename2 !== "/") {
+            path.pathname = path.pathname === "/" ? basename2 : joinPaths([basename2, path.pathname]);
           }
           (!!options2.replace ? navigator2.replace : navigator2.push)(
             path,
@@ -19923,7 +19923,7 @@ var require_assets = __commonJS({
           );
         },
         [
-          basename,
+          basename2,
           navigator2,
           routePathnamesJson,
           locationPathname,
@@ -20516,20 +20516,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           })
         };
       }, [router]);
-      let basename = router.basename || "/";
+      let basename2 = router.basename || "/";
       let dataRouterContext = reactExports.useMemo(
         () => ({
           router,
           navigator: navigator2,
           static: false,
-          basename
+          basename: basename2
         }),
-        [router, navigator2, basename]
+        [router, navigator2, basename2]
       );
       return /* @__PURE__ */ reactExports.createElement(reactExports.Fragment, null, /* @__PURE__ */ reactExports.createElement(DataRouterContext.Provider, { value: dataRouterContext }, /* @__PURE__ */ reactExports.createElement(DataRouterStateContext.Provider, { value: state }, /* @__PURE__ */ reactExports.createElement(FetchersContext.Provider, { value: fetcherData.current }, /* @__PURE__ */ reactExports.createElement(ViewTransitionContext.Provider, { value: vtContext }, /* @__PURE__ */ reactExports.createElement(
         Router,
         {
-          basename,
+          basename: basename2,
           location: state.location,
           navigationType: state.historyAction,
           navigator: navigator2
@@ -20599,15 +20599,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         !useInRouterContext(),
         `You cannot render a <Router> inside another <Router>. You should never have more than one in your app.`
       );
-      let basename = basenameProp.replace(/^\/*/, "/");
+      let basename2 = basenameProp.replace(/^\/*/, "/");
       let navigationContext = reactExports.useMemo(
         () => ({
-          basename,
+          basename: basename2,
           navigator: navigator2,
           static: staticProp,
           future: {}
         }),
-        [basename, navigator2, staticProp]
+        [basename2, navigator2, staticProp]
       );
       if (typeof locationProp === "string") {
         locationProp = parsePath$1(locationProp);
@@ -20620,7 +20620,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         key: key2 = "default"
       } = locationProp;
       let locationContext = reactExports.useMemo(() => {
-        let trailingPathname = stripBasename(pathname, basename);
+        let trailingPathname = stripBasename(pathname, basename2);
         if (trailingPathname == null) {
           return null;
         }
@@ -20634,10 +20634,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           },
           navigationType
         };
-      }, [basename, pathname, search, hash2, state, key2, navigationType]);
+      }, [basename2, pathname, search, hash2, state, key2, navigationType]);
       warning(
         locationContext != null,
-        `<Router basename="${basename}"> is not able to match the URL "${pathname}${search}${hash2}" because it does not start with the basename, so the <Router> won't render anything.`
+        `<Router basename="${basename2}"> is not able to match the URL "${pathname}${search}${hash2}" because it does not start with the basename, so the <Router> won't render anything.`
       );
       if (locationContext == null) {
         return null;
@@ -20720,7 +20720,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return encType;
     }
-    function getFormSubmissionInfo(target2, basename) {
+    function getFormSubmissionInfo(target2, basename2) {
       let method;
       let action;
       let encType;
@@ -20728,7 +20728,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let body2;
       if (isFormElement(target2)) {
         let attr = target2.getAttribute("action");
-        action = attr ? stripBasename(attr, basename) : null;
+        action = attr ? stripBasename(attr, basename2) : null;
         method = target2.getAttribute("method") || defaultMethod;
         encType = getFormEncType(target2.getAttribute("enctype")) || defaultEncType;
         formData = new FormData(target2);
@@ -20740,7 +20740,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           );
         }
         let attr = target2.getAttribute("formaction") || form.getAttribute("action");
-        action = attr ? stripBasename(attr, basename) : null;
+        action = attr ? stripBasename(attr, basename2) : null;
         method = target2.getAttribute("formmethod") || form.getAttribute("method") || defaultMethod;
         encType = getFormEncType(target2.getAttribute("formenctype")) || getFormEncType(form.getAttribute("enctype")) || defaultEncType;
         formData = new FormData(form, target2);
@@ -20921,7 +20921,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     }
     Object.getOwnPropertyNames(Object.prototype).sort().join("\0");
     var NO_BODY_STATUS_CODES = /* @__PURE__ */ new Set([100, 101, 204, 205]);
-    function singleFetchUrl(reqUrl, basename) {
+    function singleFetchUrl(reqUrl, basename2) {
       let url = typeof reqUrl === "string" ? new URL(
         reqUrl,
         // This can be called during the SSR flow via PrefetchPageLinksImpl so
@@ -20930,8 +20930,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ) : reqUrl;
       if (url.pathname === "/") {
         url.pathname = "_root.data";
-      } else if (basename && stripBasename(url.pathname, basename) === "/") {
-        url.pathname = `${basename.replace(/\/$/, "")}/_root.data`;
+      } else if (basename2 && stripBasename(url.pathname, basename2) === "/") {
+        url.pathname = `${basename2.replace(/\/$/, "")}/_root.data`;
       } else {
         url.pathname = `${url.pathname.replace(/\/$/, "")}.data`;
       }
@@ -20975,8 +20975,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         if (prefetch === "viewport") {
           let callback = (entries) => {
-            entries.forEach((entry2) => {
-              setShouldPrefetch(entry2.isIntersecting);
+            entries.forEach((entry) => {
+              setShouldPrefetch(entry.isIntersecting);
             });
           };
           let observer = new IntersectionObserver(callback, { threshold: 0.5 });
@@ -21068,7 +21068,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     }) {
       let location2 = useLocation();
       let { manifest, routeModules } = useFrameworkContext();
-      let { basename } = useDataRouterContext2();
+      let { basename: basename2 } = useDataRouterContext2();
       let { loaderData, matches } = useDataRouterStateContext();
       let newMatchesForData = reactExports.useMemo(
         () => getNewMatchesForLinks(
@@ -21115,7 +21115,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (routesParams.size === 0) {
           return [];
         }
-        let url = singleFetchUrl(page, basename);
+        let url = singleFetchUrl(page, basename2);
         if (foundOptOutRoute && routesParams.size > 0) {
           url.searchParams.set(
             "_routes",
@@ -21124,7 +21124,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         return [url.pathname + url.search];
       }, [
-        basename,
+        basename2,
         loaderData,
         location2,
         manifest,
@@ -21238,7 +21238,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         viewTransition,
         ...rest
       }, forwardedRef) {
-        let { basename } = reactExports.useContext(NavigationContext);
+        let { basename: basename2 } = reactExports.useContext(NavigationContext);
         let isAbsolute = typeof to2 === "string" && ABSOLUTE_URL_REGEX2.test(to2);
         let absoluteHref;
         let isExternal = false;
@@ -21248,7 +21248,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             try {
               let currentUrl = new URL(window.location.href);
               let targetUrl = to2.startsWith("//") ? new URL(currentUrl.protocol + to2) : new URL(to2);
-              let path = stripBasename(targetUrl.pathname, basename);
+              let path = stripBasename(targetUrl.pathname, basename2);
               if (targetUrl.origin === currentUrl.origin && path != null) {
                 to2 = path + targetUrl.search + targetUrl.hash;
               } else {
@@ -21315,7 +21315,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         let path = useResolvedPath(to2, { relative: rest.relative });
         let location2 = useLocation();
         let routerState = reactExports.useContext(DataRouterStateContext);
-        let { navigator: navigator2, basename } = reactExports.useContext(NavigationContext);
+        let { navigator: navigator2, basename: basename2 } = reactExports.useContext(NavigationContext);
         let isTransitioning = routerState != null && // Conditional usage is OK here because the usage of a data router is static
         // eslint-disable-next-line react-hooks/rules-of-hooks
         useViewTransitionState(path) && viewTransition === true;
@@ -21327,8 +21327,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           nextLocationPathname = nextLocationPathname ? nextLocationPathname.toLowerCase() : null;
           toPathname = toPathname.toLowerCase();
         }
-        if (nextLocationPathname && basename) {
-          nextLocationPathname = stripBasename(nextLocationPathname, basename) || nextLocationPathname;
+        if (nextLocationPathname && basename2) {
+          nextLocationPathname = stripBasename(nextLocationPathname, basename2) || nextLocationPathname;
         }
         const endSlashPosition = toPathname !== "/" && toPathname.endsWith("/") ? toPathname.length - 1 : toPathname.length;
         let isActive = locationPathname === toPathname || !end2 && locationPathname.startsWith(toPathname) && locationPathname.charAt(endSlashPosition) === "/";
@@ -21505,13 +21505,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "useSubmit"
         /* UseSubmit */
       );
-      let { basename } = reactExports.useContext(NavigationContext);
+      let { basename: basename2 } = reactExports.useContext(NavigationContext);
       let currentRouteId = useRouteId();
       return reactExports.useCallback(
         async (target2, options2 = {}) => {
           let { action, method, encType, formData, body: body2 } = getFormSubmissionInfo(
             target2,
-            basename
+            basename2
           );
           if (options2.navigate === false) {
             let key2 = options2.fetcherKey || getUniqueFetcherId();
@@ -21538,11 +21538,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             });
           }
         },
-        [router, basename, currentRouteId]
+        [router, basename2, currentRouteId]
       );
     }
     function useFormAction(action, { relative } = {}) {
-      let { basename } = reactExports.useContext(NavigationContext);
+      let { basename: basename2 } = reactExports.useContext(NavigationContext);
       let routeContext = reactExports.useContext(RouteContext);
       invariant(routeContext, "useFormAction must be used inside a RouteContext");
       let [match] = routeContext.matches.slice(-1);
@@ -21550,21 +21550,21 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let location2 = useLocation();
       if (action == null) {
         path.search = location2.search;
-        let params2 = new URLSearchParams(path.search);
-        let indexValues = params2.getAll("index");
+        let params = new URLSearchParams(path.search);
+        let indexValues = params.getAll("index");
         let hasNakedIndexParam = indexValues.some((v2) => v2 === "");
         if (hasNakedIndexParam) {
-          params2.delete("index");
-          indexValues.filter((v2) => v2).forEach((v2) => params2.append("index", v2));
-          let qs = params2.toString();
+          params.delete("index");
+          indexValues.filter((v2) => v2).forEach((v2) => params.append("index", v2));
+          let qs = params.toString();
           path.search = qs ? `?${qs}` : "";
         }
       }
       if ((!action || action === ".") && match.route.index) {
         path.search = path.search ? path.search.replace(/^\?/, "?index&") : "?index";
       }
-      if (basename !== "/") {
-        path.pathname = path.pathname === "/" ? basename : joinPaths([basename, path.pathname]);
+      if (basename2 !== "/") {
+        path.pathname = path.pathname === "/" ? basename2 : joinPaths([basename2, path.pathname]);
       }
       return createPath(path);
     }
@@ -21574,7 +21574,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         vtContext != null,
         "`useViewTransitionState` must be used within `react-router-dom`'s `RouterProvider`.  Did you accidentally import `RouterProvider` from `react-router`?"
       );
-      let { basename } = useDataRouterContext3(
+      let { basename: basename2 } = useDataRouterContext3(
         "useViewTransitionState"
         /* useViewTransitionState */
       );
@@ -21582,8 +21582,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (!vtContext.isTransitioning) {
         return false;
       }
-      let currentPath = stripBasename(vtContext.currentLocation.pathname, basename) || vtContext.currentLocation.pathname;
-      let nextPath = stripBasename(vtContext.nextLocation.pathname, basename) || vtContext.nextLocation.pathname;
+      let currentPath = stripBasename(vtContext.currentLocation.pathname, basename2) || vtContext.currentLocation.pathname;
+      let nextPath = stripBasename(vtContext.nextLocation.pathname, basename2) || vtContext.nextLocation.pathname;
       return matchPath(path.pathname, nextPath) != null || matchPath(path.pathname, currentPath) != null;
     }
     /* @__PURE__ */ new Set([
@@ -21640,7 +21640,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           iter(key2, obj[key2], obj);
         });
       } else {
-        obj.forEach((entry2, index2) => iter(index2, entry2, obj));
+        obj.forEach((entry, index2) => iter(index2, entry, obj));
       }
     }
     function getArchtype(thing) {
@@ -23014,12 +23014,29 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const kLogViewInfoTabId = "info";
     const kLogViewModelsTabId = "models";
     const kLogViewTaskTabId = "task";
+    const kWorkspaceTabs = [
+      kLogViewSamplesTabId,
+      kLogViewJsonTabId,
+      kLogViewInfoTabId,
+      kLogViewModelsTabId,
+      kLogViewTaskTabId
+    ];
     const kSampleMessagesTabId = `messages`;
     const kSampleTranscriptTabId = `transcript`;
     const kSampleScoringTabId = `scoring`;
     const kSampleMetdataTabId = `metadata`;
     const kSampleErrorTabId = `error`;
+    const kSampleErrorRetriesTabId = `retry-errors`;
     const kSampleJsonTabId = `json`;
+    const kSampleTabIds = [
+      kSampleMessagesTabId,
+      kSampleTranscriptTabId,
+      kSampleScoringTabId,
+      kSampleMetdataTabId,
+      kSampleErrorTabId,
+      kSampleErrorRetriesTabId,
+      kSampleJsonTabId
+    ];
     const kScoreTypePassFail = "passfail";
     const kScoreTypeCategorical = "categorical";
     const kScoreTypeNumeric = "numeric";
@@ -23047,7 +23064,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const kDefaultSampleTab = kSampleTranscriptTabId;
     const initialState$3 = {
       status: { loading: false },
-      offcanvas: false,
       showFind: false,
       dialogs: {
         sample: false
@@ -23060,7 +23076,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       listPositions: {},
       collapsed: {},
       messages: {},
-      propertyBags: {}
+      propertyBags: {},
+      pagination: {}
     };
     const createAppSlice = (set2, get2, _store) => {
       const getBoolRecord = (record, name2, defaultValue) => {
@@ -23078,9 +23095,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         appActions: {
           setStatus: (status2) => set2((state) => {
             state.app.status = status2;
-          }),
-          setOffcanvas: (show) => set2((state) => {
-            state.app.offcanvas = show;
           }),
           setShowFind: (show) => set2((state) => {
             state.app.showFind = show;
@@ -23219,6 +23233,21 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             set2((state) => {
               state.app.urlHash = urlHash;
             });
+          },
+          setSingleFileMode: (singleFile) => {
+            set2((state) => {
+              state.app.singleFileMode = singleFile;
+            });
+          },
+          setPagination: (name2, pagination) => {
+            set2((state) => {
+              state.app.pagination[name2] = pagination;
+            });
+          },
+          clearPagination: (name2) => {
+            set2((state) => {
+              delete state.app.pagination[name2];
+            });
           }
         }
       };
@@ -23299,9 +23328,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       return { name: name2, start: start2, stop };
     };
-    const log$8 = createLogger("logPolling");
-    const kRetries = 10;
-    const kPollingInterval$1 = 2;
+    const log$9 = createLogger("logPolling");
+    const kRetries$1 = 10;
+    const kPollingInterval$2 = 2;
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       let abortController;
@@ -23315,19 +23344,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!api2 || !selectedLogFile) {
           return false;
         }
-        log$8.debug(`refresh: ${selectedLogFile}`);
+        log$9.debug(`refresh: ${selectedLogFile}`);
         try {
           const logContents = await api2.get_log_summary(selectedLogFile);
           set2((state2) => {
             state2.log.selectedLogSummary = logContents;
-            log$8.debug(
+            log$9.debug(
               `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
               logContents
             );
             if (clearPending) {
               const pendingSampleSummaries = state2.log.pendingSampleSummaries;
               if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-                log$8.debug(
+                log$9.debug(
                   `Clearing pending summaries during refresh for: ${logFileName}`
                 );
                 state2.log.pendingSampleSummaries = {
@@ -23339,7 +23368,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           });
           return true;
         } catch (error2) {
-          log$8.error("Error refreshing log:", error2);
+          log$9.error("Error refreshing log:", error2);
           return false;
         }
       };
@@ -23355,7 +23384,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           async () => {
             var _a3, _b2;
             if (abortController.signal.aborted) {
-              log$8.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$9.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
@@ -23366,13 +23395,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             if (abortController.signal.aborted) {
               return false;
             }
-            log$8.debug(`Polling running samples: ${logFileName}`);
+            log$9.debug(`Polling running samples: ${logFileName}`);
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
             );
-            log$8.debug(`Received pending samples`, pendingSamples);
+            log$9.debug(`Received pending samples`, pendingSamples);
             if (abortController.signal.aborted) {
               return false;
             }
@@ -23384,9 +23413,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               await refreshLog(logFileName, false);
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$8.debug(`Stop polling running samples: ${logFileName}`);
+              log$9.debug(`Stop polling running samples: ${logFileName}`);
               if (loadedPendingSamples || ((_b2 = state.log.selectedLogSummary) == null ? void 0 : _b2.status) === "started") {
-                log$8.debug(`Refresh log: ${logFileName}`);
+                log$9.debug(`Refresh log: ${logFileName}`);
                 await refreshLog(logFileName, true);
               }
               return false;
@@ -23394,8 +23423,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             return true;
           },
           {
-            maxRetries: kRetries,
-            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || kPollingInterval$1
+            maxRetries: kRetries$1,
+            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || kPollingInterval$2
           }
         );
         currentPolling.start();
@@ -23406,7 +23435,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$8.debug(`Clear pending: ${logFileName}`);
+          log$9.debug(`Clear pending: ${logFileName}`);
           return refreshLog(logFileName, true);
         }
         return false;
@@ -23418,8 +23447,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       };
       const cleanup = () => {
-        log$8.debug(`Cleanup`);
-        abortController.abort();
+        log$9.debug(`Cleanup`);
+        if (abortController) {
+          abortController.abort();
+        }
         stopPolling();
       };
       return {
@@ -23431,7 +23462,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         refreshLog: (clearPending = false) => refreshLog(get2().logs.selectedLogFile || "", clearPending)
       };
     }
-    const log$7 = createLogger("logSlice");
+    const log$8 = createLogger("logSlice");
     const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
@@ -23509,7 +23540,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               console.error("API not initialized in Store");
               return;
             }
-            log$7.debug(`Load log: ${logFileName}`);
+            log$8.debug(`Load log: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -23530,9 +23561,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               });
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$7.error("Error loading log:", error2);
+              log$8.error("Error loading log:", error2);
               throw error2;
             }
+          },
+          clearLog: () => {
+            set2((state) => {
+              state.log.loadedLog = void 0;
+            });
           },
           pollLog: async () => {
             const currentLog = get2().log.loadedLog;
@@ -23547,12 +23583,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$7.debug(`refresh: ${selectedLogFile}`);
+            log$8.debug(`refresh: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$7.error("Error refreshing log:", error2);
+              log$8.error("Error refreshing log:", error2);
               throw error2;
             }
           }
@@ -23570,83 +23606,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
-    const log$6 = createLogger("logsPolling");
-    function createLogsPolling(get2, _set) {
-      let currentPolling = null;
-      let isActive = true;
-      const startPolling = (logFiles) => {
-        const api2 = get2().api;
-        if (!api2) {
-          throw new Error("Failed to start polling - no API");
-        }
-        if (currentPolling) {
-          currentPolling.stop();
-        }
-        isActive = true;
-        log$6.debug("LOADING HEADERS");
-        get2().logsActions.setHeadersLoading(true);
-        const chunkSize = 8;
-        const fileLists = [];
-        for (let i2 = 0; i2 < logFiles.files.length; i2 += chunkSize) {
-          const chunk = logFiles.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
-          fileLists.push(chunk);
-        }
-        const totalLen = fileLists.length;
-        currentPolling = createPolling(
-          `LogHeaders`,
-          async () => {
-            if (!isActive) {
-              get2().logsActions.setHeadersLoading(false);
-              return false;
-            }
-            log$6.debug(`POLL HEADERS`);
-            const currentFileList = fileLists.shift();
-            if (currentFileList) {
-              log$6.debug(
-                `LOADING ${totalLen - fileLists.length} of ${totalLen} CHUNKS`
-              );
-              const headers = await api2.get_log_headers(currentFileList);
-              const updatedHeaders = {};
-              headers.forEach((header2, index2) => {
-                const logFile = currentFileList[index2];
-                updatedHeaders[logFile] = header2;
-              });
-              get2().logsActions.updateLogHeaders(updatedHeaders);
-            } else {
-              get2().logsActions.setHeadersLoading(false);
-              return false;
-            }
-            if (!isActive) {
-              get2().logsActions.setHeadersLoading(false);
-              return false;
-            }
-            return true;
-          },
-          {
-            maxRetries: 10,
-            interval: 5
-          }
-        );
-        currentPolling.start();
-      };
-      const stopPolling = () => {
-        if (currentPolling) {
-          currentPolling.stop();
-          currentPolling = null;
-        }
-      };
-      const cleanup = () => {
-        log$6.debug(`CLEANUP`);
-        isActive = false;
-        stopPolling();
-      };
-      return {
-        startPolling,
-        stopPolling,
-        cleanup
-      };
-    }
-    const log$5 = createLogger("Log Slice");
+    const log$7 = createLogger("Log Slice");
     const kEmptyLogs = {
       log_dir: "",
       files: []
@@ -23656,10 +23616,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       logHeaders: {},
       headersLoading: false,
       selectedLogIndex: -1,
-      selectedLogFile: void 0
+      selectedLogFile: void 0,
+      listing: {},
+      loadingFiles: /* @__PURE__ */ new Set(),
+      pendingRequests: /* @__PURE__ */ new Map()
     };
     const createLogsSlice = (set2, get2, _store) => {
-      const logsPolling = createLogsPolling(get2);
       const slice = {
         // State
         logs: initialState$1,
@@ -23671,18 +23633,78 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.logs.logs = logs;
               state.logs.selectedLogFile = state.logs.selectedLogIndex > -1 ? (_a2 = logs.files[state.logs.selectedLogIndex]) == null ? void 0 : _a2.name : void 0;
             });
-            if (logs.files.length > 0) {
-              setTimeout(() => {
-                const currentState = get2();
-                if (!currentState.logs.headersLoading) {
-                  logsPolling.startPolling(logs);
-                }
-              }, 100);
-            }
           },
           setLogHeaders: (headers) => set2((state) => {
             state.logs.logHeaders = headers;
           }),
+          loadHeaders: async (logs) => {
+            const state = get2();
+            const api2 = state.api;
+            if (!api2) {
+              console.error("API not initialized in LogsStore");
+              return [];
+            }
+            const filesToLoad = logs.filter((logFile) => {
+              const existing = state.logs.logHeaders[logFile.name];
+              const isLoading = state.logs.loadingFiles.has(logFile.name);
+              if (!existing) {
+                return !isLoading;
+              }
+              if (existing.status === "started" || existing.status === "error") {
+                return !isLoading;
+              }
+              return false;
+            });
+            if (filesToLoad.length === 0) {
+              return [];
+            }
+            set2((state2) => {
+              filesToLoad.forEach((logFile) => {
+                state2.logs.loadingFiles.add(logFile.name);
+              });
+            });
+            const wasLoading = get2().logs.headersLoading;
+            if (!wasLoading) {
+              set2((state2) => {
+                state2.logs.headersLoading = true;
+              });
+            }
+            try {
+              log$7.debug(`LOADING LOG HEADERS for ${filesToLoad.length} files`);
+              const headers = await api2.get_log_headers(
+                filesToLoad.map((log2) => log2.name)
+              );
+              const headerMap = {};
+              for (let i2 = 0; i2 < filesToLoad.length; i2++) {
+                const logFile = filesToLoad[i2];
+                const header2 = headers[i2];
+                if (header2) {
+                  headerMap[logFile.name] = header2;
+                }
+              }
+              set2((state2) => {
+                state2.logs.logHeaders = { ...state2.logs.logHeaders, ...headerMap };
+                filesToLoad.forEach((logFile) => {
+                  state2.logs.loadingFiles.delete(logFile.name);
+                });
+                if (state2.logs.loadingFiles.size === 0) {
+                  state2.logs.headersLoading = false;
+                }
+              });
+              return headers;
+            } catch (error2) {
+              log$7.error("Error loading log headers", error2);
+              set2((state2) => {
+                filesToLoad.forEach((logFile) => {
+                  state2.logs.loadingFiles.delete(logFile.name);
+                });
+                if (state2.logs.loadingFiles.size === 0) {
+                  state2.logs.headersLoading = false;
+                }
+              });
+              return [];
+            }
+          },
           setHeadersLoading: (loading) => set2((state) => {
             state.logs.headersLoading = loading;
           }),
@@ -23715,7 +23737,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               return kEmptyLogs;
             }
             try {
-              log$5.debug("LOADING LOG FILES");
+              log$7.debug("LOADING LOG FILES");
               return await api2.get_log_paths();
             } catch (e) {
               console.log(e);
@@ -23724,7 +23746,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             }
           },
           refreshLogs: async () => {
-            log$5.debug("REFRESH LOGS");
+            log$7.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             const currentLog = state.logs.logs.files[state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0];
@@ -23756,6 +23778,49 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 idx !== void 0 && idx > -1 ? idx : 0
               );
             }
+          },
+          setSorting: (sorting) => {
+            set2((state) => {
+              state.logs.listing.sorting = sorting;
+            });
+          },
+          setFiltering: (filtering) => {
+            set2((state) => {
+              state.logs.listing.filtering = filtering;
+            });
+          },
+          setGlobalFilter: (globalFilter) => {
+            set2((state) => {
+              state.logs.listing.globalFilter = globalFilter;
+            });
+          },
+          setColumnResizeMode: (mode) => {
+            set2((state) => {
+              state.logs.listing.columnResizeMode = mode;
+            });
+          },
+          setColumnSize: (columnId, size) => {
+            set2((state) => {
+              if (!state.logs.listing.columnSizes) {
+                state.logs.listing.columnSizes = {};
+              }
+              state.logs.listing.columnSizes[columnId] = size;
+            });
+          },
+          setFilteredCount: (count2) => {
+            set2((state) => {
+              state.logs.listing.filteredCount = count2;
+            });
+          },
+          setWatchedLogs: (logs) => {
+            set2((state) => {
+              state.logs.listing.watchedLogs = logs;
+            });
+          },
+          clearWatchedLogs: () => {
+            set2((state) => {
+              state.logs.listing.watchedLogs = void 0;
+            });
           }
         }
       };
@@ -23832,9 +23897,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       sample2.attachments = {};
       return sample2;
     };
-    const log$4 = createLogger("samplePolling");
+    const log$6 = createLogger("samplePolling");
     const kNoId = -1;
-    const kPollingInterval = 2;
+    const kPollingInterval$1 = 2;
     const kPollingMaxRetries = 10;
     function createSamplePolling(get2, set2) {
       let currentPolling = null;
@@ -23848,13 +23913,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       const startPolling = (logFile, summary2) => {
         const pollingId = `${logFile}:${summary2.id}-${summary2.epoch}`;
-        log$4.debug(`Start Polling ${pollingId}`);
+        log$6.debug(`Start Polling ${pollingId}`);
         if (currentPolling && currentPolling.name === pollingId) {
-          log$4.debug(`Aleady polling, ignoring start`);
+          log$6.debug(`Aleady polling, ignoring start`);
           return;
         }
         if (currentPolling) {
-          log$4.debug(`Resetting existing polling`);
+          log$6.debug(`Resetting existing polling`);
           currentPolling.stop();
           set2((state) => {
             state.sample.runningEvents = [];
@@ -23862,7 +23927,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           resetPollingState(pollingState);
         }
         abortController = new AbortController();
-        log$4.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
+        log$6.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
           const state = get2();
           const api2 = state.api;
@@ -23892,7 +23957,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             stopPolling();
             if (state.sample.runningEvents.length > 0) {
               try {
-                log$4.debug(
+                log$6.debug(
                   `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary2.id}-${summary2.epoch}`
                 );
                 const sample2 = await api2.get_log_sample(
@@ -23946,7 +24011,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleDataResponse.sampleData.attachments,
                   pollingState.attachmentId
                 );
-                log$4.debug(`New max attachment ${maxAttachment}`);
+                log$6.debug(`New max attachment ${maxAttachment}`);
                 pollingState.attachmentId = maxAttachment;
               }
               if (sampleDataResponse.sampleData.events.length > 0) {
@@ -23954,7 +24019,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleDataResponse.sampleData.events,
                   pollingState.eventId
                 );
-                log$4.debug(`New max event ${maxEvent}`);
+                log$6.debug(`New max event ${maxEvent}`);
                 pollingState.eventId = maxEvent;
               }
               if (processedEvents) {
@@ -23968,7 +24033,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         };
         const polling = createPolling(pollingId, pollCallback, {
           maxRetries: kPollingMaxRetries,
-          interval: kPollingInterval
+          interval: kPollingInterval$1
         });
         currentPolling = polling;
         polling.start();
@@ -23980,8 +24045,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       };
       const cleanup = () => {
-        log$4.debug(`CLEANUP`);
-        abortController.abort();
+        log$6.debug(`Cleanup`);
+        if (abortController) {
+          abortController.abort();
+        }
         stopPolling();
       };
       return {
@@ -23998,13 +24065,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       state.events = [];
     };
     function processAttachments(sampleData, pollingState) {
-      log$4.debug(`Processing ${sampleData.attachments.length} attachments`);
+      log$6.debug(`Processing ${sampleData.attachments.length} attachments`);
       Object.values(sampleData.attachments).forEach((v2) => {
         pollingState.attachments[v2.hash] = v2.content;
       });
     }
     function processEvents(sampleData, pollingState, api2, log_file) {
-      log$4.debug(`Processing ${sampleData.events.length} events`);
+      log$6.debug(`Processing ${sampleData.events.length} events`);
       if (sampleData.events.length === 0) {
         return false;
       }
@@ -24030,10 +24097,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         );
         if (existingIndex) {
-          log$4.debug(`Replace event ${existingIndex}`);
+          log$6.debug(`Replace event ${existingIndex}`);
           pollingState.events[existingIndex] = resolvedEvent;
         } else {
-          log$4.debug(`New event ${pollingState.events.length}`);
+          log$6.debug(`New event ${pollingState.events.length}`);
           const currentIndex = pollingState.events.length;
           pollingState.eventMapping[eventData.event_id] = currentIndex;
           pollingState.events.push(resolvedEvent);
@@ -24113,22 +24180,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return 0;
       }
       if (Array.isArray(obj)) {
-        let count2 = 0;
+        let count22 = 0;
         if (options2.countArrayIndices) {
-          count2 += obj.length;
+          count22 += obj.length;
         }
         for (const item2 of obj) {
-          count2 += countKeys(item2, options2);
+          count22 += countKeys(item2, options2);
         }
-        return count2;
+        return count22;
       }
-      let count = Object.keys(obj).length;
+      let count2 = Object.keys(obj).length;
       for (const key2 in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key2)) {
-          count += countKeys(obj[key2], options2);
+          count2 += countKeys(obj[key2], options2);
         }
       }
-      return count;
+      return count2;
     }
     function filterLargeLogSummary(state) {
       if (!state || !state.log || !state.log.selectedLogSummary) {
@@ -24149,7 +24216,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return state;
       }
     }
-    const log$3 = createLogger("sampleSlice");
+    const log$5 = createLogger("sampleSlice");
     let selectedSampleRef = {
       current: void 0
     };
@@ -24302,7 +24369,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             const state = get2();
             try {
               if (sampleSummary.completed !== false) {
-                log$3.debug(
+                log$5.debug(
                   `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
@@ -24310,7 +24377,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleSummary.id,
                   sampleSummary.epoch
                 ));
-                log$3.debug(
+                log$5.debug(
                   `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 if (sample2) {
@@ -24327,7 +24394,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   );
                 }
               } else {
-                log$3.debug(
+                log$5.debug(
                   `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 samplePolling.startPolling(logFile, sampleSummary);
@@ -24357,7 +24424,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
-    const log$2 = createLogger("store");
+    const log$4 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
       if (!storeImplementation) {
@@ -24449,18 +24516,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   logs: state.logs,
                   sample: state.sample
                 });
-                log$2.debug("PARTIALIZED STATE", persisted);
+                log$4.debug("PARTIALIZED STATE", persisted);
                 return persisted;
               },
               version: 1,
               onRehydrateStorage: (state) => {
                 return (hydrationState, error2) => {
                   handleRehydrate(state);
-                  log$2.debug("REHYDRATING STATE");
+                  log$4.debug("REHYDRATING STATE");
                   if (error2) {
-                    log$2.debug("ERROR", { error: error2 });
+                    log$4.debug("ERROR", { error: error2 });
                   } else {
-                    log$2.debug("STATE", { state, hydrationState });
+                    log$4.debug("STATE", { state, hydrationState });
                   }
                 };
               }
@@ -24495,16 +24562,21 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         down: "bi bi-arrow-down",
         up: "bi bi-arrow-up"
       },
+      cancelled: "bi bi-x-circle",
       chevron: {
         right: "bi bi-chevron-right",
         down: "bi bi-chevron-down"
       },
+      "clear-text": "bi bi-x-circle-fill",
       close: "bi bi-x",
       confirm: "bi bi-check",
       copy: "bi bi-copy",
       error: "bi bi-exclamation-circle",
+      filter: "bi bi-funnel",
+      folder: "bi bi-folder",
       info: "bi bi-info-circle",
       input: "bi bi-terminal",
+      inspectFile: "ii inspect-icon-file",
       limits: {
         messages: "bi bi-chat-right-text",
         custom: "bi bi-exclamation-triangle",
@@ -24515,9 +24587,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       },
       link: "bi bi-link-45deg",
       logging: loggingIcons,
-      menu: "bi bi-list",
       metadata: "bi bi-table",
       model: "bi bi-grid-3x3-gap",
+      navbar: {
+        home: "ii inspect-icon-home",
+        back: "ii inspect-icon-back",
+        forward: "ii inspect-icon-forward"
+      },
       next: "bi bi-chevron-right",
       noSamples: "bi bi-ban",
       play: "bi bi-play-fill",
@@ -24532,6 +24608,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       solvers: {
         use_tools: "bi bi-tools"
       },
+      success: "bi bi-check-circle",
       tree: {
         open: "bi bi-caret-down-fill",
         closed: "bi bi-caret-right-fill"
@@ -24584,6 +24661,123 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return this.props.children;
       }
     }
+    function r(e) {
+      var t2, f, n = "";
+      if ("string" == typeof e || "number" == typeof e) n += e;
+      else if ("object" == typeof e) if (Array.isArray(e)) {
+        var o = e.length;
+        for (t2 = 0; t2 < o; t2++) e[t2] && (f = r(e[t2])) && (n && (n += " "), n += f);
+      } else for (f in e) e[f] && (n && (n += " "), n += f);
+      return n;
+    }
+    function clsx() {
+      for (var e, t2, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t2 = r(e)) && (n && (n += " "), n += t2);
+      return n;
+    }
+    const wrapper$4 = "_wrapper_1tajk_1";
+    const container$k = "_container_1tajk_12";
+    const animate = "_animate_1tajk_21";
+    const styles$1E = {
+      wrapper: wrapper$4,
+      container: container$k,
+      animate
+    };
+    const ProgressBar = ({ animating }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1E.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(styles$1E.container),
+          role: "progressbar",
+          "aria-label": "Basic example",
+          "aria-valuenow": 25,
+          "aria-valuemin": 0,
+          "aria-valuemax": 100,
+          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1E.animate })
+        }
+      ) });
+    };
+    const log$3 = createLogger("Client-Events-Service");
+    const kRetries = 10;
+    const kPollingInterval = 5;
+    const kRefreshEvent = "refresh-evals";
+    class ClientEventsService {
+      constructor() {
+        __publicField(this, "currentPolling", null);
+        __publicField(this, "abortController", null);
+        __publicField(this, "isRefreshing", false);
+        __publicField(this, "pendingLogFiles", /* @__PURE__ */ new Set());
+        __publicField(this, "onRefreshCallback", null);
+      }
+      setRefreshCallback(callback) {
+        this.onRefreshCallback = callback;
+      }
+      async refreshPendingLogFiles() {
+        if (this.isRefreshing || !this.onRefreshCallback) {
+          return;
+        }
+        do {
+          try {
+            const logFiles = [...this.pendingLogFiles];
+            this.pendingLogFiles.clear();
+            this.isRefreshing = true;
+            await this.onRefreshCallback(logFiles);
+          } finally {
+            this.isRefreshing = false;
+          }
+        } while (this.pendingLogFiles.size > 0);
+      }
+      async refreshLogFiles(logFiles) {
+        logFiles.forEach((file) => this.pendingLogFiles.add(file));
+        await this.refreshPendingLogFiles();
+      }
+      startPolling(logFiles, api2) {
+        this.stopPolling();
+        this.abortController = new AbortController();
+        this.currentPolling = createPolling(
+          `Client-Events`,
+          async () => {
+            var _a2, _b2;
+            if ((_a2 = this.abortController) == null ? void 0 : _a2.signal.aborted) {
+              log$3.debug(`Component unmounted, stopping poll for client events`);
+              return false;
+            }
+            log$3.debug(`Polling client events`);
+            const events = await (api2 == null ? void 0 : api2.client_events());
+            log$3.debug(`Received events`, events);
+            if ((_b2 = this.abortController) == null ? void 0 : _b2.signal.aborted) {
+              log$3.debug(`Polling aborted, stopping poll for client events`);
+              return false;
+            }
+            if ((events || []).includes(kRefreshEvent)) {
+              await this.refreshLogFiles(logFiles);
+            }
+            return true;
+          },
+          {
+            maxRetries: kRetries,
+            interval: kPollingInterval
+          }
+        );
+        this.currentPolling.start();
+      }
+      stopPolling() {
+        if (this.currentPolling) {
+          this.currentPolling.stop();
+          this.currentPolling = null;
+        }
+        if (this.abortController) {
+          this.abortController.abort();
+          this.abortController = null;
+        }
+      }
+      cleanup() {
+        log$3.debug(`Cleanup`);
+        this.stopPolling();
+        this.pendingLogFiles.clear();
+        this.onRefreshCallback = null;
+      }
+    }
+    const clientEventsService = new ClientEventsService();
     const arrayToString = (val) => {
       val = Array.isArray(val) ? val : [val];
       return val.join(", ");
@@ -24702,23 +24896,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const durationSec = durationMs / 1e3;
       return formatTime$1(durationSec);
     }
-    function r(e) {
-      var t2, f, n = "";
-      if ("string" == typeof e || "number" == typeof e) n += e;
-      else if ("object" == typeof e) if (Array.isArray(e)) {
-        var o = e.length;
-        for (t2 = 0; t2 < o; t2++) e[t2] && (f = r(e[t2])) && (n && (n += " "), n += f);
-      } else for (f in e) e[f] && (n && (n += " "), n += f);
-      return n;
-    }
-    function clsx() {
-      for (var e, t2, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t2 = r(e)) && (n && (n += " "), n += t2);
-      return n;
-    }
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1v = {
+    const styles$1D = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24734,9 +24915,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1v.circle,
+                styles$1D.circle,
                 "text-size-small",
-                score2 ? styles$1v.green : styles$1v.red
+                score2 ? styles$1D.green : styles$1D.red
               ),
               children: String(score2)
             }
@@ -24804,11 +24985,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return [val];
       }
     };
-    const container$l = "_container_1ramc_1";
+    const container$j = "_container_1ramc_1";
     const key$1 = "_key_1ramc_12";
     const value$2 = "_value_1ramc_16";
-    const styles$1u = {
-      container: container$l,
+    const styles$1C = {
+      container: container$j,
       key: key$1,
       value: value$2
     };
@@ -24850,12 +25031,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1C.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1C.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1C.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -28394,7 +28575,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       result2.push(current2 + str2.substring(lastPos));
       return result2;
     }
-    function table$3(state, startLine, endLine, silent) {
+    function table$2(state, startLine, endLine, silent) {
       if (startLine + 2 > endLine) {
         return false;
       }
@@ -28594,9 +28775,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return false;
       }
       const markup = state.src.slice(mem, pos2);
-      const params2 = state.src.slice(pos2, max2);
+      const params = state.src.slice(pos2, max2);
       if (marker === 96) {
-        if (params2.indexOf(String.fromCharCode(marker)) >= 0) {
+        if (params.indexOf(String.fromCharCode(marker)) >= 0) {
           return false;
         }
       }
@@ -28635,7 +28816,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       len = state.sCount[startLine];
       state.line = nextLine + (haveEndMarker ? 1 : 0);
       const token2 = state.push("fence", "code", 0);
-      token2.info = params2;
+      token2.info = params;
       token2.content = state.getLines(startLine + 1, nextLine, len, true);
       token2.markup = markup;
       token2.map = [startLine, state.line];
@@ -29463,7 +29644,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const _rules$1 = [
       // First 2 params - rule name & source. Secondary array - list of rules,
       // which can be terminated by this one.
-      ["table", table$3, ["paragraph", "reference"]],
+      ["table", table$2, ["paragraph", "reference"]],
       ["code", code$3],
       ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
       ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
@@ -29587,7 +29768,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
         pos2++;
       }
-      const count = pos2 - start2;
+      const count2 = pos2 - start2;
       const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
       const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
       const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
@@ -29597,7 +29778,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
       const can_open = left_flanking && (canSplitWord || !right_flanking || isLastPunctChar);
       const can_close = right_flanking && (canSplitWord || !left_flanking || isNextPunctChar);
-      return { can_open, can_close, length: count };
+      return { can_open, can_close, length: count2 };
     };
     StateInline.prototype.Token = Token$1;
     function isTerminatorChar(ch3) {
@@ -29630,7 +29811,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return false;
       }
     }
-    function text$1(state, silent) {
+    function text$2(state, silent) {
       let pos2 = state.pos;
       while (pos2 < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos2))) {
         pos2++;
@@ -30412,7 +30593,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     }
     const _rules = [
-      ["text", text$1],
+      ["text", text$2],
       ["linkify", linkify],
       ["newline", newline],
       ["escape", escape$1],
@@ -30579,7 +30760,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function isRegExp(obj) {
       return _class(obj) === "[object RegExp]";
     }
-    function isFunction(obj) {
+    function isFunction$1(obj) {
       return _class(obj) === "[object Function]";
     }
     function escapeRE(str2) {
@@ -30703,12 +30884,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (isObject(val)) {
           if (isRegExp(val.validate)) {
             compiled.validate = createValidator(val.validate);
-          } else if (isFunction(val.validate)) {
+          } else if (isFunction$1(val.validate)) {
             compiled.validate = val.validate;
           } else {
             schemaError(name2, val);
           }
-          if (isFunction(val.normalize)) {
+          if (isFunction$1(val.normalize)) {
             compiled.normalize = val.normalize;
           } else if (!val.normalize) {
             compiled.normalize = createNormalizer();
@@ -30999,17 +31180,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let i2 = 0;
       let n = initialN;
       let bias = initialBias;
-      let basic = input2.lastIndexOf(delimiter$2);
-      if (basic < 0) {
-        basic = 0;
+      let basic2 = input2.lastIndexOf(delimiter$2);
+      if (basic2 < 0) {
+        basic2 = 0;
       }
-      for (let j2 = 0; j2 < basic; ++j2) {
+      for (let j2 = 0; j2 < basic2; ++j2) {
         if (input2.charCodeAt(j2) >= 128) {
           error$2("not-basic");
         }
         output2.push(input2.charCodeAt(j2));
       }
-      for (let index2 = basic > 0 ? basic + 1 : 0; index2 < inputLength; ) {
+      for (let index2 = basic2 > 0 ? basic2 + 1 : 0; index2 < inputLength; ) {
         const oldi = i2;
         for (let w = 1, k = base$1; ; k += base$1) {
           if (index2 >= inputLength) {
@@ -31493,19 +31674,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1t[sup[this.id]];
+      return styles$1B[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1t[sub[this.id]];
+      return styles$1B[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1t[fracNum[this.id]];
+      return styles$1B[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1t[fracDen[this.id]];
+      return styles$1B[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1t[cramp[this.id]];
+      return styles$1B[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -31533,7 +31714,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1t = [
+    var styles$1B = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -31549,10 +31730,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1t[D],
-      TEXT: styles$1t[T],
-      SCRIPT: styles$1t[S],
-      SCRIPTSCRIPT: styles$1t[SS]
+      DISPLAY: styles$1B[D],
+      TEXT: styles$1B[T],
+      SCRIPT: styles$1B[S],
+      SCRIPTSCRIPT: styles$1B[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -38335,12 +38516,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       );
     }
     const visible = "_visible_tm52u_1";
-    const hidden$2 = "_hidden_tm52u_5";
+    const hidden$3 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1s = {
+    const styles$1A = {
       visible,
-      hidden: hidden$2,
+      hidden: hidden$3,
       pills,
       pill
     };
@@ -38370,7 +38551,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1s.visible : styles$1s.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1A.visible : styles$1A.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -38380,7 +38561,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1s.pills),
+            className: clsx("nav", "nav-pills", styles$1A.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -38395,7 +38576,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       setActiveItem,
       children: children2
     }) => {
-      const active2 = activeItem === title2;
+      const active = activeItem === title2;
       const handleClick = reactExports.useCallback(
         (e) => {
           const target2 = e.currentTarget.dataset.target;
@@ -38411,12 +38592,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           {
             type: "button",
             role: "tab",
-            "aria-selected": active2,
+            "aria-selected": active,
             className: clsx(
               "nav-link",
               "text-style-label",
-              active2 ? "active " : "",
-              styles$1s.pill
+              active ? "active " : "",
+              styles$1A.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -38432,7 +38613,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       final: 1e3
     };
     const copyButton = "_copyButton_1goi8_1";
-    const styles$1r = {
+    const styles$1z = {
       copyButton
     };
     const CopyButton = ({
@@ -38462,7 +38643,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "button",
         {
           type: "button",
-          className: clsx("copy-button", styles$1r.copyButton, className2),
+          className: clsx("copy-button", styles$1z.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -38503,7 +38684,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const bordered = "_bordered_elrou_35";
     const moreToggleButton = "_moreToggleButton_elrou_39";
     const separator$5 = "_separator_elrou_45";
-    const styles$1q = {
+    const styles$1y = {
       expandablePanel,
       expandableBordered,
       expandableCollapsed,
@@ -38518,8 +38699,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const [showToggle, setShowToggle] = reactExports.useState(false);
         const baseFontSizeRef = reactExports.useRef(0);
         const checkOverflow = reactExports.useCallback(
-          (entry2) => {
-            const element = entry2.target;
+          (entry) => {
+            const element = entry.target;
             if (baseFontSizeRef.current === 0) {
               const computedStyle = window.getComputedStyle(element);
               const rootFontSize = parseFloat(computedStyle.fontSize);
@@ -38545,10 +38726,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                styles$1q.expandablePanel,
-                collapsed2 ? styles$1q.expandableCollapsed : void 0,
-                border ? styles$1q.expandableBordered : void 0,
-                showToggle ? styles$1q.padBottom : void 0
+                styles$1y.expandablePanel,
+                collapsed2 ? styles$1y.expandableCollapsed : void 0,
+                border ? styles$1y.expandableBordered : void 0,
+                showToggle ? styles$1y.padBottom : void 0
               ),
               children: [
                 children2,
@@ -38563,7 +38744,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.separator) })
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1y.separator) })
         ] });
       }
     );
@@ -38580,12 +38761,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1q.moreToggle, border ? styles$1q.bordered : void 0),
+          className: clsx(styles$1y.moreToggle, border ? styles$1y.bordered : void 0),
           style: style2,
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              className: clsx("btn", styles$1q.moreToggleButton, "text-size-smallest"),
+              className: clsx("btn", styles$1y.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
                 text2,
@@ -41701,7 +41882,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function Hn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, mt.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
-    const log$1 = createLogger("scrolling");
+    const log$2 = createLogger("scrolling");
     function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable2 = true) {
       const getScrollPosition = useStore(
         (state) => state.appActions.getScrollPosition
@@ -41713,7 +41894,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         debounce$2((e) => {
           const target2 = e.target;
           const position = target2.scrollTop;
-          log$1.debug(`Storing scroll position`, elementKey, position);
+          log$2.debug(`Storing scroll position`, elementKey, position);
           setScrollPosition(elementKey, position);
         }, delay),
         [elementKey, setScrollPosition, delay]
@@ -41737,15 +41918,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!element || !scrollable2) {
           return;
         }
-        log$1.debug(`Restore Scroll Hook`, elementKey);
+        log$2.debug(`Restore Scroll Hook`, elementKey);
         const savedPosition = getScrollPosition(elementKey);
         if (savedPosition !== void 0) {
-          log$1.debug(`Restoring scroll position`, savedPosition);
+          log$2.debug(`Restoring scroll position`, savedPosition);
           const tryRestoreScroll = () => {
             if (element.scrollHeight > element.clientHeight) {
               if (element.scrollTop !== savedPosition) {
                 element.scrollTop = savedPosition;
-                log$1.debug(`Scroll position restored to ${savedPosition}`);
+                log$2.debug(`Scroll position restored to ${savedPosition}`);
               }
               return true;
             }
@@ -41757,7 +41938,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             const pollForRender = () => {
               if (tryRestoreScroll() || attempts >= maxAttempts) {
                 if (attempts >= maxAttempts) {
-                  log$1.debug(
+                  log$2.debug(
                     `Failed to restore scroll after ${maxAttempts} attempts`
                   );
                 }
@@ -41772,13 +41953,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (element.addEventListener) {
           element.addEventListener("scroll", handleScroll);
         } else {
-          log$1.warn("Element has no way to add event listener", element);
+          log$2.warn("Element has no way to add event listener", element);
         }
         return () => {
           if (element.removeEventListener) {
             element.removeEventListener("scroll", handleScroll);
           } else {
-            log$1.warn("Element has no way to remove event listener", element);
+            log$2.warn("Element has no way to remove event listener", element);
           }
         };
       }, [elementKey, elementRef, handleScroll]);
@@ -41797,14 +41978,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const debouncedFnRef = reactExports.useRef(null);
       const handleStateChange = reactExports.useCallback(
         (state) => {
-          log$1.debug(`Storing list state: [${elementKey}]`, state);
+          log$2.debug(`Storing list state: [${elementKey}]`, state);
           setListPosition(elementKey, state);
         },
         [elementKey, setListPosition]
       );
       reactExports.useEffect(() => {
         debouncedFnRef.current = debounce$2((isScrolling2) => {
-          log$1.debug("List scroll", isScrolling2);
+          log$2.debug("List scroll", isScrolling2);
           const element = virtuosoRef.current;
           if (!element) {
             return;
@@ -41946,7 +42127,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const key = "_key_1ltuo_1";
     const pre = "_pre_1ltuo_16";
     const treeIcon = "_treeIcon_1ltuo_20";
-    const styles$1p = {
+    const styles$1x = {
       keyPairContainer,
       key,
       pre,
@@ -42128,7 +42309,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$1p.keyPairContainer, "text-size-small"),
+            className: clsx(styles$1x.keyPairContainer, "text-size-small"),
             style: {
               paddingLeft: `${item2.depth * 20}px`
             },
@@ -42139,7 +42320,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   "data-index": index2,
                   className: clsx(
                     kRecordTreeKey,
-                    styles$1p.key,
+                    styles$1x.key,
                     "font-monospace",
                     "text-style-secondary"
                   ),
@@ -42149,16 +42330,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
                   },
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1p.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1x.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
-                          styles$1p.treeIcon
+                          styles$1x.treeIcon
                         )
                       }
                     ) }) : void 0 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1p.pre), children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$1x.pre), children: [
                       item2.key,
                       ":"
                     ] })
@@ -42327,8 +42508,133 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return encodeURIComponent(file);
     };
-    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
-    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+    const join = (file, dir) => {
+      if (!dir) {
+        return file;
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      return dirWithSlash + normalizedFile;
+    };
+    function encodePathParts(url) {
+      if (!url) return url;
+      try {
+        const fullUrl = new URL(url);
+        fullUrl.pathname = fullUrl.pathname.split("/").map(
+          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+        ).join("/");
+        return fullUrl.toString();
+      } catch {
+        return url.split("/").map(
+          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+        ).join("/");
+      }
+    }
+    const decodeUrlParam = (param) => {
+      if (!param) return param;
+      try {
+        return decodeURIComponent(param);
+      } catch {
+        return param;
+      }
+    };
+    const useLogRouteParams = () => {
+      const params = useParams();
+      return reactExports.useMemo(() => {
+        const splatPath = params["*"] || "";
+        const fullSampleUrlMatch = splatPath.match(
+          /^(.+?)\/samples\/sample\/([^/]+)(?:\/([^/]+)(?:\/(.+?))?)?\/?\s*$/
+        );
+        if (fullSampleUrlMatch) {
+          const [, logPath, sampleId, epoch, sampleTabId] = fullSampleUrlMatch;
+          return {
+            logPath: decodeUrlParam(logPath),
+            tabId: void 0,
+            sampleTabId: decodeUrlParam(sampleTabId),
+            sampleId: decodeUrlParam(sampleId),
+            epoch: epoch ? decodeUrlParam(epoch) : void 0
+          };
+        }
+        const sampleUrlMatch = splatPath.match(
+          /^(.+?)\/samples(?:\/([^/]+)(?:\/([^/]+))?)?$/
+        );
+        if (sampleUrlMatch) {
+          const [, logPath, firstSegment, secondSegment] = sampleUrlMatch;
+          if (firstSegment) {
+            const validSampleTabIds = new Set(kSampleTabIds);
+            if (validSampleTabIds.has(firstSegment) && !secondSegment) {
+              return {
+                logPath: decodeUrlParam(logPath),
+                tabId: "samples",
+                sampleTabId: decodeUrlParam(firstSegment),
+                sampleId: void 0,
+                epoch: void 0
+              };
+            } else {
+              return {
+                logPath: decodeUrlParam(logPath),
+                tabId: void 0,
+                sampleTabId: void 0,
+                sampleId: decodeUrlParam(firstSegment),
+                epoch: secondSegment ? decodeUrlParam(secondSegment) : void 0
+              };
+            }
+          } else {
+            return {
+              logPath: decodeUrlParam(logPath),
+              tabId: "samples",
+              sampleTabId: void 0,
+              sampleId: void 0,
+              epoch: void 0
+            };
+          }
+        }
+        const pathSegments = splatPath.split("/").filter(Boolean);
+        if (pathSegments.length === 0) {
+          return {
+            logPath: void 0,
+            tabId: void 0,
+            sampleTabId: void 0,
+            sampleId: void 0,
+            epoch: void 0
+          };
+        }
+        const validTabIds = new Set(kWorkspaceTabs);
+        let tabIdIndex = -1;
+        let foundTabId = void 0;
+        for (let i2 = pathSegments.length - 1; i2 >= 0; i2--) {
+          const segment = pathSegments[i2];
+          const decodedSegment = decodeUrlParam(segment) || segment;
+          if (validTabIds.has(decodedSegment)) {
+            tabIdIndex = i2;
+            foundTabId = decodedSegment;
+            break;
+          }
+        }
+        if (foundTabId && tabIdIndex > 0) {
+          const logPath = pathSegments.slice(0, tabIdIndex).join("/");
+          return {
+            logPath: decodeUrlParam(logPath),
+            tabId: foundTabId,
+            sampleTabId: void 0,
+            sampleId: void 0,
+            epoch: void 0
+          };
+        } else {
+          return {
+            logPath: decodeUrlParam(splatPath),
+            tabId: void 0,
+            sampleTabId: void 0,
+            sampleId: void 0,
+            epoch: void 0
+          };
+        }
+      }, [params]);
+    };
+    const kLogsRoutUrlPattern = "/logs";
+    const kLogRouteUrlPattern = "/logs/*";
+    const kSampleRouteUrlPattern = "/logs/*/samples/sample/:sampleId/:epoch?/:sampleTabId?";
     const baseUrl = (logPath, sampleId, sampleEpoch) => {
       if (sampleId !== void 0 && sampleEpoch !== void 0) {
         return sampleUrl(logPath, sampleId, sampleEpoch);
@@ -42337,10 +42643,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     };
     const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
+      const decodedLogPath = decodeUrlParam(logPath) || logPath;
       if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+        return encodePathParts(
+          `/logs/${decodedLogPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`
+        );
       } else {
-        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
+        return encodePathParts(
+          `/logs/${decodedLogPath}/samples/${sampleTabId || ""}`
+        );
       }
     };
     const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
@@ -42357,7 +42668,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         logPath: urlLogPath,
         sampleId: urlSampleId,
         epoch: urlEpoch
-      } = useParams();
+      } = useLogRouteParams();
       const log_file = useStore((state) => state.logs.selectedLogFile);
       const log_dir = useStore((state) => state.logs.logs.log_dir);
       let targetLogPath = urlLogPath;
@@ -42379,7 +42690,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         logPath: urlLogPath,
         sampleId: urlSampleId,
         epoch: urlEpoch
-      } = useParams();
+      } = useLogRouteParams();
       const log_file = useStore((state) => state.logs.selectedLogFile);
       const log_dir = useStore((state) => state.logs.logs.log_dir);
       let targetLogPath = urlLogPath;
@@ -42413,10 +42724,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return pathSegment;
     };
     const logUrlRaw = (log_segment, tabId) => {
+      const decodedLogSegment = decodeUrlParam(log_segment) || log_segment;
       if (tabId) {
-        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+        return encodePathParts(`/logs/${decodedLogSegment}/${tabId}`);
       } else {
-        return `/logs/${encodeURIComponent(log_segment)}`;
+        return encodePathParts(`/logs/${decodedLogSegment}`);
       }
     };
     const supportsLinking = () => {
@@ -42435,7 +42747,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const indented = "_indented_1ivu3_25";
     const copyLink$1 = "_copyLink_1ivu3_29";
     const metadataLabel = "_metadataLabel_1ivu3_39";
-    const styles$1o = {
+    const styles$1w = {
       message: message$1,
       systemRole,
       messageGrid,
@@ -42446,22 +42758,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const webSearch = "_webSearch_1376z_1";
     const query$1 = "_query_1376z_8";
-    const styles$1n = {
+    const styles$1v = {
       webSearch,
       query: query$1
     };
     const WebSearch = ({ query: query2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1n.webSearch, "text-size-smaller"), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1v.webSearch, "text-size-smaller"), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-style-label", "text-style-secondary"), children: "Web Search:" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1n.query, "text-size-smallest"), children: query2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1v.query, "text-size-smallest"), children: query2 })
       ] });
     };
     const contentData = "_contentData_1sd1z_1";
-    const styles$1m = {
+    const styles$1u = {
       contentData
     };
     const result$1 = "_result_1mixg_12";
-    const styles$1l = {
+    const styles$1t = {
       result: result$1
     };
     const WebSearchResults = ({
@@ -42472,7 +42784,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           "div",
           {
             className: clsx(
-              styles$1l.label,
+              styles$1t.label,
               "text-style-label",
               "text-style-secondary",
               "text-size-smaller"
@@ -42480,10 +42792,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             children: "Results"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx(styles$1l.results, "text-size-smaller"), children: results.map((result2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx(styles$1t.results, "text-size-smaller"), children: results.map((result2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
           "li",
           {
-            className: clsx(styles$1l.result, "text-style-secondary"),
+            className: clsx(styles$1t.result, "text-style-secondary"),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               "a",
               {
@@ -42507,17 +42819,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       );
       if (!renderer) {
         const { encrypted_content, ...record } = renderableData;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.contentData), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           RecordTree,
           {
             id: `${id}-tree`,
             record,
-            className: clsx(styles$1m.data),
+            className: clsx(styles$1u.data),
             defaultExpandLevel: 0
           }
         ) });
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1m.contentData), children: renderer.render(renderableData) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1u.contentData), children: renderer.render(renderableData) });
     };
     const webSearchServerToolRenderer = {
       name: "WebSearch",
@@ -42559,7 +42871,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             {
               id: data.name || "server-tool",
               record: data,
-              className: clsx(styles$1m.data)
+              className: clsx(styles$1u.data)
             }
           )
         ] });
@@ -42580,7 +42892,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const citations = "_citations_t2k1z_1";
     const citationLink = "_citationLink_t2k1z_9";
-    const styles$1k = {
+    const styles$1s = {
       citations,
       citationLink
     };
@@ -42588,7 +42900,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (citations2.length === 0) {
         return void 0;
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1s.citations, "text-size-smallest"), children: citations2.map((citation, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: index2 + 1 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(MessageCitation, { citation })
       ] }, index2)) });
@@ -42608,7 +42920,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         href: citation.url,
         target: "_blank",
         rel: "noopener noreferrer",
-        className: clsx(styles$1k.citationLink),
+        className: clsx(styles$1s.citationLink),
         title: `${citation.cited_text || ""}
 ${citation.url}`,
         children: children2
@@ -42617,7 +42929,7 @@ ${citation.url}`,
     const OtherCitation = ({ children: children2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: children2 });
     const contentImage = "_contentImage_8rgix_1";
     const reasoning = "_reasoning_8rgix_6";
-    const styles$1j = {
+    const styles$1r = {
       contentImage,
       reasoning
     };
@@ -42625,7 +42937,7 @@ ${citation.url}`,
     const output = "_output_bv5nm_6";
     const textOutput = "_textOutput_bv5nm_10";
     const textCode = "_textCode_bv5nm_18";
-    const styles$1i = {
+    const styles$1q = {
       toolImage,
       output,
       textOutput,
@@ -42647,7 +42959,7 @@ ${citation.url}`,
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "img",
                   {
-                    className: clsx(styles$1i.toolImage),
+                    className: clsx(styles$1q.toolImage),
                     src: out.image
                   },
                   key2
@@ -42663,10 +42975,10 @@ ${citation.url}`,
           /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.output), children: outputs });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1q.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1i.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1i.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1q.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1q.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({
       contents: contents2,
@@ -42747,7 +43059,7 @@ ${citation.url}`,
           if (!r2.reasoning && !r2.redacted) {
             return void 0;
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1j.reasoning, "text-size-small"), children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1r.reasoning, "text-size-small"), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -42772,7 +43084,7 @@ ${citation.url}`,
         render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1j.contentImage }, key2);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1r.contentImage }, key2);
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
           }
@@ -42942,13 +43254,13 @@ ${citation.url}`,
       };
     };
     const toolCallView = "_toolCallView_16q6n_1";
-    const styles$1h = {
+    const styles$1p = {
       toolCallView
     };
     const outputPre = "_outputPre_1jznn_1";
     const toolView = "_toolView_1jznn_7";
     const outputCode = "_outputCode_1jznn_15";
-    const styles$1g = {
+    const styles$1o = {
       outputPre,
       toolView,
       outputCode
@@ -42963,7 +43275,7 @@ ${citation.url}`,
           {
             markdown: toolCallView2.content,
             ref: prismParentRef,
-            className: clsx("tool-output", styles$1g.toolView)
+            className: clsx("tool-output", styles$1o.toolView)
           }
         );
       }
@@ -42971,7 +43283,7 @@ ${citation.url}`,
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "pre",
         {
-          className: clsx("tool-output", styles$1g.outputPre, styles$1g.bottomMargin),
+          className: clsx("tool-output", styles$1o.outputPre, styles$1o.bottomMargin),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "code",
             {
@@ -42979,7 +43291,7 @@ ${citation.url}`,
                 "source-code",
                 "sourceCode",
                 highlightLanguage ? `language-${highlightLanguage}` : void 0,
-                styles$1g.outputCode
+                styles$1o.outputCode
               ),
               children: formattedContent
             }
@@ -42989,14 +43301,14 @@ ${citation.url}`,
     };
     const image = "_image_a8byr_1";
     const toolTitle = "_toolTitle_a8byr_6";
-    const styles$1f = {
+    const styles$1n = {
       image,
       toolTitle
     };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1f.image) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1f.toolTitle), children: title2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1n.image) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1n.toolTitle), children: title2 })
       ] });
     };
     const ToolCallView = ({
@@ -43040,7 +43352,7 @@ ${citation.url}`,
       });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
       const context = defaultContext();
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1h.toolCallView), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1p.toolCallView), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43087,7 +43399,7 @@ ${citation.url}`,
     };
     const content$2 = "_content_1b2jp_1";
     const codeCompact = "_codeCompact_1b2jp_5";
-    const styles$1e = {
+    const styles$1m = {
       content: content$2,
       codeCompact
     };
@@ -43120,7 +43432,7 @@ ${citation.url}`,
           }
           const resolvedToolOutput = resolveToolMessage(toolMessage);
           if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1e.codeCompact), children: [
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1m.codeCompact), children: [
               "tool: ",
               functionCall
             ] }) }, `tool-call-${idx}`);
@@ -43141,7 +43453,7 @@ ${citation.url}`,
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) }),
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1m.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content, context }) }),
           toolCalls
         ] });
       } else {
@@ -43213,19 +43525,19 @@ ${citation.url}`,
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$1o.message,
-            message2.role === "system" ? styles$1o.systemRole : void 0,
-            message2.role === "user" ? styles$1o.userRole : void 0
+            styles$1w.message,
+            message2.role === "system" ? styles$1w.systemRole : void 0,
+            message2.role === "user" ? styles$1w.userRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1o.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1w.messageGrid, "text-style-label"), children: [
               message2.role,
               supportsLinking() && messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
                 {
                   icon: ApplicationIcons.link,
                   value: toFullUrl(messageUrl),
-                  className: clsx(styles$1o.copyLink)
+                  className: clsx(styles$1w.copyLink)
                 }
               ) : ""
             ] }),
@@ -43233,8 +43545,8 @@ ${citation.url}`,
               "div",
               {
                 className: clsx(
-                  styles$1o.messageContents,
-                  indented2 ? styles$1o.indented : void 0
+                  styles$1w.messageContents,
+                  indented2 ? styles$1w.indented : void 0
                 ),
                 children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43259,7 +43571,7 @@ ${citation.url}`,
                     LabeledValue,
                     {
                       label: "Metadata",
-                      className: clsx(styles$1o.metadataLabel, "text-size-smaller"),
+                      className: clsx(styles$1w.metadataLabel, "text-size-smaller"),
                       children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                         RecordTree,
                         {
@@ -43277,15 +43589,15 @@ ${citation.url}`,
         }
       );
     };
-    const grid$7 = "_grid_rmdrx_1";
+    const grid$8 = "_grid_rmdrx_1";
     const number$1 = "_number_rmdrx_7";
     const user = "_user_rmdrx_11";
-    const container$k = "_container_rmdrx_16";
-    const styles$1d = {
-      grid: grid$7,
+    const container$i = "_container_rmdrx_16";
+    const styles$1l = {
+      grid: grid$8,
       number: number$1,
       user,
-      container: container$k
+      container: container$i
     };
     const ChatMessageRow = ({
       parentName,
@@ -43301,9 +43613,9 @@ ${citation.url}`,
             "div",
             {
               className: clsx(
-                styles$1d.grid,
-                styles$1d.container,
-                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1d.user : void 0
+                styles$1l.grid,
+                styles$1l.container,
+                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1l.user : void 0
               ),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43312,7 +43624,7 @@ ${citation.url}`,
                     className: clsx(
                       "text-size-smaller",
                       "text-style-secondary",
-                      styles$1d.number
+                      styles$1l.number
                     ),
                     children: number2
                   }
@@ -43337,9 +43649,9 @@ ${citation.url}`,
           "div",
           {
             className: clsx(
-              styles$1d.container,
-              styles$1d.simple,
-              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1d.user : void 0
+              styles$1l.container,
+              styles$1l.simple,
+              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1l.user : void 0
             ),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43463,16 +43775,16 @@ ${citation.url}`,
     };
     const ChatMessageRenderer = {
       bucket: Buckets.first,
-      canRender: (entry2) => {
+      canRender: (entry) => {
         var _a2, _b2;
-        const val = entry2.value;
+        const val = entry.value;
         return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
       },
-      render: (id, entry2) => {
+      render: (id, entry) => {
         return {
           rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { id: `${id}-navpills`, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry2.value }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry2.value })
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry.value }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry.value })
           ] })
         };
       }
@@ -43487,81 +43799,78 @@ ${citation.url}`,
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
     };
-    const table$2 = "_table_1t3ts_1";
-    const cell$3 = "_cell_1t3ts_11";
-    const compact = "_compact_1t3ts_15";
-    const cellKey = "_cellKey_1t3ts_19";
-    const cellValue = "_cellValue_1t3ts_31";
-    const styles$1c = {
-      table: table$2,
-      cell: cell$3,
-      compact,
-      cellKey,
-      cellValue
+    const grid$7 = "_grid_14885_1";
+    const cell$2 = "_cell_14885_8";
+    const styles$1k = {
+      grid: grid$7,
+      cell: cell$2
     };
-    const MetaDataView = ({
+    const MetaDataGrid = ({
       id,
-      style: style2,
       entries,
-      tableOptions,
-      compact: compact2,
-      className: className2
+      className: className2,
+      size,
+      style: style2,
+      plain
     }) => {
-      const baseId = "metadataview";
-      tableOptions = tableOptions || "sm";
-      const tblClz = (tableOptions || "").split(",").map((option) => {
-        return `table-${option}`;
-      });
-      const coercedEntries = toNameValues(entries);
-      const entryEls = (coercedEntries || []).map((entry2, index2) => {
+      const baseId = "metadata-grid";
+      const fontStyle = size === "mini" ? "text-size-smallest" : "text-size-smaller";
+      const entryEls = entryRecords(entries).map((entry, index2) => {
         const id2 = `${baseId}-value-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          index2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              style: {
+                gridColumn: "1 / -1",
+                borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
+              }
+            }
+          ) : void 0,
           /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "td",
+            "div",
             {
               className: clsx(
-                styles$1c.cell,
-                styles$1c.cellKey,
-                "text-size-small",
-                "text-style-label"
+                `${baseId}-key`,
+                styles$1k.cell,
+                "text-style-label",
+                "text-style-secondary",
+                fontStyle
               ),
-              children: entry2.name
+              children: entry == null ? void 0 : entry.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1c.cell, styles$1c.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
-        ] }, id2);
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.value, `${baseId}-value`, fontStyle), children: entry && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RenderedContent,
+            {
+              id: id2,
+              entry,
+              renderObject: (obj) => {
+                return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MetaDataGrid,
+                  {
+                    id: id2,
+                    className: clsx(styles$1k.nested),
+                    entries: obj,
+                    size,
+                    plain
+                  }
+                );
+              }
+            }
+          ) })
+        ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "table",
-        {
-          id,
-          className: clsx(
-            "table",
-            tblClz,
-            styles$1c.table,
-            compact2 ? styles$1c.compact : void 0,
-            className2
-          ),
-          style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
-        }
-      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$1k.grid), style: style2, children: entryEls });
     };
-    const toNameValues = (entries) => {
-      if (entries) {
-        if (Array.isArray(entries)) {
-          const filtered = entries.filter((entry2) => {
-            if (entry2 && typeof entry2 === "object") {
-              return "name" in entry2 && "value" in entry2;
-            }
-            return false;
-          });
-          return filtered;
-        } else {
-          return Object.entries(entries || {}).map(([key2, value2]) => {
-            return { name: key2, value: value2 };
-          });
-        }
+    const entryRecords = (entries) => {
+      if (!entries) {
+        return [];
+      }
+      if (!Array.isArray(entries)) {
+        return Object.entries(entries || {}).map(([key2, value2]) => {
+          return { name: key2, value: value2 };
+        });
       } else {
         return entries;
       }
@@ -43570,7 +43879,7 @@ ${citation.url}`,
     const summary$3 = "_summary_seqs2_6";
     const preWrap = "_preWrap_seqs2_10";
     const preCompact = "_preCompact_seqs2_15";
-    const styles$1b = {
+    const styles$1j = {
       query,
       summary: summary$3,
       preWrap,
@@ -43578,11 +43887,11 @@ ${citation.url}`,
     };
     const RenderedContent = ({
       id,
-      entry: entry2,
+      entry,
       renderOptions = { renderString: "markdown" },
       renderObject
     }) => {
-      if (entry2.value === null) {
+      if (entry.value === null) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
       }
       const renderers = contentRenderers(renderObject);
@@ -43591,20 +43900,20 @@ ${citation.url}`,
       }).sort((a, b) => {
         return a.bucket - b.bucket;
       }).find((renderer2) => {
-        return renderer2.canRender(entry2);
+        return renderer2.canRender(entry);
       });
       if (renderer) {
-        const { rendered } = renderer.render(id, entry2, renderOptions);
+        const { rendered } = renderer.render(id, entry, renderOptions);
         if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
           return rendered;
         }
       }
       const displayValue = (() => {
         try {
-          if (typeof entry2.value === "object") {
-            return JSON.stringify(entry2.value);
+          if (typeof entry.value === "object") {
+            return JSON.stringify(entry.value);
           }
-          return String(entry2.value).trim();
+          return String(entry.value).trim();
         } catch (e) {
           return "[Unable to display value]";
         }
@@ -43615,26 +43924,26 @@ ${citation.url}`,
       const contentRenderers2 = {
         AnsiString: {
           bucket: Buckets.first,
-          canRender: (entry2) => {
-            return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
+          canRender: (entry) => {
+            return typeof entry.value === "string" && entry.value.indexOf("\x1B") > -1;
           },
-          render: (_id, entry2, _options) => {
+          render: (_id, entry, _options) => {
             return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry.value })
             };
           }
         },
         JsonString: {
           bucket: Buckets.first,
-          canRender: (entry2) => {
-            if (typeof entry2.value === "string") {
-              const trimmed = entry2.value.trim();
+          canRender: (entry) => {
+            if (typeof entry.value === "string") {
+              const trimmed = entry.value.trim();
               return isJson(trimmed);
             }
             return false;
           },
-          render: (_id, entry2, _options) => {
-            const obj = lib$1.parse(entry2.value);
+          render: (_id, entry, _options) => {
+            const obj = lib$1.parse(entry.value);
             return {
               rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj })
             };
@@ -43642,67 +43951,67 @@ ${citation.url}`,
         },
         Model: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object" && entry2.value._model;
+          canRender: (entry) => {
+            return typeof entry.value === "object" && entry.value._model;
           },
-          render: (_id, entry2, _options) => {
+          render: (_id, entry, _options) => {
             return {
               rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
                 " ",
-                entry2.value._model
+                entry.value._model
               ] })
             };
           }
         },
         Boolean: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "boolean";
+          canRender: (entry) => {
+            return typeof entry.value === "boolean";
           },
-          render: (id, entry2, options2) => {
-            entry2.value = entry2.value.toString();
-            return contentRenderers2.String.render(id, entry2, options2);
+          render: (id, entry, options2) => {
+            entry.value = entry.value.toString();
+            return contentRenderers2.String.render(id, entry, options2);
           }
         },
         Number: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "number";
+          canRender: (entry) => {
+            return typeof entry.value === "number";
           },
-          render: (id, entry2, options2) => {
-            entry2.value = formatNumber(entry2.value);
-            return contentRenderers2.String.render(id, entry2, options2);
+          render: (id, entry, options2) => {
+            entry.value = formatNumber(entry.value);
+            return contentRenderers2.String.render(id, entry, options2);
           }
         },
         String: {
           bucket: Buckets.final,
-          canRender: (entry2) => {
-            return typeof entry2.value === "string";
+          canRender: (entry) => {
+            return typeof entry.value === "string";
           },
-          render: (_id, entry2, options2) => {
-            const rendered = entry2.value.trim();
+          render: (_id, entry, options2) => {
+            const rendered = entry.value.trim();
             if (options2.renderString === "markdown") {
               return {
                 rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: rendered })
               };
             } else {
               return {
-                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1b.preWrap, styles$1b.preCompact), children: rendered })
+                rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1j.preWrap, styles$1j.preCompact), children: rendered })
               };
             }
           }
         },
         Array: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            const isArray = Array.isArray(entry2.value);
+          canRender: (entry) => {
+            const isArray = Array.isArray(entry.value);
             if (isArray) {
-              if (entry2.value.length === 0 || entry2.value.length === 1) {
+              if (entry.value.length === 0 || entry.value.length === 1) {
                 return true;
               }
               const types2 = new Set(
-                entry2.value.filter((e) => e !== null).map((e) => {
+                entry.value.filter((e) => e !== null).map((e) => {
                   return typeof e;
                 })
               );
@@ -43711,19 +44020,18 @@ ${citation.url}`,
               return false;
             }
           },
-          render: (id, entry2, _options) => {
+          render: (id, entry, _options) => {
             const arrayMap = {};
-            entry2.value.forEach((e, index2) => {
+            entry.value.forEach((e, index2) => {
               arrayMap[`[${index2}]`] = e;
             });
             const arrayRendered = renderObject ? renderObject(arrayMap) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
+              MetaDataGrid,
               {
                 id,
                 className: "font-size-small",
                 entries: arrayMap,
-                tableOptions: "borderless,sm",
-                compact: true
+                plain: true
               }
             );
             return { rendered: arrayRendered };
@@ -43732,25 +44040,25 @@ ${citation.url}`,
         ChatMessage: ChatMessageRenderer,
         web_search: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object" && entry2.name === "web_search";
+          canRender: (entry) => {
+            return typeof entry.value === "object" && entry.name === "web_search";
           },
-          render: (_id, entry2, _options) => {
+          render: (_id, entry, _options) => {
             const results = [];
             results.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1b.query, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1j.query, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
                 " ",
-                entry2.value.query
+                entry.value.query
               ] })
             );
-            entry2.value.results.forEach(
+            entry.value.results.forEach(
               (result2) => {
                 results.push(
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
                 );
                 results.push(
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1b.summary), children: result2.summary })
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$1j.summary), children: result2.summary })
                 );
               }
             );
@@ -43761,56 +44069,55 @@ ${citation.url}`,
         },
         web_browser: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
+          canRender: (entry) => {
             var _a2;
-            return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
+            return typeof entry.value === "string" && ((_a2 = entry.name) == null ? void 0 : _a2.startsWith("web_browser"));
           },
-          render: (_id, entry2, _options) => {
+          render: (_id, entry, _options) => {
             return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1b.preWrap, children: entry2.value })
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$1j.preWrap, children: entry.value })
             };
           }
         },
         Html: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object" && entry2.value._html;
+          canRender: (entry) => {
+            return typeof entry.value === "object" && entry.value._html;
           },
-          render: (_id, entry2, _options) => {
+          render: (_id, entry, _options) => {
             return {
-              rendered: entry2.value._html
+              rendered: entry.value._html
             };
           }
         },
         Image: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
+          canRender: (entry) => {
+            return typeof entry.value === "string" && entry.value.startsWith("data:image/");
           },
-          render: (_id, entry2, _options) => {
+          render: (_id, entry, _options) => {
             return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry.value })
             };
           }
         },
         Object: {
           bucket: Buckets.intermediate,
-          canRender: (entry2) => {
-            return typeof entry2.value === "object";
+          canRender: (entry) => {
+            return typeof entry.value === "object";
           },
-          render: (id, entry2, _options) => {
+          render: (id, entry, _options) => {
             if (renderObject) {
-              return { rendered: renderObject(entry2.value) };
+              return { rendered: renderObject(entry.value) };
             } else {
               return {
                 rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MetaDataView,
+                  MetaDataGrid,
                   {
                     id,
-                    className: "text-size-smaller",
-                    entries: entry2.value,
-                    tableOptions: "borderless,sm",
-                    compact: true
+                    className: "font-size-small",
+                    entries: entry.value,
+                    plain: true
                   }
                 )
               };
@@ -43841,7 +44148,7 @@ ${citation.url}`,
     const green = "_green_1iagp_12";
     const red = "_red_1iagp_18";
     const orange = "_orange_1iagp_24";
-    const styles$1a = {
+    const styles$1i = {
       circle,
       green,
       red,
@@ -43882,22 +44189,22 @@ ${citation.url}`,
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$1a.circle, styles$1a.green),
+                className: clsx("text-size-small", styles$1i.circle, styles$1i.green),
                 children: "C"
               }
             );
           } else if (score2 === "I") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1a.circle, styles$1a.red), children: "I" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1i.circle, styles$1i.red), children: "I" });
           } else if (score2 === "P") {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$1a.circle, styles$1a.orange),
+                className: clsx("text-size-small", styles$1i.circle, styles$1i.orange),
                 children: "P"
               }
             );
           } else if (score2 === "N") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1a.circle, styles$1a.red), children: "N" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$1i.circle, styles$1i.red), children: "N" });
           } else {
             return String(score2);
           }
@@ -46926,10 +47233,10 @@ categories: ${categories.join(" ")}`;
       return { result: result2, error: error2, allErrors: errorCount === samples.length };
     };
     const flex$1 = "_flex_1kye9_1";
-    const label$8 = "_label_1kye9_5";
-    const styles$19 = {
+    const label$9 = "_label_1kye9_5";
+    const styles$1h = {
       flex: flex$1,
-      label: label$8
+      label: label$9
     };
     const SortFilter = ({ sort, setSort, epochs }) => {
       const options2 = [
@@ -46961,7 +47268,7 @@ categories: ${categories.join(" ")}`;
         },
         [setSort]
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.flex, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1h.flex, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -46970,7 +47277,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$19.label
+              styles$1h.label
             ),
             children: "Sort:"
           }
@@ -47117,7 +47424,7 @@ categories: ${categories.join(" ")}`;
       });
       return [...logSamples, ...uniquePendingSamples];
     };
-    const log = createLogger("hooks");
+    const log$1 = createLogger("hooks");
     const useEvalSpec = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       return selectedLogSummary == null ? void 0 : selectedLogSummary.eval;
@@ -47311,7 +47618,7 @@ categories: ${categories.join(" ")}`;
         var _a2;
         const isCollapsed = collapsed2 !== null && ((_a2 = collapsed2[scope]) == null ? void 0 : _a2[id]) === true;
         const set2 = (value2) => {
-          log.debug("Set collapsed", id, value2);
+          log$1.debug("Set collapsed", id, value2);
           collapseEvent(scope, id, value2);
         };
         return [isCollapsed, set2];
@@ -47346,7 +47653,7 @@ categories: ${categories.join(" ")}`;
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
       return reactExports.useMemo(() => {
         const set2 = (value2) => {
-          log.debug("Set collapsed", id, scope, value2);
+          log$1.debug("Set collapsed", id, scope, value2);
           setCollapsed(stateId, value2);
         };
         return [collapsed2, set2];
@@ -47367,7 +47674,7 @@ categories: ${categories.join(" ")}`;
           isFirstRender.current = false;
           return;
         }
-        log.debug("clear message (eval)", id);
+        log$1.debug("clear message (eval)", id);
         clearVisible(id);
       }, [selectedLogFile, clearVisible, id]);
       const selectedSampleIndex = useStore(
@@ -47378,14 +47685,14 @@ categories: ${categories.join(" ")}`;
           return;
         }
         if (scope === "sample") {
-          log.debug("clear message (sample)", id);
+          log$1.debug("clear message (sample)", id);
           clearVisible(id);
         }
       }, [selectedSampleIndex, clearVisible, id, scope]);
       return reactExports.useMemo(() => {
-        log.debug("visibility", id, visible2);
+        log$1.debug("visibility", id, visible2);
         const set2 = (visible22) => {
-          log.debug("set visiblity", id);
+          log$1.debug("set visiblity", id);
           setVisible(id, visible22);
         };
         return [visible2, set2];
@@ -47493,6 +47800,4376 @@ categories: ${categories.join(" ")}`;
         hide: hide2,
         isShowing
       };
+    };
+    const useLogs = () => {
+      const load = useStore((state) => state.logsActions.loadLogs);
+      const setLogs = useStore((state) => state.logsActions.setLogs);
+      const setStatus = useStore((state) => state.appActions.setStatus);
+      const loadLogs = reactExports.useCallback(async () => {
+        const exec2 = async () => {
+          setStatus({ loading: true, error: void 0 });
+          const logs = await load();
+          setLogs(logs);
+          setStatus({ loading: false, error: void 0 });
+        };
+        exec2().catch((e) => {
+          log$1.error("Error loading logs", e);
+          setStatus({ loading: false, error: e });
+        });
+      }, [load, setLogs, setStatus]);
+      const storeLoadHeaders = useStore((state) => state.logsActions.loadHeaders);
+      const existingHeaders = useStore((state) => state.logs.logHeaders);
+      const allLogFiles = useStore((state) => state.logs.logs.files);
+      const loadHeaders = reactExports.useCallback(
+        async (logFiles = allLogFiles) => {
+          await storeLoadHeaders(logFiles);
+        },
+        [storeLoadHeaders, allLogFiles]
+      );
+      const loadAllHeaders = reactExports.useCallback(async () => {
+        const logsToLoad = allLogFiles.filter((logFile) => {
+          const existingHeader = existingHeaders[logFile.name];
+          return !existingHeader || existingHeader.status === "started";
+        });
+        if (logsToLoad.length > 0) {
+          await storeLoadHeaders(logsToLoad);
+        }
+      }, [storeLoadHeaders, allLogFiles, existingHeaders]);
+      return { loadLogs, loadHeaders, loadAllHeaders };
+    };
+    const usePagination = (name2, defaultPageSize2) => {
+      const page = useStore((state) => {
+        var _a2;
+        return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.page) || 0;
+      });
+      const itemsPerPage = useStore(
+        (state) => {
+          var _a2;
+          return ((_a2 = state.app.pagination[name2]) == null ? void 0 : _a2.pageSize) || defaultPageSize2;
+        }
+      );
+      const setPagination = useStore((state) => state.appActions.setPagination);
+      const setPage = reactExports.useCallback(
+        (newPage) => {
+          setPagination(name2, { page: newPage, pageSize: itemsPerPage });
+        },
+        [name2, setPagination, itemsPerPage]
+      );
+      const setPageSize = reactExports.useCallback(
+        (newPageSize) => {
+          setPagination(name2, { page, pageSize: newPageSize });
+        },
+        [name2, setPagination, page]
+      );
+      return {
+        page,
+        itemsPerPage,
+        setPage,
+        setPageSize
+      };
+    };
+    const useLogsListing = () => {
+      const sorting = useStore((state) => state.logs.listing.sorting);
+      const setSorting = useStore((state) => state.logsActions.setSorting);
+      const filtering = useStore((state) => state.logs.listing.filtering);
+      const setFiltering = useStore((state) => state.logsActions.setFiltering);
+      const globalFilter = useStore((state) => state.logs.listing.globalFilter);
+      const setGlobalFilter = useStore(
+        (state) => state.logsActions.setGlobalFilter
+      );
+      const columnResizeMode = useStore(
+        (state) => state.logs.listing.columnResizeMode
+      );
+      const setColumnResizeMode = useStore(
+        (state) => state.logsActions.setColumnResizeMode
+      );
+      const columnSizes = useStore((state) => state.logs.listing.columnSizes);
+      const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
+      const filteredCount = useStore((state) => state.logs.listing.filteredCount);
+      const setFilteredCount = useStore(
+        (state) => state.logsActions.setFilteredCount
+      );
+      return {
+        sorting,
+        setSorting,
+        filtering,
+        setFiltering,
+        globalFilter,
+        setGlobalFilter,
+        columnResizeMode,
+        setColumnResizeMode,
+        columnSizes,
+        setColumnSize,
+        filteredCount,
+        setFilteredCount
+      };
+    };
+    const log = createLogger("Client-Events");
+    function useClientEvents() {
+      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const api2 = useStore((state) => state.api);
+      const { loadHeaders } = useLogs();
+      const refreshCallback = reactExports.useCallback(
+        async (logFiles) => {
+          log.debug("Refresh Log Files");
+          await refreshLogs();
+          const toRefresh = [];
+          for (const logFile of logFiles) {
+            const header2 = logHeaders[logFile.name];
+            if (!header2 || header2.status === "started") {
+              toRefresh.push(logFile);
+            }
+          }
+          if (toRefresh.length > 0) {
+            log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
+            await loadHeaders(toRefresh);
+          }
+        },
+        [logHeaders, refreshLogs, loadHeaders]
+      );
+      reactExports.useEffect(() => {
+        clientEventsService.setRefreshCallback(refreshCallback);
+      }, [refreshCallback]);
+      const startPolling = reactExports.useCallback(
+        (logFiles) => {
+          clientEventsService.startPolling(logFiles, api2);
+        },
+        [api2]
+      );
+      const stopPolling = reactExports.useCallback(() => {
+        clientEventsService.stopPolling();
+      }, []);
+      const cleanup = reactExports.useCallback(() => {
+        clientEventsService.cleanup();
+      }, []);
+      reactExports.useEffect(() => {
+        return () => {
+          cleanup();
+        };
+      }, [cleanup]);
+      return {
+        startPolling,
+        stopPolling,
+        cleanup
+      };
+    }
+    const useUnloadLog = () => {
+      const clearSelectedLogSummary = useStore(
+        (state) => state.logActions.clearSelectedLogSummary
+      );
+      const setSelectedLogIndex = useStore(
+        (state) => state.logsActions.setSelectedLogIndex
+      );
+      const clearLog = useStore((state) => state.logActions.clearLog);
+      const unloadLog = reactExports.useCallback(() => {
+        clearSelectedLogSummary();
+        setSelectedLogIndex(-1);
+        clearLog();
+      }, [clearLog, clearSelectedLogSummary, setSelectedLogIndex]);
+      return { unloadLog };
+    };
+    const filename = (path) => {
+      if (!path) {
+        return "";
+      }
+      path = path.endsWith("/") ? path.slice(0, -1) : path;
+      const pathparts = path.split("/");
+      const basename2 = pathparts.slice(-1)[0];
+      if (basename2.startsWith(".") && !basename2.substring(1).includes(".")) {
+        return basename2;
+      }
+      const match = basename2.match(/(.*)\.\S+$/);
+      if (match) {
+        return match[1];
+      } else {
+        return path;
+      }
+    };
+    const basename = (path) => {
+      if (!path) {
+        return "";
+      }
+      path = path.endsWith("/") ? path.slice(0, -1) : path;
+      const pathparts = path.split("/");
+      return pathparts.slice(-1)[0];
+    };
+    const dirname = (path) => {
+      path = path.endsWith("/") ? path.slice(0, -1) : path;
+      const pathparts = path.split("/");
+      if (pathparts.length > 1) {
+        pathparts.pop();
+        return pathparts.join("/");
+      }
+      return "";
+    };
+    const isInDirectory = (path, directory) => {
+      directory = directory.endsWith("/") ? directory.slice(0, -1) : directory;
+      return dirname(path) === directory;
+    };
+    const ensureTrailingSlash = (path) => {
+      if (!path) {
+        return "";
+      }
+      return path.endsWith("/") ? path : path + "/";
+    };
+    const header$3 = "_header_1fu9w_1";
+    const breadcrumbs = "_breadcrumbs_1fu9w_12";
+    const ellipsis = "_ellipsis_1fu9w_23";
+    const left$2 = "_left_1fu9w_28";
+    const right$2 = "_right_1fu9w_38";
+    const toolbarButton = "_toolbarButton_1fu9w_47";
+    const pathContainer = "_pathContainer_1fu9w_55";
+    const styles$1g = {
+      header: header$3,
+      breadcrumbs,
+      ellipsis,
+      left: left$2,
+      right: right$2,
+      toolbarButton,
+      pathContainer
+    };
+    const useBreadcrumbTruncation = (segments, containerRef) => {
+      const [truncatedData, setTruncatedData] = reactExports.useState({
+        visibleSegments: segments,
+        hiddenCount: 0,
+        showEllipsis: false
+      });
+      const measureAndTruncate = reactExports.useCallback(() => {
+        if (!containerRef.current || segments.length <= 3) {
+          setTruncatedData({
+            visibleSegments: segments,
+            hiddenCount: 0,
+            showEllipsis: false
+          });
+          return;
+        }
+        const container2 = containerRef.current;
+        const containerWidth = container2.offsetWidth;
+        const testElement = document.createElement("ol");
+        testElement.className = "breadcrumb";
+        testElement.style.position = "absolute";
+        testElement.style.visibility = "hidden";
+        testElement.style.whiteSpace = "nowrap";
+        testElement.style.margin = "0";
+        testElement.style.padding = "0";
+        container2.appendChild(testElement);
+        testElement.innerHTML = segments.map((segment) => `<li class="breadcrumb-item">${segment.text}</li>`).join("");
+        if (testElement.scrollWidth <= containerWidth) {
+          container2.removeChild(testElement);
+          setTruncatedData({
+            visibleSegments: segments,
+            hiddenCount: 0,
+            showEllipsis: false
+          });
+          return;
+        }
+        const firstSegment = segments[0];
+        const lastSegment = segments[segments.length - 1];
+        let maxVisible = 2;
+        for (let endCount = 1; endCount < segments.length - 1; endCount++) {
+          const candidateSegments = [
+            firstSegment,
+            ...segments.slice(segments.length - 1 - endCount, -1),
+            lastSegment
+          ];
+          const testHTML = [
+            `<li class="breadcrumb-item">${firstSegment.text}</li>`,
+            `<li class="breadcrumb-item">...</li>`,
+            ...segments.slice(segments.length - 1 - endCount, -1).map((s) => `<li class="breadcrumb-item">${s.text}</li>`),
+            `<li class="breadcrumb-item">${lastSegment.text}</li>`
+          ].join("");
+          testElement.innerHTML = testHTML;
+          if (testElement.scrollWidth <= containerWidth) {
+            maxVisible = candidateSegments.length;
+            setTruncatedData({
+              visibleSegments: candidateSegments,
+              hiddenCount: segments.length - candidateSegments.length,
+              showEllipsis: true
+            });
+          } else {
+            break;
+          }
+        }
+        if (maxVisible === 2) {
+          setTruncatedData({
+            visibleSegments: [firstSegment, lastSegment],
+            hiddenCount: segments.length - 2,
+            showEllipsis: true
+          });
+        }
+        container2.removeChild(testElement);
+      }, [segments, containerRef]);
+      reactExports.useEffect(() => {
+        measureAndTruncate();
+        const resizeObserver = new ResizeObserver(measureAndTruncate);
+        if (containerRef.current) {
+          resizeObserver.observe(containerRef.current);
+        }
+        return () => {
+          resizeObserver.disconnect();
+        };
+      }, [measureAndTruncate]);
+      return truncatedData;
+    };
+    const Navbar = ({ children: children2 }) => {
+      const { logPath } = useLogRouteParams();
+      const logs = useStore((state) => state.logs.logs);
+      const baseLogDir = dirname(logs.log_dir || "");
+      const baseLogName = basename(logs.log_dir || "");
+      const pathContainerRef = reactExports.useRef(null);
+      const backUrl = logUrl(
+        ensureTrailingSlash(dirname(logPath || "")),
+        logs.log_dir
+      );
+      const segments = reactExports.useMemo(() => {
+        const pathSegments = logPath ? logPath.split("/") : [];
+        const dirSegments = [];
+        const currentSegment = [];
+        for (const pathSegment of pathSegments) {
+          currentSegment.push(pathSegment);
+          const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
+          dirSegments.push({
+            text: pathSegment,
+            url: segmentUrl
+          });
+        }
+        return [
+          { text: prettyDirUri(baseLogDir) },
+          { text: baseLogName, url: logUrl("", logs.log_dir) },
+          ...dirSegments
+        ];
+      }, [baseLogDir, baseLogName, logPath, logs.log_dir]);
+      const { visibleSegments, showEllipsis } = useBreadcrumbTruncation(
+        segments,
+        pathContainerRef
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "nav",
+        {
+          className: clsx("text-size-smaller", styles$1g.header),
+          "aria-label": "breadcrumb",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1g.left), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: backUrl, className: clsx(styles$1g.toolbarButton), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.back) }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                Link,
+                {
+                  to: logUrl("", logs.log_dir),
+                  className: clsx(styles$1g.toolbarButton),
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.home) })
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.pathContainer), ref: pathContainerRef, children: logs.log_dir ? /* @__PURE__ */ jsxRuntimeExports.jsx("ol", { className: clsx("breadcrumb", styles$1g.breadcrumbs), children: visibleSegments == null ? void 0 : visibleSegments.map((segment, index2) => {
+                const isLast = index2 === visibleSegments.length - 1;
+                const shouldShowEllipsis = showEllipsis && index2 === 1 && visibleSegments.length >= 2;
+                return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+                  shouldShowEllipsis && /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: clsx("breadcrumb-item", styles$1g.ellipsis), children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "..." }) }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "li",
+                    {
+                      className: clsx(
+                        styles$1g.pathLink,
+                        "breadcrumb-item",
+                        isLast ? "active" : void 0
+                      ),
+                      children: segment.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: segment.url, children: segment.text }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx(styles$1g.pathSegment), children: segment.text })
+                    }
+                  )
+                ] }, index2);
+              }) }) : "" })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.right), children: children2 })
+          ]
+        }
+      );
+    };
+    const prettyDirUri = (uri) => {
+      if (uri.startsWith("file://")) {
+        return uri.replace("file://", "");
+      } else {
+        return uri;
+      }
+    };
+    /**
+       * table-core
+       *
+       * Copyright (c) TanStack
+       *
+       * This source code is licensed under the MIT license found in the
+       * LICENSE.md file in the root directory of this source tree.
+       *
+       * @license MIT
+       */
+    function createColumnHelper() {
+      return {
+        accessor: (accessor, column2) => {
+          return typeof accessor === "function" ? {
+            ...column2,
+            accessorFn: accessor
+          } : {
+            ...column2,
+            accessorKey: accessor
+          };
+        },
+        display: (column2) => column2,
+        group: (column2) => column2
+      };
+    }
+    function functionalUpdate(updater, input2) {
+      return typeof updater === "function" ? updater(input2) : updater;
+    }
+    function makeStateUpdater(key2, instance) {
+      return (updater) => {
+        instance.setState((old) => {
+          return {
+            ...old,
+            [key2]: functionalUpdate(updater, old[key2])
+          };
+        });
+      };
+    }
+    function isFunction(d) {
+      return d instanceof Function;
+    }
+    function isNumberArray(d) {
+      return Array.isArray(d) && d.every((val) => typeof val === "number");
+    }
+    function flattenBy(arr2, getChildren2) {
+      const flat = [];
+      const recurse = (subArr) => {
+        subArr.forEach((item2) => {
+          flat.push(item2);
+          const children2 = getChildren2(item2);
+          if (children2 != null && children2.length) {
+            recurse(children2);
+          }
+        });
+      };
+      recurse(arr2);
+      return flat;
+    }
+    function memo$1(getDeps, fn2, opts) {
+      let deps = [];
+      let result2;
+      return (depArgs) => {
+        let depTime;
+        if (opts.key && opts.debug) depTime = Date.now();
+        const newDeps = getDeps(depArgs);
+        const depsChanged = newDeps.length !== deps.length || newDeps.some((dep, index2) => deps[index2] !== dep);
+        if (!depsChanged) {
+          return result2;
+        }
+        deps = newDeps;
+        let resultTime;
+        if (opts.key && opts.debug) resultTime = Date.now();
+        result2 = fn2(...newDeps);
+        opts == null || opts.onChange == null || opts.onChange(result2);
+        if (opts.key && opts.debug) {
+          if (opts != null && opts.debug()) {
+            const depEndTime = Math.round((Date.now() - depTime) * 100) / 100;
+            const resultEndTime = Math.round((Date.now() - resultTime) * 100) / 100;
+            const resultFpsPercentage = resultEndTime / 16;
+            const pad = (str2, num2) => {
+              str2 = String(str2);
+              while (str2.length < num2) {
+                str2 = " " + str2;
+              }
+              return str2;
+            };
+            console.info(`%c⏱ ${pad(resultEndTime, 5)} /${pad(depEndTime, 5)} ms`, `
+            font-size: .6rem;
+            font-weight: bold;
+            color: hsl(${Math.max(0, Math.min(120 - 120 * resultFpsPercentage, 120))}deg 100% 31%);`, opts == null ? void 0 : opts.key);
+          }
+        }
+        return result2;
+      };
+    }
+    function getMemoOptions(tableOptions, debugLevel, key2, onChange) {
+      return {
+        debug: () => {
+          var _tableOptions$debugAl;
+          return (_tableOptions$debugAl = tableOptions == null ? void 0 : tableOptions.debugAll) != null ? _tableOptions$debugAl : tableOptions[debugLevel];
+        },
+        key: false,
+        onChange
+      };
+    }
+    function createCell(table2, row2, column2, columnId) {
+      const getRenderValue = () => {
+        var _cell$getValue;
+        return (_cell$getValue = cell2.getValue()) != null ? _cell$getValue : table2.options.renderFallbackValue;
+      };
+      const cell2 = {
+        id: `${row2.id}_${column2.id}`,
+        row: row2,
+        column: column2,
+        getValue: () => row2.getValue(columnId),
+        renderValue: getRenderValue,
+        getContext: memo$1(() => [table2, column2, row2, cell2], (table22, column22, row22, cell22) => ({
+          table: table22,
+          column: column22,
+          row: row22,
+          cell: cell22,
+          getValue: cell22.getValue,
+          renderValue: cell22.renderValue
+        }), getMemoOptions(table2.options, "debugCells"))
+      };
+      table2._features.forEach((feature) => {
+        feature.createCell == null || feature.createCell(cell2, column2, row2, table2);
+      }, {});
+      return cell2;
+    }
+    function createColumn(table2, columnDef, depth, parent) {
+      var _ref, _resolvedColumnDef$id;
+      const defaultColumn = table2._getDefaultColumnDef();
+      const resolvedColumnDef = {
+        ...defaultColumn,
+        ...columnDef
+      };
+      const accessorKey = resolvedColumnDef.accessorKey;
+      let id = (_ref = (_resolvedColumnDef$id = resolvedColumnDef.id) != null ? _resolvedColumnDef$id : accessorKey ? typeof String.prototype.replaceAll === "function" ? accessorKey.replaceAll(".", "_") : accessorKey.replace(/\./g, "_") : void 0) != null ? _ref : typeof resolvedColumnDef.header === "string" ? resolvedColumnDef.header : void 0;
+      let accessorFn;
+      if (resolvedColumnDef.accessorFn) {
+        accessorFn = resolvedColumnDef.accessorFn;
+      } else if (accessorKey) {
+        if (accessorKey.includes(".")) {
+          accessorFn = (originalRow) => {
+            let result2 = originalRow;
+            for (const key2 of accessorKey.split(".")) {
+              var _result;
+              result2 = (_result = result2) == null ? void 0 : _result[key2];
+            }
+            return result2;
+          };
+        } else {
+          accessorFn = (originalRow) => originalRow[resolvedColumnDef.accessorKey];
+        }
+      }
+      if (!id) {
+        throw new Error();
+      }
+      let column2 = {
+        id: `${String(id)}`,
+        accessorFn,
+        parent,
+        depth,
+        columnDef: resolvedColumnDef,
+        columns: [],
+        getFlatColumns: memo$1(() => [true], () => {
+          var _column$columns;
+          return [column2, ...(_column$columns = column2.columns) == null ? void 0 : _column$columns.flatMap((d) => d.getFlatColumns())];
+        }, getMemoOptions(table2.options, "debugColumns")),
+        getLeafColumns: memo$1(() => [table2._getOrderColumnsFn()], (orderColumns2) => {
+          var _column$columns2;
+          if ((_column$columns2 = column2.columns) != null && _column$columns2.length) {
+            let leafColumns = column2.columns.flatMap((column22) => column22.getLeafColumns());
+            return orderColumns2(leafColumns);
+          }
+          return [column2];
+        }, getMemoOptions(table2.options, "debugColumns"))
+      };
+      for (const feature of table2._features) {
+        feature.createColumn == null || feature.createColumn(column2, table2);
+      }
+      return column2;
+    }
+    const debug = "debugHeaders";
+    function createHeader(table2, column2, options2) {
+      var _options$id;
+      const id = (_options$id = options2.id) != null ? _options$id : column2.id;
+      let header2 = {
+        id,
+        column: column2,
+        index: options2.index,
+        isPlaceholder: !!options2.isPlaceholder,
+        placeholderId: options2.placeholderId,
+        depth: options2.depth,
+        subHeaders: [],
+        colSpan: 0,
+        rowSpan: 0,
+        headerGroup: null,
+        getLeafHeaders: () => {
+          const leafHeaders = [];
+          const recurseHeader = (h) => {
+            if (h.subHeaders && h.subHeaders.length) {
+              h.subHeaders.map(recurseHeader);
+            }
+            leafHeaders.push(h);
+          };
+          recurseHeader(header2);
+          return leafHeaders;
+        },
+        getContext: () => ({
+          table: table2,
+          header: header2,
+          column: column2
+        })
+      };
+      table2._features.forEach((feature) => {
+        feature.createHeader == null || feature.createHeader(header2, table2);
+      });
+      return header2;
+    }
+    const Headers$1 = {
+      createTable: (table2) => {
+        table2.getHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allColumns, leafColumns, left2, right2) => {
+          var _left$map$filter, _right$map$filter;
+          const leftColumns = (_left$map$filter = left2 == null ? void 0 : left2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _left$map$filter : [];
+          const rightColumns = (_right$map$filter = right2 == null ? void 0 : right2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _right$map$filter : [];
+          const centerColumns = leafColumns.filter((column2) => !(left2 != null && left2.includes(column2.id)) && !(right2 != null && right2.includes(column2.id)));
+          const headerGroups = buildHeaderGroups(allColumns, [...leftColumns, ...centerColumns, ...rightColumns], table2);
+          return headerGroups;
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allColumns, leafColumns, left2, right2) => {
+          leafColumns = leafColumns.filter((column2) => !(left2 != null && left2.includes(column2.id)) && !(right2 != null && right2.includes(column2.id)));
+          return buildHeaderGroups(allColumns, leafColumns, table2, "center");
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.left], (allColumns, leafColumns, left2) => {
+          var _left$map$filter2;
+          const orderedLeafColumns = (_left$map$filter2 = left2 == null ? void 0 : left2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _left$map$filter2 : [];
+          return buildHeaderGroups(allColumns, orderedLeafColumns, table2, "left");
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightHeaderGroups = memo$1(() => [table2.getAllColumns(), table2.getVisibleLeafColumns(), table2.getState().columnPinning.right], (allColumns, leafColumns, right2) => {
+          var _right$map$filter2;
+          const orderedLeafColumns = (_right$map$filter2 = right2 == null ? void 0 : right2.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _right$map$filter2 : [];
+          return buildHeaderGroups(allColumns, orderedLeafColumns, table2, "right");
+        }, getMemoOptions(table2.options, debug));
+        table2.getFooterGroups = memo$1(() => [table2.getHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftFooterGroups = memo$1(() => [table2.getLeftHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterFooterGroups = memo$1(() => [table2.getCenterHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightFooterGroups = memo$1(() => [table2.getRightHeaderGroups()], (headerGroups) => {
+          return [...headerGroups].reverse();
+        }, getMemoOptions(table2.options, debug));
+        table2.getFlatHeaders = memo$1(() => [table2.getHeaderGroups()], (headerGroups) => {
+          return headerGroups.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftFlatHeaders = memo$1(() => [table2.getLeftHeaderGroups()], (left2) => {
+          return left2.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterFlatHeaders = memo$1(() => [table2.getCenterHeaderGroups()], (left2) => {
+          return left2.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightFlatHeaders = memo$1(() => [table2.getRightHeaderGroups()], (left2) => {
+          return left2.map((headerGroup) => {
+            return headerGroup.headers;
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+        table2.getCenterLeafHeaders = memo$1(() => [table2.getCenterFlatHeaders()], (flatHeaders) => {
+          return flatHeaders.filter((header2) => {
+            var _header$subHeaders;
+            return !((_header$subHeaders = header2.subHeaders) != null && _header$subHeaders.length);
+          });
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeftLeafHeaders = memo$1(() => [table2.getLeftFlatHeaders()], (flatHeaders) => {
+          return flatHeaders.filter((header2) => {
+            var _header$subHeaders2;
+            return !((_header$subHeaders2 = header2.subHeaders) != null && _header$subHeaders2.length);
+          });
+        }, getMemoOptions(table2.options, debug));
+        table2.getRightLeafHeaders = memo$1(() => [table2.getRightFlatHeaders()], (flatHeaders) => {
+          return flatHeaders.filter((header2) => {
+            var _header$subHeaders3;
+            return !((_header$subHeaders3 = header2.subHeaders) != null && _header$subHeaders3.length);
+          });
+        }, getMemoOptions(table2.options, debug));
+        table2.getLeafHeaders = memo$1(() => [table2.getLeftHeaderGroups(), table2.getCenterHeaderGroups(), table2.getRightHeaderGroups()], (left2, center2, right2) => {
+          var _left$0$headers, _left$, _center$0$headers, _center$, _right$0$headers, _right$;
+          return [...(_left$0$headers = (_left$ = left2[0]) == null ? void 0 : _left$.headers) != null ? _left$0$headers : [], ...(_center$0$headers = (_center$ = center2[0]) == null ? void 0 : _center$.headers) != null ? _center$0$headers : [], ...(_right$0$headers = (_right$ = right2[0]) == null ? void 0 : _right$.headers) != null ? _right$0$headers : []].map((header2) => {
+            return header2.getLeafHeaders();
+          }).flat();
+        }, getMemoOptions(table2.options, debug));
+      }
+    };
+    function buildHeaderGroups(allColumns, columnsToGroup, table2, headerFamily) {
+      var _headerGroups$0$heade, _headerGroups$;
+      let maxDepth = 0;
+      const findMaxDepth = function(columns, depth) {
+        if (depth === void 0) {
+          depth = 1;
+        }
+        maxDepth = Math.max(maxDepth, depth);
+        columns.filter((column2) => column2.getIsVisible()).forEach((column2) => {
+          var _column$columns;
+          if ((_column$columns = column2.columns) != null && _column$columns.length) {
+            findMaxDepth(column2.columns, depth + 1);
+          }
+        }, 0);
+      };
+      findMaxDepth(allColumns);
+      let headerGroups = [];
+      const createHeaderGroup = (headersToGroup, depth) => {
+        const headerGroup = {
+          depth,
+          id: [headerFamily, `${depth}`].filter(Boolean).join("_"),
+          headers: []
+        };
+        const pendingParentHeaders = [];
+        headersToGroup.forEach((headerToGroup) => {
+          const latestPendingParentHeader = [...pendingParentHeaders].reverse()[0];
+          const isLeafHeader = headerToGroup.column.depth === headerGroup.depth;
+          let column2;
+          let isPlaceholder = false;
+          if (isLeafHeader && headerToGroup.column.parent) {
+            column2 = headerToGroup.column.parent;
+          } else {
+            column2 = headerToGroup.column;
+            isPlaceholder = true;
+          }
+          if (latestPendingParentHeader && (latestPendingParentHeader == null ? void 0 : latestPendingParentHeader.column) === column2) {
+            latestPendingParentHeader.subHeaders.push(headerToGroup);
+          } else {
+            const header2 = createHeader(table2, column2, {
+              id: [headerFamily, depth, column2.id, headerToGroup == null ? void 0 : headerToGroup.id].filter(Boolean).join("_"),
+              isPlaceholder,
+              placeholderId: isPlaceholder ? `${pendingParentHeaders.filter((d) => d.column === column2).length}` : void 0,
+              depth,
+              index: pendingParentHeaders.length
+            });
+            header2.subHeaders.push(headerToGroup);
+            pendingParentHeaders.push(header2);
+          }
+          headerGroup.headers.push(headerToGroup);
+          headerToGroup.headerGroup = headerGroup;
+        });
+        headerGroups.push(headerGroup);
+        if (depth > 0) {
+          createHeaderGroup(pendingParentHeaders, depth - 1);
+        }
+      };
+      const bottomHeaders = columnsToGroup.map((column2, index2) => createHeader(table2, column2, {
+        depth: maxDepth,
+        index: index2
+      }));
+      createHeaderGroup(bottomHeaders, maxDepth - 1);
+      headerGroups.reverse();
+      const recurseHeadersForSpans = (headers) => {
+        const filteredHeaders = headers.filter((header2) => header2.column.getIsVisible());
+        return filteredHeaders.map((header2) => {
+          let colSpan = 0;
+          let rowSpan = 0;
+          let childRowSpans = [0];
+          if (header2.subHeaders && header2.subHeaders.length) {
+            childRowSpans = [];
+            recurseHeadersForSpans(header2.subHeaders).forEach((_ref) => {
+              let {
+                colSpan: childColSpan,
+                rowSpan: childRowSpan
+              } = _ref;
+              colSpan += childColSpan;
+              childRowSpans.push(childRowSpan);
+            });
+          } else {
+            colSpan = 1;
+          }
+          const minChildRowSpan = Math.min(...childRowSpans);
+          rowSpan = rowSpan + minChildRowSpan;
+          header2.colSpan = colSpan;
+          header2.rowSpan = rowSpan;
+          return {
+            colSpan,
+            rowSpan
+          };
+        });
+      };
+      recurseHeadersForSpans((_headerGroups$0$heade = (_headerGroups$ = headerGroups[0]) == null ? void 0 : _headerGroups$.headers) != null ? _headerGroups$0$heade : []);
+      return headerGroups;
+    }
+    const createRow = (table2, id, original, rowIndex, depth, subRows, parentId) => {
+      let row2 = {
+        id,
+        index: rowIndex,
+        original,
+        depth,
+        parentId,
+        _valuesCache: {},
+        _uniqueValuesCache: {},
+        getValue: (columnId) => {
+          if (row2._valuesCache.hasOwnProperty(columnId)) {
+            return row2._valuesCache[columnId];
+          }
+          const column2 = table2.getColumn(columnId);
+          if (!(column2 != null && column2.accessorFn)) {
+            return void 0;
+          }
+          row2._valuesCache[columnId] = column2.accessorFn(row2.original, rowIndex);
+          return row2._valuesCache[columnId];
+        },
+        getUniqueValues: (columnId) => {
+          if (row2._uniqueValuesCache.hasOwnProperty(columnId)) {
+            return row2._uniqueValuesCache[columnId];
+          }
+          const column2 = table2.getColumn(columnId);
+          if (!(column2 != null && column2.accessorFn)) {
+            return void 0;
+          }
+          if (!column2.columnDef.getUniqueValues) {
+            row2._uniqueValuesCache[columnId] = [row2.getValue(columnId)];
+            return row2._uniqueValuesCache[columnId];
+          }
+          row2._uniqueValuesCache[columnId] = column2.columnDef.getUniqueValues(row2.original, rowIndex);
+          return row2._uniqueValuesCache[columnId];
+        },
+        renderValue: (columnId) => {
+          var _row$getValue;
+          return (_row$getValue = row2.getValue(columnId)) != null ? _row$getValue : table2.options.renderFallbackValue;
+        },
+        subRows: [],
+        getLeafRows: () => flattenBy(row2.subRows, (d) => d.subRows),
+        getParentRow: () => row2.parentId ? table2.getRow(row2.parentId, true) : void 0,
+        getParentRows: () => {
+          let parentRows = [];
+          let currentRow = row2;
+          while (true) {
+            const parentRow = currentRow.getParentRow();
+            if (!parentRow) break;
+            parentRows.push(parentRow);
+            currentRow = parentRow;
+          }
+          return parentRows.reverse();
+        },
+        getAllCells: memo$1(() => [table2.getAllLeafColumns()], (leafColumns) => {
+          return leafColumns.map((column2) => {
+            return createCell(table2, row2, column2, column2.id);
+          });
+        }, getMemoOptions(table2.options, "debugRows")),
+        _getAllCellsByColumnId: memo$1(() => [row2.getAllCells()], (allCells) => {
+          return allCells.reduce((acc, cell2) => {
+            acc[cell2.column.id] = cell2;
+            return acc;
+          }, {});
+        }, getMemoOptions(table2.options, "debugRows"))
+      };
+      for (let i2 = 0; i2 < table2._features.length; i2++) {
+        const feature = table2._features[i2];
+        feature == null || feature.createRow == null || feature.createRow(row2, table2);
+      }
+      return row2;
+    };
+    const ColumnFaceting = {
+      createColumn: (column2, table2) => {
+        column2._getFacetedRowModel = table2.options.getFacetedRowModel && table2.options.getFacetedRowModel(table2, column2.id);
+        column2.getFacetedRowModel = () => {
+          if (!column2._getFacetedRowModel) {
+            return table2.getPreFilteredRowModel();
+          }
+          return column2._getFacetedRowModel();
+        };
+        column2._getFacetedUniqueValues = table2.options.getFacetedUniqueValues && table2.options.getFacetedUniqueValues(table2, column2.id);
+        column2.getFacetedUniqueValues = () => {
+          if (!column2._getFacetedUniqueValues) {
+            return /* @__PURE__ */ new Map();
+          }
+          return column2._getFacetedUniqueValues();
+        };
+        column2._getFacetedMinMaxValues = table2.options.getFacetedMinMaxValues && table2.options.getFacetedMinMaxValues(table2, column2.id);
+        column2.getFacetedMinMaxValues = () => {
+          if (!column2._getFacetedMinMaxValues) {
+            return void 0;
+          }
+          return column2._getFacetedMinMaxValues();
+        };
+      }
+    };
+    const includesString = (row2, columnId, filterValue) => {
+      var _filterValue$toString, _row$getValue;
+      const search = filterValue == null || (_filterValue$toString = filterValue.toString()) == null ? void 0 : _filterValue$toString.toLowerCase();
+      return Boolean((_row$getValue = row2.getValue(columnId)) == null || (_row$getValue = _row$getValue.toString()) == null || (_row$getValue = _row$getValue.toLowerCase()) == null ? void 0 : _row$getValue.includes(search));
+    };
+    includesString.autoRemove = (val) => testFalsey(val);
+    const includesStringSensitive = (row2, columnId, filterValue) => {
+      var _row$getValue2;
+      return Boolean((_row$getValue2 = row2.getValue(columnId)) == null || (_row$getValue2 = _row$getValue2.toString()) == null ? void 0 : _row$getValue2.includes(filterValue));
+    };
+    includesStringSensitive.autoRemove = (val) => testFalsey(val);
+    const equalsString = (row2, columnId, filterValue) => {
+      var _row$getValue3;
+      return ((_row$getValue3 = row2.getValue(columnId)) == null || (_row$getValue3 = _row$getValue3.toString()) == null ? void 0 : _row$getValue3.toLowerCase()) === (filterValue == null ? void 0 : filterValue.toLowerCase());
+    };
+    equalsString.autoRemove = (val) => testFalsey(val);
+    const arrIncludes = (row2, columnId, filterValue) => {
+      var _row$getValue4;
+      return (_row$getValue4 = row2.getValue(columnId)) == null ? void 0 : _row$getValue4.includes(filterValue);
+    };
+    arrIncludes.autoRemove = (val) => testFalsey(val);
+    const arrIncludesAll = (row2, columnId, filterValue) => {
+      return !filterValue.some((val) => {
+        var _row$getValue5;
+        return !((_row$getValue5 = row2.getValue(columnId)) != null && _row$getValue5.includes(val));
+      });
+    };
+    arrIncludesAll.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
+    const arrIncludesSome = (row2, columnId, filterValue) => {
+      return filterValue.some((val) => {
+        var _row$getValue6;
+        return (_row$getValue6 = row2.getValue(columnId)) == null ? void 0 : _row$getValue6.includes(val);
+      });
+    };
+    arrIncludesSome.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
+    const equals = (row2, columnId, filterValue) => {
+      return row2.getValue(columnId) === filterValue;
+    };
+    equals.autoRemove = (val) => testFalsey(val);
+    const weakEquals = (row2, columnId, filterValue) => {
+      return row2.getValue(columnId) == filterValue;
+    };
+    weakEquals.autoRemove = (val) => testFalsey(val);
+    const inNumberRange = (row2, columnId, filterValue) => {
+      let [min2, max2] = filterValue;
+      const rowValue = row2.getValue(columnId);
+      return rowValue >= min2 && rowValue <= max2;
+    };
+    inNumberRange.resolveFilterValue = (val) => {
+      let [unsafeMin, unsafeMax] = val;
+      let parsedMin = typeof unsafeMin !== "number" ? parseFloat(unsafeMin) : unsafeMin;
+      let parsedMax = typeof unsafeMax !== "number" ? parseFloat(unsafeMax) : unsafeMax;
+      let min2 = unsafeMin === null || Number.isNaN(parsedMin) ? -Infinity : parsedMin;
+      let max2 = unsafeMax === null || Number.isNaN(parsedMax) ? Infinity : parsedMax;
+      if (min2 > max2) {
+        const temp = min2;
+        min2 = max2;
+        max2 = temp;
+      }
+      return [min2, max2];
+    };
+    inNumberRange.autoRemove = (val) => testFalsey(val) || testFalsey(val[0]) && testFalsey(val[1]);
+    const filterFns = {
+      includesString,
+      includesStringSensitive,
+      equalsString,
+      arrIncludes,
+      arrIncludesAll,
+      arrIncludesSome,
+      equals,
+      weakEquals,
+      inNumberRange
+    };
+    function testFalsey(val) {
+      return val === void 0 || val === null || val === "";
+    }
+    const ColumnFiltering = {
+      getDefaultColumnDef: () => {
+        return {
+          filterFn: "auto"
+        };
+      },
+      getInitialState: (state) => {
+        return {
+          columnFilters: [],
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnFiltersChange: makeStateUpdater("columnFilters", table2),
+          filterFromLeafRows: false,
+          maxLeafRowFilterDepth: 100
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getAutoFilterFn = () => {
+          const firstRow = table2.getCoreRowModel().flatRows[0];
+          const value2 = firstRow == null ? void 0 : firstRow.getValue(column2.id);
+          if (typeof value2 === "string") {
+            return filterFns.includesString;
+          }
+          if (typeof value2 === "number") {
+            return filterFns.inNumberRange;
+          }
+          if (typeof value2 === "boolean") {
+            return filterFns.equals;
+          }
+          if (value2 !== null && typeof value2 === "object") {
+            return filterFns.equals;
+          }
+          if (Array.isArray(value2)) {
+            return filterFns.arrIncludes;
+          }
+          return filterFns.weakEquals;
+        };
+        column2.getFilterFn = () => {
+          var _table$options$filter, _table$options$filter2;
+          return isFunction(column2.columnDef.filterFn) ? column2.columnDef.filterFn : column2.columnDef.filterFn === "auto" ? column2.getAutoFilterFn() : (
+            // @ts-ignore
+            (_table$options$filter = (_table$options$filter2 = table2.options.filterFns) == null ? void 0 : _table$options$filter2[column2.columnDef.filterFn]) != null ? _table$options$filter : filterFns[column2.columnDef.filterFn]
+          );
+        };
+        column2.getCanFilter = () => {
+          var _column$columnDef$ena, _table$options$enable, _table$options$enable2;
+          return ((_column$columnDef$ena = column2.columnDef.enableColumnFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableColumnFilters) != null ? _table$options$enable : true) && ((_table$options$enable2 = table2.options.enableFilters) != null ? _table$options$enable2 : true) && !!column2.accessorFn;
+        };
+        column2.getIsFiltered = () => column2.getFilterIndex() > -1;
+        column2.getFilterValue = () => {
+          var _table$getState$colum;
+          return (_table$getState$colum = table2.getState().columnFilters) == null || (_table$getState$colum = _table$getState$colum.find((d) => d.id === column2.id)) == null ? void 0 : _table$getState$colum.value;
+        };
+        column2.getFilterIndex = () => {
+          var _table$getState$colum2, _table$getState$colum3;
+          return (_table$getState$colum2 = (_table$getState$colum3 = table2.getState().columnFilters) == null ? void 0 : _table$getState$colum3.findIndex((d) => d.id === column2.id)) != null ? _table$getState$colum2 : -1;
+        };
+        column2.setFilterValue = (value2) => {
+          table2.setColumnFilters((old) => {
+            const filterFn = column2.getFilterFn();
+            const previousFilter = old == null ? void 0 : old.find((d) => d.id === column2.id);
+            const newFilter = functionalUpdate(value2, previousFilter ? previousFilter.value : void 0);
+            if (shouldAutoRemoveFilter(filterFn, newFilter, column2)) {
+              var _old$filter;
+              return (_old$filter = old == null ? void 0 : old.filter((d) => d.id !== column2.id)) != null ? _old$filter : [];
+            }
+            const newFilterObj = {
+              id: column2.id,
+              value: newFilter
+            };
+            if (previousFilter) {
+              var _old$map;
+              return (_old$map = old == null ? void 0 : old.map((d) => {
+                if (d.id === column2.id) {
+                  return newFilterObj;
+                }
+                return d;
+              })) != null ? _old$map : [];
+            }
+            if (old != null && old.length) {
+              return [...old, newFilterObj];
+            }
+            return [newFilterObj];
+          });
+        };
+      },
+      createRow: (row2, _table) => {
+        row2.columnFilters = {};
+        row2.columnFiltersMeta = {};
+      },
+      createTable: (table2) => {
+        table2.setColumnFilters = (updater) => {
+          const leafColumns = table2.getAllLeafColumns();
+          const updateFn = (old) => {
+            var _functionalUpdate;
+            return (_functionalUpdate = functionalUpdate(updater, old)) == null ? void 0 : _functionalUpdate.filter((filter) => {
+              const column2 = leafColumns.find((d) => d.id === filter.id);
+              if (column2) {
+                const filterFn = column2.getFilterFn();
+                if (shouldAutoRemoveFilter(filterFn, filter.value, column2)) {
+                  return false;
+                }
+              }
+              return true;
+            });
+          };
+          table2.options.onColumnFiltersChange == null || table2.options.onColumnFiltersChange(updateFn);
+        };
+        table2.resetColumnFilters = (defaultState) => {
+          var _table$initialState$c, _table$initialState;
+          table2.setColumnFilters(defaultState ? [] : (_table$initialState$c = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.columnFilters) != null ? _table$initialState$c : []);
+        };
+        table2.getPreFilteredRowModel = () => table2.getCoreRowModel();
+        table2.getFilteredRowModel = () => {
+          if (!table2._getFilteredRowModel && table2.options.getFilteredRowModel) {
+            table2._getFilteredRowModel = table2.options.getFilteredRowModel(table2);
+          }
+          if (table2.options.manualFiltering || !table2._getFilteredRowModel) {
+            return table2.getPreFilteredRowModel();
+          }
+          return table2._getFilteredRowModel();
+        };
+      }
+    };
+    function shouldAutoRemoveFilter(filterFn, value2, column2) {
+      return (filterFn && filterFn.autoRemove ? filterFn.autoRemove(value2, column2) : false) || typeof value2 === "undefined" || typeof value2 === "string" && !value2;
+    }
+    const sum = (columnId, _leafRows, childRows) => {
+      return childRows.reduce((sum2, next) => {
+        const nextValue = next.getValue(columnId);
+        return sum2 + (typeof nextValue === "number" ? nextValue : 0);
+      }, 0);
+    };
+    const min$2 = (columnId, _leafRows, childRows) => {
+      let min2;
+      childRows.forEach((row2) => {
+        const value2 = row2.getValue(columnId);
+        if (value2 != null && (min2 > value2 || min2 === void 0 && value2 >= value2)) {
+          min2 = value2;
+        }
+      });
+      return min2;
+    };
+    const max$3 = (columnId, _leafRows, childRows) => {
+      let max2;
+      childRows.forEach((row2) => {
+        const value2 = row2.getValue(columnId);
+        if (value2 != null && (max2 < value2 || max2 === void 0 && value2 >= value2)) {
+          max2 = value2;
+        }
+      });
+      return max2;
+    };
+    const extent = (columnId, _leafRows, childRows) => {
+      let min2;
+      let max2;
+      childRows.forEach((row2) => {
+        const value2 = row2.getValue(columnId);
+        if (value2 != null) {
+          if (min2 === void 0) {
+            if (value2 >= value2) min2 = max2 = value2;
+          } else {
+            if (min2 > value2) min2 = value2;
+            if (max2 < value2) max2 = value2;
+          }
+        }
+      });
+      return [min2, max2];
+    };
+    const mean = (columnId, leafRows) => {
+      let count2 = 0;
+      let sum2 = 0;
+      leafRows.forEach((row2) => {
+        let value2 = row2.getValue(columnId);
+        if (value2 != null && (value2 = +value2) >= value2) {
+          ++count2, sum2 += value2;
+        }
+      });
+      if (count2) return sum2 / count2;
+      return;
+    };
+    const median = (columnId, leafRows) => {
+      if (!leafRows.length) {
+        return;
+      }
+      const values = leafRows.map((row2) => row2.getValue(columnId));
+      if (!isNumberArray(values)) {
+        return;
+      }
+      if (values.length === 1) {
+        return values[0];
+      }
+      const mid = Math.floor(values.length / 2);
+      const nums = values.sort((a, b) => a - b);
+      return values.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+    };
+    const unique = (columnId, leafRows) => {
+      return Array.from(new Set(leafRows.map((d) => d.getValue(columnId))).values());
+    };
+    const uniqueCount = (columnId, leafRows) => {
+      return new Set(leafRows.map((d) => d.getValue(columnId))).size;
+    };
+    const count = (_columnId, leafRows) => {
+      return leafRows.length;
+    };
+    const aggregationFns = {
+      sum,
+      min: min$2,
+      max: max$3,
+      extent,
+      mean,
+      median,
+      unique,
+      uniqueCount,
+      count
+    };
+    const ColumnGrouping = {
+      getDefaultColumnDef: () => {
+        return {
+          aggregatedCell: (props) => {
+            var _toString, _props$getValue;
+            return (_toString = (_props$getValue = props.getValue()) == null || _props$getValue.toString == null ? void 0 : _props$getValue.toString()) != null ? _toString : null;
+          },
+          aggregationFn: "auto"
+        };
+      },
+      getInitialState: (state) => {
+        return {
+          grouping: [],
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onGroupingChange: makeStateUpdater("grouping", table2),
+          groupedColumnMode: "reorder"
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.toggleGrouping = () => {
+          table2.setGrouping((old) => {
+            if (old != null && old.includes(column2.id)) {
+              return old.filter((d) => d !== column2.id);
+            }
+            return [...old != null ? old : [], column2.id];
+          });
+        };
+        column2.getCanGroup = () => {
+          var _column$columnDef$ena, _table$options$enable;
+          return ((_column$columnDef$ena = column2.columnDef.enableGrouping) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableGrouping) != null ? _table$options$enable : true) && (!!column2.accessorFn || !!column2.columnDef.getGroupingValue);
+        };
+        column2.getIsGrouped = () => {
+          var _table$getState$group;
+          return (_table$getState$group = table2.getState().grouping) == null ? void 0 : _table$getState$group.includes(column2.id);
+        };
+        column2.getGroupedIndex = () => {
+          var _table$getState$group2;
+          return (_table$getState$group2 = table2.getState().grouping) == null ? void 0 : _table$getState$group2.indexOf(column2.id);
+        };
+        column2.getToggleGroupingHandler = () => {
+          const canGroup = column2.getCanGroup();
+          return () => {
+            if (!canGroup) return;
+            column2.toggleGrouping();
+          };
+        };
+        column2.getAutoAggregationFn = () => {
+          const firstRow = table2.getCoreRowModel().flatRows[0];
+          const value2 = firstRow == null ? void 0 : firstRow.getValue(column2.id);
+          if (typeof value2 === "number") {
+            return aggregationFns.sum;
+          }
+          if (Object.prototype.toString.call(value2) === "[object Date]") {
+            return aggregationFns.extent;
+          }
+        };
+        column2.getAggregationFn = () => {
+          var _table$options$aggreg, _table$options$aggreg2;
+          if (!column2) {
+            throw new Error();
+          }
+          return isFunction(column2.columnDef.aggregationFn) ? column2.columnDef.aggregationFn : column2.columnDef.aggregationFn === "auto" ? column2.getAutoAggregationFn() : (_table$options$aggreg = (_table$options$aggreg2 = table2.options.aggregationFns) == null ? void 0 : _table$options$aggreg2[column2.columnDef.aggregationFn]) != null ? _table$options$aggreg : aggregationFns[column2.columnDef.aggregationFn];
+        };
+      },
+      createTable: (table2) => {
+        table2.setGrouping = (updater) => table2.options.onGroupingChange == null ? void 0 : table2.options.onGroupingChange(updater);
+        table2.resetGrouping = (defaultState) => {
+          var _table$initialState$g, _table$initialState;
+          table2.setGrouping(defaultState ? [] : (_table$initialState$g = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.grouping) != null ? _table$initialState$g : []);
+        };
+        table2.getPreGroupedRowModel = () => table2.getFilteredRowModel();
+        table2.getGroupedRowModel = () => {
+          if (!table2._getGroupedRowModel && table2.options.getGroupedRowModel) {
+            table2._getGroupedRowModel = table2.options.getGroupedRowModel(table2);
+          }
+          if (table2.options.manualGrouping || !table2._getGroupedRowModel) {
+            return table2.getPreGroupedRowModel();
+          }
+          return table2._getGroupedRowModel();
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.getIsGrouped = () => !!row2.groupingColumnId;
+        row2.getGroupingValue = (columnId) => {
+          if (row2._groupingValuesCache.hasOwnProperty(columnId)) {
+            return row2._groupingValuesCache[columnId];
+          }
+          const column2 = table2.getColumn(columnId);
+          if (!(column2 != null && column2.columnDef.getGroupingValue)) {
+            return row2.getValue(columnId);
+          }
+          row2._groupingValuesCache[columnId] = column2.columnDef.getGroupingValue(row2.original);
+          return row2._groupingValuesCache[columnId];
+        };
+        row2._groupingValuesCache = {};
+      },
+      createCell: (cell2, column2, row2, table2) => {
+        cell2.getIsGrouped = () => column2.getIsGrouped() && column2.id === row2.groupingColumnId;
+        cell2.getIsPlaceholder = () => !cell2.getIsGrouped() && column2.getIsGrouped();
+        cell2.getIsAggregated = () => {
+          var _row$subRows;
+          return !cell2.getIsGrouped() && !cell2.getIsPlaceholder() && !!((_row$subRows = row2.subRows) != null && _row$subRows.length);
+        };
+      }
+    };
+    function orderColumns(leafColumns, grouping, groupedColumnMode) {
+      if (!(grouping != null && grouping.length) || !groupedColumnMode) {
+        return leafColumns;
+      }
+      const nonGroupingColumns = leafColumns.filter((col) => !grouping.includes(col.id));
+      if (groupedColumnMode === "remove") {
+        return nonGroupingColumns;
+      }
+      const groupingColumns = grouping.map((g) => leafColumns.find((col) => col.id === g)).filter(Boolean);
+      return [...groupingColumns, ...nonGroupingColumns];
+    }
+    const ColumnOrdering = {
+      getInitialState: (state) => {
+        return {
+          columnOrder: [],
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnOrderChange: makeStateUpdater("columnOrder", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getIndex = memo$1((position) => [_getVisibleLeafColumns(table2, position)], (columns) => columns.findIndex((d) => d.id === column2.id), getMemoOptions(table2.options, "debugColumns"));
+        column2.getIsFirstColumn = (position) => {
+          var _columns$;
+          const columns = _getVisibleLeafColumns(table2, position);
+          return ((_columns$ = columns[0]) == null ? void 0 : _columns$.id) === column2.id;
+        };
+        column2.getIsLastColumn = (position) => {
+          var _columns;
+          const columns = _getVisibleLeafColumns(table2, position);
+          return ((_columns = columns[columns.length - 1]) == null ? void 0 : _columns.id) === column2.id;
+        };
+      },
+      createTable: (table2) => {
+        table2.setColumnOrder = (updater) => table2.options.onColumnOrderChange == null ? void 0 : table2.options.onColumnOrderChange(updater);
+        table2.resetColumnOrder = (defaultState) => {
+          var _table$initialState$c;
+          table2.setColumnOrder(defaultState ? [] : (_table$initialState$c = table2.initialState.columnOrder) != null ? _table$initialState$c : []);
+        };
+        table2._getOrderColumnsFn = memo$1(() => [table2.getState().columnOrder, table2.getState().grouping, table2.options.groupedColumnMode], (columnOrder, grouping, groupedColumnMode) => (columns) => {
+          let orderedColumns = [];
+          if (!(columnOrder != null && columnOrder.length)) {
+            orderedColumns = columns;
+          } else {
+            const columnOrderCopy = [...columnOrder];
+            const columnsCopy = [...columns];
+            while (columnsCopy.length && columnOrderCopy.length) {
+              const targetColumnId = columnOrderCopy.shift();
+              const foundIndex = columnsCopy.findIndex((d) => d.id === targetColumnId);
+              if (foundIndex > -1) {
+                orderedColumns.push(columnsCopy.splice(foundIndex, 1)[0]);
+              }
+            }
+            orderedColumns = [...orderedColumns, ...columnsCopy];
+          }
+          return orderColumns(orderedColumns, grouping, groupedColumnMode);
+        }, getMemoOptions(table2.options, "debugTable"));
+      }
+    };
+    const getDefaultColumnPinningState = () => ({
+      left: [],
+      right: []
+    });
+    const ColumnPinning = {
+      getInitialState: (state) => {
+        return {
+          columnPinning: getDefaultColumnPinningState(),
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnPinningChange: makeStateUpdater("columnPinning", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.pin = (position) => {
+          const columnIds = column2.getLeafColumns().map((d) => d.id).filter(Boolean);
+          table2.setColumnPinning((old) => {
+            var _old$left3, _old$right3;
+            if (position === "right") {
+              var _old$left, _old$right;
+              return {
+                left: ((_old$left = old == null ? void 0 : old.left) != null ? _old$left : []).filter((d) => !(columnIds != null && columnIds.includes(d))),
+                right: [...((_old$right = old == null ? void 0 : old.right) != null ? _old$right : []).filter((d) => !(columnIds != null && columnIds.includes(d))), ...columnIds]
+              };
+            }
+            if (position === "left") {
+              var _old$left2, _old$right2;
+              return {
+                left: [...((_old$left2 = old == null ? void 0 : old.left) != null ? _old$left2 : []).filter((d) => !(columnIds != null && columnIds.includes(d))), ...columnIds],
+                right: ((_old$right2 = old == null ? void 0 : old.right) != null ? _old$right2 : []).filter((d) => !(columnIds != null && columnIds.includes(d)))
+              };
+            }
+            return {
+              left: ((_old$left3 = old == null ? void 0 : old.left) != null ? _old$left3 : []).filter((d) => !(columnIds != null && columnIds.includes(d))),
+              right: ((_old$right3 = old == null ? void 0 : old.right) != null ? _old$right3 : []).filter((d) => !(columnIds != null && columnIds.includes(d)))
+            };
+          });
+        };
+        column2.getCanPin = () => {
+          const leafColumns = column2.getLeafColumns();
+          return leafColumns.some((d) => {
+            var _d$columnDef$enablePi, _ref, _table$options$enable;
+            return ((_d$columnDef$enablePi = d.columnDef.enablePinning) != null ? _d$columnDef$enablePi : true) && ((_ref = (_table$options$enable = table2.options.enableColumnPinning) != null ? _table$options$enable : table2.options.enablePinning) != null ? _ref : true);
+          });
+        };
+        column2.getIsPinned = () => {
+          const leafColumnIds = column2.getLeafColumns().map((d) => d.id);
+          const {
+            left: left2,
+            right: right2
+          } = table2.getState().columnPinning;
+          const isLeft = leafColumnIds.some((d) => left2 == null ? void 0 : left2.includes(d));
+          const isRight = leafColumnIds.some((d) => right2 == null ? void 0 : right2.includes(d));
+          return isLeft ? "left" : isRight ? "right" : false;
+        };
+        column2.getPinnedIndex = () => {
+          var _table$getState$colum, _table$getState$colum2;
+          const position = column2.getIsPinned();
+          return position ? (_table$getState$colum = (_table$getState$colum2 = table2.getState().columnPinning) == null || (_table$getState$colum2 = _table$getState$colum2[position]) == null ? void 0 : _table$getState$colum2.indexOf(column2.id)) != null ? _table$getState$colum : -1 : 0;
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.getCenterVisibleCells = memo$1(() => [row2._getAllVisibleCells(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allCells, left2, right2) => {
+          const leftAndRight = [...left2 != null ? left2 : [], ...right2 != null ? right2 : []];
+          return allCells.filter((d) => !leftAndRight.includes(d.column.id));
+        }, getMemoOptions(table2.options, "debugRows"));
+        row2.getLeftVisibleCells = memo$1(() => [row2._getAllVisibleCells(), table2.getState().columnPinning.left], (allCells, left2) => {
+          const cells = (left2 != null ? left2 : []).map((columnId) => allCells.find((cell2) => cell2.column.id === columnId)).filter(Boolean).map((d) => ({
+            ...d,
+            position: "left"
+          }));
+          return cells;
+        }, getMemoOptions(table2.options, "debugRows"));
+        row2.getRightVisibleCells = memo$1(() => [row2._getAllVisibleCells(), table2.getState().columnPinning.right], (allCells, right2) => {
+          const cells = (right2 != null ? right2 : []).map((columnId) => allCells.find((cell2) => cell2.column.id === columnId)).filter(Boolean).map((d) => ({
+            ...d,
+            position: "right"
+          }));
+          return cells;
+        }, getMemoOptions(table2.options, "debugRows"));
+      },
+      createTable: (table2) => {
+        table2.setColumnPinning = (updater) => table2.options.onColumnPinningChange == null ? void 0 : table2.options.onColumnPinningChange(updater);
+        table2.resetColumnPinning = (defaultState) => {
+          var _table$initialState$c, _table$initialState;
+          return table2.setColumnPinning(defaultState ? getDefaultColumnPinningState() : (_table$initialState$c = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.columnPinning) != null ? _table$initialState$c : getDefaultColumnPinningState());
+        };
+        table2.getIsSomeColumnsPinned = (position) => {
+          var _pinningState$positio;
+          const pinningState = table2.getState().columnPinning;
+          if (!position) {
+            var _pinningState$left, _pinningState$right;
+            return Boolean(((_pinningState$left = pinningState.left) == null ? void 0 : _pinningState$left.length) || ((_pinningState$right = pinningState.right) == null ? void 0 : _pinningState$right.length));
+          }
+          return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
+        };
+        table2.getLeftLeafColumns = memo$1(() => [table2.getAllLeafColumns(), table2.getState().columnPinning.left], (allColumns, left2) => {
+          return (left2 != null ? left2 : []).map((columnId) => allColumns.find((column2) => column2.id === columnId)).filter(Boolean);
+        }, getMemoOptions(table2.options, "debugColumns"));
+        table2.getRightLeafColumns = memo$1(() => [table2.getAllLeafColumns(), table2.getState().columnPinning.right], (allColumns, right2) => {
+          return (right2 != null ? right2 : []).map((columnId) => allColumns.find((column2) => column2.id === columnId)).filter(Boolean);
+        }, getMemoOptions(table2.options, "debugColumns"));
+        table2.getCenterLeafColumns = memo$1(() => [table2.getAllLeafColumns(), table2.getState().columnPinning.left, table2.getState().columnPinning.right], (allColumns, left2, right2) => {
+          const leftAndRight = [...left2 != null ? left2 : [], ...right2 != null ? right2 : []];
+          return allColumns.filter((d) => !leftAndRight.includes(d.id));
+        }, getMemoOptions(table2.options, "debugColumns"));
+      }
+    };
+    function safelyAccessDocument(_document) {
+      return _document || (typeof document !== "undefined" ? document : null);
+    }
+    const defaultColumnSizing = {
+      size: 150,
+      minSize: 20,
+      maxSize: Number.MAX_SAFE_INTEGER
+    };
+    const getDefaultColumnSizingInfoState = () => ({
+      startOffset: null,
+      startSize: null,
+      deltaOffset: null,
+      deltaPercentage: null,
+      isResizingColumn: false,
+      columnSizingStart: []
+    });
+    const ColumnSizing = {
+      getDefaultColumnDef: () => {
+        return defaultColumnSizing;
+      },
+      getInitialState: (state) => {
+        return {
+          columnSizing: {},
+          columnSizingInfo: getDefaultColumnSizingInfoState(),
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          columnResizeMode: "onEnd",
+          columnResizeDirection: "ltr",
+          onColumnSizingChange: makeStateUpdater("columnSizing", table2),
+          onColumnSizingInfoChange: makeStateUpdater("columnSizingInfo", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getSize = () => {
+          var _column$columnDef$min, _ref, _column$columnDef$max;
+          const columnSize = table2.getState().columnSizing[column2.id];
+          return Math.min(Math.max((_column$columnDef$min = column2.columnDef.minSize) != null ? _column$columnDef$min : defaultColumnSizing.minSize, (_ref = columnSize != null ? columnSize : column2.columnDef.size) != null ? _ref : defaultColumnSizing.size), (_column$columnDef$max = column2.columnDef.maxSize) != null ? _column$columnDef$max : defaultColumnSizing.maxSize);
+        };
+        column2.getStart = memo$1((position) => [position, _getVisibleLeafColumns(table2, position), table2.getState().columnSizing], (position, columns) => columns.slice(0, column2.getIndex(position)).reduce((sum2, column22) => sum2 + column22.getSize(), 0), getMemoOptions(table2.options, "debugColumns"));
+        column2.getAfter = memo$1((position) => [position, _getVisibleLeafColumns(table2, position), table2.getState().columnSizing], (position, columns) => columns.slice(column2.getIndex(position) + 1).reduce((sum2, column22) => sum2 + column22.getSize(), 0), getMemoOptions(table2.options, "debugColumns"));
+        column2.resetSize = () => {
+          table2.setColumnSizing((_ref2) => {
+            let {
+              [column2.id]: _2,
+              ...rest
+            } = _ref2;
+            return rest;
+          });
+        };
+        column2.getCanResize = () => {
+          var _column$columnDef$ena, _table$options$enable;
+          return ((_column$columnDef$ena = column2.columnDef.enableResizing) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableColumnResizing) != null ? _table$options$enable : true);
+        };
+        column2.getIsResizing = () => {
+          return table2.getState().columnSizingInfo.isResizingColumn === column2.id;
+        };
+      },
+      createHeader: (header2, table2) => {
+        header2.getSize = () => {
+          let sum2 = 0;
+          const recurse = (header22) => {
+            if (header22.subHeaders.length) {
+              header22.subHeaders.forEach(recurse);
+            } else {
+              var _header$column$getSiz;
+              sum2 += (_header$column$getSiz = header22.column.getSize()) != null ? _header$column$getSiz : 0;
+            }
+          };
+          recurse(header2);
+          return sum2;
+        };
+        header2.getStart = () => {
+          if (header2.index > 0) {
+            const prevSiblingHeader = header2.headerGroup.headers[header2.index - 1];
+            return prevSiblingHeader.getStart() + prevSiblingHeader.getSize();
+          }
+          return 0;
+        };
+        header2.getResizeHandler = (_contextDocument) => {
+          const column2 = table2.getColumn(header2.column.id);
+          const canResize = column2 == null ? void 0 : column2.getCanResize();
+          return (e) => {
+            if (!column2 || !canResize) {
+              return;
+            }
+            e.persist == null || e.persist();
+            if (isTouchStartEvent(e)) {
+              if (e.touches && e.touches.length > 1) {
+                return;
+              }
+            }
+            const startSize = header2.getSize();
+            const columnSizingStart = header2 ? header2.getLeafHeaders().map((d) => [d.column.id, d.column.getSize()]) : [[column2.id, column2.getSize()]];
+            const clientX = isTouchStartEvent(e) ? Math.round(e.touches[0].clientX) : e.clientX;
+            const newColumnSizing = {};
+            const updateOffset = (eventType, clientXPos) => {
+              if (typeof clientXPos !== "number") {
+                return;
+              }
+              table2.setColumnSizingInfo((old) => {
+                var _old$startOffset, _old$startSize;
+                const deltaDirection = table2.options.columnResizeDirection === "rtl" ? -1 : 1;
+                const deltaOffset = (clientXPos - ((_old$startOffset = old == null ? void 0 : old.startOffset) != null ? _old$startOffset : 0)) * deltaDirection;
+                const deltaPercentage = Math.max(deltaOffset / ((_old$startSize = old == null ? void 0 : old.startSize) != null ? _old$startSize : 0), -0.999999);
+                old.columnSizingStart.forEach((_ref3) => {
+                  let [columnId, headerSize] = _ref3;
+                  newColumnSizing[columnId] = Math.round(Math.max(headerSize + headerSize * deltaPercentage, 0) * 100) / 100;
+                });
+                return {
+                  ...old,
+                  deltaOffset,
+                  deltaPercentage
+                };
+              });
+              if (table2.options.columnResizeMode === "onChange" || eventType === "end") {
+                table2.setColumnSizing((old) => ({
+                  ...old,
+                  ...newColumnSizing
+                }));
+              }
+            };
+            const onMove = (clientXPos) => updateOffset("move", clientXPos);
+            const onEnd = (clientXPos) => {
+              updateOffset("end", clientXPos);
+              table2.setColumnSizingInfo((old) => ({
+                ...old,
+                isResizingColumn: false,
+                startOffset: null,
+                startSize: null,
+                deltaOffset: null,
+                deltaPercentage: null,
+                columnSizingStart: []
+              }));
+            };
+            const contextDocument = safelyAccessDocument(_contextDocument);
+            const mouseEvents = {
+              moveHandler: (e2) => onMove(e2.clientX),
+              upHandler: (e2) => {
+                contextDocument == null || contextDocument.removeEventListener("mousemove", mouseEvents.moveHandler);
+                contextDocument == null || contextDocument.removeEventListener("mouseup", mouseEvents.upHandler);
+                onEnd(e2.clientX);
+              }
+            };
+            const touchEvents = {
+              moveHandler: (e2) => {
+                if (e2.cancelable) {
+                  e2.preventDefault();
+                  e2.stopPropagation();
+                }
+                onMove(e2.touches[0].clientX);
+                return false;
+              },
+              upHandler: (e2) => {
+                var _e$touches$;
+                contextDocument == null || contextDocument.removeEventListener("touchmove", touchEvents.moveHandler);
+                contextDocument == null || contextDocument.removeEventListener("touchend", touchEvents.upHandler);
+                if (e2.cancelable) {
+                  e2.preventDefault();
+                  e2.stopPropagation();
+                }
+                onEnd((_e$touches$ = e2.touches[0]) == null ? void 0 : _e$touches$.clientX);
+              }
+            };
+            const passiveIfSupported = passiveEventSupported() ? {
+              passive: false
+            } : false;
+            if (isTouchStartEvent(e)) {
+              contextDocument == null || contextDocument.addEventListener("touchmove", touchEvents.moveHandler, passiveIfSupported);
+              contextDocument == null || contextDocument.addEventListener("touchend", touchEvents.upHandler, passiveIfSupported);
+            } else {
+              contextDocument == null || contextDocument.addEventListener("mousemove", mouseEvents.moveHandler, passiveIfSupported);
+              contextDocument == null || contextDocument.addEventListener("mouseup", mouseEvents.upHandler, passiveIfSupported);
+            }
+            table2.setColumnSizingInfo((old) => ({
+              ...old,
+              startOffset: clientX,
+              startSize,
+              deltaOffset: 0,
+              deltaPercentage: 0,
+              columnSizingStart,
+              isResizingColumn: column2.id
+            }));
+          };
+        };
+      },
+      createTable: (table2) => {
+        table2.setColumnSizing = (updater) => table2.options.onColumnSizingChange == null ? void 0 : table2.options.onColumnSizingChange(updater);
+        table2.setColumnSizingInfo = (updater) => table2.options.onColumnSizingInfoChange == null ? void 0 : table2.options.onColumnSizingInfoChange(updater);
+        table2.resetColumnSizing = (defaultState) => {
+          var _table$initialState$c;
+          table2.setColumnSizing(defaultState ? {} : (_table$initialState$c = table2.initialState.columnSizing) != null ? _table$initialState$c : {});
+        };
+        table2.resetHeaderSizeInfo = (defaultState) => {
+          var _table$initialState$c2;
+          table2.setColumnSizingInfo(defaultState ? getDefaultColumnSizingInfoState() : (_table$initialState$c2 = table2.initialState.columnSizingInfo) != null ? _table$initialState$c2 : getDefaultColumnSizingInfoState());
+        };
+        table2.getTotalSize = () => {
+          var _table$getHeaderGroup, _table$getHeaderGroup2;
+          return (_table$getHeaderGroup = (_table$getHeaderGroup2 = table2.getHeaderGroups()[0]) == null ? void 0 : _table$getHeaderGroup2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getHeaderGroup : 0;
+        };
+        table2.getLeftTotalSize = () => {
+          var _table$getLeftHeaderG, _table$getLeftHeaderG2;
+          return (_table$getLeftHeaderG = (_table$getLeftHeaderG2 = table2.getLeftHeaderGroups()[0]) == null ? void 0 : _table$getLeftHeaderG2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getLeftHeaderG : 0;
+        };
+        table2.getCenterTotalSize = () => {
+          var _table$getCenterHeade, _table$getCenterHeade2;
+          return (_table$getCenterHeade = (_table$getCenterHeade2 = table2.getCenterHeaderGroups()[0]) == null ? void 0 : _table$getCenterHeade2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getCenterHeade : 0;
+        };
+        table2.getRightTotalSize = () => {
+          var _table$getRightHeader, _table$getRightHeader2;
+          return (_table$getRightHeader = (_table$getRightHeader2 = table2.getRightHeaderGroups()[0]) == null ? void 0 : _table$getRightHeader2.headers.reduce((sum2, header2) => {
+            return sum2 + header2.getSize();
+          }, 0)) != null ? _table$getRightHeader : 0;
+        };
+      }
+    };
+    let passiveSupported = null;
+    function passiveEventSupported() {
+      if (typeof passiveSupported === "boolean") return passiveSupported;
+      let supported = false;
+      try {
+        const options2 = {
+          get passive() {
+            supported = true;
+            return false;
+          }
+        };
+        const noop2 = () => {
+        };
+        window.addEventListener("test", noop2, options2);
+        window.removeEventListener("test", noop2);
+      } catch (err2) {
+        supported = false;
+      }
+      passiveSupported = supported;
+      return passiveSupported;
+    }
+    function isTouchStartEvent(e) {
+      return e.type === "touchstart";
+    }
+    const ColumnVisibility = {
+      getInitialState: (state) => {
+        return {
+          columnVisibility: {},
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onColumnVisibilityChange: makeStateUpdater("columnVisibility", table2)
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.toggleVisibility = (value2) => {
+          if (column2.getCanHide()) {
+            table2.setColumnVisibility((old) => ({
+              ...old,
+              [column2.id]: value2 != null ? value2 : !column2.getIsVisible()
+            }));
+          }
+        };
+        column2.getIsVisible = () => {
+          var _ref, _table$getState$colum;
+          const childColumns = column2.columns;
+          return (_ref = childColumns.length ? childColumns.some((c2) => c2.getIsVisible()) : (_table$getState$colum = table2.getState().columnVisibility) == null ? void 0 : _table$getState$colum[column2.id]) != null ? _ref : true;
+        };
+        column2.getCanHide = () => {
+          var _column$columnDef$ena, _table$options$enable;
+          return ((_column$columnDef$ena = column2.columnDef.enableHiding) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableHiding) != null ? _table$options$enable : true);
+        };
+        column2.getToggleVisibilityHandler = () => {
+          return (e) => {
+            column2.toggleVisibility == null || column2.toggleVisibility(e.target.checked);
+          };
+        };
+      },
+      createRow: (row2, table2) => {
+        row2._getAllVisibleCells = memo$1(() => [row2.getAllCells(), table2.getState().columnVisibility], (cells) => {
+          return cells.filter((cell2) => cell2.column.getIsVisible());
+        }, getMemoOptions(table2.options, "debugRows"));
+        row2.getVisibleCells = memo$1(() => [row2.getLeftVisibleCells(), row2.getCenterVisibleCells(), row2.getRightVisibleCells()], (left2, center2, right2) => [...left2, ...center2, ...right2], getMemoOptions(table2.options, "debugRows"));
+      },
+      createTable: (table2) => {
+        const makeVisibleColumnsMethod = (key2, getColumns2) => {
+          return memo$1(() => [getColumns2(), getColumns2().filter((d) => d.getIsVisible()).map((d) => d.id).join("_")], (columns) => {
+            return columns.filter((d) => d.getIsVisible == null ? void 0 : d.getIsVisible());
+          }, getMemoOptions(table2.options, "debugColumns"));
+        };
+        table2.getVisibleFlatColumns = makeVisibleColumnsMethod("getVisibleFlatColumns", () => table2.getAllFlatColumns());
+        table2.getVisibleLeafColumns = makeVisibleColumnsMethod("getVisibleLeafColumns", () => table2.getAllLeafColumns());
+        table2.getLeftVisibleLeafColumns = makeVisibleColumnsMethod("getLeftVisibleLeafColumns", () => table2.getLeftLeafColumns());
+        table2.getRightVisibleLeafColumns = makeVisibleColumnsMethod("getRightVisibleLeafColumns", () => table2.getRightLeafColumns());
+        table2.getCenterVisibleLeafColumns = makeVisibleColumnsMethod("getCenterVisibleLeafColumns", () => table2.getCenterLeafColumns());
+        table2.setColumnVisibility = (updater) => table2.options.onColumnVisibilityChange == null ? void 0 : table2.options.onColumnVisibilityChange(updater);
+        table2.resetColumnVisibility = (defaultState) => {
+          var _table$initialState$c;
+          table2.setColumnVisibility(defaultState ? {} : (_table$initialState$c = table2.initialState.columnVisibility) != null ? _table$initialState$c : {});
+        };
+        table2.toggleAllColumnsVisible = (value2) => {
+          var _value;
+          value2 = (_value = value2) != null ? _value : !table2.getIsAllColumnsVisible();
+          table2.setColumnVisibility(table2.getAllLeafColumns().reduce((obj, column2) => ({
+            ...obj,
+            [column2.id]: !value2 ? !(column2.getCanHide != null && column2.getCanHide()) : value2
+          }), {}));
+        };
+        table2.getIsAllColumnsVisible = () => !table2.getAllLeafColumns().some((column2) => !(column2.getIsVisible != null && column2.getIsVisible()));
+        table2.getIsSomeColumnsVisible = () => table2.getAllLeafColumns().some((column2) => column2.getIsVisible == null ? void 0 : column2.getIsVisible());
+        table2.getToggleAllColumnsVisibilityHandler = () => {
+          return (e) => {
+            var _target;
+            table2.toggleAllColumnsVisible((_target = e.target) == null ? void 0 : _target.checked);
+          };
+        };
+      }
+    };
+    function _getVisibleLeafColumns(table2, position) {
+      return !position ? table2.getVisibleLeafColumns() : position === "center" ? table2.getCenterVisibleLeafColumns() : position === "left" ? table2.getLeftVisibleLeafColumns() : table2.getRightVisibleLeafColumns();
+    }
+    const GlobalFaceting = {
+      createTable: (table2) => {
+        table2._getGlobalFacetedRowModel = table2.options.getFacetedRowModel && table2.options.getFacetedRowModel(table2, "__global__");
+        table2.getGlobalFacetedRowModel = () => {
+          if (table2.options.manualFiltering || !table2._getGlobalFacetedRowModel) {
+            return table2.getPreFilteredRowModel();
+          }
+          return table2._getGlobalFacetedRowModel();
+        };
+        table2._getGlobalFacetedUniqueValues = table2.options.getFacetedUniqueValues && table2.options.getFacetedUniqueValues(table2, "__global__");
+        table2.getGlobalFacetedUniqueValues = () => {
+          if (!table2._getGlobalFacetedUniqueValues) {
+            return /* @__PURE__ */ new Map();
+          }
+          return table2._getGlobalFacetedUniqueValues();
+        };
+        table2._getGlobalFacetedMinMaxValues = table2.options.getFacetedMinMaxValues && table2.options.getFacetedMinMaxValues(table2, "__global__");
+        table2.getGlobalFacetedMinMaxValues = () => {
+          if (!table2._getGlobalFacetedMinMaxValues) {
+            return;
+          }
+          return table2._getGlobalFacetedMinMaxValues();
+        };
+      }
+    };
+    const GlobalFiltering = {
+      getInitialState: (state) => {
+        return {
+          globalFilter: void 0,
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onGlobalFilterChange: makeStateUpdater("globalFilter", table2),
+          globalFilterFn: "auto",
+          getColumnCanGlobalFilter: (column2) => {
+            var _table$getCoreRowMode;
+            const value2 = (_table$getCoreRowMode = table2.getCoreRowModel().flatRows[0]) == null || (_table$getCoreRowMode = _table$getCoreRowMode._getAllCellsByColumnId()[column2.id]) == null ? void 0 : _table$getCoreRowMode.getValue();
+            return typeof value2 === "string" || typeof value2 === "number";
+          }
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getCanGlobalFilter = () => {
+          var _column$columnDef$ena, _table$options$enable, _table$options$enable2, _table$options$getCol;
+          return ((_column$columnDef$ena = column2.columnDef.enableGlobalFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table2.options.enableGlobalFilter) != null ? _table$options$enable : true) && ((_table$options$enable2 = table2.options.enableFilters) != null ? _table$options$enable2 : true) && ((_table$options$getCol = table2.options.getColumnCanGlobalFilter == null ? void 0 : table2.options.getColumnCanGlobalFilter(column2)) != null ? _table$options$getCol : true) && !!column2.accessorFn;
+        };
+      },
+      createTable: (table2) => {
+        table2.getGlobalAutoFilterFn = () => {
+          return filterFns.includesString;
+        };
+        table2.getGlobalFilterFn = () => {
+          var _table$options$filter, _table$options$filter2;
+          const {
+            globalFilterFn
+          } = table2.options;
+          return isFunction(globalFilterFn) ? globalFilterFn : globalFilterFn === "auto" ? table2.getGlobalAutoFilterFn() : (_table$options$filter = (_table$options$filter2 = table2.options.filterFns) == null ? void 0 : _table$options$filter2[globalFilterFn]) != null ? _table$options$filter : filterFns[globalFilterFn];
+        };
+        table2.setGlobalFilter = (updater) => {
+          table2.options.onGlobalFilterChange == null || table2.options.onGlobalFilterChange(updater);
+        };
+        table2.resetGlobalFilter = (defaultState) => {
+          table2.setGlobalFilter(defaultState ? void 0 : table2.initialState.globalFilter);
+        };
+      }
+    };
+    const RowExpanding = {
+      getInitialState: (state) => {
+        return {
+          expanded: {},
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onExpandedChange: makeStateUpdater("expanded", table2),
+          paginateExpandedRows: true
+        };
+      },
+      createTable: (table2) => {
+        let registered = false;
+        let queued = false;
+        table2._autoResetExpanded = () => {
+          var _ref, _table$options$autoRe;
+          if (!registered) {
+            table2._queue(() => {
+              registered = true;
+            });
+            return;
+          }
+          if ((_ref = (_table$options$autoRe = table2.options.autoResetAll) != null ? _table$options$autoRe : table2.options.autoResetExpanded) != null ? _ref : !table2.options.manualExpanding) {
+            if (queued) return;
+            queued = true;
+            table2._queue(() => {
+              table2.resetExpanded();
+              queued = false;
+            });
+          }
+        };
+        table2.setExpanded = (updater) => table2.options.onExpandedChange == null ? void 0 : table2.options.onExpandedChange(updater);
+        table2.toggleAllRowsExpanded = (expanded) => {
+          if (expanded != null ? expanded : !table2.getIsAllRowsExpanded()) {
+            table2.setExpanded(true);
+          } else {
+            table2.setExpanded({});
+          }
+        };
+        table2.resetExpanded = (defaultState) => {
+          var _table$initialState$e, _table$initialState;
+          table2.setExpanded(defaultState ? {} : (_table$initialState$e = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.expanded) != null ? _table$initialState$e : {});
+        };
+        table2.getCanSomeRowsExpand = () => {
+          return table2.getPrePaginationRowModel().flatRows.some((row2) => row2.getCanExpand());
+        };
+        table2.getToggleAllRowsExpandedHandler = () => {
+          return (e) => {
+            e.persist == null || e.persist();
+            table2.toggleAllRowsExpanded();
+          };
+        };
+        table2.getIsSomeRowsExpanded = () => {
+          const expanded = table2.getState().expanded;
+          return expanded === true || Object.values(expanded).some(Boolean);
+        };
+        table2.getIsAllRowsExpanded = () => {
+          const expanded = table2.getState().expanded;
+          if (typeof expanded === "boolean") {
+            return expanded === true;
+          }
+          if (!Object.keys(expanded).length) {
+            return false;
+          }
+          if (table2.getRowModel().flatRows.some((row2) => !row2.getIsExpanded())) {
+            return false;
+          }
+          return true;
+        };
+        table2.getExpandedDepth = () => {
+          let maxDepth = 0;
+          const rowIds = table2.getState().expanded === true ? Object.keys(table2.getRowModel().rowsById) : Object.keys(table2.getState().expanded);
+          rowIds.forEach((id) => {
+            const splitId = id.split(".");
+            maxDepth = Math.max(maxDepth, splitId.length);
+          });
+          return maxDepth;
+        };
+        table2.getPreExpandedRowModel = () => table2.getSortedRowModel();
+        table2.getExpandedRowModel = () => {
+          if (!table2._getExpandedRowModel && table2.options.getExpandedRowModel) {
+            table2._getExpandedRowModel = table2.options.getExpandedRowModel(table2);
+          }
+          if (table2.options.manualExpanding || !table2._getExpandedRowModel) {
+            return table2.getPreExpandedRowModel();
+          }
+          return table2._getExpandedRowModel();
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.toggleExpanded = (expanded) => {
+          table2.setExpanded((old) => {
+            var _expanded;
+            const exists = old === true ? true : !!(old != null && old[row2.id]);
+            let oldExpanded = {};
+            if (old === true) {
+              Object.keys(table2.getRowModel().rowsById).forEach((rowId) => {
+                oldExpanded[rowId] = true;
+              });
+            } else {
+              oldExpanded = old;
+            }
+            expanded = (_expanded = expanded) != null ? _expanded : !exists;
+            if (!exists && expanded) {
+              return {
+                ...oldExpanded,
+                [row2.id]: true
+              };
+            }
+            if (exists && !expanded) {
+              const {
+                [row2.id]: _2,
+                ...rest
+              } = oldExpanded;
+              return rest;
+            }
+            return old;
+          });
+        };
+        row2.getIsExpanded = () => {
+          var _table$options$getIsR;
+          const expanded = table2.getState().expanded;
+          return !!((_table$options$getIsR = table2.options.getIsRowExpanded == null ? void 0 : table2.options.getIsRowExpanded(row2)) != null ? _table$options$getIsR : expanded === true || (expanded == null ? void 0 : expanded[row2.id]));
+        };
+        row2.getCanExpand = () => {
+          var _table$options$getRow, _table$options$enable, _row$subRows;
+          return (_table$options$getRow = table2.options.getRowCanExpand == null ? void 0 : table2.options.getRowCanExpand(row2)) != null ? _table$options$getRow : ((_table$options$enable = table2.options.enableExpanding) != null ? _table$options$enable : true) && !!((_row$subRows = row2.subRows) != null && _row$subRows.length);
+        };
+        row2.getIsAllParentsExpanded = () => {
+          let isFullyExpanded = true;
+          let currentRow = row2;
+          while (isFullyExpanded && currentRow.parentId) {
+            currentRow = table2.getRow(currentRow.parentId, true);
+            isFullyExpanded = currentRow.getIsExpanded();
+          }
+          return isFullyExpanded;
+        };
+        row2.getToggleExpandedHandler = () => {
+          const canExpand = row2.getCanExpand();
+          return () => {
+            if (!canExpand) return;
+            row2.toggleExpanded();
+          };
+        };
+      }
+    };
+    const defaultPageIndex = 0;
+    const defaultPageSize = 10;
+    const getDefaultPaginationState = () => ({
+      pageIndex: defaultPageIndex,
+      pageSize: defaultPageSize
+    });
+    const RowPagination = {
+      getInitialState: (state) => {
+        return {
+          ...state,
+          pagination: {
+            ...getDefaultPaginationState(),
+            ...state == null ? void 0 : state.pagination
+          }
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onPaginationChange: makeStateUpdater("pagination", table2)
+        };
+      },
+      createTable: (table2) => {
+        let registered = false;
+        let queued = false;
+        table2._autoResetPageIndex = () => {
+          var _ref, _table$options$autoRe;
+          if (!registered) {
+            table2._queue(() => {
+              registered = true;
+            });
+            return;
+          }
+          if ((_ref = (_table$options$autoRe = table2.options.autoResetAll) != null ? _table$options$autoRe : table2.options.autoResetPageIndex) != null ? _ref : !table2.options.manualPagination) {
+            if (queued) return;
+            queued = true;
+            table2._queue(() => {
+              table2.resetPageIndex();
+              queued = false;
+            });
+          }
+        };
+        table2.setPagination = (updater) => {
+          const safeUpdater = (old) => {
+            let newState = functionalUpdate(updater, old);
+            return newState;
+          };
+          return table2.options.onPaginationChange == null ? void 0 : table2.options.onPaginationChange(safeUpdater);
+        };
+        table2.resetPagination = (defaultState) => {
+          var _table$initialState$p;
+          table2.setPagination(defaultState ? getDefaultPaginationState() : (_table$initialState$p = table2.initialState.pagination) != null ? _table$initialState$p : getDefaultPaginationState());
+        };
+        table2.setPageIndex = (updater) => {
+          table2.setPagination((old) => {
+            let pageIndex = functionalUpdate(updater, old.pageIndex);
+            const maxPageIndex = typeof table2.options.pageCount === "undefined" || table2.options.pageCount === -1 ? Number.MAX_SAFE_INTEGER : table2.options.pageCount - 1;
+            pageIndex = Math.max(0, Math.min(pageIndex, maxPageIndex));
+            return {
+              ...old,
+              pageIndex
+            };
+          });
+        };
+        table2.resetPageIndex = (defaultState) => {
+          var _table$initialState$p2, _table$initialState;
+          table2.setPageIndex(defaultState ? defaultPageIndex : (_table$initialState$p2 = (_table$initialState = table2.initialState) == null || (_table$initialState = _table$initialState.pagination) == null ? void 0 : _table$initialState.pageIndex) != null ? _table$initialState$p2 : defaultPageIndex);
+        };
+        table2.resetPageSize = (defaultState) => {
+          var _table$initialState$p3, _table$initialState2;
+          table2.setPageSize(defaultState ? defaultPageSize : (_table$initialState$p3 = (_table$initialState2 = table2.initialState) == null || (_table$initialState2 = _table$initialState2.pagination) == null ? void 0 : _table$initialState2.pageSize) != null ? _table$initialState$p3 : defaultPageSize);
+        };
+        table2.setPageSize = (updater) => {
+          table2.setPagination((old) => {
+            const pageSize = Math.max(1, functionalUpdate(updater, old.pageSize));
+            const topRowIndex = old.pageSize * old.pageIndex;
+            const pageIndex = Math.floor(topRowIndex / pageSize);
+            return {
+              ...old,
+              pageIndex,
+              pageSize
+            };
+          });
+        };
+        table2.setPageCount = (updater) => table2.setPagination((old) => {
+          var _table$options$pageCo;
+          let newPageCount = functionalUpdate(updater, (_table$options$pageCo = table2.options.pageCount) != null ? _table$options$pageCo : -1);
+          if (typeof newPageCount === "number") {
+            newPageCount = Math.max(-1, newPageCount);
+          }
+          return {
+            ...old,
+            pageCount: newPageCount
+          };
+        });
+        table2.getPageOptions = memo$1(() => [table2.getPageCount()], (pageCount) => {
+          let pageOptions = [];
+          if (pageCount && pageCount > 0) {
+            pageOptions = [...new Array(pageCount)].fill(null).map((_2, i2) => i2);
+          }
+          return pageOptions;
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getCanPreviousPage = () => table2.getState().pagination.pageIndex > 0;
+        table2.getCanNextPage = () => {
+          const {
+            pageIndex
+          } = table2.getState().pagination;
+          const pageCount = table2.getPageCount();
+          if (pageCount === -1) {
+            return true;
+          }
+          if (pageCount === 0) {
+            return false;
+          }
+          return pageIndex < pageCount - 1;
+        };
+        table2.previousPage = () => {
+          return table2.setPageIndex((old) => old - 1);
+        };
+        table2.nextPage = () => {
+          return table2.setPageIndex((old) => {
+            return old + 1;
+          });
+        };
+        table2.firstPage = () => {
+          return table2.setPageIndex(0);
+        };
+        table2.lastPage = () => {
+          return table2.setPageIndex(table2.getPageCount() - 1);
+        };
+        table2.getPrePaginationRowModel = () => table2.getExpandedRowModel();
+        table2.getPaginationRowModel = () => {
+          if (!table2._getPaginationRowModel && table2.options.getPaginationRowModel) {
+            table2._getPaginationRowModel = table2.options.getPaginationRowModel(table2);
+          }
+          if (table2.options.manualPagination || !table2._getPaginationRowModel) {
+            return table2.getPrePaginationRowModel();
+          }
+          return table2._getPaginationRowModel();
+        };
+        table2.getPageCount = () => {
+          var _table$options$pageCo2;
+          return (_table$options$pageCo2 = table2.options.pageCount) != null ? _table$options$pageCo2 : Math.ceil(table2.getRowCount() / table2.getState().pagination.pageSize);
+        };
+        table2.getRowCount = () => {
+          var _table$options$rowCou;
+          return (_table$options$rowCou = table2.options.rowCount) != null ? _table$options$rowCou : table2.getPrePaginationRowModel().rows.length;
+        };
+      }
+    };
+    const getDefaultRowPinningState = () => ({
+      top: [],
+      bottom: []
+    });
+    const RowPinning = {
+      getInitialState: (state) => {
+        return {
+          rowPinning: getDefaultRowPinningState(),
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onRowPinningChange: makeStateUpdater("rowPinning", table2)
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.pin = (position, includeLeafRows, includeParentRows) => {
+          const leafRowIds = includeLeafRows ? row2.getLeafRows().map((_ref) => {
+            let {
+              id
+            } = _ref;
+            return id;
+          }) : [];
+          const parentRowIds = includeParentRows ? row2.getParentRows().map((_ref2) => {
+            let {
+              id
+            } = _ref2;
+            return id;
+          }) : [];
+          const rowIds = /* @__PURE__ */ new Set([...parentRowIds, row2.id, ...leafRowIds]);
+          table2.setRowPinning((old) => {
+            var _old$top3, _old$bottom3;
+            if (position === "bottom") {
+              var _old$top, _old$bottom;
+              return {
+                top: ((_old$top = old == null ? void 0 : old.top) != null ? _old$top : []).filter((d) => !(rowIds != null && rowIds.has(d))),
+                bottom: [...((_old$bottom = old == null ? void 0 : old.bottom) != null ? _old$bottom : []).filter((d) => !(rowIds != null && rowIds.has(d))), ...Array.from(rowIds)]
+              };
+            }
+            if (position === "top") {
+              var _old$top2, _old$bottom2;
+              return {
+                top: [...((_old$top2 = old == null ? void 0 : old.top) != null ? _old$top2 : []).filter((d) => !(rowIds != null && rowIds.has(d))), ...Array.from(rowIds)],
+                bottom: ((_old$bottom2 = old == null ? void 0 : old.bottom) != null ? _old$bottom2 : []).filter((d) => !(rowIds != null && rowIds.has(d)))
+              };
+            }
+            return {
+              top: ((_old$top3 = old == null ? void 0 : old.top) != null ? _old$top3 : []).filter((d) => !(rowIds != null && rowIds.has(d))),
+              bottom: ((_old$bottom3 = old == null ? void 0 : old.bottom) != null ? _old$bottom3 : []).filter((d) => !(rowIds != null && rowIds.has(d)))
+            };
+          });
+        };
+        row2.getCanPin = () => {
+          var _ref3;
+          const {
+            enableRowPinning,
+            enablePinning
+          } = table2.options;
+          if (typeof enableRowPinning === "function") {
+            return enableRowPinning(row2);
+          }
+          return (_ref3 = enableRowPinning != null ? enableRowPinning : enablePinning) != null ? _ref3 : true;
+        };
+        row2.getIsPinned = () => {
+          const rowIds = [row2.id];
+          const {
+            top: top2,
+            bottom: bottom2
+          } = table2.getState().rowPinning;
+          const isTop = rowIds.some((d) => top2 == null ? void 0 : top2.includes(d));
+          const isBottom = rowIds.some((d) => bottom2 == null ? void 0 : bottom2.includes(d));
+          return isTop ? "top" : isBottom ? "bottom" : false;
+        };
+        row2.getPinnedIndex = () => {
+          var _ref4, _visiblePinnedRowIds$;
+          const position = row2.getIsPinned();
+          if (!position) return -1;
+          const visiblePinnedRowIds = (_ref4 = position === "top" ? table2.getTopRows() : table2.getBottomRows()) == null ? void 0 : _ref4.map((_ref5) => {
+            let {
+              id
+            } = _ref5;
+            return id;
+          });
+          return (_visiblePinnedRowIds$ = visiblePinnedRowIds == null ? void 0 : visiblePinnedRowIds.indexOf(row2.id)) != null ? _visiblePinnedRowIds$ : -1;
+        };
+      },
+      createTable: (table2) => {
+        table2.setRowPinning = (updater) => table2.options.onRowPinningChange == null ? void 0 : table2.options.onRowPinningChange(updater);
+        table2.resetRowPinning = (defaultState) => {
+          var _table$initialState$r, _table$initialState;
+          return table2.setRowPinning(defaultState ? getDefaultRowPinningState() : (_table$initialState$r = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.rowPinning) != null ? _table$initialState$r : getDefaultRowPinningState());
+        };
+        table2.getIsSomeRowsPinned = (position) => {
+          var _pinningState$positio;
+          const pinningState = table2.getState().rowPinning;
+          if (!position) {
+            var _pinningState$top, _pinningState$bottom;
+            return Boolean(((_pinningState$top = pinningState.top) == null ? void 0 : _pinningState$top.length) || ((_pinningState$bottom = pinningState.bottom) == null ? void 0 : _pinningState$bottom.length));
+          }
+          return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
+        };
+        table2._getPinnedRows = (visibleRows, pinnedRowIds, position) => {
+          var _table$options$keepPi;
+          const rows = ((_table$options$keepPi = table2.options.keepPinnedRows) != null ? _table$options$keepPi : true) ? (
+            //get all rows that are pinned even if they would not be otherwise visible
+            //account for expanded parent rows, but not pagination or filtering
+            (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => {
+              const row2 = table2.getRow(rowId, true);
+              return row2.getIsAllParentsExpanded() ? row2 : null;
+            })
+          ) : (
+            //else get only visible rows that are pinned
+            (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => visibleRows.find((row2) => row2.id === rowId))
+          );
+          return rows.filter(Boolean).map((d) => ({
+            ...d,
+            position
+          }));
+        };
+        table2.getTopRows = memo$1(() => [table2.getRowModel().rows, table2.getState().rowPinning.top], (allRows, topPinnedRowIds) => table2._getPinnedRows(allRows, topPinnedRowIds, "top"), getMemoOptions(table2.options, "debugRows"));
+        table2.getBottomRows = memo$1(() => [table2.getRowModel().rows, table2.getState().rowPinning.bottom], (allRows, bottomPinnedRowIds) => table2._getPinnedRows(allRows, bottomPinnedRowIds, "bottom"), getMemoOptions(table2.options, "debugRows"));
+        table2.getCenterRows = memo$1(() => [table2.getRowModel().rows, table2.getState().rowPinning.top, table2.getState().rowPinning.bottom], (allRows, top2, bottom2) => {
+          const topAndBottom = /* @__PURE__ */ new Set([...top2 != null ? top2 : [], ...bottom2 != null ? bottom2 : []]);
+          return allRows.filter((d) => !topAndBottom.has(d.id));
+        }, getMemoOptions(table2.options, "debugRows"));
+      }
+    };
+    const RowSelection = {
+      getInitialState: (state) => {
+        return {
+          rowSelection: {},
+          ...state
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onRowSelectionChange: makeStateUpdater("rowSelection", table2),
+          enableRowSelection: true,
+          enableMultiRowSelection: true,
+          enableSubRowSelection: true
+          // enableGroupingRowSelection: false,
+          // isAdditiveSelectEvent: (e: unknown) => !!e.metaKey,
+          // isInclusiveSelectEvent: (e: unknown) => !!e.shiftKey,
+        };
+      },
+      createTable: (table2) => {
+        table2.setRowSelection = (updater) => table2.options.onRowSelectionChange == null ? void 0 : table2.options.onRowSelectionChange(updater);
+        table2.resetRowSelection = (defaultState) => {
+          var _table$initialState$r;
+          return table2.setRowSelection(defaultState ? {} : (_table$initialState$r = table2.initialState.rowSelection) != null ? _table$initialState$r : {});
+        };
+        table2.toggleAllRowsSelected = (value2) => {
+          table2.setRowSelection((old) => {
+            value2 = typeof value2 !== "undefined" ? value2 : !table2.getIsAllRowsSelected();
+            const rowSelection = {
+              ...old
+            };
+            const preGroupedFlatRows = table2.getPreGroupedRowModel().flatRows;
+            if (value2) {
+              preGroupedFlatRows.forEach((row2) => {
+                if (!row2.getCanSelect()) {
+                  return;
+                }
+                rowSelection[row2.id] = true;
+              });
+            } else {
+              preGroupedFlatRows.forEach((row2) => {
+                delete rowSelection[row2.id];
+              });
+            }
+            return rowSelection;
+          });
+        };
+        table2.toggleAllPageRowsSelected = (value2) => table2.setRowSelection((old) => {
+          const resolvedValue = typeof value2 !== "undefined" ? value2 : !table2.getIsAllPageRowsSelected();
+          const rowSelection = {
+            ...old
+          };
+          table2.getRowModel().rows.forEach((row2) => {
+            mutateRowIsSelected(rowSelection, row2.id, resolvedValue, true, table2);
+          });
+          return rowSelection;
+        });
+        table2.getPreSelectedRowModel = () => table2.getCoreRowModel();
+        table2.getSelectedRowModel = memo$1(() => [table2.getState().rowSelection, table2.getCoreRowModel()], (rowSelection, rowModel) => {
+          if (!Object.keys(rowSelection).length) {
+            return {
+              rows: [],
+              flatRows: [],
+              rowsById: {}
+            };
+          }
+          return selectRowsFn(table2, rowModel);
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getFilteredSelectedRowModel = memo$1(() => [table2.getState().rowSelection, table2.getFilteredRowModel()], (rowSelection, rowModel) => {
+          if (!Object.keys(rowSelection).length) {
+            return {
+              rows: [],
+              flatRows: [],
+              rowsById: {}
+            };
+          }
+          return selectRowsFn(table2, rowModel);
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getGroupedSelectedRowModel = memo$1(() => [table2.getState().rowSelection, table2.getSortedRowModel()], (rowSelection, rowModel) => {
+          if (!Object.keys(rowSelection).length) {
+            return {
+              rows: [],
+              flatRows: [],
+              rowsById: {}
+            };
+          }
+          return selectRowsFn(table2, rowModel);
+        }, getMemoOptions(table2.options, "debugTable"));
+        table2.getIsAllRowsSelected = () => {
+          const preGroupedFlatRows = table2.getFilteredRowModel().flatRows;
+          const {
+            rowSelection
+          } = table2.getState();
+          let isAllRowsSelected = Boolean(preGroupedFlatRows.length && Object.keys(rowSelection).length);
+          if (isAllRowsSelected) {
+            if (preGroupedFlatRows.some((row2) => row2.getCanSelect() && !rowSelection[row2.id])) {
+              isAllRowsSelected = false;
+            }
+          }
+          return isAllRowsSelected;
+        };
+        table2.getIsAllPageRowsSelected = () => {
+          const paginationFlatRows = table2.getPaginationRowModel().flatRows.filter((row2) => row2.getCanSelect());
+          const {
+            rowSelection
+          } = table2.getState();
+          let isAllPageRowsSelected = !!paginationFlatRows.length;
+          if (isAllPageRowsSelected && paginationFlatRows.some((row2) => !rowSelection[row2.id])) {
+            isAllPageRowsSelected = false;
+          }
+          return isAllPageRowsSelected;
+        };
+        table2.getIsSomeRowsSelected = () => {
+          var _table$getState$rowSe;
+          const totalSelected = Object.keys((_table$getState$rowSe = table2.getState().rowSelection) != null ? _table$getState$rowSe : {}).length;
+          return totalSelected > 0 && totalSelected < table2.getFilteredRowModel().flatRows.length;
+        };
+        table2.getIsSomePageRowsSelected = () => {
+          const paginationFlatRows = table2.getPaginationRowModel().flatRows;
+          return table2.getIsAllPageRowsSelected() ? false : paginationFlatRows.filter((row2) => row2.getCanSelect()).some((d) => d.getIsSelected() || d.getIsSomeSelected());
+        };
+        table2.getToggleAllRowsSelectedHandler = () => {
+          return (e) => {
+            table2.toggleAllRowsSelected(e.target.checked);
+          };
+        };
+        table2.getToggleAllPageRowsSelectedHandler = () => {
+          return (e) => {
+            table2.toggleAllPageRowsSelected(e.target.checked);
+          };
+        };
+      },
+      createRow: (row2, table2) => {
+        row2.toggleSelected = (value2, opts) => {
+          const isSelected = row2.getIsSelected();
+          table2.setRowSelection((old) => {
+            var _opts$selectChildren;
+            value2 = typeof value2 !== "undefined" ? value2 : !isSelected;
+            if (row2.getCanSelect() && isSelected === value2) {
+              return old;
+            }
+            const selectedRowIds = {
+              ...old
+            };
+            mutateRowIsSelected(selectedRowIds, row2.id, value2, (_opts$selectChildren = opts == null ? void 0 : opts.selectChildren) != null ? _opts$selectChildren : true, table2);
+            return selectedRowIds;
+          });
+        };
+        row2.getIsSelected = () => {
+          const {
+            rowSelection
+          } = table2.getState();
+          return isRowSelected(row2, rowSelection);
+        };
+        row2.getIsSomeSelected = () => {
+          const {
+            rowSelection
+          } = table2.getState();
+          return isSubRowSelected(row2, rowSelection) === "some";
+        };
+        row2.getIsAllSubRowsSelected = () => {
+          const {
+            rowSelection
+          } = table2.getState();
+          return isSubRowSelected(row2, rowSelection) === "all";
+        };
+        row2.getCanSelect = () => {
+          var _table$options$enable;
+          if (typeof table2.options.enableRowSelection === "function") {
+            return table2.options.enableRowSelection(row2);
+          }
+          return (_table$options$enable = table2.options.enableRowSelection) != null ? _table$options$enable : true;
+        };
+        row2.getCanSelectSubRows = () => {
+          var _table$options$enable2;
+          if (typeof table2.options.enableSubRowSelection === "function") {
+            return table2.options.enableSubRowSelection(row2);
+          }
+          return (_table$options$enable2 = table2.options.enableSubRowSelection) != null ? _table$options$enable2 : true;
+        };
+        row2.getCanMultiSelect = () => {
+          var _table$options$enable3;
+          if (typeof table2.options.enableMultiRowSelection === "function") {
+            return table2.options.enableMultiRowSelection(row2);
+          }
+          return (_table$options$enable3 = table2.options.enableMultiRowSelection) != null ? _table$options$enable3 : true;
+        };
+        row2.getToggleSelectedHandler = () => {
+          const canSelect = row2.getCanSelect();
+          return (e) => {
+            var _target;
+            if (!canSelect) return;
+            row2.toggleSelected((_target = e.target) == null ? void 0 : _target.checked);
+          };
+        };
+      }
+    };
+    const mutateRowIsSelected = (selectedRowIds, id, value2, includeChildren, table2) => {
+      var _row$subRows;
+      const row2 = table2.getRow(id, true);
+      if (value2) {
+        if (!row2.getCanMultiSelect()) {
+          Object.keys(selectedRowIds).forEach((key2) => delete selectedRowIds[key2]);
+        }
+        if (row2.getCanSelect()) {
+          selectedRowIds[id] = true;
+        }
+      } else {
+        delete selectedRowIds[id];
+      }
+      if (includeChildren && (_row$subRows = row2.subRows) != null && _row$subRows.length && row2.getCanSelectSubRows()) {
+        row2.subRows.forEach((row22) => mutateRowIsSelected(selectedRowIds, row22.id, value2, includeChildren, table2));
+      }
+    };
+    function selectRowsFn(table2, rowModel) {
+      const rowSelection = table2.getState().rowSelection;
+      const newSelectedFlatRows = [];
+      const newSelectedRowsById = {};
+      const recurseRows = function(rows, depth) {
+        return rows.map((row2) => {
+          var _row$subRows2;
+          const isSelected = isRowSelected(row2, rowSelection);
+          if (isSelected) {
+            newSelectedFlatRows.push(row2);
+            newSelectedRowsById[row2.id] = row2;
+          }
+          if ((_row$subRows2 = row2.subRows) != null && _row$subRows2.length) {
+            row2 = {
+              ...row2,
+              subRows: recurseRows(row2.subRows)
+            };
+          }
+          if (isSelected) {
+            return row2;
+          }
+        }).filter(Boolean);
+      };
+      return {
+        rows: recurseRows(rowModel.rows),
+        flatRows: newSelectedFlatRows,
+        rowsById: newSelectedRowsById
+      };
+    }
+    function isRowSelected(row2, selection) {
+      var _selection$row$id;
+      return (_selection$row$id = selection[row2.id]) != null ? _selection$row$id : false;
+    }
+    function isSubRowSelected(row2, selection, table2) {
+      var _row$subRows3;
+      if (!((_row$subRows3 = row2.subRows) != null && _row$subRows3.length)) return false;
+      let allChildrenSelected = true;
+      let someSelected = false;
+      row2.subRows.forEach((subRow) => {
+        if (someSelected && !allChildrenSelected) {
+          return;
+        }
+        if (subRow.getCanSelect()) {
+          if (isRowSelected(subRow, selection)) {
+            someSelected = true;
+          } else {
+            allChildrenSelected = false;
+          }
+        }
+        if (subRow.subRows && subRow.subRows.length) {
+          const subRowChildrenSelected = isSubRowSelected(subRow, selection);
+          if (subRowChildrenSelected === "all") {
+            someSelected = true;
+          } else if (subRowChildrenSelected === "some") {
+            someSelected = true;
+            allChildrenSelected = false;
+          } else {
+            allChildrenSelected = false;
+          }
+        }
+      });
+      return allChildrenSelected ? "all" : someSelected ? "some" : false;
+    }
+    const reSplitAlphaNumeric = /([0-9]+)/gm;
+    const alphanumeric = (rowA, rowB, columnId) => {
+      return compareAlphanumeric(toString$1(rowA.getValue(columnId)).toLowerCase(), toString$1(rowB.getValue(columnId)).toLowerCase());
+    };
+    const alphanumericCaseSensitive = (rowA, rowB, columnId) => {
+      return compareAlphanumeric(toString$1(rowA.getValue(columnId)), toString$1(rowB.getValue(columnId)));
+    };
+    const text$1 = (rowA, rowB, columnId) => {
+      return compareBasic(toString$1(rowA.getValue(columnId)).toLowerCase(), toString$1(rowB.getValue(columnId)).toLowerCase());
+    };
+    const textCaseSensitive = (rowA, rowB, columnId) => {
+      return compareBasic(toString$1(rowA.getValue(columnId)), toString$1(rowB.getValue(columnId)));
+    };
+    const datetime = (rowA, rowB, columnId) => {
+      const a = rowA.getValue(columnId);
+      const b = rowB.getValue(columnId);
+      return a > b ? 1 : a < b ? -1 : 0;
+    };
+    const basic = (rowA, rowB, columnId) => {
+      return compareBasic(rowA.getValue(columnId), rowB.getValue(columnId));
+    };
+    function compareBasic(a, b) {
+      return a === b ? 0 : a > b ? 1 : -1;
+    }
+    function toString$1(a) {
+      if (typeof a === "number") {
+        if (isNaN(a) || a === Infinity || a === -Infinity) {
+          return "";
+        }
+        return String(a);
+      }
+      if (typeof a === "string") {
+        return a;
+      }
+      return "";
+    }
+    function compareAlphanumeric(aStr, bStr) {
+      const a = aStr.split(reSplitAlphaNumeric).filter(Boolean);
+      const b = bStr.split(reSplitAlphaNumeric).filter(Boolean);
+      while (a.length && b.length) {
+        const aa = a.shift();
+        const bb = b.shift();
+        const an2 = parseInt(aa, 10);
+        const bn2 = parseInt(bb, 10);
+        const combo = [an2, bn2].sort();
+        if (isNaN(combo[0])) {
+          if (aa > bb) {
+            return 1;
+          }
+          if (bb > aa) {
+            return -1;
+          }
+          continue;
+        }
+        if (isNaN(combo[1])) {
+          return isNaN(an2) ? -1 : 1;
+        }
+        if (an2 > bn2) {
+          return 1;
+        }
+        if (bn2 > an2) {
+          return -1;
+        }
+      }
+      return a.length - b.length;
+    }
+    const sortingFns = {
+      alphanumeric,
+      alphanumericCaseSensitive,
+      text: text$1,
+      textCaseSensitive,
+      datetime,
+      basic
+    };
+    const RowSorting = {
+      getInitialState: (state) => {
+        return {
+          sorting: [],
+          ...state
+        };
+      },
+      getDefaultColumnDef: () => {
+        return {
+          sortingFn: "auto",
+          sortUndefined: 1
+        };
+      },
+      getDefaultOptions: (table2) => {
+        return {
+          onSortingChange: makeStateUpdater("sorting", table2),
+          isMultiSortEvent: (e) => {
+            return e.shiftKey;
+          }
+        };
+      },
+      createColumn: (column2, table2) => {
+        column2.getAutoSortingFn = () => {
+          const firstRows = table2.getFilteredRowModel().flatRows.slice(10);
+          let isString2 = false;
+          for (const row2 of firstRows) {
+            const value2 = row2 == null ? void 0 : row2.getValue(column2.id);
+            if (Object.prototype.toString.call(value2) === "[object Date]") {
+              return sortingFns.datetime;
+            }
+            if (typeof value2 === "string") {
+              isString2 = true;
+              if (value2.split(reSplitAlphaNumeric).length > 1) {
+                return sortingFns.alphanumeric;
+              }
+            }
+          }
+          if (isString2) {
+            return sortingFns.text;
+          }
+          return sortingFns.basic;
+        };
+        column2.getAutoSortDir = () => {
+          const firstRow = table2.getFilteredRowModel().flatRows[0];
+          const value2 = firstRow == null ? void 0 : firstRow.getValue(column2.id);
+          if (typeof value2 === "string") {
+            return "asc";
+          }
+          return "desc";
+        };
+        column2.getSortingFn = () => {
+          var _table$options$sortin, _table$options$sortin2;
+          if (!column2) {
+            throw new Error();
+          }
+          return isFunction(column2.columnDef.sortingFn) ? column2.columnDef.sortingFn : column2.columnDef.sortingFn === "auto" ? column2.getAutoSortingFn() : (_table$options$sortin = (_table$options$sortin2 = table2.options.sortingFns) == null ? void 0 : _table$options$sortin2[column2.columnDef.sortingFn]) != null ? _table$options$sortin : sortingFns[column2.columnDef.sortingFn];
+        };
+        column2.toggleSorting = (desc, multi) => {
+          const nextSortingOrder = column2.getNextSortingOrder();
+          const hasManualValue = typeof desc !== "undefined" && desc !== null;
+          table2.setSorting((old) => {
+            const existingSorting = old == null ? void 0 : old.find((d) => d.id === column2.id);
+            const existingIndex = old == null ? void 0 : old.findIndex((d) => d.id === column2.id);
+            let newSorting = [];
+            let sortAction;
+            let nextDesc = hasManualValue ? desc : nextSortingOrder === "desc";
+            if (old != null && old.length && column2.getCanMultiSort() && multi) {
+              if (existingSorting) {
+                sortAction = "toggle";
+              } else {
+                sortAction = "add";
+              }
+            } else {
+              if (old != null && old.length && existingIndex !== old.length - 1) {
+                sortAction = "replace";
+              } else if (existingSorting) {
+                sortAction = "toggle";
+              } else {
+                sortAction = "replace";
+              }
+            }
+            if (sortAction === "toggle") {
+              if (!hasManualValue) {
+                if (!nextSortingOrder) {
+                  sortAction = "remove";
+                }
+              }
+            }
+            if (sortAction === "add") {
+              var _table$options$maxMul;
+              newSorting = [...old, {
+                id: column2.id,
+                desc: nextDesc
+              }];
+              newSorting.splice(0, newSorting.length - ((_table$options$maxMul = table2.options.maxMultiSortColCount) != null ? _table$options$maxMul : Number.MAX_SAFE_INTEGER));
+            } else if (sortAction === "toggle") {
+              newSorting = old.map((d) => {
+                if (d.id === column2.id) {
+                  return {
+                    ...d,
+                    desc: nextDesc
+                  };
+                }
+                return d;
+              });
+            } else if (sortAction === "remove") {
+              newSorting = old.filter((d) => d.id !== column2.id);
+            } else {
+              newSorting = [{
+                id: column2.id,
+                desc: nextDesc
+              }];
+            }
+            return newSorting;
+          });
+        };
+        column2.getFirstSortDir = () => {
+          var _ref, _column$columnDef$sor;
+          const sortDescFirst = (_ref = (_column$columnDef$sor = column2.columnDef.sortDescFirst) != null ? _column$columnDef$sor : table2.options.sortDescFirst) != null ? _ref : column2.getAutoSortDir() === "desc";
+          return sortDescFirst ? "desc" : "asc";
+        };
+        column2.getNextSortingOrder = (multi) => {
+          var _table$options$enable, _table$options$enable2;
+          const firstSortDirection = column2.getFirstSortDir();
+          const isSorted = column2.getIsSorted();
+          if (!isSorted) {
+            return firstSortDirection;
+          }
+          if (isSorted !== firstSortDirection && ((_table$options$enable = table2.options.enableSortingRemoval) != null ? _table$options$enable : true) && // If enableSortRemove, enable in general
+          (multi ? (_table$options$enable2 = table2.options.enableMultiRemove) != null ? _table$options$enable2 : true : true)) {
+            return false;
+          }
+          return isSorted === "desc" ? "asc" : "desc";
+        };
+        column2.getCanSort = () => {
+          var _column$columnDef$ena, _table$options$enable3;
+          return ((_column$columnDef$ena = column2.columnDef.enableSorting) != null ? _column$columnDef$ena : true) && ((_table$options$enable3 = table2.options.enableSorting) != null ? _table$options$enable3 : true) && !!column2.accessorFn;
+        };
+        column2.getCanMultiSort = () => {
+          var _ref2, _column$columnDef$ena2;
+          return (_ref2 = (_column$columnDef$ena2 = column2.columnDef.enableMultiSort) != null ? _column$columnDef$ena2 : table2.options.enableMultiSort) != null ? _ref2 : !!column2.accessorFn;
+        };
+        column2.getIsSorted = () => {
+          var _table$getState$sorti;
+          const columnSort = (_table$getState$sorti = table2.getState().sorting) == null ? void 0 : _table$getState$sorti.find((d) => d.id === column2.id);
+          return !columnSort ? false : columnSort.desc ? "desc" : "asc";
+        };
+        column2.getSortIndex = () => {
+          var _table$getState$sorti2, _table$getState$sorti3;
+          return (_table$getState$sorti2 = (_table$getState$sorti3 = table2.getState().sorting) == null ? void 0 : _table$getState$sorti3.findIndex((d) => d.id === column2.id)) != null ? _table$getState$sorti2 : -1;
+        };
+        column2.clearSorting = () => {
+          table2.setSorting((old) => old != null && old.length ? old.filter((d) => d.id !== column2.id) : []);
+        };
+        column2.getToggleSortingHandler = () => {
+          const canSort = column2.getCanSort();
+          return (e) => {
+            if (!canSort) return;
+            e.persist == null || e.persist();
+            column2.toggleSorting == null || column2.toggleSorting(void 0, column2.getCanMultiSort() ? table2.options.isMultiSortEvent == null ? void 0 : table2.options.isMultiSortEvent(e) : false);
+          };
+        };
+      },
+      createTable: (table2) => {
+        table2.setSorting = (updater) => table2.options.onSortingChange == null ? void 0 : table2.options.onSortingChange(updater);
+        table2.resetSorting = (defaultState) => {
+          var _table$initialState$s, _table$initialState;
+          table2.setSorting(defaultState ? [] : (_table$initialState$s = (_table$initialState = table2.initialState) == null ? void 0 : _table$initialState.sorting) != null ? _table$initialState$s : []);
+        };
+        table2.getPreSortedRowModel = () => table2.getGroupedRowModel();
+        table2.getSortedRowModel = () => {
+          if (!table2._getSortedRowModel && table2.options.getSortedRowModel) {
+            table2._getSortedRowModel = table2.options.getSortedRowModel(table2);
+          }
+          if (table2.options.manualSorting || !table2._getSortedRowModel) {
+            return table2.getPreSortedRowModel();
+          }
+          return table2._getSortedRowModel();
+        };
+      }
+    };
+    const builtInFeatures = [
+      Headers$1,
+      ColumnVisibility,
+      ColumnOrdering,
+      ColumnPinning,
+      ColumnFaceting,
+      ColumnFiltering,
+      GlobalFaceting,
+      //depends on ColumnFaceting
+      GlobalFiltering,
+      //depends on ColumnFiltering
+      RowSorting,
+      ColumnGrouping,
+      //depends on RowSorting
+      RowExpanding,
+      RowPagination,
+      RowPinning,
+      RowSelection,
+      ColumnSizing
+    ];
+    function createTable(options2) {
+      var _options$_features, _options$initialState;
+      const _features = [...builtInFeatures, ...(_options$_features = options2._features) != null ? _options$_features : []];
+      let table2 = {
+        _features
+      };
+      const defaultOptions2 = table2._features.reduce((obj, feature) => {
+        return Object.assign(obj, feature.getDefaultOptions == null ? void 0 : feature.getDefaultOptions(table2));
+      }, {});
+      const mergeOptions = (options22) => {
+        if (table2.options.mergeOptions) {
+          return table2.options.mergeOptions(defaultOptions2, options22);
+        }
+        return {
+          ...defaultOptions2,
+          ...options22
+        };
+      };
+      const coreInitialState = {};
+      let initialState2 = {
+        ...coreInitialState,
+        ...(_options$initialState = options2.initialState) != null ? _options$initialState : {}
+      };
+      table2._features.forEach((feature) => {
+        var _feature$getInitialSt;
+        initialState2 = (_feature$getInitialSt = feature.getInitialState == null ? void 0 : feature.getInitialState(initialState2)) != null ? _feature$getInitialSt : initialState2;
+      });
+      const queued = [];
+      let queuedTimeout = false;
+      const coreInstance = {
+        _features,
+        options: {
+          ...defaultOptions2,
+          ...options2
+        },
+        initialState: initialState2,
+        _queue: (cb) => {
+          queued.push(cb);
+          if (!queuedTimeout) {
+            queuedTimeout = true;
+            Promise.resolve().then(() => {
+              while (queued.length) {
+                queued.shift()();
+              }
+              queuedTimeout = false;
+            }).catch((error2) => setTimeout(() => {
+              throw error2;
+            }));
+          }
+        },
+        reset: () => {
+          table2.setState(table2.initialState);
+        },
+        setOptions: (updater) => {
+          const newOptions = functionalUpdate(updater, table2.options);
+          table2.options = mergeOptions(newOptions);
+        },
+        getState: () => {
+          return table2.options.state;
+        },
+        setState: (updater) => {
+          table2.options.onStateChange == null || table2.options.onStateChange(updater);
+        },
+        _getRowId: (row2, index2, parent) => {
+          var _table$options$getRow;
+          return (_table$options$getRow = table2.options.getRowId == null ? void 0 : table2.options.getRowId(row2, index2, parent)) != null ? _table$options$getRow : `${parent ? [parent.id, index2].join(".") : index2}`;
+        },
+        getCoreRowModel: () => {
+          if (!table2._getCoreRowModel) {
+            table2._getCoreRowModel = table2.options.getCoreRowModel(table2);
+          }
+          return table2._getCoreRowModel();
+        },
+        // The final calls start at the bottom of the model,
+        // expanded rows, which then work their way up
+        getRowModel: () => {
+          return table2.getPaginationRowModel();
+        },
+        //in next version, we should just pass in the row model as the optional 2nd arg
+        getRow: (id, searchAll) => {
+          let row2 = (searchAll ? table2.getPrePaginationRowModel() : table2.getRowModel()).rowsById[id];
+          if (!row2) {
+            row2 = table2.getCoreRowModel().rowsById[id];
+            if (!row2) {
+              throw new Error();
+            }
+          }
+          return row2;
+        },
+        _getDefaultColumnDef: memo$1(() => [table2.options.defaultColumn], (defaultColumn) => {
+          var _defaultColumn;
+          defaultColumn = (_defaultColumn = defaultColumn) != null ? _defaultColumn : {};
+          return {
+            header: (props) => {
+              const resolvedColumnDef = props.header.column.columnDef;
+              if (resolvedColumnDef.accessorKey) {
+                return resolvedColumnDef.accessorKey;
+              }
+              if (resolvedColumnDef.accessorFn) {
+                return resolvedColumnDef.id;
+              }
+              return null;
+            },
+            // footer: props => props.header.column.id,
+            cell: (props) => {
+              var _props$renderValue$to, _props$renderValue;
+              return (_props$renderValue$to = (_props$renderValue = props.renderValue()) == null || _props$renderValue.toString == null ? void 0 : _props$renderValue.toString()) != null ? _props$renderValue$to : null;
+            },
+            ...table2._features.reduce((obj, feature) => {
+              return Object.assign(obj, feature.getDefaultColumnDef == null ? void 0 : feature.getDefaultColumnDef());
+            }, {}),
+            ...defaultColumn
+          };
+        }, getMemoOptions(options2, "debugColumns")),
+        _getColumnDefs: () => table2.options.columns,
+        getAllColumns: memo$1(() => [table2._getColumnDefs()], (columnDefs) => {
+          const recurseColumns = function(columnDefs2, parent, depth) {
+            if (depth === void 0) {
+              depth = 0;
+            }
+            return columnDefs2.map((columnDef) => {
+              const column2 = createColumn(table2, columnDef, depth, parent);
+              const groupingColumnDef = columnDef;
+              column2.columns = groupingColumnDef.columns ? recurseColumns(groupingColumnDef.columns, column2, depth + 1) : [];
+              return column2;
+            });
+          };
+          return recurseColumns(columnDefs);
+        }, getMemoOptions(options2, "debugColumns")),
+        getAllFlatColumns: memo$1(() => [table2.getAllColumns()], (allColumns) => {
+          return allColumns.flatMap((column2) => {
+            return column2.getFlatColumns();
+          });
+        }, getMemoOptions(options2, "debugColumns")),
+        _getAllFlatColumnsById: memo$1(() => [table2.getAllFlatColumns()], (flatColumns) => {
+          return flatColumns.reduce((acc, column2) => {
+            acc[column2.id] = column2;
+            return acc;
+          }, {});
+        }, getMemoOptions(options2, "debugColumns")),
+        getAllLeafColumns: memo$1(() => [table2.getAllColumns(), table2._getOrderColumnsFn()], (allColumns, orderColumns2) => {
+          let leafColumns = allColumns.flatMap((column2) => column2.getLeafColumns());
+          return orderColumns2(leafColumns);
+        }, getMemoOptions(options2, "debugColumns")),
+        getColumn: (columnId) => {
+          const column2 = table2._getAllFlatColumnsById()[columnId];
+          return column2;
+        }
+      };
+      Object.assign(table2, coreInstance);
+      for (let index2 = 0; index2 < table2._features.length; index2++) {
+        const feature = table2._features[index2];
+        feature == null || feature.createTable == null || feature.createTable(table2);
+      }
+      return table2;
+    }
+    function getCoreRowModel() {
+      return (table2) => memo$1(() => [table2.options.data], (data) => {
+        const rowModel = {
+          rows: [],
+          flatRows: [],
+          rowsById: {}
+        };
+        const accessRows = function(originalRows, depth, parentRow) {
+          if (depth === void 0) {
+            depth = 0;
+          }
+          const rows = [];
+          for (let i2 = 0; i2 < originalRows.length; i2++) {
+            const row2 = createRow(table2, table2._getRowId(originalRows[i2], i2, parentRow), originalRows[i2], i2, depth, void 0, parentRow == null ? void 0 : parentRow.id);
+            rowModel.flatRows.push(row2);
+            rowModel.rowsById[row2.id] = row2;
+            rows.push(row2);
+            if (table2.options.getSubRows) {
+              var _row$originalSubRows;
+              row2.originalSubRows = table2.options.getSubRows(originalRows[i2], i2);
+              if ((_row$originalSubRows = row2.originalSubRows) != null && _row$originalSubRows.length) {
+                row2.subRows = accessRows(row2.originalSubRows, depth + 1, row2);
+              }
+            }
+          }
+          return rows;
+        };
+        rowModel.rows = accessRows(data);
+        return rowModel;
+      }, getMemoOptions(table2.options, "debugTable", "getRowModel", () => table2._autoResetPageIndex()));
+    }
+    function expandRows(rowModel) {
+      const expandedRows = [];
+      const handleRow = (row2) => {
+        var _row$subRows;
+        expandedRows.push(row2);
+        if ((_row$subRows = row2.subRows) != null && _row$subRows.length && row2.getIsExpanded()) {
+          row2.subRows.forEach(handleRow);
+        }
+      };
+      rowModel.rows.forEach(handleRow);
+      return {
+        rows: expandedRows,
+        flatRows: rowModel.flatRows,
+        rowsById: rowModel.rowsById
+      };
+    }
+    function filterRows(rows, filterRowImpl, table2) {
+      if (table2.options.filterFromLeafRows) {
+        return filterRowModelFromLeafs(rows, filterRowImpl, table2);
+      }
+      return filterRowModelFromRoot(rows, filterRowImpl, table2);
+    }
+    function filterRowModelFromLeafs(rowsToFilter, filterRow, table2) {
+      var _table$options$maxLea;
+      const newFilteredFlatRows = [];
+      const newFilteredRowsById = {};
+      const maxDepth = (_table$options$maxLea = table2.options.maxLeafRowFilterDepth) != null ? _table$options$maxLea : 100;
+      const recurseFilterRows = function(rowsToFilter2, depth) {
+        if (depth === void 0) {
+          depth = 0;
+        }
+        const rows = [];
+        for (let i2 = 0; i2 < rowsToFilter2.length; i2++) {
+          var _row$subRows;
+          let row2 = rowsToFilter2[i2];
+          const newRow = createRow(table2, row2.id, row2.original, row2.index, row2.depth, void 0, row2.parentId);
+          newRow.columnFilters = row2.columnFilters;
+          if ((_row$subRows = row2.subRows) != null && _row$subRows.length && depth < maxDepth) {
+            newRow.subRows = recurseFilterRows(row2.subRows, depth + 1);
+            row2 = newRow;
+            if (filterRow(row2) && !newRow.subRows.length) {
+              rows.push(row2);
+              newFilteredRowsById[row2.id] = row2;
+              newFilteredFlatRows.push(row2);
+              continue;
+            }
+            if (filterRow(row2) || newRow.subRows.length) {
+              rows.push(row2);
+              newFilteredRowsById[row2.id] = row2;
+              newFilteredFlatRows.push(row2);
+              continue;
+            }
+          } else {
+            row2 = newRow;
+            if (filterRow(row2)) {
+              rows.push(row2);
+              newFilteredRowsById[row2.id] = row2;
+              newFilteredFlatRows.push(row2);
+            }
+          }
+        }
+        return rows;
+      };
+      return {
+        rows: recurseFilterRows(rowsToFilter),
+        flatRows: newFilteredFlatRows,
+        rowsById: newFilteredRowsById
+      };
+    }
+    function filterRowModelFromRoot(rowsToFilter, filterRow, table2) {
+      var _table$options$maxLea2;
+      const newFilteredFlatRows = [];
+      const newFilteredRowsById = {};
+      const maxDepth = (_table$options$maxLea2 = table2.options.maxLeafRowFilterDepth) != null ? _table$options$maxLea2 : 100;
+      const recurseFilterRows = function(rowsToFilter2, depth) {
+        if (depth === void 0) {
+          depth = 0;
+        }
+        const rows = [];
+        for (let i2 = 0; i2 < rowsToFilter2.length; i2++) {
+          let row2 = rowsToFilter2[i2];
+          const pass = filterRow(row2);
+          if (pass) {
+            var _row$subRows2;
+            if ((_row$subRows2 = row2.subRows) != null && _row$subRows2.length && depth < maxDepth) {
+              const newRow = createRow(table2, row2.id, row2.original, row2.index, row2.depth, void 0, row2.parentId);
+              newRow.subRows = recurseFilterRows(row2.subRows, depth + 1);
+              row2 = newRow;
+            }
+            rows.push(row2);
+            newFilteredFlatRows.push(row2);
+            newFilteredRowsById[row2.id] = row2;
+          }
+        }
+        return rows;
+      };
+      return {
+        rows: recurseFilterRows(rowsToFilter),
+        flatRows: newFilteredFlatRows,
+        rowsById: newFilteredRowsById
+      };
+    }
+    function getFilteredRowModel() {
+      return (table2) => memo$1(() => [table2.getPreFilteredRowModel(), table2.getState().columnFilters, table2.getState().globalFilter], (rowModel, columnFilters, globalFilter) => {
+        if (!rowModel.rows.length || !(columnFilters != null && columnFilters.length) && !globalFilter) {
+          for (let i2 = 0; i2 < rowModel.flatRows.length; i2++) {
+            rowModel.flatRows[i2].columnFilters = {};
+            rowModel.flatRows[i2].columnFiltersMeta = {};
+          }
+          return rowModel;
+        }
+        const resolvedColumnFilters = [];
+        const resolvedGlobalFilters = [];
+        (columnFilters != null ? columnFilters : []).forEach((d) => {
+          var _filterFn$resolveFilt;
+          const column2 = table2.getColumn(d.id);
+          if (!column2) {
+            return;
+          }
+          const filterFn = column2.getFilterFn();
+          if (!filterFn) {
+            return;
+          }
+          resolvedColumnFilters.push({
+            id: d.id,
+            filterFn,
+            resolvedValue: (_filterFn$resolveFilt = filterFn.resolveFilterValue == null ? void 0 : filterFn.resolveFilterValue(d.value)) != null ? _filterFn$resolveFilt : d.value
+          });
+        });
+        const filterableIds = (columnFilters != null ? columnFilters : []).map((d) => d.id);
+        const globalFilterFn = table2.getGlobalFilterFn();
+        const globallyFilterableColumns = table2.getAllLeafColumns().filter((column2) => column2.getCanGlobalFilter());
+        if (globalFilter && globalFilterFn && globallyFilterableColumns.length) {
+          filterableIds.push("__global__");
+          globallyFilterableColumns.forEach((column2) => {
+            var _globalFilterFn$resol;
+            resolvedGlobalFilters.push({
+              id: column2.id,
+              filterFn: globalFilterFn,
+              resolvedValue: (_globalFilterFn$resol = globalFilterFn.resolveFilterValue == null ? void 0 : globalFilterFn.resolveFilterValue(globalFilter)) != null ? _globalFilterFn$resol : globalFilter
+            });
+          });
+        }
+        let currentColumnFilter;
+        let currentGlobalFilter;
+        for (let j2 = 0; j2 < rowModel.flatRows.length; j2++) {
+          const row2 = rowModel.flatRows[j2];
+          row2.columnFilters = {};
+          if (resolvedColumnFilters.length) {
+            for (let i2 = 0; i2 < resolvedColumnFilters.length; i2++) {
+              currentColumnFilter = resolvedColumnFilters[i2];
+              const id = currentColumnFilter.id;
+              row2.columnFilters[id] = currentColumnFilter.filterFn(row2, id, currentColumnFilter.resolvedValue, (filterMeta) => {
+                row2.columnFiltersMeta[id] = filterMeta;
+              });
+            }
+          }
+          if (resolvedGlobalFilters.length) {
+            for (let i2 = 0; i2 < resolvedGlobalFilters.length; i2++) {
+              currentGlobalFilter = resolvedGlobalFilters[i2];
+              const id = currentGlobalFilter.id;
+              if (currentGlobalFilter.filterFn(row2, id, currentGlobalFilter.resolvedValue, (filterMeta) => {
+                row2.columnFiltersMeta[id] = filterMeta;
+              })) {
+                row2.columnFilters.__global__ = true;
+                break;
+              }
+            }
+            if (row2.columnFilters.__global__ !== true) {
+              row2.columnFilters.__global__ = false;
+            }
+          }
+        }
+        const filterRowsImpl = (row2) => {
+          for (let i2 = 0; i2 < filterableIds.length; i2++) {
+            if (row2.columnFilters[filterableIds[i2]] === false) {
+              return false;
+            }
+          }
+          return true;
+        };
+        return filterRows(rowModel.rows, filterRowsImpl, table2);
+      }, getMemoOptions(table2.options, "debugTable", "getFilteredRowModel", () => table2._autoResetPageIndex()));
+    }
+    function getPaginationRowModel(opts) {
+      return (table2) => memo$1(() => [table2.getState().pagination, table2.getPrePaginationRowModel(), table2.options.paginateExpandedRows ? void 0 : table2.getState().expanded], (pagination, rowModel) => {
+        if (!rowModel.rows.length) {
+          return rowModel;
+        }
+        const {
+          pageSize,
+          pageIndex
+        } = pagination;
+        let {
+          rows,
+          flatRows,
+          rowsById
+        } = rowModel;
+        const pageStart = pageSize * pageIndex;
+        const pageEnd = pageStart + pageSize;
+        rows = rows.slice(pageStart, pageEnd);
+        let paginatedRowModel;
+        if (!table2.options.paginateExpandedRows) {
+          paginatedRowModel = expandRows({
+            rows,
+            flatRows,
+            rowsById
+          });
+        } else {
+          paginatedRowModel = {
+            rows,
+            flatRows,
+            rowsById
+          };
+        }
+        paginatedRowModel.flatRows = [];
+        const handleRow = (row2) => {
+          paginatedRowModel.flatRows.push(row2);
+          if (row2.subRows.length) {
+            row2.subRows.forEach(handleRow);
+          }
+        };
+        paginatedRowModel.rows.forEach(handleRow);
+        return paginatedRowModel;
+      }, getMemoOptions(table2.options, "debugTable"));
+    }
+    function getSortedRowModel() {
+      return (table2) => memo$1(() => [table2.getState().sorting, table2.getPreSortedRowModel()], (sorting, rowModel) => {
+        if (!rowModel.rows.length || !(sorting != null && sorting.length)) {
+          return rowModel;
+        }
+        const sortingState = table2.getState().sorting;
+        const sortedFlatRows = [];
+        const availableSorting = sortingState.filter((sort) => {
+          var _table$getColumn;
+          return (_table$getColumn = table2.getColumn(sort.id)) == null ? void 0 : _table$getColumn.getCanSort();
+        });
+        const columnInfoById = {};
+        availableSorting.forEach((sortEntry) => {
+          const column2 = table2.getColumn(sortEntry.id);
+          if (!column2) return;
+          columnInfoById[sortEntry.id] = {
+            sortUndefined: column2.columnDef.sortUndefined,
+            invertSorting: column2.columnDef.invertSorting,
+            sortingFn: column2.getSortingFn()
+          };
+        });
+        const sortData = (rows) => {
+          const sortedData = rows.map((row2) => ({
+            ...row2
+          }));
+          sortedData.sort((rowA, rowB) => {
+            for (let i2 = 0; i2 < availableSorting.length; i2 += 1) {
+              var _sortEntry$desc;
+              const sortEntry = availableSorting[i2];
+              const columnInfo = columnInfoById[sortEntry.id];
+              const sortUndefined = columnInfo.sortUndefined;
+              const isDesc = (_sortEntry$desc = sortEntry == null ? void 0 : sortEntry.desc) != null ? _sortEntry$desc : false;
+              let sortInt = 0;
+              if (sortUndefined) {
+                const aValue = rowA.getValue(sortEntry.id);
+                const bValue = rowB.getValue(sortEntry.id);
+                const aUndefined = aValue === void 0;
+                const bUndefined = bValue === void 0;
+                if (aUndefined || bUndefined) {
+                  if (sortUndefined === "first") return aUndefined ? -1 : 1;
+                  if (sortUndefined === "last") return aUndefined ? 1 : -1;
+                  sortInt = aUndefined && bUndefined ? 0 : aUndefined ? sortUndefined : -sortUndefined;
+                }
+              }
+              if (sortInt === 0) {
+                sortInt = columnInfo.sortingFn(rowA, rowB, sortEntry.id);
+              }
+              if (sortInt !== 0) {
+                if (isDesc) {
+                  sortInt *= -1;
+                }
+                if (columnInfo.invertSorting) {
+                  sortInt *= -1;
+                }
+                return sortInt;
+              }
+            }
+            return rowA.index - rowB.index;
+          });
+          sortedData.forEach((row2) => {
+            var _row$subRows;
+            sortedFlatRows.push(row2);
+            if ((_row$subRows = row2.subRows) != null && _row$subRows.length) {
+              row2.subRows = sortData(row2.subRows);
+            }
+          });
+          return sortedData;
+        };
+        return {
+          rows: sortData(rowModel.rows),
+          flatRows: sortedFlatRows,
+          rowsById: rowModel.rowsById
+        };
+      }, getMemoOptions(table2.options, "debugTable", "getSortedRowModel", () => table2._autoResetPageIndex()));
+    }
+    /**
+       * react-table
+       *
+       * Copyright (c) TanStack
+       *
+       * This source code is licensed under the MIT license found in the
+       * LICENSE.md file in the root directory of this source tree.
+       *
+       * @license MIT
+       */
+    function flexRender(Comp, props) {
+      return !Comp ? null : isReactComponent(Comp) ? /* @__PURE__ */ reactExports.createElement(Comp, props) : Comp;
+    }
+    function isReactComponent(component) {
+      return isClassComponent(component) || typeof component === "function" || isExoticComponent(component);
+    }
+    function isClassComponent(component) {
+      return typeof component === "function" && (() => {
+        const proto = Object.getPrototypeOf(component);
+        return proto.prototype && proto.prototype.isReactComponent;
+      })();
+    }
+    function isExoticComponent(component) {
+      return typeof component === "object" && typeof component.$$typeof === "symbol" && ["react.memo", "react.forward_ref"].includes(component.$$typeof.description);
+    }
+    function useReactTable(options2) {
+      const resolvedOptions = {
+        state: {},
+        // Dummy state
+        onStateChange: () => {
+        },
+        // noop
+        renderFallbackValue: null,
+        ...options2
+      };
+      const [tableRef] = reactExports.useState(() => ({
+        current: createTable(resolvedOptions)
+      }));
+      const [state, setState] = reactExports.useState(() => tableRef.current.initialState);
+      tableRef.current.setOptions((prev) => ({
+        ...prev,
+        ...options2,
+        state: {
+          ...state,
+          ...options2.state
+        },
+        // Similarly, we'll maintain both our internal state and any user-provided
+        // state.
+        onStateChange: (updater) => {
+          setState(updater);
+          options2.onStateChange == null || options2.onStateChange(updater);
+        }
+      }));
+      return tableRef.current;
+    }
+    const gridContainer = "_gridContainer_12ksy_1";
+    const grid$6 = "_grid_12ksy_1";
+    const headerRow = "_headerRow_12ksy_15";
+    const headerCell = "_headerCell_12ksy_26";
+    const sortable = "_sortable_12ksy_42";
+    const sortIndicator = "_sortIndicator_12ksy_51";
+    const resizer = "_resizer_12ksy_58";
+    const isResizing = "_isResizing_12ksy_74";
+    const bodyContainer$1 = "_bodyContainer_12ksy_83";
+    const bodyRow = "_bodyRow_12ksy_91";
+    const bodyCell = "_bodyCell_12ksy_99";
+    const emptyMessage = "_emptyMessage_12ksy_111";
+    const styles$1f = {
+      gridContainer,
+      grid: grid$6,
+      headerRow,
+      headerCell,
+      sortable,
+      sortIndicator,
+      resizer,
+      isResizing,
+      bodyContainer: bodyContainer$1,
+      bodyRow,
+      bodyCell,
+      emptyMessage
+    };
+    const dateCell = "_dateCell_1f2i9_1";
+    const styles$1e = {
+      dateCell
+    };
+    const emptyCell = "_emptyCell_17jto_1";
+    const styles$1d = {
+      emptyCell
+    };
+    const EmptyCell = () => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1d.emptyCell, children: "-" });
+    };
+    const completedDateColumn = () => {
+      return columnHelper.accessor(
+        (row2) => {
+          const completed = itemCompletedAt(row2);
+          if (!completed) return "";
+          const time = new Date(completed);
+          return `${time.toDateString()} ${time.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit"
+          })}`;
+        },
+        {
+          id: "completed",
+          header: "Completed",
+          cell: (info) => {
+            const item2 = info.row.original;
+            const completed = itemCompletedAt(item2);
+            const time = completed ? new Date(completed) : void 0;
+            const timeStr = time ? `${time.toDateString()}
+        ${time.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit"
+            })}` : "";
+            if (!timeStr) {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+            }
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1e.dateCell, children: timeStr });
+          },
+          sortingFn: (rowA, rowB) => {
+            const itemA = rowA.original;
+            const itemB = rowB.original;
+            const completedA = itemCompletedAt(itemA);
+            const completedB = itemCompletedAt(itemB);
+            const timeA = new Date(completedA || 0);
+            const timeB = new Date(completedB || 0);
+            return timeA.getTime() - timeB.getTime();
+          },
+          enableSorting: true,
+          enableGlobalFilter: true,
+          size: 200,
+          minSize: 120,
+          maxSize: 300,
+          enableResizing: true
+        }
+      );
+    };
+    const itemCompletedAt = (item2) => {
+      var _a2, _b2;
+      if (item2.type !== "file") return void 0;
+      return (_b2 = (_a2 = item2.header) == null ? void 0 : _a2.stats) == null ? void 0 : _b2.completed_at;
+    };
+    const nameCell$1 = "_nameCell_arm8o_1";
+    const fileLink = "_fileLink_arm8o_8";
+    const styles$1c = {
+      nameCell: nameCell$1,
+      fileLink
+    };
+    const fileNameColumn = () => {
+      return columnHelper.accessor("name", {
+        id: "file_name",
+        header: "File Name",
+        cell: (info) => {
+          const item2 = info.row.original;
+          if (item2.type === "folder") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+          }
+          let value2 = basename(item2.name);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1c.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$1c.fileLink, children: value2 }) : value2 });
+        },
+        enableSorting: true,
+        enableGlobalFilter: true,
+        size: 600,
+        minSize: 150,
+        enableResizing: true,
+        sortingFn: (rowA, rowB) => {
+          const itemA = rowA.original;
+          const itemB = rowB.original;
+          if (itemA.type !== itemB.type) {
+            return itemA.type === "folder" ? -1 : 1;
+          }
+          const valueA = basename(itemA.name);
+          const valueB = basename(itemB.name);
+          return valueA.localeCompare(valueB);
+        }
+      });
+    };
+    const iconCell = "_iconCell_1jobp_1";
+    const styles$1b = {
+      iconCell
+    };
+    const iconColumn = () => {
+      return columnHelper.accessor("type", {
+        id: "icon",
+        header: "",
+        cell: (info) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.iconCell, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "i",
+          {
+            className: clsx(
+              info.getValue() === "file" ? ApplicationIcons.inspectFile : ApplicationIcons.folder
+            )
+          }
+        ) }),
+        enableSorting: true,
+        enableGlobalFilter: false,
+        size: 30,
+        minSize: 30,
+        maxSize: 60,
+        enableResizing: false,
+        sortingFn: (rowA, rowB) => {
+          const typeA = rowA.original.type;
+          const typeB = rowB.original.type;
+          return typeA.localeCompare(typeB);
+        }
+      });
+    };
+    const modelCell = "_modelCell_1lo5p_1";
+    const styles$1a = {
+      modelCell
+    };
+    const modelColumn = () => {
+      return columnHelper.accessor(
+        (row2) => {
+          var _a2, _b2;
+          if (row2.type !== "file") return "";
+          return ((_b2 = (_a2 = row2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.model) || "";
+        },
+        {
+          id: "model",
+          header: "Model",
+          cell: (info) => {
+            var _a2, _b2;
+            const item2 = info.row.original;
+            if (item2.type !== "file" || ((_a2 = item2.header) == null ? void 0 : _a2.eval.model) === void 0) {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+            }
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.modelCell, children: ((_b2 = item2.header) == null ? void 0 : _b2.eval.model) || "" });
+          },
+          enableSorting: true,
+          enableGlobalFilter: true,
+          size: 300,
+          minSize: 100,
+          maxSize: 400,
+          enableResizing: true
+        }
+      );
+    };
+    const metricDisplayName = (metric) => {
+      let modifier = void 0;
+      for (const metricModifier of metricModifiers) {
+        modifier = metricModifier(metric);
+        if (modifier) {
+          break;
+        }
+      }
+      const metricName = !modifier ? metric.name : `${metric.name}[${modifier}]`;
+      return metricName;
+    };
+    const firstMetric = (results) => {
+      var _a2;
+      const scores2 = results.scores || [];
+      const firstScore = scores2.length > 0 ? (_a2 = results.scores) == null ? void 0 : _a2[0] : void 0;
+      if (firstScore === void 0 || firstScore.metrics === void 0) {
+        return void 0;
+      }
+      const metrics2 = firstScore.metrics;
+      if (Object.keys(metrics2).length === 0) {
+        return void 0;
+      }
+      const metric = metrics2[Object.keys(metrics2)[0]];
+      if (metric === void 0) {
+        return void 0;
+      }
+      return metric;
+    };
+    const clusterMetricModifier = (metric) => {
+      if (metric.name !== "stderr") {
+        return void 0;
+      }
+      const clusterValue = (metric.params || {})["cluster"];
+      if (clusterValue === void 0 || typeof clusterValue !== "string") {
+        return void 0;
+      }
+      return clusterValue;
+    };
+    const metricModifiers = [clusterMetricModifier];
+    const toDisplayScorers = (scores2) => {
+      if (!scores2) {
+        return [];
+      }
+      return scores2.map((score2) => {
+        return {
+          scorer: score2.name,
+          reducer: score2.reducer === null ? void 0 : score2.reducer,
+          metrics: Object.keys(score2.metrics).map((key2) => {
+            const metric = score2.metrics[key2];
+            return {
+              name: metric.name,
+              value: metric.value,
+              params: metric.params
+            };
+          })
+        };
+      });
+    };
+    const scoreCell = "_scoreCell_1xqe0_1";
+    const styles$19 = {
+      scoreCell
+    };
+    const scoreColumn = () => {
+      return columnHelper.accessor(
+        (row2) => {
+          const metric = itemMetric(row2);
+          return (metric == null ? void 0 : metric.value) !== void 0 ? formatPrettyDecimal(metric.value) : "";
+        },
+        {
+          id: "score",
+          header: "Score",
+          cell: (info) => {
+            const metric = itemMetric(info.row.original);
+            if (metric === void 0) {
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+            }
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$19.scoreCell, children: formatPrettyDecimal(metric.value) });
+          },
+          sortingFn: (rowA, rowB) => {
+            const itemA = rowA.original;
+            const itemB = rowB.original;
+            const metricA = itemMetric(itemA);
+            const metricB = itemMetric(itemB);
+            if (!metricA && !metricB) return 0;
+            if (!metricA) return -1;
+            if (!metricB) return 1;
+            return (metricA.value || 0) - (metricB.value || 0);
+          },
+          enableSorting: true,
+          enableGlobalFilter: true,
+          size: 80,
+          minSize: 60,
+          maxSize: 120,
+          enableResizing: true
+        }
+      );
+    };
+    const itemMetric = (item2) => {
+      if (item2.type !== "file") {
+        return void 0;
+      }
+      const header2 = item2.header;
+      return (header2 == null ? void 0 : header2.results) ? firstMetric(header2.results) : void 0;
+    };
+    const error$1 = "_error_14ftq_1";
+    const started = "_started_14ftq_5";
+    const success = "_success_14ftq_9";
+    const cancelled = "_cancelled_14ftq_13";
+    const styles$18 = {
+      error: error$1,
+      started,
+      success,
+      cancelled
+    };
+    const statusColumn = () => {
+      return columnHelper.accessor((row2) => itemStatusLabel(row2), {
+        id: "status",
+        header: "Status",
+        cell: (info) => {
+          const item2 = info.row.original;
+          const status2 = itemStatus(item2);
+          if (!status2) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
+          }
+          const icon2 = status2 === "error" ? ApplicationIcons.error : status2 === "started" ? ApplicationIcons.running : status2 === "cancelled" ? ApplicationIcons.cancelled : ApplicationIcons.success;
+          const clz = status2 === "error" ? styles$18.error : status2 === "started" ? styles$18.started : status2 === "cancelled" ? styles$18.cancelled : styles$18.success;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.statusCell, children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, clz) }) });
+        },
+        sortingFn: (rowA, rowB) => {
+          const itemA = rowA.original;
+          const itemB = rowB.original;
+          const statusA = itemStatus(itemA) || "";
+          const statusB = itemStatus(itemB) || "";
+          if (!statusA && statusB) {
+            return 1;
+          }
+          if (statusA && !statusB) {
+            return -1;
+          }
+          return statusA.localeCompare(statusB);
+        },
+        enableSorting: true,
+        enableGlobalFilter: true,
+        size: 80,
+        minSize: 60,
+        maxSize: 120,
+        enableResizing: true
+      });
+    };
+    const itemStatus = (item2) => {
+      if (item2.type !== "file") {
+        return void 0;
+      }
+      const header2 = item2.header;
+      return header2 == null ? void 0 : header2.status;
+    };
+    const itemStatusLabel = (item2) => {
+      const status2 = itemStatus(item2);
+      if (!status2) return "";
+      switch (status2) {
+        case "error":
+          return "error failed failure";
+        case "started":
+          return "running started in-progress active";
+        case "cancelled":
+          return "cancelled canceled stopped aborted";
+        default:
+          return "success done complete finished completed";
+      }
+    };
+    const kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
+    const parseLogFileName = (logFileName) => {
+      const match = logFileName.match(kLogFilePattern);
+      if (!match) {
+        return {
+          timestamp: void 0,
+          name: filename(logFileName),
+          taskId: void 0,
+          extension: logFileName.endsWith(".eval") ? "eval" : "json"
+        };
+      }
+      return {
+        timestamp: new Date(Date.parse(match[1])),
+        name: match[2],
+        taskId: match[3],
+        extension: match[4]
+      };
+    };
+    const nameCell = "_nameCell_cjd7p_1";
+    const logLink = "_logLink_cjd7p_8";
+    const styles$17 = {
+      nameCell,
+      logLink
+    };
+    const taskColumn = () => {
+      return columnHelper.accessor((row2) => itemName(row2), {
+        id: "task",
+        header: "Task",
+        cell: (info) => {
+          const item2 = info.row.original;
+          let value2 = itemName(item2);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$17.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$17.logLink, children: value2 }) : value2 });
+        },
+        enableSorting: true,
+        enableGlobalFilter: true,
+        size: 250,
+        minSize: 150,
+        enableResizing: true,
+        sortingFn: (rowA, rowB) => {
+          const itemA = rowA.original;
+          const itemB = rowB.original;
+          const valueA = itemName(itemA);
+          const valueB = itemName(itemB);
+          return valueA.localeCompare(valueB);
+        }
+      });
+    };
+    const itemName = (item2) => {
+      var _a2, _b2;
+      let value2 = item2.name;
+      if (item2.type === "file") {
+        return ((_b2 = (_a2 = item2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task) || parseLogFileName(item2.name).name;
+      }
+      return value2;
+    };
+    const columnHelper = createColumnHelper();
+    const getColumns = (columnIds) => {
+      const allColumns = [
+        iconColumn(),
+        taskColumn(),
+        fileNameColumn(),
+        completedDateColumn(),
+        modelColumn(),
+        scoreColumn(),
+        statusColumn()
+      ];
+      return allColumns;
+    };
+    const LogListGrid = ({ items }) => {
+      var _a2;
+      const {
+        sorting,
+        setSorting,
+        filtering,
+        setFiltering,
+        globalFilter,
+        setGlobalFilter,
+        columnResizeMode,
+        setFilteredCount,
+        columnSizes,
+        setColumnSize
+      } = useLogsListing();
+      const { loadHeaders } = useLogs();
+      const { page, itemsPerPage, setPage } = usePagination(
+        kLogsPaginationId,
+        kDefaultPageSize
+      );
+      const headersLoading = useStore((state) => state.logs.headersLoading);
+      const loading = useStore((state) => state.app.status.loading);
+      const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const sortingRef = reactExports.useRef(sorting);
+      const loadAllHeadersForItems = reactExports.useCallback(async () => {
+        const logFiles = items.filter((item2) => item2.type === "file").map((item2) => item2.logFile).filter((file) => file !== void 0);
+        await loadHeaders(logFiles);
+        setWatchedLogs(logFiles);
+      }, [loadHeaders, items, setWatchedLogs]);
+      reactExports.useEffect(() => {
+        sortingRef.current = sorting;
+      }, [sorting]);
+      reactExports.useEffect(() => {
+        setSorting([{ id: "icon", desc: true }]);
+      }, []);
+      reactExports.useEffect(() => {
+        var _a3;
+        const currentSort = (_a3 = sortingRef.current) == null ? void 0 : _a3.find(
+          (sort) => sort.id === "task" || sort.id === "model" || sort.id === "score"
+        );
+        if (currentSort) {
+          setSorting([...sortingRef.current || []]);
+        }
+      }, [logHeaders]);
+      const columns = reactExports.useMemo(() => {
+        return getColumns();
+      }, []);
+      const table2 = useReactTable({
+        data: items,
+        columns,
+        columnResizeMode: columnResizeMode || "onChange",
+        state: {
+          sorting,
+          columnFilters: filtering,
+          globalFilter,
+          pagination: {
+            pageIndex: page,
+            pageSize: itemsPerPage
+          },
+          columnSizing: columnSizes || {}
+        },
+        rowCount: items.length,
+        onSortingChange: async (updater) => {
+          await loadAllHeadersForItems();
+          setSorting(
+            typeof updater === "function" ? updater(sorting || []) : updater
+          );
+        },
+        onColumnFiltersChange: async (updater) => {
+          await loadAllHeadersForItems();
+          setFiltering(
+            typeof updater === "function" ? updater(filtering || []) : updater
+          );
+        },
+        onGlobalFilterChange: (updater) => {
+          setGlobalFilter(
+            typeof updater === "function" ? updater(globalFilter || "") : updater
+          );
+        },
+        onPaginationChange: (updater) => {
+          const newPagination = typeof updater === "function" ? updater({ pageIndex: page, pageSize: itemsPerPage }) : updater;
+          setPage(newPagination.pageIndex);
+        },
+        onColumnSizingChange: (updater) => {
+          const newSizes = typeof updater === "function" ? updater(table2.getState().columnSizing || {}) : updater;
+          for (const [columnId, size] of Object.entries(newSizes)) {
+            setColumnSize(columnId, size);
+          }
+        },
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        enableColumnResizing: true,
+        autoResetPageIndex: false
+      });
+      reactExports.useEffect(() => {
+        const filteredRowCount = table2.getFilteredRowModel().rows.length;
+        setFilteredCount(filteredRowCount);
+      }, [table2.getFilteredRowModel().rows.length, setFilteredCount]);
+      reactExports.useEffect(() => {
+        if (globalFilter && globalFilter.trim()) {
+          loadAllHeadersForItems();
+        }
+      }, [globalFilter, loadAllHeadersForItems]);
+      reactExports.useEffect(() => {
+        const exec2 = async () => {
+          const startIndex2 = page * itemsPerPage;
+          const endIndex2 = startIndex2 + itemsPerPage;
+          const currentPageItems = items.slice(startIndex2, endIndex2);
+          const fileItems = currentPageItems.filter((item2) => item2.type === "file");
+          const logFiles = fileItems.map((item2) => item2.logFile).filter((file) => file !== void 0);
+          const filesToLoad = logFiles.filter((file) => !logHeaders[file.name]);
+          if (filesToLoad.length > 0) {
+            await loadHeaders(filesToLoad);
+          }
+          setWatchedLogs(logFiles);
+        };
+        exec2();
+      }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs, logHeaders]);
+      const placeholderText = reactExports.useMemo(() => {
+        if (headersLoading || loading) {
+          if (globalFilter) {
+            return "searching...";
+          } else {
+            return "loading...";
+          }
+        } else {
+          if (globalFilter) {
+            return "no matching logs";
+          } else {
+            return "no logs";
+          }
+        }
+      }, [headersLoading, loading, globalFilter]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.gridContainer, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1f.grid, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: styles$1f.headerRow,
+            style: {
+              gridTemplateColumns: ((_a2 = table2.getHeaderGroups()[0]) == null ? void 0 : _a2.headers.map((header2) => `${header2.getSize()}px`).join(" ")) || "40px 0.5fr 0.25fr 0.25fr 0.1fr"
+            },
+            children: table2.getHeaderGroups().map(
+              (headerGroup) => headerGroup.headers.map((header2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "div",
+                {
+                  className: clsx(styles$1f.headerCell, {
+                    [styles$1f.sortable]: header2.column.getCanSort(),
+                    [styles$1f.resizing]: header2.column.getIsResizing()
+                  }),
+                  onClick: (event) => {
+                    var _a3;
+                    (_a3 = header2.column.getToggleSortingHandler()) == null ? void 0 : _a3(event);
+                  },
+                  style: {
+                    width: header2.getSize(),
+                    position: "relative"
+                  },
+                  children: [
+                    header2.isPlaceholder ? null : flexRender(
+                      header2.column.columnDef.header,
+                      header2.getContext()
+                    ),
+                    header2.column.getCanSort() && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$1f.sortIndicator, children: {
+                      asc: " ↑",
+                      desc: " ↓"
+                    }[header2.column.getIsSorted()] ?? "" }),
+                    header2.column.getCanResize() && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "div",
+                      {
+                        onMouseDown: (e) => {
+                          e.stopPropagation();
+                          header2.getResizeHandler()(e);
+                        },
+                        onTouchStart: (e) => {
+                          e.stopPropagation();
+                          header2.getResizeHandler()(e);
+                        },
+                        onClick: (e) => {
+                          e.stopPropagation();
+                        },
+                        className: clsx(styles$1f.resizer, {
+                          [styles$1f.isResizing]: header2.column.getIsResizing()
+                        })
+                      }
+                    )
+                  ]
+                },
+                header2.id
+              ))
+            )
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1f.bodyContainer, children: [
+          table2.getRowModel().rows.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1f.emptyMessage, children: placeholderText }),
+          table2.getRowModel().rows.map((row2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: styles$1f.bodyRow,
+              style: {
+                gridTemplateColumns: row2.getVisibleCells().map((cell2) => `${cell2.column.getSize()}px`).join(" ")
+              },
+              children: row2.getVisibleCells().map((cell2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: clsx(
+                    styles$1f.bodyCell,
+                    styles$1f[`${cell2.column.id}Cell`]
+                  ),
+                  style: {
+                    width: cell2.column.getSize()
+                  },
+                  children: flexRender(cell2.column.columnDef.cell, cell2.getContext())
+                },
+                cell2.id
+              ))
+            },
+            row2.id
+          ))
+        ] })
+      ] }) });
+    };
+    const footer$1 = "_footer_14uod_1";
+    const spinnerContainer$1 = "_spinnerContainer_14uod_11";
+    const spinner$2 = "_spinner_14uod_11";
+    const label$8 = "_label_14uod_25";
+    const right$1 = "_right_14uod_30";
+    const left$1 = "_left_14uod_39";
+    const center$1 = "_center_14uod_48";
+    const styles$16 = {
+      footer: footer$1,
+      spinnerContainer: spinnerContainer$1,
+      spinner: spinner$2,
+      label: label$8,
+      right: right$1,
+      left: left$1,
+      center: center$1
+    };
+    const pager = "_pager_jzegk_1";
+    const item$3 = "_item_jzegk_11";
+    const styles$15 = {
+      pager,
+      item: item$3
+    };
+    const LogPager = ({ itemCount }) => {
+      const { page, itemsPerPage, setPage } = usePagination(
+        kLogsPaginationId,
+        kDefaultPageSize
+      );
+      const pageCount = Math.ceil(itemCount / itemsPerPage);
+      if (pageCount <= 1) {
+        return null;
+      }
+      const currentPage = page || 0;
+      const generatePaginationSegments = () => {
+        const segments2 = [];
+        if (pageCount <= 5) {
+          for (let i2 = 0; i2 < pageCount; i2++) {
+            segments2.push({ type: "page", page: i2, key: `page-${i2}` });
+          }
+        } else {
+          segments2.push({ type: "page", page: 0, key: "page-0" });
+          const startPage = Math.max(1, currentPage - 1);
+          const endPage = Math.min(pageCount - 2, currentPage + 1);
+          if (startPage > 1) {
+            segments2.push({ type: "ellipsis", key: "ellipsis-start" });
+          }
+          for (let i2 = startPage; i2 <= endPage; i2++) {
+            segments2.push({ type: "page", page: i2, key: `page-${i2}` });
+          }
+          if (endPage < pageCount - 2) {
+            segments2.push({ type: "ellipsis", key: "ellipsis-end" });
+          }
+          segments2.push({
+            type: "page",
+            page: pageCount - 1,
+            key: `page-${pageCount - 1}`
+          });
+        }
+        return segments2;
+      };
+      const segments = generatePaginationSegments();
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("nav", { "aria-label": "Log Pagination", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: clsx("pagination", styles$15.pager), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: clsx(currentPage === 0 ? "disabled" : "", styles$15.item), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "a",
+          {
+            className: clsx("page-link"),
+            onClick: () => {
+              if (currentPage > 0) {
+                setPage(currentPage - 1);
+              }
+            },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.back) })
+          }
+        ) }),
+        segments.map((segment) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
+          {
+            className: clsx(
+              segment.type === "page" && segment.page === currentPage ? "active" : void 0,
+              segment.type === "ellipsis" ? "disabled" : void 0,
+              styles$15.item
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                className: clsx("page-link"),
+                onClick: () => {
+                  if (segment.type === "page" && segment.page !== void 0) {
+                    setPage(segment.page);
+                  }
+                },
+                children: segment.type === "page" ? segment.page + 1 : "..."
+              }
+            )
+          },
+          segment.key
+        )),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "li",
+          {
+            className: clsx(
+              currentPage + 1 >= pageCount ? "disabled" : "",
+              styles$15.item
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "a",
+              {
+                className: clsx("page-link"),
+                onClick: () => {
+                  if (currentPage < pageCount) {
+                    setPage(currentPage + 1);
+                  }
+                },
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.navbar.forward) })
+              }
+            )
+          }
+        )
+      ] }) });
+    };
+    const LogListFooter = ({
+      itemCount,
+      progressText
+    }) => {
+      const { page, itemsPerPage } = usePagination(
+        kLogsPaginationId,
+        kDefaultPageSize
+      );
+      const { filteredCount } = useLogsListing();
+      const effectiveItemCount = filteredCount ?? itemCount;
+      const currentPage = page || 0;
+      const pageItemCount = Math.min(
+        itemsPerPage,
+        effectiveItemCount - currentPage * itemsPerPage
+      );
+      const startItem = effectiveItemCount > 0 ? currentPage * itemsPerPage + 1 : 0;
+      const endItem = startItem + pageItemCount - 1;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$16.footer), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.left), children: progressText ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$16.spinnerContainer), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx("spinner-border", styles$16.spinner),
+              role: "status",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("visually-hidden"), children: [
+                progressText,
+                "..."
+              ] })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-style-secondary", styles$16.label), children: [
+            progressText,
+            "..."
+          ] })
+        ] }) : void 0 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.center), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogPager, { itemCount: effectiveItemCount }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.right), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: effectiveItemCount === 0 ? "" : filteredCount !== void 0 && filteredCount !== itemCount ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)` : `${startItem} - ${endItem} / ${effectiveItemCount}` }) })
+      ] });
+    };
+    const container$h = "_container_e1pcq_1";
+    const input$1 = "_input_e1pcq_16";
+    const withIcon = "_withIcon_e1pcq_23";
+    const icon$3 = "_icon_e1pcq_27";
+    const clearText = "_clearText_e1pcq_31";
+    const hidden$2 = "_hidden_e1pcq_40";
+    const styles$14 = {
+      container: container$h,
+      input: input$1,
+      withIcon,
+      icon: icon$3,
+      clearText,
+      hidden: hidden$2
+    };
+    const TextInput = reactExports.forwardRef(
+      ({ value: value2, onChange, icon: icon2, placeholder, className: className2 }, ref) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              styles$14.container,
+              className2,
+              icon2 ? styles$14.withIcon : ""
+            ),
+            children: [
+              icon2 && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$14.icon) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "input",
+                {
+                  type: "text",
+                  value: value2,
+                  onChange,
+                  ref,
+                  placeholder,
+                  className: clsx(styles$14.input)
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "i",
+                {
+                  className: clsx(
+                    styles$14.clearText,
+                    value2 === "" ? styles$14.hidden : "",
+                    ApplicationIcons["clear-text"]
+                  ),
+                  onClick: () => {
+                    if (onChange && value2 !== "") {
+                      onChange({
+                        target: { value: "" }
+                      });
+                    }
+                  },
+                  role: "button"
+                }
+              )
+            ]
+          }
+        );
+      }
+    );
+    const filterInput = "_filterInput_gv8bt_1";
+    const styles$13 = {
+      filterInput
+    };
+    const LogsFilterInput = () => {
+      const { globalFilter, setGlobalFilter } = useLogsListing();
+      const debouncedUpdate = reactExports.useCallback(
+        async (value2) => {
+          setGlobalFilter(value2);
+        },
+        [setGlobalFilter]
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        TextInput,
+        {
+          icon: ApplicationIcons.filter,
+          value: globalFilter || "",
+          onChange: (e) => {
+            debouncedUpdate(e.target.value);
+          },
+          placeholder: "Filter...",
+          className: clsx(styles$13.filterInput)
+        }
+      );
+    };
+    const panel$3 = "_panel_18nhs_1";
+    const list = "_list_18nhs_8";
+    const styles$12 = {
+      panel: panel$3,
+      list
+    };
+    const rootName = (relativePath) => {
+      const parts = relativePath.split("/");
+      if (parts.length === 0) {
+        return "";
+      }
+      return parts[0];
+    };
+    const kLogsPaginationId = "logs-list-pagination";
+    const kDefaultPageSize = 30;
+    const LogsPanel = () => {
+      const loading = useStore((state) => state.app.status.loading);
+      const { loadLogs } = useLogs();
+      const logs = useStore((state) => state.logs.logs);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const headersLoading = useStore((state) => state.logs.headersLoading);
+      const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
+      const { unloadLog } = useUnloadLog();
+      reactExports.useEffect(() => {
+        unloadLog();
+      }, []);
+      const { logPath } = useLogRouteParams();
+      const currentDir = join(logPath || "", logs.log_dir);
+      const { startPolling, stopPolling } = useClientEvents();
+      const previousWatchedLogs = reactExports.useRef(void 0);
+      reactExports.useEffect(() => {
+        var _a2;
+        const current2 = (watchedLogs == null ? void 0 : watchedLogs.map((log2) => log2.name).sort().join(",")) || "";
+        const previous = previousWatchedLogs.current === void 0 ? void 0 : ((_a2 = previousWatchedLogs.current) == null ? void 0 : _a2.map((log2) => log2.name).sort().join(",")) || "";
+        if (current2 !== previous) {
+          stopPolling();
+          if (watchedLogs !== void 0) {
+            startPolling(watchedLogs);
+          }
+          previousWatchedLogs.current = watchedLogs;
+        }
+      }, [watchedLogs]);
+      const logItems = reactExports.useMemo(() => {
+        const logItems2 = [];
+        const processedFolders = /* @__PURE__ */ new Set();
+        for (const logFile of logs.files) {
+          const name2 = logFile.name;
+          const cleanDir = currentDir.endsWith("/") ? currentDir.slice(0, -1) : currentDir;
+          if (isInDirectory(logFile.name, cleanDir)) {
+            const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
+            const relativePath = directoryRelativeUrl(name2, currentDir);
+            const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+            const path = join(
+              decodeURIComponent(relativePath),
+              decodeURIComponent(dirName)
+            );
+            logItems2.push({
+              id: fileOrFolderName,
+              name: fileOrFolderName,
+              type: "file",
+              url: logUrl(path, logs.log_dir),
+              logFile,
+              header: logHeaders[logFile.name]
+            });
+          } else if (name2.startsWith(currentDir)) {
+            const relativePath = directoryRelativeUrl(name2, currentDir);
+            const dirName = decodeURIComponent(rootName(relativePath));
+            const currentDirRelative = directoryRelativeUrl(
+              currentDir,
+              logs.log_dir
+            );
+            const url = join(dirName, decodeURIComponent(currentDirRelative));
+            if (!processedFolders.has(dirName)) {
+              logItems2.push({
+                id: dirName,
+                name: dirName,
+                type: "folder",
+                url: logUrl(url, logs.log_dir),
+                itemCount: logs.files.filter(
+                  (file) => file.name.startsWith(dirname(name2))
+                ).length
+              });
+              processedFolders.add(dirName);
+            }
+          }
+        }
+        return logItems2;
+      }, [logPath, logs.files, logHeaders]);
+      reactExports.useEffect(() => {
+        const exec2 = async () => {
+          await loadLogs();
+        };
+        exec2();
+      }, [loadLogs]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$12.panel), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsFilterInput, {}) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading || headersLoading }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.list, "text-size-smaller"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogListGrid, { items: logItems }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          LogListFooter,
+          {
+            logDir: currentDir,
+            itemCount: logItems.length,
+            progressText: loading ? "Loading logs" : headersLoading ? "Loading data" : void 0
+          }
+        )
+      ] });
     };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
@@ -47613,442 +52290,6 @@ categories: ${categories.join(" ")}`;
             className: "btn close",
             onClick: storeHideFind,
             children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
-          }
-        )
-      ] });
-    };
-    const wrapper$4 = "_wrapper_1tajk_1";
-    const container$j = "_container_1tajk_12";
-    const animate = "_animate_1tajk_21";
-    const styles$18 = {
-      wrapper: wrapper$4,
-      container: container$j,
-      animate
-    };
-    const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$18.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(styles$18.container),
-          role: "progressbar",
-          "aria-label": "Basic example",
-          "aria-valuenow": 25,
-          "aria-valuemin": 0,
-          "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.animate })
-        }
-      ) });
-    };
-    const dirname$1 = "_dirname_1qban_1";
-    const directoryLink = "_directoryLink_1qban_7";
-    const styles$17 = {
-      dirname: dirname$1,
-      directoryLink
-    };
-    const LogDirectoryTitleView = ({
-      log_dir
-    }) => {
-      const offCanvas = useStore((state) => state.app.offcanvas);
-      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const handleClick = reactExports.useCallback(() => {
-        if (offCanvas) {
-          setOffCanvas(false);
-        }
-      }, [offCanvas, setOffCanvas]);
-      if (log_dir) {
-        const displayDir = prettyDir(log_dir);
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$17.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "span",
-            {
-              className: clsx(
-                "text-style-secondary",
-                "text-style-label",
-                "text-size-small"
-              ),
-              children: "Log Directory"
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "span",
-            {
-              title: displayDir,
-              className: clsx("text-size-base", styles$17.dirname),
-              children: offCanvas ? displayDir : ""
-            }
-          )
-        ] }) });
-      } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$17.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
-      }
-    };
-    const prettyDir = (path) => {
-      try {
-        let url = new URL(path);
-        if (url.protocol === "file:") {
-          return url.pathname;
-        } else {
-          return path;
-        }
-      } catch {
-        return path;
-      }
-    };
-    const sidebar = "_sidebar_1essr_1";
-    const sidebarClosed = "_sidebarClosed_1essr_15";
-    const sidebarOpen = "_sidebarOpen_1essr_19";
-    const header$3 = "_header_1essr_23";
-    const toggle$2 = "_toggle_1essr_39";
-    const progress$3 = "_progress_1essr_46";
-    const list = "_list_1essr_50";
-    const backdrop$1 = "_backdrop_1essr_55";
-    const active = "_active_1essr_63";
-    const item$2 = "_item_1essr_67";
-    const logLink = "_logLink_1essr_72";
-    const styles$16 = {
-      sidebar,
-      sidebarClosed,
-      sidebarOpen,
-      header: header$3,
-      toggle: toggle$2,
-      progress: progress$3,
-      list,
-      backdrop: backdrop$1,
-      active,
-      item: item$2,
-      logLink
-    };
-    const error$1 = "_error_srruf_1";
-    const running = "_running_srruf_6";
-    const cancelled = "_cancelled_srruf_13";
-    const styles$15 = {
-      error: error$1,
-      running,
-      cancelled
-    };
-    const metricDisplayName = (metric2) => {
-      let modifier = void 0;
-      for (const metricModifier of metricModifiers) {
-        modifier = metricModifier(metric2);
-        if (modifier) {
-          break;
-        }
-      }
-      const metricName2 = !modifier ? metric2.name : `${metric2.name}[${modifier}]`;
-      return metricName2;
-    };
-    const clusterMetricModifier = (metric2) => {
-      if (metric2.name !== "stderr") {
-        return void 0;
-      }
-      const clusterValue = (metric2.params || {})["cluster"];
-      if (clusterValue === void 0 || typeof clusterValue !== "string") {
-        return void 0;
-      }
-      return clusterValue;
-    };
-    const metricModifiers = [clusterMetricModifier];
-    const container$i = "_container_1frsg_1";
-    const metric = "_metric_1frsg_8";
-    const metricName$1 = "_metricName_1frsg_17";
-    const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$14 = {
-      container: container$i,
-      metric,
-      metricName: metricName$1,
-      metricReducer: metricReducer$1
-    };
-    const SidebarScoreView = ({ scorer: scorer2 }) => {
-      const showReducer = !!scorer2.reducer;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.container, children: Object.keys(scorer2.metrics).map((metric2) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$14.metric, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-style-secondary",
-                "text-style-label",
-                "text-size-small",
-                styles$14.metricName
-              ),
-              children: metricDisplayName(scorer2.metrics[metric2])
-            }
-          ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$14.metricReducer), children: scorer2.reducer || "default" }) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer2.metrics[metric2].value) })
-        ] }, metric2);
-      }) });
-    };
-    const container$h = "_container_5kpg1_1";
-    const scoreWrapper = "_scoreWrapper_5kpg1_9";
-    const metricName = "_metricName_5kpg1_16";
-    const metricReducer = "_metricReducer_5kpg1_22";
-    const metricValues = "_metricValues_5kpg1_27";
-    const metricValue = "_metricValue_5kpg1_27";
-    const styles$13 = {
-      container: container$h,
-      scoreWrapper,
-      metricName,
-      metricReducer,
-      metricValues,
-      metricValue
-    };
-    const SidebarScoresView = ({ scores: scores2 }) => {
-      const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.container, children: scores2.map((score2, idx) => {
-        const name2 = score2.name;
-        const reducer = score2.reducer;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.scoreWrapper, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-style-secondary",
-                "text-style-label",
-                "text-size-small",
-                styles$13.metricName
-              ),
-              children: name2
-            }
-          ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-size-small",
-                "text-style-label",
-                "text-style-secondary",
-                styles$13.metricReducer
-              ),
-              children: reducer || "default"
-            }
-          ) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$13.metricValues), children: Object.keys(score2.metrics).map((key2) => {
-            const metric2 = score2.metrics[key2];
-            return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.metricValue, children: formatPrettyDecimal(metric2.value) })
-            ] }, key2);
-          }) })
-        ] }, `scorer-${name2}-${idx}`);
-      }) });
-    };
-    const EvalStatus = ({ logHeader }) => {
-      var _a2, _b2;
-      switch (logHeader == null ? void 0 : logHeader.status) {
-        case "error":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusError, { message: "Error" });
-        case "cancelled":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusCancelled, { message: "Cancelled" });
-        case "started":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(StatusRunning, { message: "Running" });
-        default:
-          if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
-            if (logHeader.results.scores.length === 1) {
-              return /* @__PURE__ */ jsxRuntimeExports.jsx(SidebarScoreView, { scorer: logHeader.results.scores[0] });
-            } else {
-              return /* @__PURE__ */ jsxRuntimeExports.jsx(SidebarScoresView, { scores: logHeader.results.scores });
-            }
-          } else {
-            return null;
-          }
-      }
-    };
-    const StatusCancelled = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(
-            "text-style-secondary",
-            "text-style-label",
-            "text-size-small",
-            styles$15.cancelled
-          ),
-          children: message2
-        }
-      );
-    };
-    const StatusRunning = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          className: clsx(
-            "text-style-secondary",
-            "text-style-label",
-            "text-size-small",
-            styles$15.running
-          ),
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: message2 })
-        }
-      );
-    };
-    const StatusError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.error, "text-size-small"), children: message2 });
-    };
-    const entry = "_entry_12m5n_1";
-    const title$3 = "_title_12m5n_7";
-    const task = "_task_12m5n_12";
-    const params = "_params_12m5n_18";
-    const scores$1 = "_scores_12m5n_22";
-    const styles$12 = {
-      entry,
-      title: title$3,
-      task,
-      params,
-      scores: scores$1
-    };
-    const SidebarLogEntry = ({
-      logHeader,
-      task: task2
-    }) => {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const hyperparameters = {
-        ...((_a2 = logHeader == null ? void 0 : logHeader.plan) == null ? void 0 : _a2.config) || {},
-        ...((_b2 = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _b2.task_args) || {}
-      };
-      const model2 = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
-      const datasetName = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset.name;
-      const uniqScorers = /* @__PURE__ */ new Set();
-      (_f = (_e2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e2.scores) == null ? void 0 : _f.forEach((scorer2) => {
-        uniqScorers.add(scorer2.name);
-      });
-      const scorerNames = Array.from(uniqScorers).join(",");
-      const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
-      const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
-      const time = completed ? new Date(completed) : void 0;
-      const timeStr = time ? `${time.toDateString()}
-    ${time.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit"
-      })}` : "";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.entry, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.title, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
-            model2 && model2 !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
-          ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-          const val = hyperparameters[key2];
-          if (Array.isArray(val) || typeof val === "object") {
-            return `${key2}: ${JSON.stringify(val)}`;
-          } else {
-            return `${key2}: ${val}`;
-          }
-        }).join(", ") : "" }) }),
-        (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx("text-truncate", "text-size-small", styles$12.scores),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-                "dataset: ",
-                datasetName || "(samples)"
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$12.scoreInfo), children: [
-                scorerLabel,
-                ": ",
-                scorerNames || "(none)"
-              ] })
-            ]
-          }
-        ) : ""
-      ] });
-    };
-    const Sidebar = ({
-      logHeaders,
-      loading,
-      selectedIndex,
-      onSelectedIndexChanged
-    }) => {
-      const logs = useStore((state) => state.logs.logs);
-      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const offCanvas = useStore((state) => state.app.offcanvas);
-      const handleToggle = reactExports.useCallback(() => {
-        setOffCanvas(!offCanvas);
-      }, [offCanvas, setOffCanvas]);
-      const sidebarContentsRef = reactExports.useRef(null);
-      useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1e3);
-      const itemRefs = reactExports.useRef({});
-      reactExports.useEffect(() => {
-        var _a2;
-        if (itemRefs.current[selectedIndex]) {
-          (_a2 = itemRefs.current[selectedIndex]) == null ? void 0 : _a2.scrollIntoView({
-            behavior: "smooth",
-            block: "nearest"
-          });
-        }
-      }, [selectedIndex]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.backdrop, onClick: handleToggle }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              styles$16.sidebar,
-              offCanvas ? styles$16.sidebarOpen : styles$16.sidebarClosed
-            ),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$16.header, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    onClick: handleToggle,
-                    className: clsx("btn", styles$16.toggle),
-                    type: "button",
-                    "aria-label": "Close sidebar",
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "ul",
-                {
-                  ref: sidebarContentsRef,
-                  className: clsx("list-group", styles$16.list),
-                  children: logs.files.map((file, index2) => {
-                    const logHeader = logHeaders[file.name];
-                    return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      "li",
-                      {
-                        ref: (el) => {
-                          itemRefs.current[index2] = el;
-                        },
-                        className: clsx(
-                          "list-group-item",
-                          "list-group-item-action",
-                          styles$16.item,
-                          selectedIndex === index2 ? styles$16.active : void 0
-                        ),
-                        "data-index": index2,
-                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                          Link,
-                          {
-                            to: logUrl(file.name, logs.log_dir),
-                            className: styles$16.logLink,
-                            onClick: () => {
-                              onSelectedIndexChanged(index2);
-                            },
-                            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                              SidebarLogEntry,
-                              {
-                                logHeader,
-                                task: file.task || "unknown task"
-                              }
-                            )
-                          }
-                        )
-                      },
-                      file.name
-                    );
-                  })
-                }
-              )
-            ]
           }
         )
       ] });
@@ -48193,875 +52434,6 @@ categories: ${categories.join(" ")}`;
         return [];
       });
     };
-    const navbarWrapper = "_navbarWrapper_838qu_48";
-    const styles$11 = {
-      navbarWrapper
-    };
-    const filename = (path) => {
-      if (!path) {
-        return "";
-      }
-      const pathparts = path.split("/");
-      const basename = pathparts.slice(-1)[0];
-      if (basename.startsWith(".") && !basename.substring(1).includes(".")) {
-        return basename;
-      }
-      const match = basename.match(/(.*)\.\S+$/);
-      if (match) {
-        return match[1];
-      } else {
-        return path;
-      }
-    };
-    const dirname = (path) => {
-      const pathparts = path.split("/");
-      if (pathparts.length > 1) {
-        pathparts.pop();
-        return pathparts.join("/");
-      }
-      return "";
-    };
-    const container$g = "_container_q17yq_1";
-    const grid$6 = "_grid_q17yq_10";
-    const styles$10 = {
-      container: container$g,
-      grid: grid$6
-    };
-    const ModelRolesView = ({ roles }) => {
-      roles = roles || {};
-      const singleLine = Object.keys(roles).length !== 1;
-      const modelEls = Object.keys(roles).map((key2) => {
-        const role2 = key2;
-        const roleData = roles[role2];
-        const model2 = roleData.model;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              singleLine ? styles$10.grid : void 0,
-              "text-style-secondary",
-              "text-size-smallest"
-            ),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("text-style-label"), children: [
-                role2,
-                ":"
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: model2 })
-            ]
-          },
-          key2
-        );
-      });
-      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$10.container, children: modelEls }) : void 0;
-    };
-    const container$f = "_container_291sb_1";
-    const wrapper$3 = "_wrapper_291sb_8";
-    const toggle$1 = "_toggle_291sb_14";
-    const body$1 = "_body_291sb_19";
-    const bodyContainer = "_bodyContainer_291sb_25";
-    const taskTitle = "_taskTitle_291sb_31";
-    const taskModel = "_taskModel_291sb_36";
-    const taskStatus = "_taskStatus_291sb_40";
-    const secondaryContainer = "_secondaryContainer_291sb_47";
-    const styles$$ = {
-      container: container$f,
-      wrapper: wrapper$3,
-      toggle: toggle$1,
-      body: body$1,
-      bodyContainer,
-      taskTitle,
-      taskModel,
-      taskStatus,
-      secondaryContainer
-    };
-    const button = "_button_12472_1";
-    const label$7 = "_label_12472_14";
-    const styles$_ = {
-      button,
-      label: label$7
-    };
-    const LinkButton = ({
-      id,
-      text: text2,
-      icon: icon2,
-      className: className2,
-      onClick
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "button",
-        {
-          id,
-          onClick,
-          className: clsx(className2, styles$_.button, "text-size-smaller"),
-          children: [
-            icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0,
-            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$_.label), children: text2 }) : void 0
-          ]
-        }
-      );
-    };
-    const modal$1 = "_modal_1tvha_1";
-    const header$2 = "_header_1tvha_14";
-    const modalTitle = "_modalTitle_1tvha_18";
-    const btnClose = "_btnClose_1tvha_22";
-    const backdrop = "_backdrop_1tvha_28";
-    const styles$Z = {
-      modal: modal$1,
-      header: header$2,
-      modalTitle,
-      btnClose,
-      backdrop
-    };
-    const Modal = ({
-      id,
-      title: title2,
-      showing,
-      setShowing,
-      children: children2,
-      className: className2
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.backdrop, onClick: () => setShowing(false) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            id,
-            className: clsx("modal", "fade", showing ? "show" : "", className2),
-            tabIndex: -1,
-            style: { display: showing ? "block" : "none" },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$Z.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$Z.header), children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "div",
-                  {
-                    className: clsx(
-                      "modal-title",
-                      "text-size-base",
-                      styles$Z.modalTitle
-                    ),
-                    children: title2
-                  }
-                ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "button",
-                  {
-                    type: "button",
-                    className: clsx(
-                      "btn-close",
-                      "text-size-smaller",
-                      styles$Z.btnClose
-                    ),
-                    "data-bs-dismiss": "modal",
-                    "aria-label": "Close",
-                    onClick: () => {
-                      setShowing(!showing);
-                    }
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", children: children2 }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "button",
-                {
-                  type: "button",
-                  className: "btn btn-secondary",
-                  "data-bs-dismiss": "modal",
-                  onClick: () => {
-                    setShowing(!showing);
-                  },
-                  children: "Close"
-                }
-              ) })
-            ] }) })
-          }
-        )
-      ] });
-    };
-    const simpleMetricsRows = "_simpleMetricsRows_yha6g_1";
-    const verticalMetricReducer = "_verticalMetricReducer_yha6g_26";
-    const verticalMetricName = "_verticalMetricName_yha6g_33";
-    const verticalMetricValue = "_verticalMetricValue_yha6g_41";
-    const moreButton = "_moreButton_yha6g_91";
-    const metricsSummary = "_metricsSummary_yha6g_97";
-    const modalScores = "_modalScores_yha6g_103";
-    const styles$Y = {
-      simpleMetricsRows,
-      verticalMetricReducer,
-      verticalMetricName,
-      verticalMetricValue,
-      moreButton,
-      metricsSummary,
-      modalScores
-    };
-    const table$1 = "_table_12koy_1";
-    const scorer = "_scorer_12koy_5";
-    const value$1 = "_value_12koy_6";
-    const label$6 = "_label_12koy_11";
-    const groupSeparator = "_groupSeparator_12koy_28";
-    const tableBody = "_tableBody_12koy_33";
-    const tableSeparator = "_tableSeparator_12koy_45";
-    const styles$X = {
-      table: table$1,
-      scorer,
-      value: value$1,
-      label: label$6,
-      groupSeparator,
-      tableBody,
-      tableSeparator
-    };
-    const ScoreGrid = ({
-      scoreGroups,
-      showReducer,
-      className: className2,
-      striped
-    }) => {
-      const columnCount = scoreGroups.reduce((prev, group) => {
-        return Math.max(prev, group[0].metrics.length);
-      }, 0);
-      const subTables = [];
-      let index2 = 0;
-      for (const scoreGroup of scoreGroups) {
-        const metrics2 = scoreGroup[0].metrics;
-        const cells = [];
-        for (let i2 = 0; i2 < columnCount; i2++) {
-          if (metrics2.length > i2) {
-            cells.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "th",
-                {
-                  className: clsx(
-                    "text-style-label",
-                    "text-style-secondary",
-                    "text-size-small",
-                    styles$X.label
-                  ),
-                  children: metrics2[i2].name
-                }
-              )
-            );
-          } else {
-            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
-          }
-        }
-        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$X.headerRow), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
-          cells
-        ] }) });
-        const rows = [];
-        scoreGroup.forEach((g) => {
-          const cells2 = [];
-          for (let i2 = 0; i2 < columnCount; i2++) {
-            if (metrics2.length > i2) {
-              cells2.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$X.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
-              );
-            } else {
-              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$X.value) }));
-            }
-          }
-          rows.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$X.scorer, "text-size-small"), children: [
-                g.scorer,
-                " ",
-                showReducer && g.reducer ? `(${g.reducer})` : void 0
-              ] }),
-              cells2
-            ] })
-          );
-        });
-        subTables.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$X.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "td",
-              {
-                colSpan: columnCount + 1,
-                className: clsx(styles$X.groupSeparator)
-              }
-            ) }) }) : void 0,
-            headerRow,
-            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$X.tableBody), children: rows })
-          ] })
-        );
-        index2++;
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "table",
-        {
-          className: clsx(
-            className2,
-            "table",
-            striped ? "table-striped" : void 0,
-            styles$X.table,
-            "table-bordered"
-          ),
-          children: subTables
-        }
-      );
-    };
-    const kMaxPrimaryScoreRows = 4;
-    const displayScorersFromRunningMetrics = (metrics2) => {
-      if (!metrics2) {
-        return [];
-      }
-      const getKey = (metric2) => {
-        return metric2.reducer ? `${metric2.scorer}-${metric2.reducer}` : metric2.scorer;
-      };
-      const scorers = {};
-      metrics2.forEach((metric2) => {
-        if (metric2.value !== void 0 && metric2.value !== null) {
-          const key2 = getKey(metric2);
-          if (scorers[key2]) {
-            scorers[key2].metrics.push({
-              name: metric2.name,
-              value: metric2.value
-            });
-          } else {
-            scorers[key2] = {
-              scorer: metric2.scorer,
-              reducer: metric2.reducer,
-              metrics: [
-                {
-                  name: metric2.name,
-                  value: metric2.value
-                }
-              ]
-            };
-          }
-        }
-      });
-      return Object.values(scorers);
-    };
-    const toDisplayScorers = (scores2) => {
-      if (!scores2) {
-        return [];
-      }
-      return scores2.map((score2) => {
-        return {
-          scorer: score2.name,
-          reducer: score2.reducer === null ? void 0 : score2.reducer,
-          metrics: Object.keys(score2.metrics).map((key2) => {
-            const metric2 = score2.metrics[key2];
-            return {
-              name: metric2.name,
-              value: metric2.value,
-              params: metric2.params
-            };
-          })
-        };
-      });
-    };
-    const ResultsPanel = ({ scorers }) => {
-      const [showing, setShowing] = useProperty(
-        "results-panel-metrics",
-        "modal-showing",
-        {
-          defaultValue: false
-        }
-      );
-      if (!scorers || scorers.length === 0) {
-        return void 0;
-      }
-      if (scorers.length === 1) {
-        const showReducer = !!scorers[0].reducer;
-        const metrics2 = scorers[0].metrics;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Y.simpleMetricsRows, children: metrics2.map((metric2, i2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            VerticalMetric,
-            {
-              reducer: scorers[0].reducer,
-              metric: metric2,
-              isFirst: i2 === 0,
-              showReducer
-            },
-            `simple-metric-${i2}`
-          );
-        }) });
-      } else {
-        const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
-        const grouped = groupMetrics(scorers);
-        let primaryResults = grouped[0];
-        let showMore = grouped.length > 1;
-        if (primaryResults.length > kMaxPrimaryScoreRows) {
-          const shorterResults = grouped.find((g) => {
-            return g.length <= kMaxPrimaryScoreRows;
-          });
-          if (shorterResults) {
-            primaryResults = shorterResults;
-          }
-          if (primaryResults.length > kMaxPrimaryScoreRows) {
-            primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
-            showMore = true;
-          }
-        }
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Y.metricsSummary), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults], showReducer }),
-          showMore ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              Modal,
-              {
-                id: "results-metrics",
-                showing,
-                setShowing,
-                title: "Scoring Detail",
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ScoreGrid,
-                  {
-                    scoreGroups: grouped,
-                    showReducer,
-                    className: styles$Y.modalScores,
-                    striped: false
-                  }
-                )
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              LinkButton,
-              {
-                className: styles$Y.moreButton,
-                text: "All scoring...",
-                onClick: () => {
-                  setShowing(true);
-                }
-              }
-            )
-          ] }) : void 0
-        ] });
-      }
-    };
-    const metricsKey = (metrics2) => {
-      const metricKey = metrics2.map((m) => m.name).join("");
-      return metricKey;
-    };
-    const groupMetrics = (scorers) => {
-      const results = {};
-      scorers.forEach((scorer2) => {
-        if (scorer2.metrics.length > 0) {
-          const key2 = metricsKey(scorer2.metrics);
-          results[key2] = results[key2] || [];
-          results[key2].push(scorer2);
-        }
-      });
-      return Object.values(results);
-    };
-    const VerticalMetric = ({
-      metric: metric2,
-      reducer,
-      isFirst,
-      showReducer
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { paddingLeft: isFirst ? "0" : "1em" }, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "vertical-metric-label",
-              "text-style-label",
-              "text-style-secondary",
-              styles$Y.verticalMetricName
-            ),
-            children: metricDisplayName(metric2)
-          }
-        ),
-        showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "text-style-label",
-              "text-style-secondary",
-              styles$Y.verticalMetricReducer
-            ),
-            children: reducer || "default"
-          }
-        ) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "vertical-metric-value",
-              "text-size-largest",
-              styles$Y.verticalMetricValue
-            ),
-            children: metric2.value !== void 0 && metric2.value !== null ? formatPrettyDecimal(metric2.value) : "n/a"
-          }
-        )
-      ] });
-    };
-    const statusContainer = "_statusContainer_1sckj_1";
-    const status = "_status_1sckj_1";
-    const statusText = "_statusText_1sckj_11";
-    const icon$2 = "_icon_1sckj_24";
-    const styles$W = {
-      statusContainer,
-      status,
-      statusText,
-      icon: icon$2
-    };
-    const RunningStatusPanel = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$W.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$W.status), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$W.icon) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              styles$W.statusText,
-              "text-style-label",
-              "text-size-smaller"
-            ),
-            children: [
-              "Running (",
-              sampleCount,
-              " samples)"
-            ]
-          }
-        )
-      ] }) }) });
-    };
-    const statusPanel = "_statusPanel_66f9o_1";
-    const statusIcon = "_statusIcon_66f9o_11";
-    const styles$V = {
-      statusPanel,
-      statusIcon
-    };
-    const CancelledPanel = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        StatusPanel,
-        {
-          icon: ApplicationIcons.logging["info"],
-          status: "Cancelled",
-          sampleCount
-        }
-      );
-    };
-    const ErroredPanel = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        StatusPanel,
-        {
-          icon: ApplicationIcons.logging["error"],
-          status: "Task Failed",
-          sampleCount
-        }
-      );
-    };
-    const StatusPanel = ({
-      icon: icon2,
-      status: status2,
-      sampleCount
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$V.statusPanel, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$V.statusIcon), style: {} }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: status2 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-            "(",
-            sampleCount,
-            " ",
-            sampleCount === 1 ? "sample" : "samples",
-            ")"
-          ] })
-        ] })
-      ] });
-    };
-    const PrimaryBar = ({
-      showToggle,
-      status: status2,
-      evalResults,
-      runningMetrics,
-      evalSpec,
-      sampleCount
-    }) => {
-      const offCanvas = useStore((state) => state.app.offcanvas);
-      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const streamSamples = useStore((state) => state.capabilities.streamSamples);
-      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-      const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
-      const handleToggle = reactExports.useCallback(() => {
-        setOffCanvas(!offCanvas);
-      }, [offCanvas, setOffCanvas]);
-      const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$$.wrapper), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              "navbar-brand",
-              "navbar-text",
-              "mb-0",
-              styles$$.container
-            ),
-            children: [
-              showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "button",
-                {
-                  id: "sidebarToggle",
-                  onClick: handleToggle,
-                  className: clsx(
-                    "btn",
-                    offCanvas ? "d-md-none" : void 0,
-                    styles$$.toggle
-                  ),
-                  type: "button",
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.menu })
-                }
-              ) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.body, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.bodyContainer, children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      id: "task-title",
-                      className: clsx("task-title", "text-truncate", styles$$.taskTitle),
-                      title: evalSpec == null ? void 0 : evalSpec.task,
-                      children: evalSpec == null ? void 0 : evalSpec.task
-                    }
-                  ),
-                  (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      id: "task-model",
-                      className: clsx(
-                        "task-model",
-                        "text-truncate",
-                        styles$$.taskModel,
-                        "text-size-base"
-                      ),
-                      title: evalSpec == null ? void 0 : evalSpec.model,
-                      children: evalSpec == null ? void 0 : evalSpec.model
-                    }
-                  ) : ""
-                ] }),
-                (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$$.secondaryContainer), children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
-                  selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
-                ] })
-              ] })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$$.taskStatus, "navbar-text"), children: [
-          status2 === "success" || status2 === "started" && streamSamples && hasRunningMetrics ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ResultsPanel,
-            {
-              scorers: runningMetrics ? displayScorersFromRunningMetrics(runningMetrics) : toDisplayScorers(evalResults == null ? void 0 : evalResults.scores)
-            }
-          ) : void 0,
-          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: sampleCount || 0 }) : void 0,
-          status2 === "started" && (!streamSamples || !hasRunningMetrics) ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: sampleCount || 0 }) : void 0,
-          status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: sampleCount || 0 }) : void 0
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
-      ] });
-    };
-    const staticCol = "_staticCol_xzzhl_1";
-    const justifyLeft = "_justifyLeft_xzzhl_5";
-    const justifyCenter = "_justifyCenter_xzzhl_9";
-    const justifyRight = "_justifyRight_xzzhl_13";
-    const valueGrid = "_valueGrid_xzzhl_17";
-    const container$e = "_container_xzzhl_25";
-    const styles$U = {
-      staticCol,
-      justifyLeft,
-      justifyCenter,
-      justifyRight,
-      valueGrid,
-      container: container$e
-    };
-    const SecondaryBar = ({
-      evalSpec,
-      evalPlan,
-      evalResults,
-      evalStats,
-      status: status2,
-      sampleCount
-    }) => {
-      const evalDescriptor = useEvalDescriptor();
-      if (!evalSpec || status2 !== "success") {
-        return null;
-      }
-      const epochs = evalSpec.config.epochs || 1;
-      const hyperparameters = {
-        ...(evalPlan == null ? void 0 : evalPlan.config) || {},
-        ...evalSpec.task_args || {}
-      };
-      const hasConfig = Object.keys(hyperparameters).length > 0;
-      const values = [];
-      values.push({
-        size: "minmax(12%, auto)",
-        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          LabeledValue,
-          {
-            label: "Dataset",
-            className: clsx(styles$U.staticCol, "text-size-small"),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              DatasetSummary,
-              {
-                dataset: evalSpec.dataset,
-                sampleCount,
-                epochs
-              }
-            )
-          },
-          "sb-dataset"
-        )
-      });
-      const label2 = (evalResults == null ? void 0 : evalResults.scores) && evalResults.scores.length > 1 ? "Scorers" : "Scorer";
-      values.push({
-        size: "minmax(12%, auto)",
-        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          LabeledValue,
-          {
-            label: label2,
-            className: clsx(
-              styles$U.staticCol,
-              hasConfig ? styles$U.justifyLeft : styles$U.justifyCenter,
-              "text-size-small"
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
-          },
-          "sb-scorer"
-        )
-      });
-      if (hasConfig) {
-        values.push({
-          size: "minmax(12%, auto)",
-          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            LabeledValue,
-            {
-              label: "Config",
-              className: clsx(styles$U.justifyRight, "text-size-small"),
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters })
-            },
-            "sb-params"
-          )
-        });
-      }
-      if (evalStats) {
-        const totalDuration = formatDuration(
-          new Date(evalStats == null ? void 0 : evalStats.started_at),
-          new Date(evalStats == null ? void 0 : evalStats.completed_at)
-        );
-        values.push({
-          size: "minmax(12%, auto)",
-          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            LabeledValue,
-            {
-              label: "Duration",
-              className: clsx(styles$U.justifyRight, "text-size-small"),
-              children: totalDuration
-            },
-            "sb-duration"
-          )
-        });
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        ExpandablePanel,
-        {
-          id: "secondary-nav-bar",
-          className: clsx(styles$U.container, "text-size-small"),
-          collapse: true,
-          lines: 5,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: styles$U.valueGrid,
-              style: {
-                gridTemplateColumns: `${values.map((val) => {
-                  return val.size;
-                }).join(" ")}`
-              },
-              children: values.map((val) => {
-                return val.value;
-              })
-            }
-          )
-        }
-      );
-    };
-    const DatasetSummary = ({
-      sampleCount,
-      dataset,
-      epochs
-    }) => {
-      if (!dataset) {
-        return null;
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: sampleCount ? formatDataset(sampleCount, epochs, dataset.name) : "" });
-    };
-    const ScorerSummary = ({ evalDescriptor }) => {
-      if (!evalDescriptor) {
-        return null;
-      }
-      const items = sampleFilterItems(evalDescriptor);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { title: item2.tooltip, children: item2.canonicalName }),
-        index2 < array.length - 1 ? ", " : ""
-      ] }, index2)) });
-    };
-    const ParamSummary = ({ params: params2 }) => {
-      if (!params2) {
-        return null;
-      }
-      const paraValues = Object.keys(params2).map((key2) => {
-        const val = params2[key2];
-        if (Array.isArray(val) || typeof val === "object") {
-          return `${key2}: ${JSON.stringify(val)}`;
-        } else {
-          return `${key2}: ${val}`;
-        }
-      });
-      if (paraValues.length > 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "code",
-          {
-            style: {
-              padding: 0,
-              color: "var(--bs-body-color)",
-              overflowWrap: "anywhere"
-            },
-            children: paraValues.join(", ")
-          }
-        );
-      } else {
-        return null;
-      }
-    };
-    const Navbar = ({
-      evalSpec,
-      evalPlan,
-      evalResults,
-      evalStats,
-      showToggle,
-      status: status2,
-      runningMetrics
-    }) => {
-      const totalSampleCount = useTotalSampleCount();
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$11.navbarWrapper), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          PrimaryBar,
-          {
-            evalSpec,
-            evalResults,
-            showToggle,
-            status: status2,
-            runningMetrics,
-            sampleCount: totalSampleCount
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SecondaryBar,
-          {
-            evalSpec,
-            evalPlan,
-            evalResults,
-            evalStats,
-            status: status2,
-            sampleCount: totalSampleCount
-          }
-        )
-      ] });
-    };
     const useLogNavigation = () => {
       const navigate = useNavigate();
       const { logPath } = useParams();
@@ -49088,7 +52460,7 @@ categories: ${categories.join(" ")}`;
     const tabSet = "_tabSet_1r3mu_14";
     const tabs = "_tabs_1r3mu_21";
     const tabPanels = "_tabPanels_1r3mu_29";
-    const styles$T = {
+    const styles$11 = {
       workspace,
       tabContainer,
       tabSet,
@@ -49166,9 +52538,9 @@ categories: ${categories.join(" ")}`;
     const Card = ({ id, children: children2, className: className2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
-    const item$1 = "_item_1uzhd_1";
-    const styles$S = {
-      item: item$1
+    const item$2 = "_item_1uzhd_1";
+    const styles$10 = {
+      item: item$2
     };
     const DatasetDetailView = ({
       dataset,
@@ -49178,173 +52550,101 @@ categories: ${categories.join(" ")}`;
         Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
       );
       if (!dataset || Object.keys(filtered).length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$S.item), style: style2, children: "No dataset information available" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$10.item), style: style2, children: "No dataset information available" });
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        MetaDataView,
+        MetaDataGrid,
         {
-          className: clsx("text-size-base", styles$S.item),
+          className: clsx("text-size-base", styles$10.item),
           entries: filtered,
-          tableOptions: "borderless,sm",
-          style: style2
+          style: style2,
+          plain: true
         }
       );
     };
-    const grid$5 = "_grid_14885_1";
-    const cell$2 = "_cell_14885_8";
-    const styles$R = {
-      grid: grid$5,
-      cell: cell$2
-    };
-    const MetaDataGrid = ({
-      id,
-      entries,
-      className: className2,
-      size,
-      style: style2,
-      plain
-    }) => {
-      const baseId = "metadata-grid";
-      const fontStyle = size === "mini" ? "text-size-smallest" : "text-size-smaller";
-      const entryEls = entryRecords(entries).map((entry2, index2) => {
-        const id2 = `${baseId}-value-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          index2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              style: {
-                gridColumn: "1 / -1",
-                borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
-              }
-            }
-          ) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                `${baseId}-key`,
-                styles$R.cell,
-                "text-style-label",
-                "text-style-secondary",
-                fontStyle
-              ),
-              children: entry2 == null ? void 0 : entry2.name
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.value, `${baseId}-value`, fontStyle), children: entry2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
-            RenderedContent,
-            {
-              id: id2,
-              entry: entry2,
-              renderObject: (obj) => {
-                return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MetaDataGrid,
-                  {
-                    id: id2,
-                    className: clsx(styles$R.nested),
-                    entries: obj,
-                    size,
-                    plain
-                  }
-                );
-              }
-            }
-          ) })
-        ] }, `${baseId}-record-${index2}`);
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$R.grid), style: style2, children: entryEls });
-    };
-    const entryRecords = (entries) => {
-      if (!entries) {
-        return [];
-      }
-      if (!Array.isArray(entries)) {
-        return Object.entries(entries || {}).map(([key2, value2]) => {
-          return { name: key2, value: value2 };
-        });
-      } else {
-        return entries;
-      }
-    };
-    const icon$1 = "_icon_59zaz_1";
-    const container$d = "_container_59zaz_5";
+    const icon$2 = "_icon_59zaz_1";
+    const container$g = "_container_59zaz_5";
     const metadata$2 = "_metadata_59zaz_11";
-    const styles$Q = {
-      icon: icon$1,
-      container: container$d,
+    const styles$$ = {
+      icon: icon$2,
+      container: container$g,
       metadata: metadata$2
     };
     const DetailStep = ({
       icon: icon2,
       name: name2,
-      params: params2,
+      params,
       className: className2
     }) => {
-      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$Q.icon) }) : "";
+      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$$.icon) }) : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         iconHtml,
         " ",
         name2,
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Q.container, children: params2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        params && Object.keys(params).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$$.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           MetaDataGrid,
           {
-            entries: params2,
-            className: clsx("text-size-small", styles$Q.metadata)
+            entries: params,
+            className: clsx("text-size-small", styles$$.metadata)
           }
-        ) : "" })
+        ) }) : ""
       ] });
+    };
+    const item$1 = "_item_leq25_1";
+    const styles$_ = {
+      item: item$1
     };
     const ScorerDetailView = ({
       name: name2,
       scores: scores2,
-      params: params2
+      params
     }) => {
       if (scores2.length > 1) {
-        params2 = { ...params2, ["scores"]: scores2 };
+        params = { ...params, ["scores"]: scores2 };
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         DetailStep,
         {
           icon: ApplicationIcons.scorer,
           name: name2,
-          params: params2,
-          className: clsx(styles$S.item, "text-size-base")
+          params,
+          className: clsx(styles$_.item, "text-size-base")
         }
       );
     };
-    const container$c = "_container_12j2k_1";
+    const container$f = "_container_12j2k_1";
     const separator$4 = "_separator_12j2k_11";
-    const styles$P = {
-      container: container$c,
+    const styles$Z = {
+      container: container$f,
       separator: separator$4
     };
     const SolversDetailView = ({ steps }) => {
-      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$P.items, "text-size-small", styles$P.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
+      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Z.items, "text-size-small", styles$Z.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
       const details = steps == null ? void 0 : steps.map((step, index2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             DetailStep,
             {
               name: step.solver,
-              className: clsx(styles$P.items, "text-size-small")
+              className: clsx(styles$Z.items, "text-size-small")
             }
           ),
           index2 < steps.length - 1 ? separator2 : ""
         ] }, `solver-step-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$P.container, children: details });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.container, children: details });
     };
-    const floatingCol = "_floatingCol_1y1hk_1";
-    const wideCol = "_wideCol_1y1hk_9";
-    const planCol = "_planCol_1y1hk_24";
-    const container$b = "_container_1y1hk_28";
-    const grid$4 = "_grid_1y1hk_34";
-    const styles$O = {
+    const floatingCol = "_floatingCol_1n79r_1";
+    const wideCol = "_wideCol_1n79r_9";
+    const planCol = "_planCol_1n79r_24";
+    const container$e = "_container_1n79r_29";
+    const grid$5 = "_grid_1n79r_35";
+    const styles$Y = {
       floatingCol,
       wideCol,
       planCol,
-      container: container$b,
-      grid: grid$4
+      container: container$e,
+      grid: grid$5
     };
     const PlanDetailView = ({
       evaluation,
@@ -49358,13 +52658,13 @@ categories: ${categories.join(" ")}`;
       const taskColumns = [];
       taskColumns.push({
         title: "Dataset",
-        className: styles$O.floatingCol,
+        className: styles$Y.floatingCol,
         contents: /* @__PURE__ */ jsxRuntimeExports.jsx(DatasetDetailView, { dataset: evaluation.dataset })
       });
       if (steps) {
         taskColumns.push({
           title: "Solvers",
-          className: styles$O.wideCol,
+          className: styles$Y.wideCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(SolversDetailView, { steps })
         });
       }
@@ -49398,15 +52698,15 @@ categories: ${categories.join(" ")}`;
           });
           taskColumns.push({
             title: label2,
-            className: styles$O.floatingCol,
+            className: styles$Y.floatingCol,
             contents: scorerPanels
           });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$O.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Y.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: styles$O.grid,
+          className: styles$Y.grid,
           style: {
             gridTemplateColumns: `repeat(${taskColumns.length}, fit-content(50%))`
           },
@@ -49434,7 +52734,7 @@ categories: ${categories.join(" ")}`;
               "text-size-small",
               "text-style-label",
               "text-style-secondary",
-              styles$O.planCol
+              styles$Y.planCol
             ),
             children: title2
           }
@@ -49474,7 +52774,7 @@ categories: ${categories.join(" ")}`;
         ] })
       ] });
     };
-    const styles$N = {
+    const styles$X = {
       "task-error-display": "_task-error-display_1624b_1"
     };
     const TaskErrorCard = ({ error: error2 }) => {
@@ -49490,7 +52790,7 @@ categories: ${categories.join(" ")}`;
           ANSIDisplay,
           {
             output: error2.traceback_ansi,
-            className: styles$N["task-error-display"]
+            className: styles$X["task-error-display"]
           }
         ) })
       ] });
@@ -49674,27 +52974,13 @@ self.onmessage = function (e) {
       link2.click();
       document.body.removeChild(link2);
     }
-    function encodePathParts(url) {
-      if (!url) return url;
-      try {
-        const fullUrl = new URL(url);
-        fullUrl.pathname = fullUrl.pathname.split("/").map(
-          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
-        ).join("/");
-        return fullUrl.toString();
-      } catch {
-        return url.split("/").map(
-          (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
-        ).join("/");
-      }
-    }
     const loaded_time = Date.now();
     let last_eval_time = 0;
     async function client_events$1() {
-      const params2 = new URLSearchParams();
-      params2.append("loaded_time", String(loaded_time.valueOf()));
-      params2.append("last_eval_time", String(last_eval_time.valueOf()));
-      return (await api$2("GET", `/api/events?${params2.toString()}`)).parsed;
+      const params = new URLSearchParams();
+      params.append("loaded_time", String(loaded_time.valueOf()));
+      params.append("last_eval_time", String(last_eval_time.valueOf()));
+      return (await api$2("GET", `/api/events?${params.toString()}`)).parsed;
     }
     async function eval_logs$1() {
       const logs = await api$2("GET", `/api/logs`);
@@ -49717,15 +53003,15 @@ self.onmessage = function (e) {
       );
     }
     async function eval_log_headers$1(files) {
-      const params2 = new URLSearchParams();
+      const params = new URLSearchParams();
       for (const file of files) {
-        params2.append("file", file);
+        params.append("file", file);
       }
-      return (await api$2("GET", `/api/log-headers?${params2.toString()}`)).parsed;
+      return (await api$2("GET", `/api/log-headers?${params.toString()}`)).parsed;
     }
     async function eval_pending_samples$1(log_file, etag) {
-      const params2 = new URLSearchParams();
-      params2.append("log", log_file);
+      const params = new URLSearchParams();
+      params.append("log", log_file);
       const headers = {};
       if (etag) {
         headers["If-None-Match"] = etag;
@@ -49753,21 +53039,21 @@ self.onmessage = function (e) {
       };
       const result2 = (await apiRequest(
         "GET",
-        `/api/pending-samples?${params2.toString()}`,
+        `/api/pending-samples?${params.toString()}`,
         request
       )).parsed;
       return result2;
     }
     async function eval_log_sample_data$1(log_file, id, epoch, last_event, last_attachment) {
-      const params2 = new URLSearchParams();
-      params2.append("log", log_file);
-      params2.append("id", String(id));
-      params2.append("epoch", String(epoch));
+      const params = new URLSearchParams();
+      params.append("log", log_file);
+      params.append("id", String(id));
+      params.append("epoch", String(epoch));
       if (last_event !== void 0) {
-        params2.append("last-event-id", String(last_event));
+        params.append("last-event-id", String(last_event));
       }
       if (last_attachment !== void 0) {
-        params2.append("after-attachment-id", String(last_attachment));
+        params.append("after-attachment-id", String(last_attachment));
       }
       const request = {
         headers: {},
@@ -49792,15 +53078,15 @@ self.onmessage = function (e) {
       };
       const result2 = (await apiRequest(
         "GET",
-        `/api/pending-sample-data?${params2.toString()}`,
+        `/api/pending-sample-data?${params.toString()}`,
         request
       )).parsed;
       return result2;
     }
     async function log_message$1(log_file, message2) {
-      const params2 = new URLSearchParams();
-      params2.append("log_file", log_file);
-      params2.append("message", message2);
+      const params = new URLSearchParams();
+      params.append("log_file", log_file);
+      params.append("message", message2);
       const request = {
         headers: {
           "Content-Type": "text/plain"
@@ -49814,7 +53100,7 @@ self.onmessage = function (e) {
       };
       await apiRequest(
         "GET",
-        `/api/log-message?${params2.toString()}`,
+        `/api/log-message?${params.toString()}`,
         request
       );
     }
@@ -50510,26 +53796,26 @@ self.onmessage = function (e) {
       return {
         centralDirectory,
         readFile: async (file, maxBytes) => {
-          const entry2 = centralDirectory.get(file);
-          if (!entry2) {
+          const entry = centralDirectory.get(file);
+          if (!entry) {
             throw new Error(`File not found: ${file}`);
           }
           const headerSize = 30;
           const headerData = await fetchBytes(
             url,
-            entry2.fileOffset,
-            entry2.fileOffset + headerSize - 1
+            entry.fileOffset,
+            entry.fileOffset + headerSize - 1
           );
           const filenameLength = headerData[26] + (headerData[27] << 8);
           const extraFieldLength = headerData[28] + (headerData[29] << 8);
-          const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry2.compressedSize;
+          const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
           if (maxBytes && totalSizeToFetch > maxBytes) {
             throw new FileSizeLimitError(file, maxBytes);
           }
           const fileData = await fetchBytes(
             url,
-            entry2.fileOffset,
-            entry2.fileOffset + totalSizeToFetch - 1
+            entry.fileOffset,
+            entry.fileOffset + totalSizeToFetch - 1
           );
           const zipFileEntry = await parseZipFileEntry(file, fileData);
           if (zipFileEntry.compressionMethod === 0) {
@@ -50688,14 +53974,14 @@ self.onmessage = function (e) {
             extraOffset += 4 + size;
           }
         }
-        const entry2 = {
+        const entry = {
           filename: filename2,
           compressionMethod: view.getUint16(offset2 + 10, true),
           compressedSize,
           uncompressedSize,
           fileOffset
         };
-        entries.set(filename2, entry2);
+        entries.set(filename2, entry);
         offset2 += kFileHeaderSize + filenameLength + extraFieldLength + fileCommentLength;
       }
       return entries;
@@ -50890,7 +54176,7 @@ self.onmessage = function (e) {
         }
       });
       return {
-        request: (method, params2) => {
+        request: (method, params) => {
           return new Promise((resolve, reject) => {
             const requestId = Math.floor(Math.random() * 1e6);
             requests.set(requestId, { resolve, reject });
@@ -50898,7 +54184,7 @@ self.onmessage = function (e) {
               jsonrpc: kJsonRpcVersion,
               id: requestId,
               method,
-              params: params2
+              params
             };
             target2.postMessage(request);
           });
@@ -51064,11 +54350,11 @@ self.onmessage = function (e) {
         this.runningCount = 0;
       }
       // Adds a task to the queue and runs it if the concurrency limit allows.
-      async enqueue(task2) {
+      async enqueue(task) {
         return new Promise((resolve, reject) => {
           this.queue.push(async () => {
             try {
-              const result2 = await task2();
+              const result2 = await task();
               resolve(result2);
             } catch (error2) {
               reject(error2);
@@ -51085,15 +54371,16 @@ self.onmessage = function (e) {
       // Runs the next task in the queue if there are available slots for concurrent execution.
       runNext() {
         if (this.queue.length > 0 && this.runningCount < this.concurrentLimit) {
-          const task2 = this.queue.shift();
-          if (task2) {
+          const task = this.queue.shift();
+          if (task) {
             this.runningCount++;
-            task2();
+            task();
           }
         }
       }
     }
     const MAX_BYTES = 50 * 1024 * 1024;
+    const OPEN_RETRY_LIMIT = 5;
     class SampleNotFoundError extends Error {
       constructor(message2) {
         super(message2 || "Sample not found");
@@ -51103,11 +54390,30 @@ self.onmessage = function (e) {
     }
     const openRemoteLogFile = async (api2, url, concurrency) => {
       const queue = new AsyncQueue(concurrency);
-      const remoteZipFile = await openRemoteZipFile(
-        url,
-        api2.eval_log_size,
-        api2.eval_log_bytes
-      );
+      let remoteZipFile = void 0;
+      let retryCount = 0;
+      while (!remoteZipFile && retryCount < OPEN_RETRY_LIMIT) {
+        try {
+          remoteZipFile = await openRemoteZipFile(
+            url,
+            api2.eval_log_size,
+            api2.eval_log_bytes
+          );
+        } catch {
+          retryCount++;
+          console.warn(
+            `Failed to open remote log file at ${url}, retrying (${retryCount}/${OPEN_RETRY_LIMIT})...`
+          );
+          await new Promise(
+            (resolve) => setTimeout(resolve, 100 * (retryCount + retryCount))
+          );
+        }
+      }
+      if (!remoteZipFile) {
+        throw new Error(
+          `Failed to open remote log file at ${url} after ${OPEN_RETRY_LIMIT} attempts.`
+        );
+      }
       const readJSONFile = async (file, maxBytes) => {
         try {
           const data = await remoteZipFile.readFile(file, maxBytes);
@@ -51555,7 +54861,7 @@ self.onmessage = function (e) {
     );
     ToolButton.displayName = "ToolButton";
     const jsonTab = "_jsonTab_6pq03_1";
-    const styles$M = {
+    const styles$W = {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
@@ -51632,7 +54938,7 @@ self.onmessage = function (e) {
       const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
       if (logFile && json.length > kJsonMaxSize && downloadFiles) {
         const file = `${filename(logFile)}.json`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$M.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$W.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
           {
             message: "The JSON for this log file is too large to render.",
@@ -51642,15 +54948,15 @@ self.onmessage = function (e) {
           }
         ) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$M.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$W.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
-    const container$a = "_container_4wzpj_1";
+    const container$d = "_container_4wzpj_1";
     const modelInfo = "_modelInfo_4wzpj_8";
     const role = "_role_4wzpj_15";
     const sep = "_sep_4wzpj_19";
-    const styles$L = {
-      container: container$a,
+    const styles$V = {
+      container: container$d,
       modelInfo,
       role,
       sep
@@ -51671,31 +54977,31 @@ self.onmessage = function (e) {
       const noneEl = /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-style-secondary", children: "None" });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Models" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$L.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$V.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
           const modelInfo2 = modelsInfo[modelKey];
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
-              className: clsx(styles$L.modelInfo, "text-size-small"),
+              className: clsx(styles$V.modelInfo, "text-size-small"),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     className: clsx(
-                      styles$L.role,
+                      styles$V.role,
                       "text-style-label",
                       "text-style-secondary"
                     ),
                     children: modelKey
                   }
                 ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Model" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: modelInfo2.model }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Base Url" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.base_url || noneEl }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Configuration" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.config && Object.keys(modelInfo2.config).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
@@ -51703,7 +55009,7 @@ self.onmessage = function (e) {
                     entries: modelInfo2.config
                   }
                 ) : noneEl }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.sep) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Args" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: Object.keys(modelInfo2.args).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
@@ -51711,7 +55017,7 @@ self.onmessage = function (e) {
                     entries: modelInfo2.args
                   }
                 ) : noneEl }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.sep) })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$V.sep) })
               ]
             },
             modelKey
@@ -51719,14 +55025,14 @@ self.onmessage = function (e) {
         }) }) })
       ] });
     };
-    const wrapper$2 = "_wrapper_sq96g_1";
+    const wrapper$3 = "_wrapper_sq96g_1";
     const col2$2 = "_col2_sq96g_8";
     const col1_3$1 = "_col1_3_sq96g_12";
     const col3$1 = "_col3_sq96g_16";
     const separator$3 = "_separator_sq96g_20";
     const padded$1 = "_padded_sq96g_26";
-    const styles$K = {
-      wrapper: wrapper$2,
+    const styles$U = {
+      wrapper: wrapper$3,
       col2: col2$2,
       col1_3: col1_3$1,
       col3: col3$1,
@@ -51787,14 +55093,14 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$K.wrapper, className2), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$U.wrapper, className2), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: clsx(
-                styles$K.separator,
-                row2.padded ? styles$K.padded : void 0
+                styles$U.separator,
+                row2.padded ? styles$U.padded : void 0
               )
             },
             `$usage-sep-${idx}`
@@ -51807,23 +55113,23 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$K.col2 : styles$K.col1_3
+                  row2.secondary ? styles$U.col2 : styles$U.col1_3
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$K.col3, children: row2.value ? formatNumber(row2.value) : "" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$U.col3, children: row2.value ? formatNumber(row2.value) : "" })
           ] }, `$usage-row-${idx}`);
         }
       }) });
     };
-    const table = "_table_z217i_1";
+    const table$1 = "_table_z217i_1";
     const tableTokens = "_tableTokens_z217i_5";
     const tableH = "_tableH_z217i_9";
     const model = "_model_z217i_14";
     const cellContents = "_cellContents_z217i_18";
-    const styles$J = {
-      table,
+    const styles$T = {
+      table: table$1,
       tableTokens,
       tableH,
       model,
@@ -51837,7 +55143,7 @@ self.onmessage = function (e) {
             "table",
             "table-sm",
             "text-size-smaller",
-            styles$J.table,
+            styles$T.table,
             className2
           ),
           children: children2
@@ -51854,7 +55160,7 @@ self.onmessage = function (e) {
               colSpan: 3,
               className: clsx(
                 "card-subheading",
-                styles$J.tableTokens,
+                styles$T.tableTokens,
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -51869,7 +55175,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$J.tableH,
+                styles$T.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -51881,7 +55187,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$J.tableH,
+                styles$T.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -51894,8 +55200,8 @@ self.onmessage = function (e) {
     };
     const TokenRow = ({ model: model2, usage }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.model, styles$J.cellContents), children: model2 }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage, className: clsx(styles$J.cellContents) }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$T.model, styles$T.cellContents), children: model2 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage, className: clsx(styles$T.cellContents) }) })
       ] });
     };
     const ModelTokenTable = ({
@@ -51909,10 +55215,10 @@ self.onmessage = function (e) {
         }) })
       ] });
     };
-    const wrapper$1 = "_wrapper_14r3b_1";
+    const wrapper$2 = "_wrapper_14r3b_1";
     const col2$1 = "_col2_14r3b_16";
-    const styles$I = {
-      wrapper: wrapper$1,
+    const styles$S = {
+      wrapper: wrapper$2,
       col2: col2$1
     };
     const kUsageCardBodyId = "usage-card-body";
@@ -51922,7 +55228,7 @@ self.onmessage = function (e) {
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Usage" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) }) }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$S.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$S.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) }) }) })
       ] });
     };
     const useModelsTab = (evalSpec, evalStats, evalStatus) => {
@@ -51951,13 +55257,13 @@ self.onmessage = function (e) {
       ] }) });
     };
     const panel$2 = "_panel_twp3v_1";
-    const container$9 = "_container_twp3v_7";
-    const styles$H = {
+    const container$c = "_container_twp3v_7";
+    const styles$R = {
       panel: panel$2,
-      container: container$9
+      container: container$c
     };
     const NoContentsPanel = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$H.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$H.container, "text-size-smaller"), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$R.container, "text-size-smaller"), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.noSamples }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: text2 })
       ] }) });
@@ -51996,12 +55302,12 @@ self.onmessage = function (e) {
           "Failed to compute heading HTML. The task, model, or time element can't be found."
         );
       }
-      const task2 = taskEl.innerText;
+      const task = taskEl.innerText;
       const model2 = modelEl.innerText;
       const time = timeEl.innerText;
       const headingHtml = `
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 0.5em; margin-bottom: 2em; justify-content: space-between; border-bottom: solid 1px silver;">
-<div style="font-weight: 600">${task2}</div>
+<div style="font-weight: 600">${task}</div>
 <div style="text-align: center;">${model2}</div>
 <div style="text-align: right;">${time}</div>
 </div>`;
@@ -52010,7 +55316,7 @@ self.onmessage = function (e) {
     const useSampleNavigation = () => {
       const navigate = useNavigate();
       const logDirectory = useStore((state) => state.logs.logs.log_dir);
-      const { logPath, tabId, sampleTabId } = useParams();
+      const { logPath, tabId, sampleTabId } = useLogRouteParams();
       const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       const resolveLogPath = reactExports.useCallback(() => {
         if (logPath) {
@@ -52133,7 +55439,7 @@ self.onmessage = function (e) {
         event
       };
     };
-    const container$8 = "_container_4p85e_2";
+    const container$b = "_container_4p85e_2";
     const dotsContainer = "_dotsContainer_4p85e_8";
     const small = "_small_4p85e_15";
     const medium = "_medium_4p85e_19";
@@ -52142,8 +55448,8 @@ self.onmessage = function (e) {
     const subtle = "_subtle_4p85e_36";
     const primary = "_primary_4p85e_40";
     const visuallyHidden = "_visuallyHidden_4p85e_59";
-    const styles$G = {
-      container: container$8,
+    const styles$Q = {
+      container: container$b,
       dotsContainer,
       small,
       medium,
@@ -52164,30 +55470,30 @@ self.onmessage = function (e) {
         "div",
         {
           className: clsx(
-            styles$G.container,
-            size === "small" ? styles$G.small : size === "medium" ? styles$G.medium : styles$G.large,
+            styles$Q.container,
+            size === "small" ? styles$Q.small : size === "medium" ? styles$Q.medium : styles$Q.large,
             className2
           ),
           role: "status",
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.dotsContainer, children: [...Array(dotsCount)].map((_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Q.dotsContainer, children: [...Array(dotsCount)].map((_2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx(
-                  styles$G.dot,
-                  subtle2 ? styles$G.subtle : styles$G.primary
+                  styles$Q.dot,
+                  subtle2 ? styles$Q.subtle : styles$Q.primary
                 ),
                 style: { animationDelay: `${index2 * 0.2}s` }
               },
               index2
             )) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$G.visuallyHidden, children: text2 })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$Q.visuallyHidden, children: text2 })
           ]
         }
       );
     };
     const progressContainer = "_progressContainer_1cjjr_1";
-    const styles$F = {
+    const styles$P = {
       progressContainer
     };
     const LiveVirtualList = ({
@@ -52268,7 +55574,7 @@ self.onmessage = function (e) {
       const [, forceRender] = reactExports.useState({});
       const forceUpdate = reactExports.useCallback(() => forceRender({}), []);
       const Footer = () => {
-        return showProgress ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$F.progressContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0;
+        return showProgress ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$P.progressContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0;
       };
       reactExports.useEffect(() => {
         const parent = scrollRef == null ? void 0 : scrollRef.current;
@@ -52314,7 +55620,7 @@ self.onmessage = function (e) {
       );
     };
     const item = "_item_5fj0m_6";
-    const styles$E = {
+    const styles$O = {
       item
     };
     const ChatViewVirtualList = reactExports.memo(
@@ -52328,7 +55634,7 @@ self.onmessage = function (e) {
         indented: indented2,
         numbered = true,
         scrollRef,
-        running: running2
+        running
       }) => {
         const collapsedMessages = reactExports.useMemo(() => {
           return resolveMessages(messages);
@@ -52363,7 +55669,7 @@ self.onmessage = function (e) {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx(styles$E.item),
+              className: clsx(styles$O.item),
               "data-index": props["data-index"],
               "data-item-group-index": props["data-item-group-index"],
               "data-item-index": props["data-item-index"],
@@ -52383,8 +55689,8 @@ self.onmessage = function (e) {
             renderRow,
             initialTopMostItemIndex: initialMessageIndex,
             offsetTop: topOffset,
-            live: running2,
-            showProgress: running2,
+            live: running,
+            showProgress: running,
             components: { Item }
           }
         );
@@ -52399,7 +55705,7 @@ self.onmessage = function (e) {
     const noTop = "_noTop_6o9gh_38";
     const chat = "_chat_6o9gh_50";
     const transcriptContainer = "_transcriptContainer_6o9gh_58";
-    const styles$D = {
+    const styles$N = {
       tabPanel,
       tabControls,
       fullWidth: fullWidth$1,
@@ -52413,7 +55719,7 @@ self.onmessage = function (e) {
     const flatBody = "_flatBody_1uw6w_1";
     const iconSmall$1 = "_iconSmall_1uw6w_9";
     const lineBase = "_lineBase_1uw6w_15";
-    const styles$C = {
+    const styles$M = {
       flatBody,
       iconSmall: iconSmall$1,
       lineBase
@@ -52428,28 +55734,28 @@ self.onmessage = function (e) {
       return "Error";
     };
     const FlatSampleError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.flatBody), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$C.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.lineBase, "text-truncate"), children: errorType(message2) })
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$M.flatBody), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$M.iconSmall) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$M.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
     const target = "_target_tv989_1";
     const answer = "_answer_tv989_5";
-    const grid$3 = "_grid_tv989_9";
+    const grid$4 = "_grid_tv989_9";
     const centerLabel = "_centerLabel_tv989_16";
     const centerValue = "_centerValue_tv989_21";
     const wrap = "_wrap_tv989_26";
     const titled = "_titled_tv989_30";
-    const value = "_value_tv989_34";
-    const styles$B = {
+    const value$1 = "_value_tv989_34";
+    const styles$L = {
       target,
       answer,
-      grid: grid$3,
+      grid: grid$4,
       centerLabel,
       centerValue,
       wrap,
       titled,
-      value
+      value: value$1
     };
     function isEvalSample(sample2) {
       return "store" in sample2;
@@ -52520,7 +55826,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: arrayToString((fields == null ? void 0 : fields.target) || "none"),
-              className: clsx("no-last-para-padding", styles$B.target)
+              className: clsx("no-last-para-padding", styles$L.target)
             }
           ),
           size: `minmax(auto, 3fr)`,
@@ -52534,7 +55840,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: fields.answer || "",
-              className: clsx("no-last-para-padding", styles$B.answer)
+              className: clsx("no-last-para-padding", styles$L.answer)
             }
           ) : "",
           size: `minmax(auto, 5fr)`,
@@ -52582,7 +55888,7 @@ self.onmessage = function (e) {
         "div",
         {
           id: `sample-heading-${parent_id}`,
-          className: clsx(styles$B.grid, "text-size-base"),
+          className: clsx(styles$L.grid, "text-size-base"),
           style: {
             gridTemplateColumns: `${columns.map((col) => {
               return col.size;
@@ -52597,8 +55903,8 @@ self.onmessage = function (e) {
                     "text-style-label",
                     "text-style-secondary",
                     "text-size-base",
-                    col.title ? styles$B.titled : void 0,
-                    col.center ? styles$B.centerLabel : void 0
+                    col.title ? styles$L.titled : void 0,
+                    col.center ? styles$L.centerLabel : void 0
                   ),
                   title: col.title,
                   children: col.label
@@ -52611,10 +55917,10 @@ self.onmessage = function (e) {
                 "div",
                 {
                   className: clsx(
-                    styles$B.value,
-                    styles$B.wrap,
+                    styles$L.value,
+                    styles$L.wrap,
                     col.clamp ? "three-line-clamp" : void 0,
-                    col.center ? styles$B.centerValue : void 0
+                    col.center ? styles$L.centerValue : void 0
                   ),
                   children: col.value
                 },
@@ -52637,14 +55943,14 @@ self.onmessage = function (e) {
       );
       return scorerDescriptor == null ? void 0 : scorerDescriptor.render(scoreData.value);
     };
-    const container$7 = "_container_181fj_1";
+    const container$a = "_container_181fj_1";
     const cell$1 = "_cell_181fj_9";
     const fullWidth = "_fullWidth_181fj_13";
     const separator$2 = "_separator_181fj_25";
     const separatorPadded = "_separatorPadded_181fj_30";
     const headerSep = "_headerSep_181fj_35";
-    const styles$A = {
-      container: container$7,
+    const styles$K = {
+      container: container$a,
       cell: cell$1,
       fullWidth,
       separator: separator$2,
@@ -52660,7 +55966,7 @@ self.onmessage = function (e) {
       if (!evalDescriptor) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Sample Selected" });
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2, styles$A.container), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2, styles$K.container), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -52708,7 +56014,7 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx(styles$A.separator, styles$A.fullWidth, styles$A.headerSep)
+            className: clsx(styles$K.separator, styles$K.fullWidth, styles$K.headerSep)
           }
         ),
         Object.keys(evalSample.scores || {}).map((scorer2) => {
@@ -52720,16 +56026,16 @@ self.onmessage = function (e) {
           const answer2 = scoreData.answer;
           let metadata2 = scoreData.metadata || {};
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$A.cell), children: scorer2 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.cell, "text-size-base"), children: answer2 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.cell, "text-size-base"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$K.cell), children: scorer2 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$K.cell, "text-size-base"), children: answer2 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$K.cell, "text-size-base"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleScores,
               {
                 sample: evalSample,
                 scorer: scorer2
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$A.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$K.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               RenderedContent,
               {
                 id: `${scorer2}-explanation`,
@@ -52747,12 +56053,12 @@ self.onmessage = function (e) {
                     "text-size-smaller",
                     "text-style-label",
                     "text-style-secondary",
-                    styles$A.fullWidth
+                    styles$K.fullWidth
                   ),
                   children: "Metadata"
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$K.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 RecordTree,
                 {
                   id: `${scorer2}-metadataa`,
@@ -52765,9 +56071,9 @@ self.onmessage = function (e) {
                 "div",
                 {
                   className: clsx(
-                    styles$A.separator,
-                    styles$A.separatorPadded,
-                    styles$A.fullWidth
+                    styles$K.separator,
+                    styles$K.separatorPadded,
+                    styles$K.fullWidth
                   )
                 }
               )
@@ -52779,7 +56085,7 @@ self.onmessage = function (e) {
     const wordBreak = "_wordBreak_las07_9";
     const scoreCard = "_scoreCard_las07_50";
     const scores = "_scores_las07_54";
-    const styles$z = {
+    const styles$J = {
       wordBreak,
       scoreCard,
       scores
@@ -52812,9 +56118,9 @@ self.onmessage = function (e) {
             "container-fluid",
             className2,
             "font-size-base",
-            styles$z.container
+            styles$J.container
           ),
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Card, { className: clsx(styles$z.scoreCard), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(CardBody, { children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Card, { className: clsx(styles$J.scoreCard), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(CardBody, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -52836,7 +56142,7 @@ self.onmessage = function (e) {
                   MarkdownDiv,
                   {
                     markdown: scoreInput.join("\n"),
-                    className: clsx(styles$z.wordBreak, "text-size-base")
+                    className: clsx(styles$J.wordBreak, "text-size-base")
                   }
                 )
               }
@@ -52845,7 +56151,7 @@ self.onmessage = function (e) {
               SampleScoresGrid,
               {
                 evalSample: sample2,
-                className: clsx(styles$z.scores),
+                className: clsx(styles$J.scores),
                 scrollRef
               }
             )
@@ -55317,24 +58623,24 @@ self.onmessage = function (e) {
     const selected$1 = "_selected_1dssq_8";
     const toggle = "_toggle_1dssq_12";
     const eventLink = "_eventLink_1dssq_17";
-    const label$5 = "_label_1dssq_28";
-    const icon = "_icon_1dssq_34";
+    const label$7 = "_label_1dssq_28";
+    const icon$1 = "_icon_1dssq_34";
     const progress$2 = "_progress_1dssq_38";
     const popover = "_popover_1dssq_42";
-    const styles$y = {
+    const styles$I = {
       eventRow,
       selected: selected$1,
       toggle,
       eventLink,
-      label: label$5,
-      icon,
+      label: label$7,
+      icon: icon$1,
       progress: progress$2,
       popover
     };
     const OutlineRow = ({
       node: node2,
       collapseScope,
-      running: running2,
+      running,
       selected: selected2
     }) => {
       const [collapsed2, setCollapsed] = useCollapseSampleEvent(
@@ -55352,38 +58658,38 @@ self.onmessage = function (e) {
           "div",
           {
             className: clsx(
-              styles$y.eventRow,
+              styles$I.eventRow,
               "text-size-smaller",
-              selected2 ? styles$y.selected : ""
+              selected2 ? styles$I.selected : ""
             ),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
-                  className: clsx(styles$y.toggle),
+                  className: clsx(styles$I.toggle),
                   onClick: () => {
                     setCollapsed(!collapsed2);
                   },
                   children: toggle2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(toggle2) }) : void 0
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$y.label), "data-depth": node2.depth, children: [
-                icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$y.icon) }) : void 0,
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$I.label), "data-depth": node2.depth, children: [
+                icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$I.icon) }) : void 0,
                 sampleEventUrl2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   Link,
                   {
                     to: sampleEventUrl2,
-                    className: clsx(styles$y.eventLink),
+                    className: clsx(styles$I.eventLink),
                     ref,
                     children: parsePackageName(labelForNode(node2)).module
                   }
                 ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, children: parsePackageName(labelForNode(node2)).module }),
-                running2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                running ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   PulsingDots,
                   {
                     size: "small",
-                    className: clsx(styles$y.progress),
+                    className: clsx(styles$I.progress),
                     subtle: false
                   }
                 ) : void 0
@@ -55397,7 +58703,7 @@ self.onmessage = function (e) {
             id: `${node2.id}-popover`,
             positionEl: ref.current,
             isOpen: isShowing,
-            className: clsx(styles$y.popper),
+            className: clsx(styles$I.popper),
             placement: "auto-end",
             children: summarizeNode(node2)
           }
@@ -55513,11 +58819,11 @@ self.onmessage = function (e) {
         {
           entries,
           size: "mini",
-          className: clsx(styles$y.popover, "text-size-smallest")
+          className: clsx(styles$I.popover, "text-size-smallest")
         }
       );
     };
-    const styles$x = {};
+    const styles$H = {};
     const kTurnType = "turn";
     const kTurnsType = "turns";
     const kCollapsedScoring = "scorings";
@@ -55689,7 +58995,7 @@ self.onmessage = function (e) {
     const TranscriptOutline = ({
       eventNodes,
       defaultCollapsedIds,
-      running: running2,
+      running,
       className: className2,
       scrollRef,
       style: style2
@@ -55798,7 +59104,7 @@ self.onmessage = function (e) {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
-                className: styles$x.eventPadding,
+                className: styles$H.eventPadding,
                 style: { height: "2em" }
               },
               node2.id
@@ -55809,14 +59115,14 @@ self.onmessage = function (e) {
               {
                 collapseScope: kCollapseScope,
                 node: node2,
-                running: running2 && index2 === outlineNodeList.length - 1,
+                running: running && index2 === outlineNodeList.length - 1,
                 selected: selectedOutlineId ? selectedOutlineId === node2.id : index2 === 0
               },
               node2.id
             );
           }
         },
-        [outlineNodeList, running2, selectedOutlineId]
+        [outlineNodeList, running, selectedOutlineId]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         Kr,
@@ -55841,14 +59147,14 @@ self.onmessage = function (e) {
         }
       );
     };
-    const container$6 = "_container_1zq6s_1";
+    const container$9 = "_container_1zq6s_1";
     const collapsed = "_collapsed_1zq6s_9";
     const treeContainer = "_treeContainer_1zq6s_13";
     const listContainer = "_listContainer_1zq6s_24";
     const outline = "_outline_1zq6s_28";
     const outlineToggle = "_outlineToggle_1zq6s_32";
-    const styles$w = {
-      container: container$6,
+    const styles$G = {
+      container: container$9,
       collapsed,
       treeContainer,
       listContainer,
@@ -55857,7 +59163,7 @@ self.onmessage = function (e) {
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
-    const styles$v = {
+    const styles$F = {
       title: title$2,
       contents
     };
@@ -55867,12 +59173,12 @@ self.onmessage = function (e) {
       className: className2,
       children: children2
     }) => {
-      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$v.title, className2), children: [
+      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$F.title, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon2 || ApplicationIcons.metadata }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: title2 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 })
       ] }) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$v.contents), children: contentEl });
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$F.contents), children: contentEl });
       return card2;
     };
     const ApprovalEventView = ({
@@ -55923,7 +59229,7 @@ self.onmessage = function (e) {
       }
     };
     const tab = "_tab_1je38_1";
-    const styles$u = {
+    const styles$E = {
       tab
     };
     const EventNav = ({
@@ -55932,7 +59238,7 @@ self.onmessage = function (e) {
       selectedNav,
       setSelectedNav
     }) => {
-      const active2 = target2 === selectedNav;
+      const active = target2 === selectedNav;
       const handleClick = reactExports.useCallback(() => {
         setSelectedNav(target2);
       }, [setSelectedNav, target2]);
@@ -55942,13 +59248,13 @@ self.onmessage = function (e) {
           type: "button",
           role: "tab",
           "aria-controls": target2,
-          "aria-selected": active2,
+          "aria-selected": active,
           className: clsx(
             "nav-link",
-            active2 ? "active " : "",
+            active ? "active " : "",
             "text-style-label",
             "text-size-small",
-            styles$u.tab
+            styles$E.tab
           ),
           onClick: handleClick,
           children: title2
@@ -55956,7 +59262,7 @@ self.onmessage = function (e) {
       ) });
     };
     const navs$1 = "_navs_1vm6p_1";
-    const styles$t = {
+    const styles$D = {
       navs: navs$1
     };
     const EventNavs = ({
@@ -55967,7 +59273,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "ul",
         {
-          className: clsx("nav", "nav-pills", styles$t.navs),
+          className: clsx("nav", "nav-pills", styles$D.navs),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navs2.map((nav2) => {
@@ -55985,7 +59291,7 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_1i908_1";
+    const label$6 = "_label_1i908_1";
     const navs = "_navs_1i908_6";
     const card = "_card_1i908_12";
     const cardContent = "_cardContent_1i908_20";
@@ -55995,8 +59301,8 @@ self.onmessage = function (e) {
     const root$1 = "_root_1i908_45";
     const bottomDongle = "_bottomDongle_1i908_50";
     const dongleIcon = "_dongleIcon_1i908_67";
-    const styles$s = {
-      label: label$4,
+    const styles$C = {
+      label: label$6,
       navs,
       card,
       cardContent,
@@ -56065,7 +59371,7 @@ self.onmessage = function (e) {
         "div",
         {
           title: subTitle,
-          className: clsx("text-size-small", mouseOver ? styles$s.hover : ""),
+          className: clsx("text-size-small", mouseOver ? styles$C.hover : ""),
           style: {
             display: "grid",
             gridTemplateColumns: gridColumns2.join(" "),
@@ -56105,19 +59411,19 @@ self.onmessage = function (e) {
               {
                 value: url,
                 icon: ApplicationIcons.link,
-                className: clsx(styles$s.copyLink)
+                className: clsx(styles$C.copyLink)
               }
             ) : "",
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: toggleCollapse }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
-                className: clsx("text-style-secondary", styles$s.label),
+                className: clsx("text-style-secondary", styles$C.label),
                 onClick: toggleCollapse,
                 children: collapsed2 ? text2 : ""
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.navs, children: isCollapsible && collapsibleContent && collapsed2 ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$C.navs, children: isCollapsible && collapsibleContent && collapsed2 ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index2) => {
@@ -56142,8 +59448,8 @@ self.onmessage = function (e) {
           id: `event-panel-${eventNodeId}`,
           className: clsx(
             className2,
-            styles$s.card,
-            depth === 0 ? styles$s.root : void 0
+            styles$C.card,
+            depth === 0 ? styles$C.root : void 0
           ),
           children: [
             titleEl,
@@ -56152,8 +59458,8 @@ self.onmessage = function (e) {
               {
                 className: clsx(
                   "tab-content",
-                  styles$s.cardContent,
-                  isCollapsible && collapsed2 && collapsibleContent ? styles$s.hidden : void 0
+                  styles$C.cardContent,
+                  isCollapsible && collapsed2 && collapsibleContent ? styles$C.hidden : void 0
                 ),
                 children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
                   const id = pillId(index2);
@@ -56173,7 +59479,7 @@ self.onmessage = function (e) {
             isCollapsible && useBottomDongle ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
-                className: clsx(styles$s.bottomDongle, "text-size-smallest"),
+                className: clsx(styles$C.bottomDongle, "text-size-smallest"),
                 onClick: toggleCollapse,
                 children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -56181,7 +59487,7 @@ self.onmessage = function (e) {
                     {
                       className: clsx(
                         collapsed2 ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down,
-                        styles$s.dongleIcon
+                        styles$C.dongleIcon
                       )
                     }
                   ),
@@ -56229,7 +59535,7 @@ self.onmessage = function (e) {
       );
     };
     const panel$1 = "_panel_vz394_1";
-    const styles$r = {
+    const styles$B = {
       panel: panel$1
     };
     const InfoEventView = ({
@@ -56244,12 +59550,12 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: event.data,
-              className: clsx(styles$r.panel, "text-size-base")
+              className: clsx(styles$B.panel, "text-size-base")
             }
           )
         );
       } else {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$r.panel }));
+        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$B.panel }));
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
@@ -56288,9 +59594,9 @@ self.onmessage = function (e) {
         }
       );
     };
-    const grid$2 = "_grid_1eq5o_1";
-    const styles$q = {
-      grid: grid$2
+    const grid$3 = "_grid_1eq5o_1";
+    const styles$A = {
+      grid: grid$3
     };
     const LoggerEventView = ({
       eventNode,
@@ -56304,7 +59610,7 @@ self.onmessage = function (e) {
           className: className2,
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$q.grid), children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$A.grid), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: obj !== void 0 && obj !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: obj }) : event.message.message }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", "text-style-secondary"), children: [
               event.message.filename,
@@ -56315,10 +59621,10 @@ self.onmessage = function (e) {
         }
       );
     };
-    const container$5 = "_container_1brs9_1";
+    const container$8 = "_container_1brs9_1";
     const title$1 = "_title_1brs9_5";
-    const styles$p = {
-      container: container$5,
+    const styles$z = {
+      container: container$8,
       title: title$1
     };
     const EventSection = ({
@@ -56326,18 +59632,18 @@ self.onmessage = function (e) {
       children: children2,
       className: className2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$p.container, className2), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$z.container, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx("text-size-small", "text-style-label", styles$p.title),
+            className: clsx("text-size-small", "text-style-label", styles$z.title),
             children: title2
           }
         ),
         children2
       ] });
     };
-    const container$4 = "_container_e0l2n_1";
+    const container$7 = "_container_e0l2n_1";
     const all = "_all_e0l2n_6";
     const tableSelection = "_tableSelection_e0l2n_12";
     const codePre = "_codePre_e0l2n_22";
@@ -56345,8 +59651,8 @@ self.onmessage = function (e) {
     const progress$1 = "_progress_e0l2n_34";
     const toolConfig = "_toolConfig_e0l2n_38";
     const toolChoice = "_toolChoice_e0l2n_46";
-    const styles$o = {
-      container: container$4,
+    const styles$y = {
+      container: container$7,
       all,
       tableSelection,
       codePre,
@@ -56355,14 +59661,14 @@ self.onmessage = function (e) {
       toolConfig,
       toolChoice
     };
-    const wrapper = "_wrapper_45f60_1";
+    const wrapper$1 = "_wrapper_45f60_1";
     const col2 = "_col2_45f60_8";
     const col1_3 = "_col1_3_45f60_12";
     const col3 = "_col3_45f60_16";
     const separator$1 = "_separator_45f60_20";
     const topMargin = "_topMargin_45f60_26";
-    const styles$n = {
-      wrapper,
+    const styles$x = {
+      wrapper: wrapper$1,
       col2,
       col1_3,
       col3,
@@ -56429,9 +59735,9 @@ self.onmessage = function (e) {
           });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$n.wrapper), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$x.wrapper), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.separator }, `$usage-sep-${idx}`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$x.separator }, `$usage-sep-${idx}`);
         } else {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -56440,13 +59746,13 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$n.col2 : styles$n.col1_3,
-                  row2.topMargin ? styles$n.topMargin : void 0
+                  row2.secondary ? styles$x.col2 : styles$x.col1_3,
+                  row2.topMargin ? styles$x.topMargin : void 0
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.col3, children: row2.value ? row2.value : "" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$x.col3, children: row2.value ? row2.value : "" })
           ] }, `$usage-row-${idx}`);
         }
       }) });
@@ -56502,7 +59808,7 @@ self.onmessage = function (e) {
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.model,
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$o.container, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$y.container, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
@@ -56512,20 +59818,20 @@ self.onmessage = function (e) {
                   toolCallStyle: "omit"
                 }
               ),
-              event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
+              event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$y.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$o.container, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$o.all, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$y.container, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$y.all, children: [
                 Object.keys(entries).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventSection,
                   {
                     title: "Configuration",
-                    className: styles$o.tableSelection,
+                    className: styles$y.tableSelection,
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true })
                   }
                 ),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$o.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Timing", className: styles$o.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$y.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Timing", className: styles$y.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventTimingPanel,
                   {
                     timestamp: event.timestamp,
@@ -56543,13 +59849,13 @@ self.onmessage = function (e) {
                 }
               ) })
             ] }),
-            event.tools.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Tools", className: styles$o.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools, toolChoice: event.tool_choice }) }),
+            event.tools.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Tools", className: styles$y.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools, toolChoice: event.tool_choice }) }),
             event.call ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               APIView,
               {
                 "data-name": "API",
                 call: event.call,
-                className: styles$o.container
+                className: styles$y.container
               }
             ) : ""
           ]
@@ -56573,11 +59879,11 @@ self.onmessage = function (e) {
       if (!contents2) {
         return null;
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$o.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$y.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
           id,
-          className: clsx("language-json", styles$o.code, "text-size-small"),
+          className: clsx("language-json", styles$y.code, "text-size-small"),
           children: sourceCode
         }
       ) }) });
@@ -56590,8 +59896,8 @@ self.onmessage = function (e) {
         ] }, `${tool2.name}-${idx}`);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.toolConfig, "text-size-small"), children: toolEls }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$o.toolChoice, "text-size-small"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$y.toolConfig, "text-size-small"), children: toolEls }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$y.toolChoice, "text-size-small"), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
         ] })
@@ -56613,7 +59919,7 @@ self.onmessage = function (e) {
     const sample = "_sample_1a3fk_10";
     const section = "_section_1a3fk_14";
     const metadata$1 = "_metadata_1a3fk_21";
-    const styles$m = {
+    const styles$w = {
       noMargin,
       code: code$1,
       sample,
@@ -56630,13 +59936,13 @@ self.onmessage = function (e) {
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.noMargin, children: file }, `sample-init-file-${file}`);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$w.noMargin, children: file }, `sample-init-file-${file}`);
           }) }, `event-${eventNode.id}`)
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `${eventNode.id}-section-setup`)
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$w.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `${eventNode.id}-section-setup`)
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -56649,7 +59955,7 @@ self.onmessage = function (e) {
           icon: ApplicationIcons.sample,
           subTitle: formatDateTime(new Date(event.timestamp)),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$m.sample, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$w.sample, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { messages: stateObj["messages"] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 event.sample.choices ? event.sample.choices.map((choice, index2) => {
@@ -56659,7 +59965,7 @@ self.onmessage = function (e) {
                     choice
                   ] }, `$choice-{choice}`);
                 }) : "",
-                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$m.section, children: sections }) : "",
+                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$w.section, children: sections }) : "",
                 event.sample.target ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base"), children: target2 }, target2);
                 }) }) : void 0
@@ -56669,7 +59975,7 @@ self.onmessage = function (e) {
               MetaDataGrid,
               {
                 "data-name": "Metadata",
-                className: styles$m.metadata,
+                className: styles$w.metadata,
                 entries: event.sample.metadata
               }
             ) : ""
@@ -56732,7 +60038,7 @@ self.onmessage = function (e) {
     const result = "_result_1irga_19";
     const fileLabel = "_fileLabel_1irga_23";
     const wrapPre = "_wrapPre_1irga_28";
-    const styles$l = {
+    const styles$v = {
       twoColumn,
       exec,
       result,
@@ -56766,10 +60072,10 @@ self.onmessage = function (e) {
       const input2 = event.input;
       const result2 = event.result;
       const output2 = event.output ? event.output.trim() : void 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.exec), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.twoColumn), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.wrapPre), children: cmd2 }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }),
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$v.exec), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$v.twoColumn), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$v.wrapPre), children: cmd2 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$v.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }),
           options2 !== null && Object.keys(options2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataGrid,
             {
@@ -56786,7 +60092,7 @@ self.onmessage = function (e) {
               entry: { name: "sandbox_output", value: output2 }
             }
           ) }) : void 0,
-          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.result, "text-size-base"), children: [
+          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$v.result, "text-size-base"), children: [
             "(exited with code ",
             result2,
             ")"
@@ -56812,14 +60118,14 @@ self.onmessage = function (e) {
     };
     const FileView = ({ id, file, contents: contents2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "File", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.fileLabel), children: file }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "File", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$v.fileLabel), children: file }) }),
         contents2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-file`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: contents2 }) }) }) : void 0
       ] });
     };
     const explanation = "_explanation_1ww42_1";
     const separator = "_separator_1ww42_8";
     const metadata = "_metadata_1ww42_13";
-    const styles$k = {
+    const styles$u = {
       explanation,
       separator,
       metadata
@@ -56841,28 +60147,28 @@ self.onmessage = function (e) {
           icon: ApplicationIcons.scorer,
           collapsibleContent: true,
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$k.explanation), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$u.explanation), children: [
               event.target ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$k.separator) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Target" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: resolvedTarget || "" }) })
               ] }) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$k.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Answer" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.answer || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$k.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Explanation" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.explanation || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$k.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Score" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: renderScore(event.score.value) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$k.separator) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$u.separator) })
             ] }),
             event.score.metadata ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Metadata", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataGrid,
               {
                 entries: event.score.metadata,
-                className: styles$k.metadata
+                className: styles$u.metadata
               }
             ) }) : void 0
           ]
@@ -57007,14 +60313,14 @@ self.onmessage = function (e) {
         if (!this.processor) {
           throw new Error("add this pipe to a processor before using it");
         }
-        const debug = this.debug;
+        const debug2 = this.debug;
         const length = this.filters.length;
         const context = input2;
         for (let index2 = 0; index2 < length; index2++) {
           const filter = this.filters[index2];
           if (!filter)
             continue;
-          if (debug) {
+          if (debug2) {
             this.log(`filter: ${filter.filterName}`);
           }
           filter(context);
@@ -57053,19 +60359,19 @@ self.onmessage = function (e) {
       list() {
         return this.filters.map((f) => f.filterName);
       }
-      after(filterName, ...params2) {
+      after(filterName, ...params) {
         const index2 = this.indexOf(filterName);
-        this.filters.splice(index2 + 1, 0, ...params2);
+        this.filters.splice(index2 + 1, 0, ...params);
         return this;
       }
-      before(filterName, ...params2) {
+      before(filterName, ...params) {
         const index2 = this.indexOf(filterName);
-        this.filters.splice(index2, 0, ...params2);
+        this.filters.splice(index2, 0, ...params);
         return this;
       }
-      replace(filterName, ...params2) {
+      replace(filterName, ...params) {
         const index2 = this.indexOf(filterName);
-        this.filters.splice(index2, 1, ...params2);
+        this.filters.splice(index2, 1, ...params);
         return this;
       }
       remove(filterName) {
@@ -58522,7 +61828,7 @@ self.onmessage = function (e) {
       if (typeof time === "number") {
         return time;
       } else if (typeof time === "string") {
-        return time.split(":").reverse().map(parseFloat).reduce((sum, n, i2) => sum + n * Math.pow(60, i2));
+        return time.split(":").reverse().map(parseFloat).reduce((sum2, n, i2) => sum2 + n * Math.pow(60, i2));
       } else {
         return void 0;
       }
@@ -58669,15 +61975,15 @@ self.onmessage = function (e) {
       }
       if (Array.isArray(val)) {
         const length = val.length;
-        let debug = "[";
+        let debug2 = "[";
         if (length > 0) {
-          debug += debugString(val[0]);
+          debug2 += debugString(val[0]);
         }
         for (let i2 = 1; i2 < length; i2++) {
-          debug += ", " + debugString(val[i2]);
+          debug2 += ", " + debugString(val[i2]);
         }
-        debug += "]";
-        return debug;
+        debug2 += "]";
+        return debug2;
       }
       const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
       let className2;
@@ -60675,7 +63981,7 @@ ${events}
       let rows;
       let timing = (await responses[0].text()).split("\n").filter((line2) => line2.length > 0).map((line2) => line2.split(" "));
       if (timing[0].length < 3) {
-        timing = timing.map((entry2) => ["O", entry2[0], entry2[1]]);
+        timing = timing.map((entry) => ["O", entry[0], entry[1]]);
       }
       const buffer2 = await responses[1].arrayBuffer();
       const array = new Uint8Array(buffer2);
@@ -60701,28 +64007,28 @@ ${events}
       }
       const events = [];
       let time = 0;
-      for (const entry2 of timing) {
-        time += parseFloat(entry2[1]);
-        if (entry2[0] === "O") {
-          const count = parseInt(entry2[2], 10);
-          const bytes = stdout.array.subarray(stdout.cursor, stdout.cursor + count);
+      for (const entry of timing) {
+        time += parseFloat(entry[1]);
+        if (entry[0] === "O") {
+          const count2 = parseInt(entry[2], 10);
+          const bytes = stdout.array.subarray(stdout.cursor, stdout.cursor + count2);
           const text2 = textDecoder.decode(bytes);
           events.push([time, "o", text2]);
-          stdout.cursor += count;
-        } else if (entry2[0] === "I") {
-          const count = parseInt(entry2[2], 10);
-          const bytes = stdin.array.subarray(stdin.cursor, stdin.cursor + count);
+          stdout.cursor += count2;
+        } else if (entry[0] === "I") {
+          const count2 = parseInt(entry[2], 10);
+          const bytes = stdin.array.subarray(stdin.cursor, stdin.cursor + count2);
           const text2 = textDecoder.decode(bytes);
           events.push([time, "i", text2]);
-          stdin.cursor += count;
-        } else if (entry2[0] === "S" && entry2[2] === "SIGWINCH") {
-          const cols2 = parseInt(entry2[4].slice(5), 10);
-          const rows2 = parseInt(entry2[3].slice(5), 10);
+          stdin.cursor += count2;
+        } else if (entry[0] === "S" && entry[2] === "SIGWINCH") {
+          const cols2 = parseInt(entry[4].slice(5), 10);
+          const rows2 = parseInt(entry[3].slice(5), 10);
           events.push([time, "r", `${cols2}x${rows2}`]);
-        } else if (entry2[0] === "H" && entry2[2] === "COLUMNS") {
-          cols = parseInt(entry2[3], 10);
-        } else if (entry2[0] === "H" && entry2[2] === "LINES") {
-          rows = parseInt(entry2[3], 10);
+        } else if (entry[0] === "H" && entry[2] === "COLUMNS") {
+          cols = parseInt(entry[3], 10);
+        } else if (entry[0] === "H" && entry[2] === "LINES") {
+          rows = parseInt(entry[3], 10);
         }
       }
       cols = cols ?? 80;
@@ -63813,7 +67119,7 @@ ${events}
     const lightboxButtonCloseWrapper = "_lightboxButtonCloseWrapper_1mvg8_45";
     const lightboxButtonClose = "_lightboxButtonClose_1mvg8_45";
     const lightboxPreviewButton = "_lightboxPreviewButton_1mvg8_63";
-    const styles$j = {
+    const styles$t = {
       carouselThumbs,
       carouselThumb,
       carouselPlayIcon,
@@ -63882,12 +67188,12 @@ ${events}
         [openLightbox]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("lightbox-carousel-container"), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$j.carouselThumbs), children: slides.map((slide, index2) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.carouselThumbs), children: slides.map((slide, index2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
               "data-index": index2,
-              className: clsx(styles$j.carouselThumb),
+              className: clsx(styles$t.carouselThumb),
               onClick: handleThumbClick,
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: slide.label }),
@@ -63896,7 +67202,7 @@ ${events}
                   {
                     className: clsx(
                       ApplicationIcons.play,
-                      styles$j.carouselPlayIcon
+                      styles$t.carouselPlayIcon
                     )
                   }
                 ) })
@@ -63908,12 +67214,12 @@ ${events}
         showOverlay && /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$j.lightboxOverlay, isOpen ? "open" : "closed"),
+            className: clsx(styles$t.lightboxOverlay, isOpen ? "open" : "closed"),
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$j.lightboxButtonCloseWrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$t.lightboxButtonCloseWrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
-                  className: styles$j.lightboxButtonClose,
+                  className: styles$t.lightboxButtonClose,
                   onClick: closeLightbox,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
                 }
@@ -63921,7 +67227,7 @@ ${events}
               slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
-                  className: clsx(styles$j.lightboxPreviewButton, "prev"),
+                  className: clsx(styles$t.lightboxPreviewButton, "prev"),
                   onClick: showPrev,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.previous })
                 }
@@ -63929,7 +67235,7 @@ ${events}
               slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
-                  className: clsx(styles$j.lightboxPreviewButton, "next"),
+                  className: clsx(styles$t.lightboxPreviewButton, "next"),
                   onClick: showNext,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.next })
                 }
@@ -63937,7 +67243,7 @@ ${events}
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
-                  className: clsx(styles$j.lightboxContent, isOpen ? "open" : "closed"),
+                  className: clsx(styles$t.lightboxContent, isOpen ? "open" : "closed"),
                   children: slides[currentIndex].render()
                 },
                 `carousel-slide-${currentIndex}`
@@ -63948,11 +67254,11 @@ ${events}
       ] });
     };
     const HumanBaselineView = ({
-      started,
+      started: started2,
       runtime,
       answer: answer2,
       completed,
-      running: running2,
+      running,
       sessionLogs
     }) => {
       const player_fns = [];
@@ -63968,11 +67274,11 @@ ${events}
           revokableUrls.forEach((url) => URL.revokeObjectURL(url));
         };
       }, []);
-      let count = 1;
+      let count2 = 1;
       for (const sessionLog of sessionLogs) {
         const rows = extractSize(sessionLog.output, "LINES", 24);
         const cols = extractSize(sessionLog.output, "COLUMNS", 80);
-        const currentCount = count;
+        const currentCount = count2;
         const title2 = sessionLogs.length === 1 ? "Terminal Session" : `Terminal Session ${currentCount}`;
         player_fns.push({
           label: title2,
@@ -63994,14 +67300,14 @@ ${events}
             }
           )
         });
-        count += 1;
+        count2 += 1;
       }
       const StatusMessage = ({
         completed: completed2,
-        running: running22,
+        running: running2,
         answer: answer22
       }) => {
-        if (running22) {
+        if (running2) {
           return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-style-label", children: "Running" });
         } else if (completed2) {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
@@ -64020,7 +67326,7 @@ ${events}
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "asciinema-wrapper", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "asciinema-container", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "asciinema-header-left text-style-label", children: [
-          started ? formatDateTime(started) : "",
+          started2 ? formatDateTime(started2) : "",
           runtime ? ` (${formatTime$1(Math.floor(runtime))})` : ""
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "asciinema-header-center text-style-label" }),
@@ -64028,7 +67334,7 @@ ${events}
           StatusMessage,
           {
             completed,
-            running: running2,
+            running,
             answer: answer2
           }
         ) }),
@@ -64048,7 +67354,7 @@ ${events}
     const toolsGrid = "_toolsGrid_1qqm2_1";
     const tools = "_tools_1qqm2_1";
     const tool = "_tool_1qqm2_1";
-    const styles$i = {
+    const styles$s = {
       toolsGrid,
       tools,
       tool
@@ -64110,13 +67416,13 @@ ${events}
         remove: []
       },
       render: (_changes, state) => {
-        const started = state[humanAgentKey("started_running")];
+        const started2 = state[humanAgentKey("started_running")];
         const runtime = state[humanAgentKey("accumulated_time")];
         const answer2 = state[humanAgentKey("answer")];
         const completed = !!answer2;
-        const running2 = state[humanAgentKey("running_state")];
+        const running = state[humanAgentKey("running_state")];
         const rawSessions = state[humanAgentKey("logs")];
-        const startedDate = started ? new Date(started * 1e3) : void 0;
+        const startedDate = started2 ? new Date(started2 * 1e3) : void 0;
         const sessions = {};
         if (rawSessions) {
           for (const key2 of Object.keys(rawSessions)) {
@@ -64149,7 +67455,7 @@ ${events}
           HumanBaselineView,
           {
             started: startedDate,
-            running: running2,
+            running,
             completed,
             answer: answer2,
             runtime,
@@ -64192,7 +67498,7 @@ ${events}
           toolsInfo["Tools"] = /* @__PURE__ */ jsxRuntimeExports.jsx(Tools, { toolDefinitions: filtered });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$i.tools), children: Object.keys(toolsInfo).map((key2) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$s.tools), children: Object.keys(toolsInfo).map((key2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
@@ -64245,7 +67551,7 @@ ${events}
       human_baseline_session
     ];
     const Tools = ({ toolDefinitions }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$i.toolsGrid, children: toolDefinitions.map((toolDefinition, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.toolsGrid, children: toolDefinitions.map((toolDefinition, idx) => {
         var _a2;
         const toolName = toolDefinition.name;
         const toolArgs = ((_a2 = toolDefinition.parameters) == null ? void 0 : _a2.properties) ? Object.keys(toolDefinition.parameters.properties) : [];
@@ -64261,11 +67567,11 @@ ${events}
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-smallest", styles$i.tool), children: functionCall });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-smallest", styles$s.tool), children: functionCall });
     };
     const diff = "_diff_eobja_1";
     const summary$2 = "_summary_eobja_6";
-    const styles$h = {
+    const styles$r = {
       diff,
       summary: summary$2
     };
@@ -64310,14 +67616,14 @@ ${events}
           text: !changePreview ? summary2 : void 0,
           collapsibleContent: true,
           children: [
-            changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$h.summary), children: changePreview }) : void 0,
+            changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$r.summary), children: changePreview }) : void 0,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               StateDiffView,
               {
                 before,
                 after,
                 "data-name": "Diff",
-                className: clsx(styles$h.diff)
+                className: clsx(styles$r.diff)
               }
             )
           ]
@@ -64545,11 +67851,11 @@ ${events}
       if (children2.length === 0) {
         return "(no events)";
       }
-      const formatEvent = (event, count) => {
-        if (count === 1) {
-          return `${count} ${event} event`;
+      const formatEvent = (event, count2) => {
+        if (count2 === 1) {
+          return `${count2} ${event} event`;
         } else {
-          return `${count} ${event} events`;
+          return `${count2} ${event} events`;
         }
       };
       const typeCount = {};
@@ -64642,7 +67948,7 @@ ${events}
     const summaryRendered = "_summaryRendered_ac4z2_6";
     const subtaskSummary = "_subtaskSummary_ac4z2_10";
     const subtaskLabel = "_subtaskLabel_ac4z2_17";
-    const styles$g = {
+    const styles$q = {
       summary: summary$1,
       summaryRendered,
       subtaskSummary,
@@ -64657,9 +67963,9 @@ ${events}
       const body2 = [];
       if (event.type === "fork") {
         body2.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$g.summary), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$q.summary), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$g.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) })
           ] })
         );
       } else {
@@ -64695,12 +68001,12 @@ ${events}
     };
     const SubtaskSummary = ({ input: input2, result: result2 }) => {
       const output2 = typeof result2 === "object" ? result2 : { result: result2 };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$g.subtaskSummary), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$q.subtaskSummary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Input" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$g.subtaskLabel) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$q.subtaskLabel) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Output" }),
         input2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$g.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$q.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: output2 }) })
       ] });
     };
@@ -64713,7 +68019,7 @@ ${events}
         if (Object.keys(values).length === 0) {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(None, {});
         } else {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: values });
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: values });
         }
       } else {
         return values;
@@ -64725,7 +68031,7 @@ ${events}
     const summary = "_summary_1qsnv_1";
     const approval = "_approval_1qsnv_6";
     const progress = "_progress_1qsnv_12";
-    const styles$f = {
+    const styles$p = {
       summary,
       approval,
       progress
@@ -64765,7 +68071,7 @@ ${events}
           icon: ApplicationIcons.solvers.use_tools,
           childIds: children2.map((child) => child.id),
           collapseControl: "bottom",
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$f.summary, children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$p.summary, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolCallView,
               {
@@ -64791,10 +68097,10 @@ ${events}
               ApprovalEventView,
               {
                 eventNode: approvalNode,
-                className: styles$f.approval
+                className: styles$p.approval
               }
             ) : "",
-            event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$f.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
+            event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$p.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
           ] })
         }
       );
@@ -64826,11 +68132,11 @@ ${events}
       if (children2.length === 0) {
         return "(no events)";
       }
-      const formatEvent = (event, count) => {
-        if (count === 1) {
-          return `${count} ${event} event`;
+      const formatEvent = (event, count2) => {
+        if (count2 === 1) {
+          return `${count2} ${event} event`;
         } else {
-          return `${count} ${event} events`;
+          return `${count2} ${event} events`;
         }
       };
       const typeCount = {};
@@ -64923,7 +68229,7 @@ ${events}
     const attached = "_attached_1r858_5";
     const attachedParent = "_attachedParent_1r858_9";
     const attachedChild = "_attachedChild_1r858_16";
-    const styles$e = {
+    const styles$o = {
       node,
       attached,
       attachedParent,
@@ -64933,7 +68239,7 @@ ${events}
       id,
       eventNodes,
       scrollRef,
-      running: running2,
+      running,
       initialEventId,
       offsetTop,
       className: className2
@@ -64949,21 +68255,21 @@ ${events}
       }, [initialEventId, eventNodes]);
       const renderRow = reactExports.useCallback(
         (index2, item2) => {
-          const paddingClass = index2 === 0 ? styles$e.first : void 0;
+          const paddingClass = index2 === 0 ? styles$o.first : void 0;
           const previousIndex = index2 - 1;
           const nextIndex = index2 + 1;
           const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
           const next = nextIndex < eventNodes.length ? eventNodes[nextIndex] : void 0;
           const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
           const attachedParent2 = item2.event.event === "model" && (next == null ? void 0 : next.event.event) === "tool";
-          const attachedClass = attached2 ? styles$e.attached : void 0;
-          const attachedChildClass = attached2 ? styles$e.attachedChild : void 0;
-          const attachedParentClass = attachedParent2 ? styles$e.attachedParent : void 0;
+          const attachedClass = attached2 ? styles$o.attached : void 0;
+          const attachedChildClass = attached2 ? styles$o.attachedChild : void 0;
+          const attachedParentClass = attachedParent2 ? styles$o.attachedParent : void 0;
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               id: item2.id,
-              className: clsx(styles$e.node, paddingClass, attachedClass),
+              className: clsx(styles$o.node, paddingClass, attachedClass),
               style: {
                 paddingLeft: `${item2.depth <= 1 ? item2.depth * 0.7 : (0.7 + item2.depth - 1) * 1}em`,
                 paddingRight: `${item2.depth === 0 ? void 0 : ".7em"} `
@@ -64991,7 +68297,7 @@ ${events}
           initialTopMostItemIndex: initialEventIndex,
           offsetTop,
           renderRow,
-          live: running2
+          live: running
         }
       );
     };
@@ -65002,7 +68308,7 @@ ${events}
           scrollRef,
           eventNodes,
           defaultCollapsedIds,
-          running: running2,
+          running,
           initialEventId,
           offsetTop,
           className: className2
@@ -65030,7 +68336,7 @@ ${events}
             initialEventId,
             offsetTop,
             scrollRef,
-            running: running2,
+            running,
             className: className2
           }
         );
@@ -65176,9 +68482,9 @@ ${events}
         }
       }
     );
-    const useEventNodes = (events, running2) => {
+    const useEventNodes = (events, running) => {
       const { eventTree, defaultCollapsedIds } = reactExports.useMemo(() => {
-        const resolvedEvents = fixupEventStream(events, !running2);
+        const resolvedEvents = fixupEventStream(events, !running);
         const eventTree2 = treeifyEvents(resolvedEvents, 0);
         const defaultCollapsedIds2 = {};
         const findCollapsibleEvents = (nodes) => {
@@ -65195,7 +68501,7 @@ ${events}
         };
         findCollapsibleEvents(eventTree2);
         return { eventTree: eventTree2, defaultCollapsedIds: defaultCollapsedIds2 };
-      }, [events, running2]);
+      }, [events, running]);
       return { eventNodes: eventTree, defaultCollapsedIds };
     };
     const collapseFilters = [
@@ -65210,12 +68516,12 @@ ${events}
       (event) => event.event === "subtask"
     ];
     const TranscriptPanel = reactExports.memo((props) => {
-      let { id, scrollRef, events, running: running2, initialEventId, topOffset } = props;
+      let { id, scrollRef, events, running, initialEventId, topOffset } = props;
       const { eventNodes, defaultCollapsedIds } = useEventNodes(
         events,
-        running2 === true
+        running === true
       );
-      const { logPath } = useParams();
+      const { logPath } = useLogRouteParams();
       const [collapsed2, setCollapsed] = useCollapsedState(
         `transcript-panel-${logPath || "na"}`,
         false
@@ -65224,23 +68530,23 @@ ${events}
         "div",
         {
           className: clsx(
-            styles$w.container,
-            collapsed2 ? styles$w.collapsed : void 0
+            styles$G.container,
+            collapsed2 ? styles$G.collapsed : void 0
           ),
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs(
               StickyScroll,
               {
                 scrollRef,
-                className: styles$w.treeContainer,
+                className: styles$G.treeContainer,
                 offsetTop: topOffset,
                 children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     TranscriptOutline,
                     {
-                      className: clsx(styles$w.outline),
+                      className: clsx(styles$G.outline),
                       eventNodes,
-                      running: running2,
+                      running,
                       defaultCollapsedIds,
                       scrollRef
                     }
@@ -65248,7 +68554,7 @@ ${events}
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
-                      className: styles$w.outlineToggle,
+                      className: styles$G.outlineToggle,
                       onClick: () => setCollapsed(!collapsed2),
                       children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.sidebar })
                     }
@@ -65263,10 +68569,10 @@ ${events}
                 eventNodes,
                 defaultCollapsedIds,
                 scrollRef,
-                running: running2,
+                running,
                 initialEventId: initialEventId === void 0 ? null : initialEventId,
                 offsetTop: topOffset,
-                className: styles$w.listContainer
+                className: styles$G.listContainer
               }
             )
           ]
@@ -65313,10 +68619,9 @@ ${events}
       }, [sample2 == null ? void 0 : sample2.messages, runningSampleData]);
       const {
         logPath: urlLogPath,
-        tabId: urlTabId,
         sampleId: urlSampleId,
         epoch: urlEpoch
-      } = useParams();
+      } = useLogRouteParams();
       const onSelectedTab = reactExports.useCallback(
         (e) => {
           const el = e.currentTarget;
@@ -65327,15 +68632,7 @@ ${events}
             navigate(url);
           }
         },
-        [
-          sampleTabId,
-          urlLogPath,
-          urlTabId,
-          urlSampleId,
-          urlEpoch,
-          navigate,
-          setSelectedTab
-        ]
+        [sampleTabId, urlLogPath, urlSampleId, urlEpoch, navigate, setSelectedTab]
       );
       const sampleMetadatas = metadataViewsForSample(
         `${baseId}-${id}`,
@@ -65361,7 +68658,7 @@ ${events}
           )
         );
       }
-      const running2 = reactExports.useMemo(() => {
+      const running = reactExports.useMemo(() => {
         return isRunning(sampleSummary, runningSampleData);
       }, [sampleSummary, runningSampleData]);
       const sampleDetailNavigation = useSampleDetailNavigation();
@@ -65372,16 +68669,16 @@ ${events}
           {
             id: tabsetId,
             tabsRef,
-            className: clsx(styles$D.tabControls),
+            className: clsx(styles$N.tabControls),
             tabControlsClassName: clsx("text-size-base"),
-            tabPanelsClassName: clsx(styles$D.tabPanel),
+            tabPanelsClassName: clsx(styles$N.tabPanel),
             tools: tools2,
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleTranscriptTabId,
-                  className: clsx("sample-tab", styles$D.transcriptContainer),
+                  className: clsx("sample-tab", styles$N.transcriptContainer),
                   title: "Transcript",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleTranscriptTabId || effectiveSelectedTab === void 0,
@@ -65393,7 +68690,7 @@ ${events}
                       events: sampleEvents || [],
                       initialEventId: sampleDetailNavigation.event,
                       topOffset: tabsHeight,
-                      running: running2,
+                      running,
                       scrollRef
                     },
                     `${baseId}-transcript-display-${id}`
@@ -65405,7 +68702,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMessagesTabId,
-                  className: clsx("sample-tab", styles$D.fullWidth, styles$D.chat),
+                  className: clsx("sample-tab", styles$N.fullWidth, styles$N.chat),
                   title: "Messages",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleMessagesTabId,
@@ -65420,7 +68717,7 @@ ${events}
                       indented: true,
                       scrollRef,
                       toolCallStyle: "complete",
-                      running: running2
+                      running
                     },
                     `${baseId}-chat-${id}`
                   )
@@ -65439,7 +68736,7 @@ ${events}
                     SampleScoresView,
                     {
                       sample: sample2,
-                      className: styles$D.padded,
+                      className: styles$N.padded,
                       scrollRef
                     }
                   )
@@ -65454,7 +68751,7 @@ ${events}
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleMetdataTabId,
-                  children: !sample2 || sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.padded, styles$D.fullWidth), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
+                  children: !sample2 || sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$N.padded, styles$N.fullWidth), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
               (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) && (sample2 == null ? void 0 : sample2.error_retries.length) > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -65465,14 +68762,14 @@ ${events}
                   title: "Errors",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$D.error), children: [
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$N.error), children: [
                     (sample2 == null ? void 0 : sample2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
                       /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Sample Error` }),
                       /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                         ANSIDisplay,
                         {
                           output: sample2.error.traceback_ansi,
-                          className: clsx("text-size-small", styles$D.ansi),
+                          className: clsx("text-size-small", styles$N.ansi),
                           style: {
                             fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                             margin: "0.5em 0"
@@ -65487,7 +68784,7 @@ ${events}
                           ANSIDisplay,
                           {
                             output: retry.traceback_ansi,
-                            className: clsx("text-size-small", styles$D.ansi),
+                            className: clsx("text-size-small", styles$N.ansi),
                             style: {
                               fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                               margin: "0.5em 0"
@@ -65507,7 +68804,7 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleJsonTabId,
-                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : estimateSize(sample2.events) > 25e4 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large to display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.padded, styles$D.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : estimateSize(sample2.events) > 25e4 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large to display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$N.padded, styles$N.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     JSONPanel,
                     {
                       data: sample2,
@@ -65535,7 +68832,7 @@ ${events}
               ModelTokenTable,
               {
                 model_usage: sample2.model_usage,
-                className: clsx(styles$D.noTop)
+                className: clsx(styles$N.noTop)
               }
             ) })
           ] }, `sample-usage-${id}`)
@@ -65553,7 +68850,7 @@ ${events}
                   Working: formatTime$1(sample2.working_time),
                   Total: formatTime$1(sample2.total_time)
                 },
-                className: clsx("tab-pane", styles$D.noTop),
+                className: clsx("tab-pane", styles$N.noTop),
                 scrollRef
               }
             ) })
@@ -65569,7 +68866,7 @@ ${events}
               {
                 id: `task-sample-metadata-${id}`,
                 record: sample2 == null ? void 0 : sample2.metadata,
-                className: clsx("tab-pane", styles$D.noTop),
+                className: clsx("tab-pane", styles$N.noTop),
                 scrollRef
               }
             ) })
@@ -65585,7 +68882,7 @@ ${events}
               {
                 id: `task-sample-store-${id}`,
                 record: sample2 == null ? void 0 : sample2.store,
-                className: clsx("tab-pane", styles$D.noTop),
+                className: clsx("tab-pane", styles$N.noTop),
                 scrollRef,
                 processStore: true
               }
@@ -65661,10 +68958,10 @@ ${events}
       }
       return false;
     };
-    const container$3 = "_container_ly812_1";
+    const container$6 = "_container_ly812_1";
     const scroller = "_scroller_ly812_7";
-    const styles$d = {
-      container: container$3,
+    const styles$n = {
+      container: container$6,
       scroller
     };
     const InlineSampleDisplay = () => {
@@ -65703,14 +69000,14 @@ ${events}
         sampleData.sampleNeedsReload
       ]);
       const scrollRef = reactExports.useRef(null);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$d.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           ProgressBar,
           {
             animating: sampleData.status === "loading" || sampleData.status === "streaming"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$d.scroller), ref: scrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$d.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.scroller), ref: scrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           ErrorPanel,
           {
             title: "Unable to load sample",
@@ -65723,22 +69020,22 @@ ${events}
     const detail = "_detail_yj2nt_5";
     const detailText = "_detailText_yj2nt_13";
     const close = "_close_yj2nt_18";
-    const modal = "_modal_yj2nt_26";
+    const modal$1 = "_modal_yj2nt_26";
     const hidden = "_hidden_yj2nt_31";
     const modalBody$1 = "_modalBody_yj2nt_35";
     const content$1 = "_content_yj2nt_41";
-    const header$1 = "_header_yj2nt_45";
+    const header$2 = "_header_yj2nt_45";
     const titleTool = "_titleTool_yj2nt_50";
-    const styles$c = {
+    const styles$m = {
       title,
       detail,
       detailText,
       close,
-      modal,
+      modal: modal$1,
       hidden,
       modalBody: modalBody$1,
       content: content$1,
-      header: header$1,
+      header: header$2,
       titleTool
     };
     const LargeModal = ({
@@ -65770,8 +69067,8 @@ ${events}
           id,
           className: clsx(
             "modal",
-            styles$c.modal,
-            !visible2 ? styles$c.hidden : void 0
+            styles$m.modal,
+            !visible2 ? styles$m.hidden : void 0
           ),
           role: "dialog",
           onKeyUp: onkeyup,
@@ -65783,23 +69080,23 @@ ${events}
               className: clsx(
                 "modal-dialog",
                 "modal-dialog-scrollable",
-                styles$c.modalBody
+                styles$m.modalBody
               ),
               role: "document",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$c.content), children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$c.header), children: [
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$m.content), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$m.header), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
-                      className: clsx("modal-title", "text-size-smaller", styles$c.title),
+                      className: clsx("modal-title", "text-size-smaller", styles$m.title),
                       children: title2 || ""
                     }
                   ),
-                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$c.detail, children: [
+                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$m.detail, children: [
                     (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-left-${idx}`);
                     }) : "",
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$c.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$m.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
                     (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-right-${idx}`);
                     }) : ""
@@ -65812,7 +69109,7 @@ ${events}
                         "btn",
                         "btn-close-large-dialog",
                         "text-size-larger",
-                        styles$c.close
+                        styles$m.close
                       ),
                       onClick: onHide,
                       "aria-label": "Close",
@@ -65839,7 +69136,7 @@ ${events}
             "btn",
             "btn-outline",
             "text-size-small",
-            styles$c.titleTool
+            styles$m.titleTool
           ),
           "aria-label": label2,
           onClick,
@@ -65849,7 +69146,7 @@ ${events}
       );
     };
     const modalBody = "_modalBody_ozq2k_1";
-    const styles$b = {
+    const styles$l = {
       modalBody
     };
     const SampleDialog = ({
@@ -65950,7 +69247,7 @@ ${events}
           visible: showingSampleDialog,
           onHide,
           classNames: {
-            body: styles$b.modalBody
+            body: styles$l.modalBody
           },
           showProgress: sampleData.status === "loading" || sampleData.status === "streaming",
           scrollRef,
@@ -65958,11 +69255,11 @@ ${events}
         }
       );
     };
-    const container$2 = "_container_15b4r_1";
-    const label$3 = "_label_15b4r_5";
-    const styles$a = {
-      container: container$2,
-      label: label$3
+    const container$5 = "_container_15b4r_1";
+    const label$5 = "_label_15b4r_5";
+    const styles$k = {
+      container: container$5,
+      label: label$5
     };
     const EpochFilter = ({
       epochs,
@@ -65977,7 +69274,7 @@ ${events}
         const sel = e.target;
         setEpoch(sel.value);
       };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$a.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$k.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -65986,7 +69283,7 @@ ${events}
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$a.label
+              styles$k.label
             ),
             children: "Epochs:"
           }
@@ -68915,10 +72212,10 @@ ${events}
         for (; ; ) {
           let curTo = Math.min(cursor.to, to2);
           if (cursor.point) {
-            let active2 = cursor.activeForPoint(cursor.to);
-            let openCount = cursor.pointFrom < from ? active2.length + 1 : cursor.point.startSide < 0 ? active2.length : Math.min(active2.length, openRanges);
-            iterator.point(pos2, curTo, cursor.point, active2, openCount, cursor.pointRank);
-            openRanges = Math.min(cursor.openEnd(curTo), active2.length);
+            let active = cursor.activeForPoint(cursor.to);
+            let openCount = cursor.pointFrom < from ? active.length + 1 : cursor.point.startSide < 0 ? active.length : Math.min(active.length, openRanges);
+            iterator.point(pos2, curTo, cursor.point, active, openCount, cursor.pointRank);
+            openRanges = Math.min(cursor.openEnd(curTo), active.length);
           } else if (curTo > pos2) {
             iterator.span(pos2, curTo, cursor.active, openRanges);
             openRanges = cursor.openEnd(curTo);
@@ -69323,14 +72620,14 @@ ${events}
       activeForPoint(to2) {
         if (!this.active.length)
           return this.active;
-        let active2 = [];
+        let active = [];
         for (let i2 = this.active.length - 1; i2 >= 0; i2--) {
           if (this.activeRank[i2] < this.pointRank)
             break;
           if (this.activeTo[i2] > to2 || this.activeTo[i2] == to2 && this.active[i2].endSide >= this.point.endSide)
-            active2.push(this.active[i2]);
+            active.push(this.active[i2]);
         }
-        return active2.reverse();
+        return active.reverse();
       }
       openEnd(to2) {
         let open = 0;
@@ -71333,9 +74630,9 @@ ${events}
         }
         return this.curLine;
       }
-      flushBuffer(active2 = this.bufferMarks) {
+      flushBuffer(active = this.bufferMarks) {
         if (this.pendingBuffer) {
-          this.curLine.append(wrapMarks(new WidgetBufferView(-1), active2), active2.length);
+          this.curLine.append(wrapMarks(new WidgetBufferView(-1), active), active.length);
           this.pendingBuffer = 0;
         }
       }
@@ -71352,7 +74649,7 @@ ${events}
         if (!this.posCovered() && !(openEnd && this.content.length && this.content[this.content.length - 1] instanceof BlockWidgetView))
           this.getLine();
       }
-      buildText(length, active2, openStart) {
+      buildText(length, active, openStart) {
         while (length > 0) {
           if (this.textOff == this.text.length) {
             let { value: value2, lineBreak, done } = this.cursor.next(this.skip);
@@ -71382,21 +74679,21 @@ ${events}
             512
             /* T.Chunk */
           );
-          this.flushBuffer(active2.slice(active2.length - openStart));
-          this.getLine().append(wrapMarks(new TextView(this.text.slice(this.textOff, this.textOff + take)), active2), openStart);
+          this.flushBuffer(active.slice(active.length - openStart));
+          this.getLine().append(wrapMarks(new TextView(this.text.slice(this.textOff, this.textOff + take)), active), openStart);
           this.atCursorPos = true;
           this.textOff += take;
           length -= take;
           openStart = 0;
         }
       }
-      span(from, to2, active2, openStart) {
-        this.buildText(to2 - from, active2, openStart);
+      span(from, to2, active, openStart) {
+        this.buildText(to2 - from, active, openStart);
         this.pos = to2;
         if (this.openStart < 0)
           this.openStart = openStart;
       }
-      point(from, to2, deco, active2, openStart, index2) {
+      point(from, to2, deco, active, openStart, index2) {
         if (this.disallowBlockEffectsFor[index2] && deco instanceof PointDecoration) {
           if (deco.block)
             throw new RangeError("Block decorations may not be specified via plugins");
@@ -71411,21 +74708,21 @@ ${events}
             this.addBlockWidget(new BlockWidgetView(deco.widget || NullWidget.block, len, deco));
           } else {
             let view = WidgetView.create(deco.widget || NullWidget.inline, len, len ? 0 : deco.startSide);
-            let cursorBefore = this.atCursorPos && !view.isEditable && openStart <= active2.length && (from < to2 || deco.startSide > 0);
-            let cursorAfter = !view.isEditable && (from < to2 || openStart > active2.length || deco.startSide <= 0);
+            let cursorBefore = this.atCursorPos && !view.isEditable && openStart <= active.length && (from < to2 || deco.startSide > 0);
+            let cursorAfter = !view.isEditable && (from < to2 || openStart > active.length || deco.startSide <= 0);
             let line2 = this.getLine();
             if (this.pendingBuffer == 2 && !cursorBefore && !view.isEditable)
               this.pendingBuffer = 0;
-            this.flushBuffer(active2);
+            this.flushBuffer(active);
             if (cursorBefore) {
-              line2.append(wrapMarks(new WidgetBufferView(1), active2), openStart);
-              openStart = active2.length + Math.max(0, openStart - active2.length);
+              line2.append(wrapMarks(new WidgetBufferView(1), active), openStart);
+              openStart = active.length + Math.max(0, openStart - active.length);
             }
-            line2.append(wrapMarks(view, active2), openStart);
+            line2.append(wrapMarks(view, active), openStart);
             this.atCursorPos = cursorAfter;
-            this.pendingBuffer = !cursorAfter ? 0 : from < to2 || openStart > active2.length ? 1 : 2;
+            this.pendingBuffer = !cursorAfter ? 0 : from < to2 || openStart > active.length ? 1 : 2;
             if (this.pendingBuffer)
-              this.bufferMarks = active2.slice();
+              this.bufferMarks = active.slice();
           }
         } else if (this.doc.lineAt(this.pos).from == this.pos) {
           this.getLine().addLineDeco(deco);
@@ -71452,8 +74749,8 @@ ${events}
         return builder;
       }
     }
-    function wrapMarks(view, active2) {
-      for (let mark of active2)
+    function wrapMarks(view, active) {
+      for (let mark of active)
         view = new MarkView(mark, [view], view.length);
       return view;
     }
@@ -71985,11 +75282,11 @@ ${events}
       RangeSet.spans(sets, line2.from, line2.to, {
         point() {
         },
-        span(fromDoc, toDoc, active2, open) {
+        span(fromDoc, toDoc, active, open) {
           let from = fromDoc - line2.from, to2 = toDoc - line2.from;
           let level = result2;
-          for (let i2 = active2.length - 1; i2 >= 0; i2--, open--) {
-            let direction = active2[i2].spec.bidiIsolate, update;
+          for (let i2 = active.length - 1; i2 >= 0; i2--, open--) {
+            let direction = active[i2].spec.bidiIsolate, update;
             if (direction == null)
               direction = autoDirection(line2.text, from, to2);
             if (open > 0 && level.length && (update = level[level.length - 1]).to == from && update.direction == direction) {
@@ -73831,9 +77128,9 @@ ${events}
         if (mustFocus)
           view.observer.ignore(() => {
             focusPreventScroll(view.contentDOM);
-            let active2 = view.root.activeElement;
-            if (active2 && !active2.contains(view.contentDOM))
-              active2.blur();
+            let active = view.root.activeElement;
+            if (active && !active.contains(view.contentDOM))
+              active.blur();
           });
         let mouseSel = view.inputState.mouseSelection;
         if (mouseSel) {
@@ -77139,9 +80436,9 @@ ${events}
         if (line2.length > MaxBidiLine)
           return trivialOrder(line2.length);
         let dir = this.textDirectionAt(line2.from), isolates;
-        for (let entry2 of this.bidiCache) {
-          if (entry2.from == line2.from && entry2.dir == dir && (entry2.fresh || isolatesEq(entry2.isolates, isolates = getIsolatedRanges(this, line2))))
-            return entry2.order;
+        for (let entry of this.bidiCache) {
+          if (entry.from == line2.from && entry.dir == dir && (entry.fresh || isolatesEq(entry.isolates, isolates = getIsolatedRanges(this, line2))))
+            return entry.order;
         }
         if (!isolates)
           isolates = getIsolatedRanges(this, line2);
@@ -77352,9 +80649,9 @@ ${events}
           return cache;
         let result2 = [], lastDir = cache.length ? cache[cache.length - 1].dir : Direction.LTR;
         for (let i2 = Math.max(0, cache.length - 10); i2 < cache.length; i2++) {
-          let entry2 = cache[i2];
-          if (entry2.dir == lastDir && !changes.touchesRange(entry2.from, entry2.to))
-            result2.push(new CachedOrder(changes.mapPos(entry2.from, 1), changes.mapPos(entry2.to, -1), entry2.dir, entry2.isolates, false, entry2.order));
+          let entry = cache[i2];
+          if (entry.dir == lastDir && !changes.touchesRange(entry.from, entry.to))
+            result2.push(new CachedOrder(changes.mapPos(entry.from, 1), changes.mapPos(entry.to, -1), entry.dir, entry.isolates, false, entry.order));
         }
         return result2;
       }
@@ -78666,9 +81963,9 @@ ${events}
         this.lastMove = { x: event.clientX, y: event.clientY, target: event.target, time: Date.now() };
         if (this.hoverTimeout < 0)
           this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime);
-        let { active: active2, tooltip } = this;
-        if (active2.length && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
-          let { pos: pos2 } = active2[0] || this.pending, end2 = (_b2 = (_a2 = active2[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos2;
+        let { active, tooltip } = this;
+        if (active.length && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
+          let { pos: pos2 } = active[0] || this.pending, end2 = (_b2 = (_a2 = active[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos2;
           if (pos2 == end2 ? this.view.posAtCoords(this.lastMove) != pos2 : !isOverRange(this.view, pos2, end2, event.clientX, event.clientY)) {
             this.view.dispatch({ effects: this.setHover.of([]) });
             this.pending = null;
@@ -78678,8 +81975,8 @@ ${events}
       mouseleave(event) {
         clearTimeout(this.hoverTimeout);
         this.hoverTimeout = -1;
-        let { active: active2 } = this;
-        if (active2.length) {
+        let { active } = this;
+        if (active.length) {
           let { tooltip } = this;
           let inTooltip = tooltip && tooltip.dom.contains(event.relatedTarget);
           if (!inTooltip)
@@ -83499,7 +86796,7 @@ ${events}
     function score$1(option) {
       return (option.boost || 0) * 100 + (option.apply ? 10 : 0) + (option.info ? 5 : 0) + (option.type ? 1 : 0);
     }
-    function sortOptions(active2, state) {
+    function sortOptions(active, state) {
       let options2 = [];
       let sections = null;
       let addOption = (option) => {
@@ -83514,7 +86811,7 @@ ${events}
         }
       };
       let conf = state.facet(completionConfig);
-      for (let a of active2)
+      for (let a of active)
         if (a.hasResult()) {
           let getMatch = a.result.getMatch;
           if (a.result.filter === false) {
@@ -83571,12 +86868,12 @@ ${events}
       setSelected(selected2, id) {
         return selected2 == this.selected || selected2 >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id, selected2), this.tooltip, this.timestamp, selected2, this.disabled);
       }
-      static build(active2, state, id, prev, conf, didSetActive) {
-        if (prev && !didSetActive && active2.some((s) => s.isPending))
+      static build(active, state, id, prev, conf, didSetActive) {
+        if (prev && !didSetActive && active.some((s) => s.isPending))
           return prev.setDisabled();
-        let options2 = sortOptions(active2, state);
+        let options2 = sortOptions(active, state);
         if (!options2.length)
-          return prev && active2.some((a) => a.isPending) ? prev.setDisabled() : null;
+          return prev && active.some((a) => a.isPending) ? prev.setDisabled() : null;
         let selected2 = state.facet(completionConfig).selectOnOpen ? 0 : -1;
         if (prev && prev.selected != selected2 && prev.selected != -1) {
           let selectedValue = prev.options[prev.selected].completion;
@@ -83587,7 +86884,7 @@ ${events}
             }
         }
         return new CompletionDialog(options2, makeAttrs(id, selected2), {
-          pos: active2.reduce((a, b) => b.hasResult() ? Math.min(a, b.from) : a, 1e8),
+          pos: active.reduce((a, b) => b.hasResult() ? Math.min(a, b.from) : a, 1e8),
           create: createTooltip,
           above: conf.aboveCursor
         }, prev ? prev.timestamp : Date.now(), selected2, false);
@@ -83600,8 +86897,8 @@ ${events}
       }
     }
     class CompletionState {
-      constructor(active2, id, open) {
-        this.active = active2;
+      constructor(active, id, open) {
+        this.active = active;
         this.id = id;
         this.open = open;
       }
@@ -83611,7 +86908,7 @@ ${events}
       update(tr2) {
         let { state } = tr2, conf = state.facet(completionConfig);
         let sources = conf.override || state.languageDataAt("autocomplete", cur(state)).map(asSource);
-        let active2 = sources.map((source2) => {
+        let active = sources.map((source2) => {
           let value2 = this.active.find((s) => s.source == source2) || new ActiveSource(
             source2,
             this.active.some(
@@ -83622,17 +86919,17 @@ ${events}
           );
           return value2.update(tr2, conf);
         });
-        if (active2.length == this.active.length && active2.every((a, i2) => a == this.active[i2]))
-          active2 = this.active;
+        if (active.length == this.active.length && active.every((a, i2) => a == this.active[i2]))
+          active = this.active;
         let open = this.open, didSet = tr2.effects.some((e) => e.is(setActiveEffect));
         if (open && tr2.docChanged)
           open = open.map(tr2.changes);
-        if (tr2.selection || active2.some((a) => a.hasResult() && tr2.changes.touchesRange(a.from, a.to)) || !sameResults(active2, this.active) || didSet)
-          open = CompletionDialog.build(active2, state, this.id, open, conf, didSet);
-        else if (open && open.disabled && !active2.some((a) => a.isPending))
+        if (tr2.selection || active.some((a) => a.hasResult() && tr2.changes.touchesRange(a.from, a.to)) || !sameResults(active, this.active) || didSet)
+          open = CompletionDialog.build(active, state, this.id, open, conf, didSet);
+        else if (open && open.disabled && !active.some((a) => a.isPending))
           open = null;
-        if (!open && active2.every((a) => !a.isPending) && active2.some((a) => a.hasResult()))
-          active2 = active2.map((a) => a.hasResult() ? new ActiveSource(
+        if (!open && active.every((a) => !a.isPending) && active.some((a) => a.hasResult()))
+          active = active.map((a) => a.hasResult() ? new ActiveSource(
             a.source,
             0
             /* State.Inactive */
@@ -83640,7 +86937,7 @@ ${events}
         for (let effect2 of tr2.effects)
           if (effect2.is(setSelectedEffect))
             open = open && open.setSelected(effect2.value, this.id);
-        return active2 == this.active && open == this.open ? this : new CompletionState(active2, this.id, open);
+        return active == this.active && open == this.open ? this : new CompletionState(active, this.id, open);
       }
       get tooltip() {
         return this.open ? this.open.tooltip : null;
@@ -83725,9 +87022,9 @@ ${events}
               /* State.Inactive */
             );
           else if (effect2.is(setActiveEffect)) {
-            for (let active2 of effect2.value)
-              if (active2.source == value2.source)
-                value2 = active2;
+            for (let active of effect2.value)
+              if (active.source == value2.source)
+                value2 = active;
           }
         }
         return value2;
@@ -83869,8 +87166,8 @@ ${events}
       return true;
     };
     class RunningQuery {
-      constructor(active2, context) {
-        this.active = active2;
+      constructor(active, context) {
+        this.active = active;
         this.context = context;
         this.time = Date.now();
         this.updates = [];
@@ -83886,9 +87183,9 @@ ${events}
         this.debounceAccept = -1;
         this.pendingStart = false;
         this.composing = 0;
-        for (let active2 of view.state.field(completionState).active)
-          if (active2.isPending)
-            this.startQuery(active2);
+        for (let active of view.state.field(completionState).active)
+          if (active.isPending)
+            this.startQuery(active);
       }
       update(update) {
         let cState = update.state.field(completionState);
@@ -83933,19 +87230,19 @@ ${events}
         this.debounceUpdate = -1;
         this.pendingStart = false;
         let { state } = this.view, cState = state.field(completionState);
-        for (let active2 of cState.active) {
-          if (active2.isPending && !this.running.some((r2) => r2.active.source == active2.source))
-            this.startQuery(active2);
+        for (let active of cState.active) {
+          if (active.isPending && !this.running.some((r2) => r2.active.source == active.source))
+            this.startQuery(active);
         }
         if (this.running.length && cState.open && cState.open.disabled)
           this.debounceAccept = setTimeout(() => this.accept(), this.view.state.facet(completionConfig).updateSyncTime);
       }
-      startQuery(active2) {
+      startQuery(active) {
         let { state } = this.view, pos2 = cur(state);
-        let context = new CompletionContext(state, pos2, active2.explicit, this.view);
-        let pending = new RunningQuery(active2, context);
+        let context = new CompletionContext(state, pos2, active.explicit, this.view);
+        let pending = new RunningQuery(active, context);
         this.running.push(pending);
-        Promise.resolve(active2.source(context)).then((result2) => {
+        Promise.resolve(active.source(context)).then((result2) => {
           if (!pending.context.aborted) {
             pending.done = result2 || null;
             this.scheduleAccept();
@@ -83978,26 +87275,26 @@ ${events}
           if (query2.done) {
             let pos2 = cur(query2.updates.length ? query2.updates[0].startState : this.view.state);
             let limit = Math.min(pos2, query2.done.from + (query2.active.explicit ? 0 : 1));
-            let active2 = new ActiveResult(query2.active.source, query2.active.explicit, limit, query2.done, query2.done.from, (_a2 = query2.done.to) !== null && _a2 !== void 0 ? _a2 : pos2);
+            let active = new ActiveResult(query2.active.source, query2.active.explicit, limit, query2.done, query2.done.from, (_a2 = query2.done.to) !== null && _a2 !== void 0 ? _a2 : pos2);
             for (let tr2 of query2.updates)
-              active2 = active2.update(tr2, conf);
-            if (active2.hasResult()) {
-              updated.push(active2);
+              active = active.update(tr2, conf);
+            if (active.hasResult()) {
+              updated.push(active);
               continue;
             }
           }
           let current2 = cState.active.find((a) => a.source == query2.active.source);
           if (current2 && current2.isPending) {
             if (query2.done == null) {
-              let active2 = new ActiveSource(
+              let active = new ActiveSource(
                 query2.active.source,
                 0
                 /* State.Inactive */
               );
               for (let tr2 of query2.updates)
-                active2 = active2.update(tr2, conf);
-              if (!active2.isPending)
-                updated.push(active2);
+                active = active.update(tr2, conf);
+              if (!active.isPending)
+                updated.push(active);
             } else {
               this.startQuery(current2);
             }
@@ -84235,25 +87532,25 @@ ${events}
         if (diagnosticFilter)
           diagnostics = diagnosticFilter(diagnostics, state);
         let sorted = diagnostics.slice().sort((a, b) => a.from - b.from || a.to - b.to);
-        let deco = new RangeSetBuilder(), active2 = [], pos2 = 0;
+        let deco = new RangeSetBuilder(), active = [], pos2 = 0;
         for (let i2 = 0; ; ) {
           let next = i2 == sorted.length ? null : sorted[i2];
-          if (!next && !active2.length)
+          if (!next && !active.length)
             break;
           let from, to2;
-          if (active2.length) {
+          if (active.length) {
             from = pos2;
-            to2 = active2.reduce((p, d) => Math.min(p, d.to), next && next.from > from ? next.from : 1e8);
+            to2 = active.reduce((p, d) => Math.min(p, d.to), next && next.from > from ? next.from : 1e8);
           } else {
             from = next.from;
             to2 = next.to;
-            active2.push(next);
+            active.push(next);
             i2++;
           }
           while (i2 < sorted.length) {
             let next2 = sorted[i2];
             if (next2.from == from && (next2.to > next2.from || next2.to == from)) {
-              active2.push(next2);
+              active.push(next2);
               i2++;
               to2 = Math.min(next2.to, to2);
             } else {
@@ -84261,24 +87558,24 @@ ${events}
               break;
             }
           }
-          let sev = maxSeverity(active2);
-          if (active2.some((d) => d.from == d.to || d.from == d.to - 1 && state.doc.lineAt(d.from).to == d.from)) {
+          let sev = maxSeverity(active);
+          if (active.some((d) => d.from == d.to || d.from == d.to - 1 && state.doc.lineAt(d.from).to == d.from)) {
             deco.add(from, from, Decoration.widget({
               widget: new DiagnosticWidget(sev),
-              diagnostics: active2.slice()
+              diagnostics: active.slice()
             }));
           } else {
-            let markClass = active2.reduce((c2, d) => d.markClass ? c2 + " " + d.markClass : c2, "");
+            let markClass = active.reduce((c2, d) => d.markClass ? c2 + " " + d.markClass : c2, "");
             deco.add(from, to2, Decoration.mark({
               class: "cm-lintRange cm-lintRange-" + sev + markClass,
-              diagnostics: active2.slice(),
-              inclusiveEnd: active2.some((a) => a.to > to2)
+              diagnostics: active.slice(),
+              inclusiveEnd: active.some((a) => a.to > to2)
             }));
           }
           pos2 = to2;
-          for (let i3 = 0; i3 < active2.length; i3++)
-            if (active2[i3].to <= pos2)
-              active2.splice(i3--, 1);
+          for (let i3 = 0; i3 < active.length; i3++)
+            if (active[i3].to <= pos2)
+              active.splice(i3--, 1);
         }
         let set2 = deco.finish();
         return new LintState(set2, panel2, findDiagnostic(set2));
@@ -86362,11 +89659,11 @@ ${events}
       if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
       return noCompletions();
     }
-    const label$2 = "_label_jbrqc_1";
+    const label$4 = "_label_jbrqc_1";
     const input = "_input_jbrqc_7";
     const help = "_help_jbrqc_11";
-    const styles$9 = {
-      label: label$2,
+    const styles$j = {
+      label: label$4,
       input,
       help
     };
@@ -86584,7 +89881,7 @@ Supported expressions:
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$9.label
+              styles$j.label
             ),
             children: "Filter:"
           }
@@ -86593,13 +89890,13 @@ Supported expressions:
           "div",
           {
             ref: editorRef,
-            className: clsx(filterError && "filter-pending", styles$9.input)
+            className: clsx(filterError && "filter-pending", styles$j.input)
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
-            className: clsx("bi", "bi-question-circle", styles$9.help),
+            className: clsx("bi", "bi-question-circle", styles$j.help),
             "data-tooltip": FILTER_TOOLTIP,
             "data-tooltip-position": "bottom-left"
           }
@@ -86607,12 +89904,12 @@ Supported expressions:
       ] });
     };
     const flex = "_flex_anstf_1";
-    const label$1 = "_label_anstf_5";
+    const label$3 = "_label_anstf_5";
     const secondSel = "_secondSel_anstf_9";
     const secondLabel = "_secondLabel_anstf_13";
-    const styles$8 = {
+    const styles$i = {
       flex,
-      label: label$1,
+      label: label$3,
       secondSel,
       secondLabel
     };
@@ -86632,7 +89929,7 @@ Supported expressions:
         }, []);
       }, [scores2]);
       if (scorers.length === 1) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$i.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -86641,7 +89938,7 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$8.label
+                styles$i.label
               ),
               children: "Score:"
             }
@@ -86659,7 +89956,7 @@ Supported expressions:
         const scorerScores = scores2.filter((sc) => {
           return score2 && sc.scorer === score2.scorer;
         });
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$i.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -86668,8 +89965,8 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$8.label,
-                styles$8.secondLabel
+                styles$i.label,
+                styles$i.secondLabel
               ),
               children: "Scorer:"
             }
@@ -86685,7 +89982,7 @@ Supported expressions:
           scorerScores.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ScoreSelector,
             {
-              className: clsx(styles$8.secondSel),
+              className: clsx(styles$i.secondSel),
               scores: scorerScores,
               selectedScore: score2,
               setSelectedScore: setScore
@@ -86840,11 +90137,11 @@ Supported expressions:
         }
       }
     };
-    const body = "_body_12gn4_1";
+    const body$1 = "_body_12gn4_1";
     const iconSmall = "_iconSmall_12gn4_9";
     const message = "_message_12gn4_15";
-    const styles$7 = {
-      body,
+    const styles$h = {
+      body: body$1,
       iconSmall,
       message
     };
@@ -86853,12 +90150,12 @@ Supported expressions:
       align
     }) => {
       align = align || "center";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$7.body, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$7.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$7.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$h.body, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$h.iconSmall) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$h.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
-    const grid$1 = "_grid_185sx_1";
+    const grid$2 = "_grid_185sx_1";
     const selected = "_selected_185sx_13";
     const disabled = "_disabled_185sx_23";
     const cell = "_cell_185sx_28";
@@ -86866,8 +90163,8 @@ Supported expressions:
     const noLeft = "_noLeft_185sx_37";
     const score = "_score_185sx_41";
     const centered = "_centered_185sx_46";
-    const styles$6 = {
-      grid: grid$1,
+    const styles$g = {
+      grid: grid$2,
       selected,
       disabled,
       cell,
@@ -86900,10 +90197,10 @@ Supported expressions:
         {
           id: `sample-${id}`,
           className: clsx(
-            styles$6.grid,
+            styles$g.grid,
             "text-size-base",
-            selectedSampleIndex === index2 ? styles$6.selected : void 0,
-            !isViewable && !sampleUrl2 ? styles$6.disabled : void 0
+            selectedSampleIndex === index2 ? styles$g.selected : void 0,
+            !isViewable && !sampleUrl2 ? styles$g.disabled : void 0
           ),
           style: {
             height: `${height}px`,
@@ -86911,31 +90208,31 @@ Supported expressions:
             gridTemplateColumns: gridColumnsTemplate
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-id", "three-line-clamp", styles$6.cell), children: sample2.id }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-id", "three-line-clamp", styles$g.cell), children: sample2.id }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx(
                   "sample-input",
                   "three-line-clamp",
-                  styles$6.cell,
-                  styles$6.wrapAnywhere
+                  styles$g.cell,
+                  styles$g.wrapAnywhere
                 ),
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: inputString(sample2.input).join(" ") })
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$6.cell), children: (sample2 == null ? void 0 : sample2.target) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$g.cell), children: (sample2 == null ? void 0 : sample2.target) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
                 markdown: arrayToString(sample2.target),
-                className: clsx("no-last-para-padding", styles$6.noLeft)
+                className: clsx("no-last-para-padding", styles$g.noLeft)
               }
             ) : void 0 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$6.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$g.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
                 markdown: answer2 || "",
-                className: clsx("no-last-para-padding", styles$6.noLeft)
+                className: clsx("no-last-para-padding", styles$g.noLeft)
               }
             ) : "" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -86945,7 +90242,7 @@ Supported expressions:
                   "sample-limit",
                   "text-size-small",
                   "three-line-clamp",
-                  styles$6.cell
+                  styles$g.cell
                 ),
                 children: sample2.limit
               }
@@ -86957,20 +90254,20 @@ Supported expressions:
                   "sample-retries",
                   "text-size-small",
                   "three-line-clamp",
-                  styles$6.cell,
-                  styles$6.centered
+                  styles$g.cell,
+                  styles$g.centered
                 ),
                 children: sample2.retries && sample2.retries > 0 ? sample2.retries : void 0
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$6.cell, styles$6.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$g.cell, styles$g.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false }) })
           ]
         }
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: showSample, children: rowContent });
     };
     const row = "_row_utdq5_1";
-    const styles$5 = {
+    const styles$f = {
       row
     };
     const SampleSeparator = ({
@@ -86982,7 +90279,7 @@ Supported expressions:
         "div",
         {
           id,
-          className: clsx("text-style-secondary", "text-size-smaller", styles$5.row),
+          className: clsx("text-style-secondary", "text-size-smaller", styles$f.row),
           style: { height: `${height}px` },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: title2 })
         }
@@ -86991,37 +90288,37 @@ Supported expressions:
     const footer = "_footer_vkofn_1";
     const spinnerContainer = "_spinnerContainer_vkofn_11";
     const spinner$1 = "_spinner_vkofn_11";
-    const label = "_label_vkofn_25";
-    const styles$4 = {
+    const label$2 = "_label_vkofn_25";
+    const styles$e = {
       footer,
       spinnerContainer,
       spinner: spinner$1,
-      label
+      label: label$2
     };
     const SampleFooter = ({
       sampleCount,
       totalSampleCount,
-      running: running2
+      running
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$4.footer), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.spinnerContainer), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$e.footer), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$e.spinnerContainer), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx("spinner-border", styles$4.spinner),
+              className: clsx("spinner-border", styles$e.spinner),
               role: "status",
               children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$4.label), children: "running..." })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$e.label), children: "running..." })
         ] }) : void 0 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: sampleCount < totalSampleCount ? `${sampleCount} / ${totalSampleCount} Samples` : `${sampleCount} Samples` })
       ] });
     };
-    const header = "_header_16ngy_1";
+    const header$1 = "_header_16ngy_1";
     const center = "_center_16ngy_11";
-    const styles$3 = {
-      header,
+    const styles$d = {
+      header: header$1,
       center
     };
     const SampleHeader = ({
@@ -87036,7 +90333,7 @@ Supported expressions:
       "div",
       {
         className: clsx(
-          styles$3.header,
+          styles$d.header,
           "text-size-smaller",
           "text-style-label",
           "text-style-secondary"
@@ -87049,19 +90346,19 @@ Supported expressions:
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: answer2 ? "Answer" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: limit ? "Limit" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: retries ? "Retries" : "" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$3.center, children: score2 ? "Score" : "" })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$d.center, children: score2 ? "Score" : "" })
         ]
       }
     );
     const mainLayout = "_mainLayout_q79zq_7";
-    const styles$2 = {
+    const styles$c = {
       mainLayout
     };
     const kSampleHeight = 88;
     const kSeparatorHeight = 24;
     const kSampleFollowProp = "sample-list";
     const SampleList = reactExports.memo((props) => {
-      const { items, totalItemCount, running: running2, className: className2, listHandle } = props;
+      const { items, totalItemCount, running, className: className2, listHandle } = props;
       const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
       const { getRestoreState, isScrolling } = useVirtuosoState(
         listHandle,
@@ -87080,12 +90377,12 @@ Supported expressions:
         kSampleFollowProp,
         "follow",
         {
-          defaultValue: !!running2
+          defaultValue: !!running
         }
       );
-      const prevRunningRef = reactExports.useRef(running2);
+      const prevRunningRef = reactExports.useRef(running);
       reactExports.useEffect(() => {
-        if (!running2 && prevRunningRef.current && followOutput && listHandle.current) {
+        if (!running && prevRunningRef.current && followOutput && listHandle.current) {
           setFollowOutput(false);
           setTimeout(() => {
             if (listHandle.current) {
@@ -87093,17 +90390,17 @@ Supported expressions:
             }
           }, 100);
         }
-        prevRunningRef.current = running2;
-      }, [running2, followOutput, listHandle]);
+        prevRunningRef.current = running;
+      }, [running, followOutput, listHandle]);
       const loaded = reactExports.useRef(false);
       const handleAtBottomStateChange = reactExports.useCallback(
         (atBottom) => {
-          if (loaded.current && running2) {
+          if (loaded.current && running) {
             setFollowOutput(atBottom);
           }
           loaded.current = true;
         },
-        [running2, setFollowOutput, followOutput]
+        [running, setFollowOutput, followOutput]
       );
       const onkeydown = reactExports.useCallback(
         (e) => {
@@ -87209,7 +90506,7 @@ Supported expressions:
       const percentError = errorCount / sampleCount * 100;
       const percentLimit = limitCount / sampleCount * 100;
       const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$2.mainLayout, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$c.mainLayout, children: [
         warningMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MessageBand,
           {
@@ -87237,7 +90534,7 @@ Supported expressions:
             data: items,
             defaultItemHeight: 50,
             itemContent: renderRow,
-            followOutput: running2 ? (_atBottom) => {
+            followOutput: running ? (_atBottom) => {
               return followOutput;
             } : void 0,
             atBottomStateChange: handleAtBottomStateChange,
@@ -87260,7 +90557,7 @@ Supported expressions:
           {
             sampleCount,
             totalSampleCount: totalItemCount,
-            running: running2
+            running
           }
         )
       ] });
@@ -87301,19 +90598,19 @@ Supported expressions:
       };
     };
     const panel = "_panel_1yknn_1";
-    const container$1 = "_container_1yknn_7";
+    const container$4 = "_container_1yknn_7";
     const spinner = "_spinner_1yknn_14";
     const text = "_text_1yknn_20";
-    const styles$1 = {
+    const styles$b = {
       panel,
-      container: container$1,
+      container: container$4,
       spinner,
       text
     };
     const RunningNoSamples = () => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1.container, "text-size-smaller"), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1.spinner, "spinner-border"), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "starting..." }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1.text), children: "starting...." })
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$b.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$b.container, "text-size-smaller"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$b.spinner, "spinner-border"), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "starting..." }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$b.text), children: "starting...." })
       ] }) });
     };
     const getSampleProcessor = (samples, epochs, groupBy, groupByOrder, sampleDescriptor, score2) => {
@@ -87496,7 +90793,7 @@ Supported expressions:
         totalSampleCount
       ]);
     };
-    const SamplesTab = ({ running: running2 }) => {
+    const SamplesTab = ({ running }) => {
       var _a2, _b2;
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
@@ -87579,7 +90876,7 @@ Supported expressions:
       }, [sampleSummaries, sampleProcessor]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (totalSampleCount === 0) {
-        if (running2) {
+        if (running) {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(RunningNoSamples, {});
         } else {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No samples" });
@@ -87593,7 +90890,7 @@ Supported expressions:
               listHandle: sampleListHandle,
               items,
               totalItemCount: evalSampleCount,
-              running: running2
+              running
             }
           ) : void 0,
           showingSampleDialog && /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -87611,9 +90908,9 @@ Supported expressions:
       const baseUrl2 = origin.replace(/\.git$/, "").replace(/^git@github.com:/, "https://github.com/");
       return `${baseUrl2}/commit/${commit}`;
     };
-    const grid = "_grid_er9fb_1";
-    const styles = {
-      grid
+    const grid$1 = "_grid_er9fb_1";
+    const styles$a = {
+      grid: grid$1
     };
     const useTaskTabConfig = (evalSpec, evalStats) => {
       return reactExports.useMemo(() => {
@@ -87630,9 +90927,9 @@ Supported expressions:
       }, [evalSpec, evalStats]);
     };
     const TaskTab = ({ evalSpec, evalStats }) => {
-      Object.entries((evalSpec == null ? void 0 : evalSpec.config) || {}).forEach((entry2) => {
-        entry2[0];
-        entry2[1];
+      Object.entries((evalSpec == null ? void 0 : evalSpec.config) || {}).forEach((entry) => {
+        entry[0];
+        entry[1];
       });
       const revision = evalSpec == null ? void 0 : evalSpec.revision;
       const packages = evalSpec == null ? void 0 : evalSpec.packages;
@@ -87677,18 +90974,17 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { width: "100%" }, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { padding: "0.5em 1em 0 1em", width: "100%" }, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Task Info" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-card-config", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles.grid), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-card-config", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$a.grid), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
+              MetaDataGrid,
               {
                 className: "text-size-small",
-                entries: taskInformation,
-                tableOptions: "sm"
+                entries: taskInformation
               },
               `plan-md-task`
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
+              MetaDataGrid,
               {
                 entries: {
                   ["Start"]: new Date(
@@ -87698,8 +90994,7 @@ Supported expressions:
                     (evalStats == null ? void 0 : evalStats.completed_at) || 0
                   ).toLocaleString(),
                   ["Duration"]: totalDuration
-                },
-                tableOptions: "sm"
+                }
               }
             )
           ] }) })
@@ -87707,16 +91002,815 @@ Supported expressions:
         Object.keys(task_args).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Task Args" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-card-config", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MetaDataView,
+            MetaDataGrid,
             {
               className: "text-size-small",
-              entries: task_args,
-              tableOptions: "sm"
+              entries: task_args
             },
             `plan-md-task-args`
           ) })
         ] })
       ] }) });
+    };
+    const container$3 = "_container_q17yq_1";
+    const grid = "_grid_q17yq_10";
+    const styles$9 = {
+      container: container$3,
+      grid
+    };
+    const ModelRolesView = ({ roles }) => {
+      roles = roles || {};
+      const singleLine = Object.keys(roles).length !== 1;
+      const modelEls = Object.keys(roles).map((key2) => {
+        const role2 = key2;
+        const roleData = roles[role2];
+        const model2 = roleData.model;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              singleLine ? styles$9.grid : void 0,
+              "text-style-secondary",
+              "text-size-smallest"
+            ),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("text-style-label"), children: [
+                role2,
+                ":"
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: model2 })
+            ]
+          },
+          key2
+        );
+      });
+      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$9.container, children: modelEls }) : void 0;
+    };
+    const container$2 = "_container_1pujw_1";
+    const wrapper = "_wrapper_1pujw_8";
+    const body = "_body_1pujw_21";
+    const bodyContainer = "_bodyContainer_1pujw_27";
+    const taskTitle = "_taskTitle_1pujw_33";
+    const taskModel = "_taskModel_1pujw_38";
+    const taskStatus = "_taskStatus_1pujw_42";
+    const secondaryContainer = "_secondaryContainer_1pujw_49";
+    const styles$8 = {
+      container: container$2,
+      wrapper,
+      body,
+      bodyContainer,
+      taskTitle,
+      taskModel,
+      taskStatus,
+      secondaryContainer
+    };
+    const button = "_button_12472_1";
+    const label$1 = "_label_12472_14";
+    const styles$7 = {
+      button,
+      label: label$1
+    };
+    const LinkButton = ({
+      id,
+      text: text2,
+      icon: icon2,
+      className: className2,
+      onClick
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          id,
+          onClick,
+          className: clsx(className2, styles$7.button, "text-size-smaller"),
+          children: [
+            icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0,
+            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$7.label), children: text2 }) : void 0
+          ]
+        }
+      );
+    };
+    const modal = "_modal_1tvha_1";
+    const header = "_header_1tvha_14";
+    const modalTitle = "_modalTitle_1tvha_18";
+    const btnClose = "_btnClose_1tvha_22";
+    const backdrop = "_backdrop_1tvha_28";
+    const styles$6 = {
+      modal,
+      header,
+      modalTitle,
+      btnClose,
+      backdrop
+    };
+    const Modal = ({
+      id,
+      title: title2,
+      showing,
+      setShowing,
+      children: children2,
+      className: className2
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.backdrop, onClick: () => setShowing(false) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            id,
+            className: clsx("modal", "fade", showing ? "show" : "", className2),
+            tabIndex: -1,
+            style: { display: showing ? "block" : "none" },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$6.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$6.header), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: clsx(
+                      "modal-title",
+                      "text-size-base",
+                      styles$6.modalTitle
+                    ),
+                    children: title2
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "button",
+                  {
+                    type: "button",
+                    className: clsx(
+                      "btn-close",
+                      "text-size-smaller",
+                      styles$6.btnClose
+                    ),
+                    "data-bs-dismiss": "modal",
+                    "aria-label": "Close",
+                    onClick: () => {
+                      setShowing(!showing);
+                    }
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", children: children2 }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  type: "button",
+                  className: "btn btn-secondary",
+                  "data-bs-dismiss": "modal",
+                  onClick: () => {
+                    setShowing(!showing);
+                  },
+                  children: "Close"
+                }
+              ) })
+            ] }) })
+          }
+        )
+      ] });
+    };
+    const groupScorers = (scorers) => {
+      const results = {};
+      scorers.forEach((scorer2) => {
+        if (scorer2.metrics.length > 0) {
+          const key2 = metricsKey(scorer2.metrics);
+          results[key2] = results[key2] || [];
+          results[key2].push(scorer2);
+        }
+      });
+      return Object.values(results);
+    };
+    const metricsKey = (metrics2) => {
+      const metricKey = metrics2.map((m) => m.name).join("");
+      return metricKey;
+    };
+    const simpleMetricsRows = "_simpleMetricsRows_yha6g_1";
+    const verticalMetricReducer = "_verticalMetricReducer_yha6g_26";
+    const verticalMetricName = "_verticalMetricName_yha6g_33";
+    const verticalMetricValue = "_verticalMetricValue_yha6g_41";
+    const moreButton = "_moreButton_yha6g_91";
+    const metricsSummary = "_metricsSummary_yha6g_97";
+    const modalScores = "_modalScores_yha6g_103";
+    const styles$5 = {
+      simpleMetricsRows,
+      verticalMetricReducer,
+      verticalMetricName,
+      verticalMetricValue,
+      moreButton,
+      metricsSummary,
+      modalScores
+    };
+    const table = "_table_12koy_1";
+    const scorer = "_scorer_12koy_5";
+    const value = "_value_12koy_6";
+    const label = "_label_12koy_11";
+    const groupSeparator = "_groupSeparator_12koy_28";
+    const tableBody = "_tableBody_12koy_33";
+    const tableSeparator = "_tableSeparator_12koy_45";
+    const styles$4 = {
+      table,
+      scorer,
+      value,
+      label,
+      groupSeparator,
+      tableBody,
+      tableSeparator
+    };
+    const ScoreGrid = ({
+      scoreGroups,
+      showReducer,
+      className: className2,
+      striped
+    }) => {
+      const columnCount = scoreGroups.reduce((prev, group) => {
+        return Math.max(prev, group[0].metrics.length);
+      }, 0);
+      const subTables = [];
+      let index2 = 0;
+      for (const scoreGroup of scoreGroups) {
+        const metrics2 = scoreGroup[0].metrics;
+        const cells = [];
+        for (let i2 = 0; i2 < columnCount; i2++) {
+          if (metrics2.length > i2) {
+            cells.push(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "th",
+                {
+                  className: clsx(
+                    "text-style-label",
+                    "text-style-secondary",
+                    "text-size-small",
+                    styles$4.label
+                  ),
+                  children: metrics2[i2].name
+                }
+              )
+            );
+          } else {
+            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
+          }
+        }
+        const headerRow2 = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$4.headerRow), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
+          cells
+        ] }) });
+        const rows = [];
+        scoreGroup.forEach((g) => {
+          const cells2 = [];
+          for (let i2 = 0; i2 < columnCount; i2++) {
+            if (metrics2.length > i2) {
+              cells2.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$4.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
+              );
+            } else {
+              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$4.value) }));
+            }
+          }
+          rows.push(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$4.scorer, "text-size-small"), children: [
+                g.scorer,
+                " ",
+                showReducer && g.reducer ? `(${g.reducer})` : void 0
+              ] }),
+              cells2
+            ] })
+          );
+        });
+        subTables.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$4.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "td",
+              {
+                colSpan: columnCount + 1,
+                className: clsx(styles$4.groupSeparator)
+              }
+            ) }) }) : void 0,
+            headerRow2,
+            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$4.tableBody), children: rows })
+          ] })
+        );
+        index2++;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "table",
+        {
+          className: clsx(
+            className2,
+            "table",
+            striped ? "table-striped" : void 0,
+            styles$4.table,
+            "table-bordered"
+          ),
+          children: subTables
+        }
+      );
+    };
+    const kMaxPrimaryScoreRows = 4;
+    const displayScorersFromRunningMetrics = (metrics2) => {
+      if (!metrics2) {
+        return [];
+      }
+      const getKey = (metric) => {
+        return metric.reducer ? `${metric.scorer}-${metric.reducer}` : metric.scorer;
+      };
+      const scorers = {};
+      metrics2.forEach((metric) => {
+        if (metric.value !== void 0 && metric.value !== null) {
+          const key2 = getKey(metric);
+          if (scorers[key2]) {
+            scorers[key2].metrics.push({
+              name: metric.name,
+              value: metric.value
+            });
+          } else {
+            scorers[key2] = {
+              scorer: metric.scorer,
+              reducer: metric.reducer,
+              metrics: [
+                {
+                  name: metric.name,
+                  value: metric.value
+                }
+              ]
+            };
+          }
+        }
+      });
+      return Object.values(scorers);
+    };
+    const ResultsPanel = ({ scorers }) => {
+      const [showing, setShowing] = useProperty(
+        "results-panel-metrics",
+        "modal-showing",
+        {
+          defaultValue: false
+        }
+      );
+      if (!scorers || scorers.length === 0) {
+        return void 0;
+      }
+      if (scorers.length === 1) {
+        const showReducer = !!scorers[0].reducer;
+        const metrics2 = scorers[0].metrics;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$5.simpleMetricsRows, children: metrics2.map((metric, i2) => {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            VerticalMetric,
+            {
+              reducer: scorers[0].reducer,
+              metric,
+              isFirst: i2 === 0,
+              showReducer
+            },
+            `simple-metric-${i2}`
+          );
+        }) });
+      } else {
+        const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
+        const grouped = groupScorers(scorers);
+        let primaryResults = grouped[0];
+        let showMore = grouped.length > 1;
+        if (primaryResults.length > kMaxPrimaryScoreRows) {
+          const shorterResults = grouped.find((g) => {
+            return g.length <= kMaxPrimaryScoreRows;
+          });
+          if (shorterResults) {
+            primaryResults = shorterResults;
+          }
+          if (primaryResults.length > kMaxPrimaryScoreRows) {
+            primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
+            showMore = true;
+          }
+        }
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$5.metricsSummary), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults], showReducer }),
+          showMore ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              Modal,
+              {
+                id: "results-metrics",
+                showing,
+                setShowing,
+                title: "Scoring Detail",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ScoreGrid,
+                  {
+                    scoreGroups: grouped,
+                    showReducer,
+                    className: styles$5.modalScores,
+                    striped: false
+                  }
+                )
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              LinkButton,
+              {
+                className: styles$5.moreButton,
+                text: "All scoring...",
+                onClick: () => {
+                  setShowing(true);
+                }
+              }
+            )
+          ] }) : void 0
+        ] });
+      }
+    };
+    const VerticalMetric = ({
+      metric,
+      reducer,
+      isFirst,
+      showReducer
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { paddingLeft: isFirst ? "0" : "1em" }, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "vertical-metric-label",
+              "text-style-label",
+              "text-style-secondary",
+              styles$5.verticalMetricName
+            ),
+            children: metricDisplayName(metric)
+          }
+        ),
+        showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "text-style-label",
+              "text-style-secondary",
+              styles$5.verticalMetricReducer
+            ),
+            children: reducer || "default"
+          }
+        ) : void 0,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "vertical-metric-value",
+              "text-size-largest",
+              styles$5.verticalMetricValue
+            ),
+            children: metric.value !== void 0 && metric.value !== null ? formatPrettyDecimal(metric.value) : "n/a"
+          }
+        )
+      ] });
+    };
+    const statusContainer = "_statusContainer_1sckj_1";
+    const status = "_status_1sckj_1";
+    const statusText = "_statusText_1sckj_11";
+    const icon = "_icon_1sckj_24";
+    const styles$3 = {
+      statusContainer,
+      status,
+      statusText,
+      icon
+    };
+    const RunningStatusPanel = ({ sampleCount }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$3.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$3.status), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$3.icon) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              styles$3.statusText,
+              "text-style-label",
+              "text-size-smaller"
+            ),
+            children: [
+              "Running (",
+              sampleCount,
+              " samples)"
+            ]
+          }
+        )
+      ] }) }) });
+    };
+    const statusPanel = "_statusPanel_66f9o_1";
+    const statusIcon = "_statusIcon_66f9o_11";
+    const styles$2 = {
+      statusPanel,
+      statusIcon
+    };
+    const CancelledPanel = ({ sampleCount }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        StatusPanel,
+        {
+          icon: ApplicationIcons.logging["info"],
+          status: "Cancelled",
+          sampleCount
+        }
+      );
+    };
+    const ErroredPanel = ({ sampleCount }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        StatusPanel,
+        {
+          icon: ApplicationIcons.logging["error"],
+          status: "Task Failed",
+          sampleCount
+        }
+      );
+    };
+    const StatusPanel = ({
+      icon: icon2,
+      status: status2,
+      sampleCount
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$2.statusPanel, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$2.statusIcon), style: {} }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: status2 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+            "(",
+            sampleCount,
+            " ",
+            sampleCount === 1 ? "sample" : "samples",
+            ")"
+          ] })
+        ] })
+      ] });
+    };
+    const PrimaryBar = ({
+      status: status2,
+      evalResults,
+      runningMetrics,
+      evalSpec,
+      sampleCount
+    }) => {
+      const streamSamples = useStore((state) => state.capabilities.streamSamples);
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+      const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
+      const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.wrapper), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "navbar-brand",
+              "navbar-text",
+              "mb-0",
+              styles$8.container
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.body, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.bodyContainer, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    id: "task-title",
+                    className: clsx("task-title", "text-truncate", styles$8.taskTitle),
+                    title: evalSpec == null ? void 0 : evalSpec.task,
+                    children: evalSpec == null ? void 0 : evalSpec.task
+                  }
+                ),
+                (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    id: "task-model",
+                    className: clsx(
+                      "task-model",
+                      "text-truncate",
+                      styles$8.taskModel,
+                      "text-size-base"
+                    ),
+                    title: evalSpec == null ? void 0 : evalSpec.model,
+                    children: evalSpec == null ? void 0 : evalSpec.model
+                  }
+                ) : ""
+              ] }),
+              (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$8.secondaryContainer), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
+                selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
+              ] })
+            ] })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.taskStatus, "navbar-text"), children: [
+          status2 === "success" || status2 === "started" && streamSamples && hasRunningMetrics ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ResultsPanel,
+            {
+              scorers: runningMetrics ? displayScorersFromRunningMetrics(runningMetrics) : toDisplayScorers(evalResults == null ? void 0 : evalResults.scores)
+            }
+          ) : void 0,
+          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: sampleCount || 0 }) : void 0,
+          status2 === "started" && (!streamSamples || !hasRunningMetrics) ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: sampleCount || 0 }) : void 0,
+          status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: sampleCount || 0 }) : void 0
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
+      ] });
+    };
+    const staticCol = "_staticCol_xzzhl_1";
+    const justifyLeft = "_justifyLeft_xzzhl_5";
+    const justifyCenter = "_justifyCenter_xzzhl_9";
+    const justifyRight = "_justifyRight_xzzhl_13";
+    const valueGrid = "_valueGrid_xzzhl_17";
+    const container$1 = "_container_xzzhl_25";
+    const styles$1 = {
+      staticCol,
+      justifyLeft,
+      justifyCenter,
+      justifyRight,
+      valueGrid,
+      container: container$1
+    };
+    const SecondaryBar = ({
+      evalSpec,
+      evalPlan,
+      evalResults,
+      evalStats,
+      status: status2,
+      sampleCount
+    }) => {
+      const evalDescriptor = useEvalDescriptor();
+      if (!evalSpec || status2 !== "success") {
+        return null;
+      }
+      const epochs = evalSpec.config.epochs || 1;
+      const hyperparameters = {
+        ...(evalPlan == null ? void 0 : evalPlan.config) || {},
+        ...evalSpec.task_args || {}
+      };
+      const hasConfig = Object.keys(hyperparameters).length > 0;
+      const values = [];
+      values.push({
+        size: "minmax(12%, auto)",
+        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          LabeledValue,
+          {
+            label: "Dataset",
+            className: clsx(styles$1.staticCol, "text-size-small"),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              DatasetSummary,
+              {
+                dataset: evalSpec.dataset,
+                sampleCount,
+                epochs
+              }
+            )
+          },
+          "sb-dataset"
+        )
+      });
+      const label2 = (evalResults == null ? void 0 : evalResults.scores) && evalResults.scores.length > 1 ? "Scorers" : "Scorer";
+      values.push({
+        size: "minmax(12%, auto)",
+        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          LabeledValue,
+          {
+            label: label2,
+            className: clsx(
+              styles$1.staticCol,
+              hasConfig ? styles$1.justifyLeft : styles$1.justifyCenter,
+              "text-size-small"
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
+          },
+          "sb-scorer"
+        )
+      });
+      if (hasConfig) {
+        values.push({
+          size: "minmax(12%, auto)",
+          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            LabeledValue,
+            {
+              label: "Config",
+              className: clsx(styles$1.justifyRight, "text-size-small"),
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters })
+            },
+            "sb-params"
+          )
+        });
+      }
+      if (evalStats) {
+        const totalDuration = formatDuration(
+          new Date(evalStats == null ? void 0 : evalStats.started_at),
+          new Date(evalStats == null ? void 0 : evalStats.completed_at)
+        );
+        values.push({
+          size: "minmax(12%, auto)",
+          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            LabeledValue,
+            {
+              label: "Duration",
+              className: clsx(styles$1.justifyRight, "text-size-small"),
+              children: totalDuration
+            },
+            "sb-duration"
+          )
+        });
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ExpandablePanel,
+        {
+          id: "secondary-nav-bar",
+          className: clsx(styles$1.container, "text-size-small"),
+          collapse: true,
+          lines: 5,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: styles$1.valueGrid,
+              style: {
+                gridTemplateColumns: `${values.map((val) => {
+                  return val.size;
+                }).join(" ")}`
+              },
+              children: values.map((val) => {
+                return val.value;
+              })
+            }
+          )
+        }
+      );
+    };
+    const DatasetSummary = ({
+      sampleCount,
+      dataset,
+      epochs
+    }) => {
+      if (!dataset) {
+        return null;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: sampleCount ? formatDataset(sampleCount, epochs, dataset.name) : "" });
+    };
+    const ScorerSummary = ({ evalDescriptor }) => {
+      if (!evalDescriptor) {
+        return null;
+      }
+      const items = sampleFilterItems(evalDescriptor);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { title: item2.tooltip, children: item2.canonicalName }),
+        index2 < array.length - 1 ? ", " : ""
+      ] }, index2)) });
+    };
+    const ParamSummary = ({ params }) => {
+      if (!params) {
+        return null;
+      }
+      const paraValues = Object.keys(params).map((key2) => {
+        const val = params[key2];
+        if (Array.isArray(val) || typeof val === "object") {
+          return `${key2}: ${JSON.stringify(val)}`;
+        } else {
+          return `${key2}: ${val}`;
+        }
+      });
+      if (paraValues.length > 0) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "code",
+          {
+            style: {
+              padding: 0,
+              color: "var(--bs-body-color)",
+              overflowWrap: "anywhere"
+            },
+            children: paraValues.join(", ")
+          }
+        );
+      } else {
+        return null;
+      }
+    };
+    const navbarWrapper = "_navbarWrapper_838qu_48";
+    const styles = {
+      navbarWrapper
+    };
+    const TitleView = ({
+      evalSpec,
+      evalPlan,
+      evalResults,
+      evalStats,
+      status: status2,
+      runningMetrics
+    }) => {
+      const totalSampleCount = useTotalSampleCount();
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles.navbarWrapper), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          PrimaryBar,
+          {
+            evalSpec,
+            evalResults,
+            status: status2,
+            runningMetrics,
+            sampleCount: totalSampleCount
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          SecondaryBar,
+          {
+            evalSpec,
+            evalPlan,
+            evalResults,
+            evalStats,
+            status: status2,
+            sampleCount: totalSampleCount
+          }
+        )
+      ] });
     };
     const LogView = () => {
       const divRef = reactExports.useRef(null);
@@ -87730,8 +91824,6 @@ Supported expressions:
           return (_a2 = state.log.pendingSampleSummaries) == null ? void 0 : _a2.metrics;
         }
       );
-      const logs = useStore((state) => state.logs.logs);
-      const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const samplesTabConfig = useSamplesTabConfig(
         selectedLogSummary == null ? void 0 : selectedLogSummary.status,
         refreshLog
@@ -87795,26 +91887,25 @@ Supported expressions:
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
-            Navbar,
+            TitleView,
             {
               evalSpec,
               evalPlan: selectedLogSummary == null ? void 0 : selectedLogSummary.plan,
               evalResults: selectedLogSummary == null ? void 0 : selectedLogSummary.results,
               runningMetrics,
               evalStats: selectedLogSummary == null ? void 0 : selectedLogSummary.stats,
-              status: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
-              showToggle
+              status: selectedLogSummary == null ? void 0 : selectedLogSummary.status
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$T.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$T.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$11.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$11.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TabSet,
             {
               id: "log-details",
               tools: tabTools2,
               type: "pills",
-              className: clsx(styles$T.tabSet, "text-size-smaller"),
-              tabControlsClassName: clsx(styles$T.tabs, "text-size-smaller"),
-              tabPanelsClassName: clsx(styles$T.tabPanels),
+              className: clsx(styles$11.tabSet, "text-size-smaller"),
+              tabControlsClassName: clsx(styles$11.tabs, "text-size-smaller"),
+              tabPanelsClassName: clsx(styles$11.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
                 const tab2 = tabs2[key2];
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -87840,30 +91931,14 @@ Supported expressions:
     };
     const LogViewLayout = () => {
       const appStatus = useStore((state) => state.app.status);
-      const offCanvas = useStore((state) => state.app.offcanvas);
-      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const clearWorkspaceTab = useStore(
-        (state) => state.appActions.clearWorkspaceTab
-      );
-      const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
       const nativeFind = useStore((state) => state.capabilities.nativeFind);
       const showFind = useStore((state) => state.app.showFind);
       const setShowFind = useStore((state) => state.appActions.setShowFind);
       const hideFind = useStore((state) => state.appActions.hideFind);
+      const singleFileMode = useStore((state) => state.app.singleFileMode);
       const logs = useStore((state) => state.logs.logs);
-      const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
-      const logHeaders = useStore((state) => state.logs.logHeaders);
-      const headersLoading = useStore((state) => state.logs.headersLoading);
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const resetFiltering = useStore((state) => state.logActions.resetFiltering);
       const mainAppRef = reactExports.useRef(null);
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
-      const handleSelectedIndexChanged = reactExports.useCallback(() => {
-        setOffCanvas(false);
-        resetFiltering();
-        clearSampleTab();
-        clearWorkspaceTab();
-      }, [setOffCanvas, resetFiltering, clearSampleTab, clearWorkspaceTab]);
       const handleKeyboard = reactExports.useCallback(
         (e) => {
           if (nativeFind || !setShowFind) {
@@ -87877,44 +91952,35 @@ Supported expressions:
         },
         [nativeFind, setShowFind, hideFind]
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          Sidebar,
-          {
-            logHeaders,
-            loading: headersLoading,
-            selectedIndex: selectedLogIndex,
-            onSelectedIndexChanged: handleSelectedIndexChanged
-          }
-        ) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            ref: mainAppRef,
-            className: clsx(
-              "app-main-grid",
-              fullScreen ? "full-screen" : void 0,
-              offCanvas ? "off-canvas" : void 0
-            ),
-            tabIndex: 0,
-            onKeyDown: handleKeyboard,
-            children: [
-              !nativeFind && showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appStatus.loading }),
-              appStatus.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ErrorPanel,
-                {
-                  title: "An error occurred while loading this task.",
-                  error: appStatus.error
-                }
-              ) : /* @__PURE__ */ jsxRuntimeExports.jsx(LogView, {})
-            ]
-          }
-        )
-      ] });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          ref: mainAppRef,
+          className: clsx(
+            "app-main-grid",
+            fullScreen ? "full-screen" : void 0,
+            singleFileMode ? "single-file-mode" : void 0,
+            "log-view"
+          ),
+          tabIndex: 0,
+          onKeyDown: handleKeyboard,
+          children: [
+            !nativeFind && showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
+            !singleFileMode ? /* @__PURE__ */ jsxRuntimeExports.jsx(Navbar, {}) : "",
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appStatus.loading }),
+            appStatus.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ErrorPanel,
+              {
+                title: "An error occurred while loading this task.",
+                error: appStatus.error
+              }
+            ) : /* @__PURE__ */ jsxRuntimeExports.jsx(LogView, {})
+          ]
+        }
+      ) });
     };
     const LogViewContainer = () => {
-      const { logPath, tabId, sampleId, epoch, sampleTabId } = useParams();
+      const { logPath, tabId, sampleId, epoch, sampleTabId } = useLogRouteParams();
       const initialState2 = useStore((state) => state.app.initialState);
       const clearInitialState = useStore(
         (state) => state.appActions.clearInitialState
@@ -87955,7 +92021,7 @@ Supported expressions:
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
-            await selectLogFile(decodeURIComponent(logPath));
+            await selectLogFile(logPath);
             if (tabId) {
               setWorkspaceTab(tabId);
             } else {
@@ -87965,19 +92031,6 @@ Supported expressions:
               clearSelectedSample();
               clearSelectedLogSummary();
             }
-          } else {
-            setStatus({
-              loading: true,
-              error: void 0
-            });
-            setSelectedLogIndex(-1);
-            setWorkspaceTab(kLogViewSamplesTabId);
-            await refreshLogs();
-            setSelectedLogIndex(0);
-            setStatus({
-              loading: false,
-              error: void 0
-            });
           }
         };
         loadLogFromPath();
@@ -88025,6 +92078,18 @@ Supported expressions:
       ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
+    const RouteDispatcher = () => {
+      const { logPath } = useLogRouteParams();
+      if (!logPath) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(LogsPanel, {});
+      }
+      const isLogFile = logPath.endsWith(".eval") || logPath.endsWith(".json");
+      if (isLogFile) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {});
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(LogsPanel, {});
+      }
+    };
     const AppLayout = () => {
       const location2 = useLocation();
       reactExports.useEffect(() => {
@@ -88032,6 +92097,10 @@ Supported expressions:
           storeImplementation.getState().appActions.setUrlHash(location2.pathname);
         }
       }, [location2]);
+      const singleFileMode = useStore((state) => state.app.singleFileMode);
+      if (singleFileMode) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) });
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {}) });
     };
     const AppRouter = createHashRouter(
@@ -88043,11 +92112,15 @@ Supported expressions:
             {
               index: true,
               // This will match exactly the "/" path
-              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsPanel, {})
+            },
+            {
+              path: kLogsRoutUrlPattern,
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsPanel, {})
             },
             {
               path: kLogRouteUrlPattern,
-              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(RouteDispatcher, {})
             },
             {
               path: kSampleRouteUrlPattern,
@@ -88075,6 +92148,9 @@ Supported expressions:
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const pollLog = useStore((state) => state.logActions.pollLog);
+      const setSingleFileMode = useStore(
+        (state) => state.appActions.setSingleFileMode
+      );
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile && selectedLogFile !== loadedLogFile) {
@@ -88149,6 +92225,7 @@ Supported expressions:
           if (embeddedState && !rehydrated) {
             const state = lib$1.parse(embeddedState.textContent || "");
             onMessage({ data: state });
+            setSingleFileMode(true);
           } else {
             const urlParams = new URLSearchParams(window.location.search);
             const logPath = urlParams.get("task_file");
@@ -88158,10 +92235,12 @@ Supported expressions:
                 log_dir: "",
                 files: [{ name: resolvedLogPath }]
               });
+              setSingleFileMode(true);
             } else {
               const log_file = urlParams.get("log_file");
               if (log_file) {
                 await selectLogFile(log_file);
+                setSingleFileMode(true);
               }
             }
           }

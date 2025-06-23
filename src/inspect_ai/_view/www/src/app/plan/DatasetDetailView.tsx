@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import { EvalDataset } from "../../@types/log";
-import { MetaDataView } from "../content/MetaDataView";
 
 import { CSSProperties, FC } from "react";
+import { MetaDataGrid } from "../content/MetaDataGrid";
 import styles from "./DatasetDetailView.module.css";
 
 interface DatasetDetailViewProps {
@@ -28,11 +28,11 @@ export const DatasetDetailView: FC<DatasetDetailViewProps> = ({
   }
 
   return (
-    <MetaDataView
+    <MetaDataGrid
       className={clsx("text-size-base", styles.item)}
       entries={filtered}
-      tableOptions="borderless,sm"
       style={style}
+      plain={true}
     />
   );
 };

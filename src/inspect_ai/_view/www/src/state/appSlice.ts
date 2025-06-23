@@ -10,7 +10,6 @@ export interface AppSlice {
   capabilities: Capabilities;
   appActions: {
     setStatus: (status: AppStatus) => void;
-    setOffcanvas: (show: boolean) => void;
     setShowFind: (show: boolean) => void;
     hideFind: () => void;
 
@@ -46,7 +45,15 @@ export interface AppSlice {
     setPropertyValue: <T>(bagName: string, key: string, value: T) => void;
     removePropertyValue: (bagName: string, key: string) => void;
 
+    setPagination: (
+      name: string,
+      pagination: { page: number; pageSize: number },
+    ) => void;
+    clearPagination: (name: string) => void;
+
     setUrlHash: (urlHash: string) => void;
+
+    setSingleFileMode: (singleFile: boolean) => void;
   };
 }
 
@@ -55,7 +62,6 @@ const kDefaultSampleTab = kSampleTranscriptTabId;
 
 const initialState: AppState = {
   status: { loading: false },
-  offcanvas: false,
   showFind: false,
   dialogs: {
     sample: false,
@@ -69,6 +75,7 @@ const initialState: AppState = {
   collapsed: {},
   messages: {},
   propertyBags: {},
+  pagination: {},
 };
 
 export const createAppSlice = (
@@ -98,11 +105,6 @@ export const createAppSlice = (
       setStatus: (status: AppStatus) =>
         set((state) => {
           state.app.status = status;
-        }),
-
-      setOffcanvas: (show: boolean) =>
-        set((state) => {
-          state.app.offcanvas = show;
         }),
 
       setShowFind: (show: boolean) =>
@@ -260,6 +262,24 @@ export const createAppSlice = (
       setUrlHash: (urlHash: string) => {
         set((state) => {
           state.app.urlHash = urlHash;
+        });
+      },
+      setSingleFileMode: (singleFile: boolean) => {
+        set((state) => {
+          state.app.singleFileMode = singleFile;
+        });
+      },
+      setPagination: (
+        name: string,
+        pagination: { page: number; pageSize: number },
+      ) => {
+        set((state) => {
+          state.app.pagination[name] = pagination;
+        });
+      },
+      clearPagination: (name: string) => {
+        set((state) => {
+          delete state.app.pagination[name];
         });
       },
     },

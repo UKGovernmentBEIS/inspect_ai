@@ -563,7 +563,7 @@ class Model:
             input = collapse_consecutive_assistant_messages(input)
 
         # retry for transient http errors:
-        # - no default timeout or max_retries (try forever)
+        # - use config.max_retries and config.timeout if specified, otherwise retry forever
         # - exponential backoff starting at 3 seconds (will wait 25 minutes
         #   on the 10th retry,then will wait no longer than 30 minutes on
         #   subsequent retries)
