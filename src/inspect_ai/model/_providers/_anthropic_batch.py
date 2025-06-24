@@ -77,13 +77,9 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     async def _check_batch(self, batch: Batch[Message]) -> CompletedBatchInfo | None:
         batch_info = await self.client.messages.batches.retrieve(batch.id)
 
-        # TODO: What does it mean to be ended but without results_url?
-        if batch_info.processing_status != "ended" or not batch_info.results_url:
-            return None
-
-        # We don't need any extra completion info since we retrieve the results
-        # directly via the sdk given the batch id.
-        return True
+        # We don't need any extra completion info beyond the True since we
+        # retrieve the results directly via the sdk given the batch id.
+        return True if batch_info.processing_status == "ended" else None
 
     async def _handle_batch_result(
         self,
