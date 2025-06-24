@@ -522,15 +522,16 @@ async def startup_sandbox_environments(
 
     # return shutdown method
     async def shutdown() -> None:
-        for cleanup_jobs in cleanups:
-            try:
-                cleanup_fn, config, task_run_dir = cleanup_jobs
-                with chdir(task_run_dir):
-                    await cleanup_fn("shutdown", config, cleanup)
-            except BaseException as ex:
-                log.warning(
-                    f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
-                )
+        with anyio.CancelScope(shield=True):
+            for cleanup_jobs in cleanups:
+                try:
+                    cleanup_fn, config, task_run_dir = cleanup_jobs
+                    with chdir(task_run_dir):
+                        await cleanup_fn("shutdown", config, cleanup)
+                except BaseException as ex:
+                    log.warning(
+                        f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
+                    )
 
     return shutdown
 

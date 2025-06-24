@@ -3,6 +3,7 @@
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
 - Inspect View: Properly wrap log configuration values in evaluation header.
 - Inspect View: Support for displaying and navigating directories of evaluation logs.
+- Bugfix: Shield critical shutdown code from cancel scope.
 - Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
 
 ## v0.3.106 (21 June 2025)
