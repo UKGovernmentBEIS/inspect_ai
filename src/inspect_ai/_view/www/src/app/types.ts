@@ -1,3 +1,8 @@
+import {
+  ColumnFiltersState,
+  ColumnResizeMode,
+  SortingState,
+} from "@tanstack/react-table";
 import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
@@ -22,6 +27,7 @@ import {
   EvalLogHeader,
   EvalSummary,
   EventData,
+  LogFile,
   LogFiles,
   PendingSamples,
   SampleSummary,
@@ -30,7 +36,6 @@ import { ScorerInfo } from "../state/scoring";
 
 export interface AppState {
   status: AppStatus;
-  offcanvas: boolean;
   showFind: boolean;
   tabs: {
     workspace: string;
@@ -51,6 +56,8 @@ export interface AppState {
     sample_epoch?: string;
   };
   rehydrated?: boolean;
+  pagination: Record<string, { page: number; pageSize: number }>;
+  singleFileMode?: boolean;
 }
 
 export interface LogsState {
@@ -59,6 +66,19 @@ export interface LogsState {
   headersLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
+  listing: LogsListing;
+  loadingFiles: Set<string>;
+  pendingRequests: Map<string, Promise<EvalLogHeader | null>>;
+}
+
+export interface LogsListing {
+  sorting?: SortingState;
+  filtering?: ColumnFiltersState;
+  globalFilter?: string;
+  columnResizeMode?: ColumnResizeMode;
+  columnSizes?: Record<string, number>;
+  filteredCount?: number;
+  watchedLogs?: LogFile[];
 }
 
 export interface LogState {

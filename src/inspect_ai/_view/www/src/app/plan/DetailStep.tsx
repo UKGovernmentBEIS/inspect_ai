@@ -20,16 +20,16 @@ export const DetailStep: FC<DetailStepProps> = ({
   return (
     <div className={clsx(className)}>
       {iconHtml} {name}
-      <div className={styles.container}>
-        {params ? (
+      {params && Object.keys(params).length > 0 ? (
+        <div className={styles.container}>
           <MetaDataGrid
             entries={params}
             className={clsx("text-size-small", styles.metadata)}
           />
-        ) : (
-          ""
-        )}
-      </div>
+        </div>
+      ) : (
+        ""
+      )}
     </div>
   );
 };

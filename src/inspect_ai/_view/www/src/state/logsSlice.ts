@@ -1,7 +1,12 @@
+import {
+  ColumnFiltersState,
+  ColumnResizeMode,
+  SortingState,
+} from "@tanstack/react-table";
+import { EvalLog } from "../@types/log";
 import { LogsState } from "../app/types";
-import { EvalLogHeader, LogFiles } from "../client/api/types";
+import { EvalLogHeader, LogFile, LogFiles } from "../client/api/types";
 import { createLogger } from "../utils/logger";
-import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
@@ -17,6 +22,7 @@ export interface LogsSlice {
     // Update State
     setLogs: (logs: LogFiles) => void;
     setLogHeaders: (headers: Record<string, EvalLogHeader>) => void;
+    loadHeaders: (logs: LogFile[]) => Promise<EvalLog[]>;
     setHeadersLoading: (loading: boolean) => void;
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
@@ -26,6 +32,15 @@ export interface LogsSlice {
     refreshLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
+
+    setSorting: (sorting: SortingState) => void;
+    setFiltering: (filtering: ColumnFiltersState) => void;
+    setGlobalFilter: (globalFilter: string) => void;
+    setColumnResizeMode: (mode: ColumnResizeMode) => void;
+    setColumnSize: (columnId: string, size: number) => void;
+    setFilteredCount: (count: number) => void;
+    setWatchedLogs: (logs: LogFile[]) => void;
+    clearWatchedLogs: () => void;
   };
 }
 
@@ -35,6 +50,9 @@ const initialState: LogsState = {
   headersLoading: false,
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
+  listing: {},
+  loadingFiles: new Set<string>(),
+  pendingRequests: new Map<string, Promise<EvalLogHeader | null>>(),
 };
 
 export const createLogsSlice = (
@@ -42,8 +60,6 @@ export const createLogsSlice = (
   get: () => StoreState,
   _store: any,
 ): [LogsSlice, () => void] => {
-  const logsPolling = createLogsPolling(get, set);
-
   const slice = {
     // State
     logs: initialState,
@@ -58,22 +74,105 @@ export const createLogsSlice = (
               ? logs.files[state.logs.selectedLogIndex]?.name
               : undefined;
         });
-
-        // If we have files in the logs, load the headers
-        if (logs.files.length > 0) {
-          // ensure state is updated first
-          setTimeout(() => {
-            const currentState = get();
-            if (!currentState.logs.headersLoading) {
-              logsPolling.startPolling(logs);
-            }
-          }, 100);
-        }
       },
       setLogHeaders: (headers: Record<string, EvalLogHeader>) =>
         set((state) => {
           state.logs.logHeaders = headers;
         }),
+      loadHeaders: async (logs: LogFile[]) => {
+        const state = get();
+        const api = state.api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return [];
+        }
+
+        // Filter out files that are already loaded or currently loading
+        // reload headers with "started" status as they may have changed
+        const filesToLoad = logs.filter((logFile) => {
+          const existing = state.logs.logHeaders[logFile.name];
+          const isLoading = state.logs.loadingFiles.has(logFile.name);
+
+          // Always load if no existing header
+          if (!existing) {
+            return !isLoading;
+          }
+
+          // Reload if header status is "started" or "error" (but not if already loading)
+          if (existing.status === "started" || existing.status === "error") {
+            return !isLoading;
+          }
+
+          // Skip if already loaded with final status
+          return false;
+        });
+
+        if (filesToLoad.length === 0) {
+          return [];
+        }
+
+        // Mark files as loading
+        set((state) => {
+          filesToLoad.forEach((logFile) => {
+            state.logs.loadingFiles.add(logFile.name);
+          });
+        });
+
+        // Set global loading state if this is the first batch
+        const wasLoading = get().logs.headersLoading;
+        if (!wasLoading) {
+          set((state) => {
+            state.logs.headersLoading = true;
+          });
+        }
+
+        try {
+          log.debug(`LOADING LOG HEADERS for ${filesToLoad.length} files`);
+          const headers = await api.get_log_headers(
+            filesToLoad.map((log) => log.name),
+          );
+
+          // Process results and update store
+          const headerMap: Record<string, EvalLogHeader> = {};
+          for (let i = 0; i < filesToLoad.length; i++) {
+            const logFile = filesToLoad[i];
+            const header = headers[i];
+            if (header) {
+              headerMap[logFile.name] = header as EvalLogHeader;
+            }
+          }
+
+          // Update headers in store
+          set((state) => {
+            state.logs.logHeaders = { ...state.logs.logHeaders, ...headerMap };
+            // Remove from loading state
+            filesToLoad.forEach((logFile) => {
+              state.logs.loadingFiles.delete(logFile.name);
+            });
+            // Update global loading state if no more files are loading
+            if (state.logs.loadingFiles.size === 0) {
+              state.logs.headersLoading = false;
+            }
+          });
+
+          return headers;
+        } catch (error) {
+          log.error("Error loading log headers", error);
+
+          // Clear loading state on error
+          set((state) => {
+            filesToLoad.forEach((logFile) => {
+              state.logs.loadingFiles.delete(logFile.name);
+            });
+            if (state.logs.loadingFiles.size === 0) {
+              state.logs.headersLoading = false;
+            }
+          });
+
+          // Don't throw - just return empty array like the old implementation
+          return [];
+        }
+      },
       setHeadersLoading: (loading: boolean) =>
         set((state) => {
           state.logs.headersLoading = loading;
@@ -166,6 +265,49 @@ export const createLogsSlice = (
             idx !== undefined && idx > -1 ? idx : 0,
           );
         }
+      },
+      setSorting: (sorting: SortingState) => {
+        set((state) => {
+          state.logs.listing.sorting = sorting;
+        });
+      },
+      setFiltering: (filtering: ColumnFiltersState) => {
+        set((state) => {
+          state.logs.listing.filtering = filtering;
+        });
+      },
+      setGlobalFilter: (globalFilter: string) => {
+        set((state) => {
+          state.logs.listing.globalFilter = globalFilter;
+        });
+      },
+      setColumnResizeMode: (mode: ColumnResizeMode) => {
+        set((state) => {
+          state.logs.listing.columnResizeMode = mode;
+        });
+      },
+      setColumnSize: (columnId: string, size: number) => {
+        set((state) => {
+          if (!state.logs.listing.columnSizes) {
+            state.logs.listing.columnSizes = {};
+          }
+          state.logs.listing.columnSizes[columnId] = size;
+        });
+      },
+      setFilteredCount: (count: number) => {
+        set((state) => {
+          state.logs.listing.filteredCount = count;
+        });
+      },
+      setWatchedLogs: (logs: LogFile[]) => {
+        set((state) => {
+          state.logs.listing.watchedLogs = logs;
+        });
+      },
+      clearWatchedLogs: () => {
+        set((state) => {
+          state.logs.listing.watchedLogs = undefined;
+        });
       },
     },
   } as const;

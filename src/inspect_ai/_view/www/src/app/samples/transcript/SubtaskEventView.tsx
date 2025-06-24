@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FC, ReactNode } from "react";
 import { Input2, Input5, Result2, SubtaskEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
-import { MetaDataView } from "../../content/MetaDataView";
+import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { EventPanel } from "./event/EventPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
@@ -106,7 +106,7 @@ const Rendered: FC<RenderedProps> = ({ values }) => {
     if (Object.keys(values).length === 0) {
       return <None />;
     } else {
-      return <MetaDataView entries={values as Record<string, unknown>} />;
+      return <MetaDataGrid entries={values as Record<string, unknown>} />;
     }
   } else {
     return values;
