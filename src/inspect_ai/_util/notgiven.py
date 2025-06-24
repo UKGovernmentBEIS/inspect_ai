@@ -20,7 +20,7 @@ def _is_notgiven(value: Any) -> bool:
 
 
 def sanitize_notgiven(value: Any) -> Any:
-    if value is NOT_GIVEN:
+    if _is_notgiven(value):
         return None
     if isinstance(value, dict):
         return {
