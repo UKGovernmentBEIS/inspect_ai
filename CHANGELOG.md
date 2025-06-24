@@ -1,3 +1,7 @@
+## 0.3.107 (24 June 2025)
+
+- Bugfix: Shield critical shutdown code from cancel scope.
+
 ## v0.3.106 (21 June 2025)
 
 - OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
