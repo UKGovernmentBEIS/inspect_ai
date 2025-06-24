@@ -1,9 +1,9 @@
 ## Unreleased
 
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
-- Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
 - Inspect View: Properly wrap log configuration values in evaluation header.
 - Inspect View: Support for displaying and navigating directories of evaluation logs.
+- Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
 
 ## v0.3.106 (21 June 2025)
 
