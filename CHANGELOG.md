@@ -4,6 +4,7 @@
 - Inspect View: Properly wrap log configuration values in evaluation header.
 - Inspect View: Support for displaying and navigating directories of evaluation logs.
 - Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
+- Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support. 
 
 ## 0.3.108 (25 June 2025)
 
