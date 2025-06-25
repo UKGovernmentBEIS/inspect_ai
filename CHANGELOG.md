@@ -1,3 +1,7 @@
+## 0.3.108 (25 June 2025)
+
+- Bugfix: Don't raise error on Anthropic cited_text not being a `str`.
+
 ## 0.3.107 (24 June 2025)
 
 - Bugfix: Shield critical shutdown code from cancel scope.
