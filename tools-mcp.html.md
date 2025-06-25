@@ -347,9 +347,8 @@ Base Image** below for details on how to do this.
 >
 > ### Custom Base Image
 >
-> If you are inheriting from a different base image then you can
-> equivalently satisfy the `inspect-tool-support` dependency by adding
-> this to your Dockerfile:
+> You should add the following to your sandbox `Dockerfile` in order to
+> use this tool:
 >
 > ``` dockerfile
 > RUN apt-get update && apt-get install -y pipx && \

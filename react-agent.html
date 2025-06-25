@@ -609,9 +609,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="continuation">Continuation</h3>
 <p>In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the <code>submit()</code> tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call <code>submit()</code> or alternatively continue if they haven’t yet completed the task.</p>
 <p>This behaviour is controlled by the <code>on_continue</code> parameter, which by default yields the following user message to the model:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>Please proceed to the next step using your best judgement. If you believe you</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>have completed the task, please call the `submit()` tool with your final answer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can pass a different continuation message, or alternative pass an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentcontinue">AgentContinue</a></span> function that can dynamically determine both whether to continue and what the message is.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>Please proceed to the next step using your best judgement. </span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>If you believe you have completed the task, please call the </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>`submit()` tool with your final answer,</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can pass a different continuation message, or alternatively pass an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentcontinue">AgentContinue</a></span> function that can dynamically determine both whether to continue and what the message is. Here is how <code>on_continue</code> affects the agent loop for various inputs:</p>
+<ul>
+<li><p><code>None</code>: A default user message will be appended only when there are no tool calls made by the model.</p></li>
+<li><p><code>str</code>: The returned user message will be appended only when there are no tool calls made by the model.</p></li>
+<li><p><code>Callable</code>: the function passed can return one of:</p>
+<ul>
+<li><code>True</code>: Agent loop continues with no messages appended.</li>
+<li><code>False</code>: Agent loop is exited early.</li>
+<li><code>str</code>: Agent loop continues and the returned user message will be appended regardless of whether a tool call was made in the previous assistant message. If your custom function only wants to append a message when there are no tool calls made then you should check <code>state.output.message.tool_calls</code> explicitly (returning <code>True</code> rather than <code>str</code> when you want no message appended).</li>
+</ul></li>
+</ul>
 </section>
 <section id="submit-tool" class="level3">
 <h3 class="anchored" data-anchor-id="submit-tool">Submit Tool</h3>

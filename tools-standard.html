@@ -500,6 +500,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#openai-options" id="toc-openai-options" class="nav-link" data-scroll-target="#openai-options">OpenAI Options</a></li>
   <li><a href="#anthropic-options" id="toc-anthropic-options" class="nav-link" data-scroll-target="#anthropic-options">Anthropic Options</a></li>
   <li><a href="#gemini-options" id="toc-gemini-options" class="nav-link" data-scroll-target="#gemini-options">Gemini Options</a></li>
+  <li><a href="#perplexity-options" id="toc-perplexity-options" class="nav-link" data-scroll-target="#perplexity-options">Perplexity Options</a></li>
   <li><a href="#tavily-options" id="toc-tavily-options" class="nav-link" data-scroll-target="#tavily-options">Tavily Options</a></li>
   <li><a href="#exa-options" id="toc-exa-options" class="nav-link" data-scroll-target="#exa-options">Exa Options</a></li>
   <li><a href="#google-options" id="toc-google-options" class="nav-link" data-scroll-target="#google-options">Google Options</a></li>
@@ -579,7 +580,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="sec-web-search">Web Search</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:</p>
 <ul>
-<li><p>Internal providers: <code>"openai"</code>, <code>"anthropic"</code>, and <code>"gemini"</code> - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
+<li><p>Internal providers: <code>"openai"</code>, <code>"anthropic"</code>, <code>"gemini"</code>, and <code>"perplexity"</code> - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
 <li><p>External providers: <code>"tavily"</code>, <code>"exa"</code>, and <code>"google"</code>. These are external services that work with any model and require separate accounts and API keys. Note that “google” is different from “gemini” - “google” refers to Google’s Programmable Search Engine service, while “gemini” refers to Google’s built-in search capability for Gemini models.</p></li>
 </ul>
 <p>Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on <code>openai</code> models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.</p>
@@ -593,7 +594,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"tavily"</span>])</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple internal providers and fallback</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"anthropic"</span>, <span class="st">"gemini"</span>, <span class="st">"tavily"</span>])</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"anthropic"</span>, <span class="st">"gemini"</span>, <span class="st">"perplexity"</span>, <span class="st">"tavily"</span>])</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># provider with specific options</span></span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>web_search({<span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}})</span>
@@ -635,6 +636,12 @@ Warning
 <p>Google’s search grounding does not currently support use with other tools. Attempting to use <code>web_search("gemini")</code> alongside other tools will result in an error.</p>
 </div>
 </div>
+</section>
+<section id="perplexity-options" class="level3">
+<h3 class="anchored" data-anchor-id="perplexity-options">Perplexity Options</h3>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use Perplexity’s built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what’s needed for the model itself. Search parameters can be passed using the <code>perplexity</code> provider options and will be forwarded to the model API.</p>
+<p>For more details, see <a href="https://docs.perplexity.ai/api-reference/chat-completions-post">Perplexity API Documentation</a>.</p>
+<p>Note that when using the “perplexity” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Perplexity models.</p>
 </section>
 <section id="tavily-options" class="level3">
 <h3 class="anchored" data-anchor-id="tavily-options">Tavily Options</h3>
@@ -805,10 +812,11 @@ Sandbox Dependencies
 <div id="callout-2" class="callout-2-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>You should add the following to your sandbox <code>Dockerfile</code> in order to use this tool:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/opt/inspect_tool_support/bin"</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">python</span> <span class="at">-m</span> venv /opt/inspect_tool_support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/pip</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/inspect-tool-support</span> post-install</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt-get</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> install <span class="at">-y</span> pipx <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="ex">apt-get</span> clean <span class="kw">&amp;&amp;</span> <span class="fu">rm</span> <span class="at">-rf</span> /var/lib/apt/lists/<span class="pp">*</span> <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">pipx</span> ensurepath</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/root/.local/bin"</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">pipx</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="ex">inspect-tool-support</span> post-install</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that Playwright (used for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> tool) does not support some versions of Linux (e.g.&nbsp;Kali Linux). If this is the case for your Linux distribution, you should add the <code>--no-web-browser</code> option to the <code>post-install</code>:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">inspect-tool-support</span> post-install <span class="at">--no-web-browser</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If you don’t have a custom Dockerfile, you can alternatively use the pre-built <code>aisiuk/inspect-tool-support</code> image:</p>
@@ -867,10 +875,11 @@ Sandbox Dependencies
 <div id="callout-3" class="callout-3-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>You should add the following to your sandbox <code>Dockerfile</code> in order to use this tool:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/opt/inspect_tool_support/bin"</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">python</span> <span class="at">-m</span> venv /opt/inspect_tool_support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/pip</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/inspect-tool-support</span> post-install</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt-get</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> install <span class="at">-y</span> pipx <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="ex">apt-get</span> clean <span class="kw">&amp;&amp;</span> <span class="fu">rm</span> <span class="at">-rf</span> /var/lib/apt/lists/<span class="pp">*</span> <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">pipx</span> ensurepath</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/root/.local/bin"</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">pipx</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="ex">inspect-tool-support</span> post-install</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that Playwright (used for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> tool) does not support some versions of Linux (e.g.&nbsp;Kali Linux). If this is the case for your Linux distribution, you should add the <code>--no-web-browser</code> option to the <code>post-install</code>:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">inspect-tool-support</span> post-install <span class="at">--no-web-browser</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If you don’t have a custom Dockerfile, you can alternatively use the pre-built <code>aisiuk/inspect-tool-support</code> image:</p>
@@ -937,10 +946,11 @@ Sandbox Dependencies
 <div id="callout-4" class="callout-4-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>You should add the following to your sandbox <code>Dockerfile</code> in order to use this tool:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/opt/inspect_tool_support/bin"</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">python</span> <span class="at">-m</span> venv /opt/inspect_tool_support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/pip</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/inspect-tool-support</span> post-install</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt-get</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> install <span class="at">-y</span> pipx <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="ex">apt-get</span> clean <span class="kw">&amp;&amp;</span> <span class="fu">rm</span> <span class="at">-rf</span> /var/lib/apt/lists/<span class="pp">*</span> <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">pipx</span> ensurepath</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/root/.local/bin"</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">pipx</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="ex">inspect-tool-support</span> post-install</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If you don’t have a custom Dockerfile, you can alternatively use the pre-built <code>aisiuk/inspect-tool-support</code> image:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
@@ -1847,7 +1857,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"openEffect":"zoom","closeEffect":"zoom","descPosition":"bottom","selector":".lightbox"});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","selector":".lightbox","closeEffect":"zoom","loop":false,"openEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

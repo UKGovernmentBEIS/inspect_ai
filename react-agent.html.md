@@ -146,13 +146,32 @@ This behaviour is controlled by the `on_continue` parameter, which by
 default yields the following user message to the model:
 
 ``` default
-Please proceed to the next step using your best judgement. If you believe you
-have completed the task, please call the `submit()` tool with your final answer
+Please proceed to the next step using your best judgement. 
+If you believe you have completed the task, please call the 
+`submit()` tool with your final answer,
 ```
 
-You can pass a different continuation message, or alternative pass an
+You can pass a different continuation message, or alternatively pass an
 `AgentContinue` function that can dynamically determine both whether to
-continue and what the message is.
+continue and what the message is. Here is how `on_continue` affects the
+agent loop for various inputs:
+
+- `None`: A default user message will be appended only when there are no
+  tool calls made by the model.
+
+- `str`: The returned user message will be appended only when there are
+  no tool calls made by the model.
+
+- `Callable`: the function passed can return one of:
+
+  - `True`: Agent loop continues with no messages appended.
+  - `False`: Agent loop is exited early.
+  - `str`: Agent loop continues and the returned user message will be
+    appended regardless of whether a tool call was made in the previous
+    assistant message. If your custom function only wants to append a
+    message when there are no tool calls made then you should check
+    `state.output.message.tool_calls` explicitly (returning `True`
+    rather than `str` when you want no message appended).
 
 ### Submit Tool
 

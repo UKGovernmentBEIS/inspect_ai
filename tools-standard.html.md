@@ -37,10 +37,11 @@ The `web_search()` tool provides models the ability to enhance their
 context window by performing a search. Web searches are executed using a
 provider. Providers are split into two categories:
 
-- Internal providers: `"openai"`, `"anthropic"`, and `"gemini"` - these
-  use the model’s built-in search capability and do not require separate
-  API keys. These work only for their respective model provider
-  (e.g. the “openai” search provider works only for `openai/*` models).
+- Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, and
+  `"perplexity"` - these use the model’s built-in search capability and
+  do not require separate API keys. These work only for their respective
+  model provider (e.g. the “openai” search provider works only for
+  `openai/*` models).
 
 - External providers: `"tavily"`, `"exa"`, and `"google"`. These are
   external services that work with any model and require separate
@@ -67,7 +68,7 @@ web_search("tavily")
 web_search(["openai", "tavily"])
 
 # multiple internal providers and fallback
-web_search(["openai", "anthropic", "gemini", "tavily"])
+web_search(["openai", "anthropic", "gemini", "perplexity", "tavily"])
 
 # provider with specific options
 web_search({"tavily": {"max_results": 5}})
@@ -135,6 +136,21 @@ are also running the evaluation with non-Gemini models.
 > Google’s search grounding does not currently support use with other
 > tools. Attempting to use `web_search("gemini")` alongside other tools
 > will result in an error.
+
+### Perplexity Options
+
+The `web_search()` tool can use Perplexity’s built-in search capability
+when running on Perplexity models. This provider does not require any
+API keys beyond what’s needed for the model itself. Search parameters
+can be passed using the `perplexity` provider options and will be
+forwarded to the model API.
+
+For more details, see [Perplexity API
+Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
+
+Note that when using the “perplexity” provider, you should also specify
+a fallback external provider (like “tavily”, “exa”, or “google”) if you
+are also running the evaluation with non-Perplexity models.
 
 ### Tavily Options
 
@@ -270,10 +286,11 @@ Dependencies** below for additional instructions.
 > use this tool:
 >
 > ``` dockerfile
-> ENV PATH="$PATH:/opt/inspect_tool_support/bin"
-> RUN python -m venv /opt/inspect_tool_support && \
->     /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
->     /opt/inspect_tool_support/bin/inspect-tool-support post-install
+> RUN apt-get update && apt-get install -y pipx && \
+>     apt-get clean && rm -rf /var/lib/apt/lists/* && \
+>     pipx ensurepath
+> ENV PATH="$PATH:/root/.local/bin"
+> RUN pipx install inspect-tool-support && inspect-tool-support post-install
 > ```
 >
 > Note that Playwright (used for the `web_browser()` tool) does not
@@ -346,10 +363,11 @@ below for additional instructions.
 > use this tool:
 >
 > ``` dockerfile
-> ENV PATH="$PATH:/opt/inspect_tool_support/bin"
-> RUN python -m venv /opt/inspect_tool_support && \
->     /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
->     /opt/inspect_tool_support/bin/inspect-tool-support post-install
+> RUN apt-get update && apt-get install -y pipx && \
+>     apt-get clean && rm -rf /var/lib/apt/lists/* && \
+>     pipx ensurepath
+> ENV PATH="$PATH:/root/.local/bin"
+> RUN pipx install inspect-tool-support && inspect-tool-support post-install
 > ```
 >
 > Note that Playwright (used for the `web_browser()` tool) does not
@@ -440,10 +458,11 @@ support some versions of Linux (e.g. Kali Linux).
 > use this tool:
 >
 > ``` dockerfile
-> ENV PATH="$PATH:/opt/inspect_tool_support/bin"
-> RUN python -m venv /opt/inspect_tool_support && \
->     /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
->     /opt/inspect_tool_support/bin/inspect-tool-support post-install
+> RUN apt-get update && apt-get install -y pipx && \
+>     apt-get clean && rm -rf /var/lib/apt/lists/* && \
+>     pipx ensurepath
+> ENV PATH="$PATH:/root/.local/bin"
+> RUN pipx install inspect-tool-support && inspect-tool-support post-install
 > ```
 >
 > If you don’t have a custom Dockerfile, you can alternatively use the

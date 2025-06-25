@@ -145,7 +145,11 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#v0.3.105-17-june-2025" id="toc-v0.3.105-17-june-2025" class="nav-link active" data-scroll-target="#v0.3.105-17-june-2025">v0.3.105 (17 June 2025)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#june-2025" id="toc-june-2025" class="nav-link" data-scroll-target="#june-2025">0.3.108 (25 June 2025)</a></li>
+  <li><a href="#june-2025-1" id="toc-june-2025-1" class="nav-link" data-scroll-target="#june-2025-1">0.3.107 (24 June 2025)</a></li>
+  <li><a href="#v0.3.106-21-june-2025" id="toc-v0.3.106-21-june-2025" class="nav-link" data-scroll-target="#v0.3.106-21-june-2025">v0.3.106 (21 June 2025)</a></li>
+  <li><a href="#v0.3.105-17-june-2025" id="toc-v0.3.105-17-june-2025" class="nav-link" data-scroll-target="#v0.3.105-17-june-2025">v0.3.105 (17 June 2025)</a></li>
   <li><a href="#v0.3.104-12-june-2025" id="toc-v0.3.104-12-june-2025" class="nav-link" data-scroll-target="#v0.3.104-12-june-2025">v0.3.104 (12 June 2025)</a></li>
   <li><a href="#v0.3.103-06-june-2025" id="toc-v0.3.103-06-june-2025" class="nav-link" data-scroll-target="#v0.3.103-06-june-2025">v0.3.103 (06 June 2025)</a></li>
   <li><a href="#v0.3.102-05-june-2025" id="toc-v0.3.102-05-june-2025" class="nav-link" data-scroll-target="#v0.3.102-05-june-2025">v0.3.102 (05 June 2025)</a></li>
@@ -258,6 +262,39 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).</li>
+<li>Inspect View: Properly wrap log configuration values in evaluation header.</li>
+<li>Inspect View: Support for displaying and navigating directories of evaluation logs.</li>
+<li>Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.</li>
+<li>Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.</li>
+</ul>
+</section>
+<section id="june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="june-2025">0.3.108 (25 June 2025)</h2>
+<ul>
+<li>Bugfix: Don’t raise error on Anthropic cited_text not being a <code>str</code>.</li>
+</ul>
+</section>
+<section id="june-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="june-2025-1">0.3.107 (24 June 2025)</h2>
+<ul>
+<li>Bugfix: Shield critical shutdown code from cancel scope.</li>
+</ul>
+</section>
+<section id="v0.3.106-21-june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="v0.3.106-21-june-2025">v0.3.106 (21 June 2025)</h2>
+<ul>
+<li>OpenAI: Use prefix matching when detecting compatible models for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span>.</li>
+<li>Groq: Capture <code>executed_tools</code> field as model output metadata.</li>
+<li>ReAct agent: Always send <code>str</code> returned from <code>on_continue</code> to the model (formerly this was only done if there were no tool calls).</li>
+<li>Web Search: Added provider for Perplexity’s internal web search tool.</li>
+<li>Eval: Wrap eval execution in TaskGroup.</li>
+<li>Bugfix: Remove correlated reasoning content items when removing submit tool calls from ChatMessageAssistant instances in multi-agent scenarios.</li>
+</ul>
+</section>
 <section id="v0.3.105-17-june-2025" class="level2">
 <h2 class="anchored" data-anchor-id="v0.3.105-17-june-2025">v0.3.105 (17 June 2025)</h2>
 <ul>
