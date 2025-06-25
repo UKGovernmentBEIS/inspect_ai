@@ -1,0 +1,45 @@
+.container {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+  border: solid var(--bs-border-color) 1px;
+  border-radius: var(--bs-border-radius);
+  background-color: var(--inspect-input-background);
+  align-items: center;
+}
+
+.container:focus-within {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
+.input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--bs-body-color);
+}
+
+.withIcon {
+  grid-template-columns: max-content max-content max-content;
+}
+
+.icon {
+  margin-left: 0.3em;
+}
+
+.clearText {
+  opacity: 0.6;
+  margin-right: 0.3em;
+}
+
+.clearText:hover {
+  cursor: pointer;
+}
+
+.clearText.hidden:hover {
+  cursor: default !important;
+}
+.hidden {
+  opacity: 0 !important;
+}

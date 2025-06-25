@@ -1,0 +1,115 @@
+.gridContainer {
+  height: 100%;
+  overflow: auto;
+  padding: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Header Styles */
+.headerRow {
+  display: grid;
+  background: var(--bs-light);
+  border-bottom: 1px solid var(--bs-border-color);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: fit-content;
+  min-width: 100%;
+}
+
+.headerCell {
+  padding: 0.1em 0.1em 0.1em 0.6em;
+  font-weight: 600;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border-right: 1px solid var(--bs-border-color-translucent);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.headerCell:last-child {
+  border-right: none;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  background-color: var(--bs-secondary-bg-subtle);
+}
+
+.sortIndicator {
+  margin-left: 0.25em;
+  font-size: 0.75rem;
+  color: var(--bs-link-color);
+}
+
+/* Resizer Styles */
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 5px;
+  background-color: var(--bs-secondary-bg-subtle);
+
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.resizer:hover,
+.isResizing {
+  opacity: 1;
+}
+
+.headerCell:hover .resizer {
+  opacity: 0.3;
+}
+
+/* Body Styles */
+.bodyContainer {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  min-width: 100%;
+  width: fit-content;
+}
+
+.bodyRow {
+  display: grid;
+  transition: background-color 0.15s ease-in-out;
+  width: fit-content;
+  min-width: 100%;
+}
+
+/* Cell Styles */
+.bodyCell {
+  padding: 0.1em 0.1em 0.1em 0.6em;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.bodyCell:last-child {
+  border-right: none;
+}
+
+.emptyMessage {
+  width: 100%;
+  text-align: center;
+  padding-top: 4em;
+}
