@@ -233,6 +233,8 @@ website:
           href: reference/inspect_ai.scorer.qmd#metric
         - text: score_reducer
           href: reference/inspect_ai.scorer.qmd#score_reducer
+        - text: score
+          href: reference/inspect_ai.scorer.qmd#score
       - section: inspect_ai.model
         href: reference/inspect_ai.model.qmd
         contents:

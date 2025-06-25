@@ -171,7 +171,8 @@ class WebSurferState(StoreModel):
     messages: list[ChatMessage] = Field(default_factory=list)
 
 @agent
-def web_surfer(instance: str | None = uuid()) -> Agent:
+def web_surfer(instance: str | None = None) -> Agent:
+    instance = instance if instance is not None else uuid()
     
     async def execute(state: AgentState) -> AgentState:
 

@@ -1,10 +1,11 @@
 ## Unreleased
 
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
+- Fix store_as examples, document inspect_ai.scorer.score
+- Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.
 - Inspect View: Properly wrap log configuration values in evaluation header.
 - Inspect View: Support for displaying and navigating directories of evaluation logs.
 - Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
-- Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.
 - Bugfix: Fix infinite recursion edge case in _flatten_exception.
 
 ## 0.3.108 (25 June 2025)
