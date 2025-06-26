@@ -423,7 +423,7 @@ const skipFirstChildNode = (node: EventNode): EventNode => {
 const skipThisNode = (node: EventNode): EventNode => {
   const newNode = { ...node.children[0] };
   newNode.depth = node.depth;
-  newNode.children = reduceDepth(newNode.children[0].children, 2);
+  newNode.children = reduceDepth(newNode.children, 2);
   return newNode;
 };
 
