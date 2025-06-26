@@ -44247,7 +44247,7 @@ ${citation.url}`,
           if (values.length === 2 && values.every((val) => {
             return val === 1 || val === 0;
           })) {
-            return booleanScoreDescriptor();
+            return numericScoreDescriptor(values);
           }
         }
       },
