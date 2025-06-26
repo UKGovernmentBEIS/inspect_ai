@@ -170,6 +170,67 @@
       "title": "ApproverPolicyConfig",
       "type": "object"
     },
+    "BatchConfig": {
+      "properties": {
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size"
+        },
+        "send_delay": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Send Delay"
+        },
+        "tick": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tick"
+        },
+        "max_batches": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Batches"
+        }
+      },
+      "title": "BatchConfig",
+      "type": "object",
+      "required": [
+        "size",
+        "send_delay",
+        "tick",
+        "max_batches"
+      ],
+      "additionalProperties": false
+    },
     "ChatCompletionChoice": {
       "description": "Choice generated for completion.",
       "properties": {
@@ -1905,9 +1966,7 @@
             "response_schema": null,
             "extra_body": null,
             "batch": null,
-            "batch_size": null,
-            "batch_max_send_delay": null,
-            "batch_tick": null
+            "batch_config": null
           }
         }
       },
@@ -3340,15 +3399,6 @@
               "type": "boolean"
             },
             {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Batch"
-        },
-        "batch_size": {
-          "anyOf": [
-            {
               "type": "integer"
             },
             {
@@ -3356,31 +3406,18 @@
             }
           ],
           "default": null,
-          "title": "Batch Size"
+          "title": "Batch"
         },
-        "batch_max_send_delay": {
+        "batch_config": {
           "anyOf": [
             {
-              "type": "number"
+              "$ref": "#/$defs/BatchConfig"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Batch Max Send Delay"
-        },
-        "batch_tick": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Batch Tick"
+          "default": null
         }
       },
       "title": "GenerateConfig",
@@ -3414,9 +3451,7 @@
         "response_schema",
         "extra_body",
         "batch",
-        "batch_size",
-        "batch_max_send_delay",
-        "batch_tick"
+        "batch_config"
       ],
       "additionalProperties": false
     },

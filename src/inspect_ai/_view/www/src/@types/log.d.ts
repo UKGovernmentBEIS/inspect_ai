@@ -72,10 +72,11 @@ export type Strict = boolean | null;
 export type ExtraBody = {
   [k: string]: unknown;
 } | null;
-export type Batch = boolean | null;
-export type BatchSize = number | null;
-export type BatchMaxSendDelay = number | null;
-export type BatchTick = number | null;
+export type Batch = boolean | number | null;
+export type Size = number | null;
+export type SendDelay = number | null;
+export type Tick = number | null;
+export type MaxBatches = number | null;
 export type ModelBaseUrl = string | null;
 export type ModelRoles = {
   [k: string]: EvalModelConfig;
@@ -785,9 +786,7 @@ export interface GenerateConfig {
   response_schema: ResponseSchema | null;
   extra_body: ExtraBody;
   batch: Batch;
-  batch_size: BatchSize;
-  batch_max_send_delay: BatchMaxSendDelay;
-  batch_tick: BatchTick;
+  batch_config: BatchConfig | null;
 }
 /**
  * Schema for model response when using Structured Output.
@@ -815,6 +814,12 @@ export interface JSONSchema {
 }
 export interface Default {
   [k: string]: unknown;
+}
+export interface BatchConfig {
+  size: Size;
+  send_delay: SendDelay;
+  tick: Tick;
+  max_batches: MaxBatches;
 }
 export interface ModelArgs {
   [k: string]: unknown;
@@ -957,9 +962,7 @@ export interface GenerateConfig1 {
   response_schema: ResponseSchema | null;
   extra_body: ExtraBody;
   batch: Batch;
-  batch_size: BatchSize;
-  batch_max_send_delay: BatchMaxSendDelay;
-  batch_tick: BatchTick;
+  batch_config: BatchConfig | null;
 }
 /**
  * Scoring results from evaluation.
