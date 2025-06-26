@@ -349,15 +349,31 @@ const transformers = () => {
     },
     {
       name: "unwrap_handoff",
-      matches: (node) =>
-        node.event.event === SPAN_BEGIN &&
-        node.event["type"] === TYPE_HANDOFF &&
-        node.children.length === 2 &&
-        node.children[0].event.event === TOOL &&
-        node.children[1].event.event === STORE &&
-        node.children[0].children.length === 2 &&
-        node.children[0].children[0].event.event === SPAN_BEGIN &&
-        node.children[0].children[0].event.type === TYPE_AGENT,
+      matches: (node) => {
+        const isHandoffNode =
+          node.event.event === SPAN_BEGIN &&
+          node.event["type"] === TYPE_HANDOFF;
+
+        if (!isHandoffNode) {
+          return false;
+        }
+
+        if (node.children.length === 1) {
+          return (
+            node.children[0].event.event === TOOL &&
+            !!node.children[0].event.agent
+          );
+        } else {
+          return (
+            node.children.length === 2 &&
+            node.children[0].event.event === TOOL &&
+            node.children[1].event.event === STORE &&
+            node.children[0].children.length === 2 &&
+            node.children[0].children[0].event.event === SPAN_BEGIN &&
+            node.children[0].children[0].event.type === TYPE_AGENT
+          );
+        }
+      },
       process: (node) => skipThisNode(node),
     },
     {

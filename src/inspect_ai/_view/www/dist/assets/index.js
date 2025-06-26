@@ -56523,7 +56523,17 @@ self.onmessage = function (e) {
         },
         {
           name: "unwrap_handoff",
-          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_HANDOFF && node2.children.length === 2 && node2.children[0].event.event === TOOL && node2.children[1].event.event === STORE && node2.children[0].children.length === 2 && node2.children[0].children[0].event.event === SPAN_BEGIN && node2.children[0].children[0].event.type === TYPE_AGENT,
+          matches: (node2) => {
+            const isHandoffNode = node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_HANDOFF;
+            if (!isHandoffNode) {
+              return false;
+            }
+            if (node2.children.length === 1) {
+              return node2.children[0].event.event === TOOL && !!node2.children[0].event.agent;
+            } else {
+              return node2.children.length === 2 && node2.children[0].event.event === TOOL && node2.children[1].event.event === STORE && node2.children[0].children.length === 2 && node2.children[0].children[0].event.event === SPAN_BEGIN && node2.children[0].children[0].event.type === TYPE_AGENT;
+            }
+          },
           process: (node2) => skipThisNode(node2)
         },
         {
@@ -56561,7 +56571,7 @@ self.onmessage = function (e) {
     const skipThisNode = (node2) => {
       const newNode = { ...node2.children[0] };
       newNode.depth = node2.depth;
-      newNode.children = reduceDepth(newNode.children[0].children, 2);
+      newNode.children = reduceDepth(newNode.children, 2);
       return newNode;
     };
     const discardNode = (node2) => {
@@ -58937,6 +58947,9 @@ self.onmessage = function (e) {
       };
       for (const node2 of eventNodes) {
         if (node2.event.event === "span_begin" && node2.event.type === kTurnType) {
+          if (collecting.length > 0 && collecting[0].depth !== node2.depth) {
+            collect();
+          }
           collecting.push(node2);
         } else {
           collect();
