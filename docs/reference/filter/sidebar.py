@@ -1,6 +1,6 @@
 import json
 import os
-import yaml
+import yaml # type: ignore
 
 
 # only execute if a reference doc is in the inputs
@@ -22,6 +22,7 @@ reference_docs = ["reference/inspect_ai.qmd"] + [
         "log.qmd",
         "analysis.qmd",
         "util.qmd",
+        "hooks.qmd"
     ]
 ]
 

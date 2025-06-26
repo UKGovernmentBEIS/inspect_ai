@@ -78,6 +78,8 @@ class ModelUsageData:
 
 @dataclass(frozen=True)
 class ApiKeyOverride:
+    """Api key override info."""
+
     env_var_name: str
     """The name of the environment var containing the API key (e.g. OPENAI_API_KEY)."""
     value: str
@@ -106,28 +108,67 @@ class Hooks:
         return True
 
     async def on_run_start(self, data: RunStart) -> None:
+        """On run start.
+
+        Args:
+           data: Run start data.
+        """
         pass
 
     async def on_run_end(self, data: RunEnd) -> None:
+        """On run end.
+
+        Args:
+           data: Run end data.
+        """
         pass
 
     async def on_task_start(self, data: TaskStart) -> None:
+        """On task start.
+
+        Args:
+           data: Task start data.
+        """
         pass
 
     async def on_task_end(self, data: TaskEnd) -> None:
+        """On task end.
+
+        Args:
+           data: Task end data.
+        """
         pass
 
     async def on_sample_start(self, data: SampleStart) -> None:
+        """On sample start.
+
+        Args:
+           data: Sample start data.
+        """
         pass
 
     async def on_sample_end(self, data: SampleEnd) -> None:
+        """On sample end.
+
+        Args:
+           data: Sample end data.
+        """
         pass
 
     async def on_sample_abort(self, data: SampleAbort) -> None:
-        """A sample has been aborted due to an error, and will not be retried."""
+        """A sample has been aborted due to an error, and will not be retried.
+
+        Args:
+           data: Sample end data.
+        """
         pass
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
+        """On model usage.
+
+        Args:
+           data: Model usage data.
+        """
         pass
 
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
@@ -135,6 +176,9 @@ class Hooks:
 
         When overridden, this method may return a new API key value which will be used
         in place of the original one during the eval.
+
+        Args:
+            data: Api key override data.
 
         Returns:
             str | None: The new API key value to use, or None to use the original value.

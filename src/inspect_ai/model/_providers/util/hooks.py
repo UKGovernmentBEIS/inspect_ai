@@ -70,7 +70,7 @@ class HttpHooks:
 
 class ConverseHooks(HttpHooks):
     def __init__(self, session: Any) -> None:
-        from aiobotocore.session import AioSession
+        from aiobotocore.session import AioSession  # type: ignore
 
         super().__init__()
 
@@ -91,7 +91,7 @@ class ConverseHooks(HttpHooks):
             self.update_request_time(request_id)
 
     def converse_after_call(self, http_response: Any, **kwargs: Any) -> None:
-        from botocore.awsrequest import AWSResponse
+        from botocore.awsrequest import AWSResponse  # type: ignore
 
         response = cast(AWSResponse, http_response)
         logger.log(HTTP, f"POST {response.url} - {response.status_code}")
