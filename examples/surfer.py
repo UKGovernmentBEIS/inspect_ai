@@ -13,13 +13,14 @@ class WebSurferState(StoreModel):
 
 
 @tool
-def web_surfer(instance: str | None = uuid()) -> Tool:
+def web_surfer(instance: str | None = None) -> Tool:
     """Stateful web surfer tool for researching topics.
 
     The web_surfer tool builds on the web_browser tool to complete sequences of
     web_browser actions in service of researching a topic. Input can either
     be requests to do research or questions about previous research.
     """
+    instance = instance if instance is not None else uuid()
 
     async def execute(input: str, clear_history: bool = False) -> str:
         """Use the web to research a topic.

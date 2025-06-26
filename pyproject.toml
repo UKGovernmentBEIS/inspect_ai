@@ -147,7 +147,7 @@ dev = [
   "ipython",
   "jsonpath-ng",
   "markdown",
-  "mcp>=1.9.4",
+  "mcp>=1.10.0",
   "mistralai",
   "moto[server]",
   "mypy>=1.16.0",
