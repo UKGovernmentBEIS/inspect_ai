@@ -2,6 +2,7 @@
 
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
 - Fix store_as examples, document inspect_ai.scorer.score
+- Docs: Correct docs for `web_browser()` and `bash_session()` to indicate that you must pass an `instance` explicitly to get distinct processes. 
 - Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.
 - Inspect View: Properly wrap log configuration values in evaluation header.
 - Inspect View: Support for displaying and navigating directories of evaluation logs.
