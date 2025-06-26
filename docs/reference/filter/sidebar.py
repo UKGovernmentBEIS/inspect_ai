@@ -1,6 +1,6 @@
 import json
 import os
-import yaml # type: ignore
+import yaml
 
 
 # only execute if a reference doc is in the inputs
