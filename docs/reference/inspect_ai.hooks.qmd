@@ -2,11 +2,14 @@
 title: "inspect_ai.hooks"
 ---
 
-### ApiKeyOverride
+## Registration
+
 ### Hooks
+### hooks
 
+## Hook Data
 
-<!-- 
+### ApiKeyOverride
 ### ModelUsageData
 ### RunEnd
 ### RunStart
@@ -15,5 +18,3 @@ title: "inspect_ai.hooks"
 ### SampleStart
 ### TaskEnd
 ### TaskStart
-### hooks 
--->

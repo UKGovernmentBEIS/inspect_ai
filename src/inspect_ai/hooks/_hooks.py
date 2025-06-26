@@ -21,18 +21,24 @@ logger = getLogger(__name__)
 
 @dataclass(frozen=True)
 class RunStart:
+    """Run start hook event data."""
+
     run_id: str
     task_names: list[str]
 
 
 @dataclass(frozen=True)
 class RunEnd:
+    """Run end hook event data."""
+
     run_id: str
     logs: EvalLogs
 
 
 @dataclass(frozen=True)
 class TaskStart:
+    """Task start hook event data."""
+
     run_id: str
     eval_id: str
     spec: EvalSpec
@@ -40,6 +46,8 @@ class TaskStart:
 
 @dataclass(frozen=True)
 class TaskEnd:
+    """Task end hook event data."""
+
     run_id: str
     eval_id: str
     log: EvalLog
@@ -47,6 +55,8 @@ class TaskEnd:
 
 @dataclass(frozen=True)
 class SampleStart:
+    """Sample start hook event data."""
+
     run_id: str
     eval_id: str
     sample_id: int | str
@@ -55,6 +65,8 @@ class SampleStart:
 
 @dataclass(frozen=True)
 class SampleEnd:
+    """Sample end hook event data."""
+
     run_id: str
     eval_id: str
     sample_id: int | str
@@ -63,6 +75,8 @@ class SampleEnd:
 
 @dataclass(frozen=True)
 class SampleAbort:
+    """Sample abort hook event data."""
+
     run_id: str
     eval_id: str
     sample_id: int | str
@@ -71,6 +85,8 @@ class SampleAbort:
 
 @dataclass(frozen=True)
 class ModelUsageData:
+    """Model usage hook event data."""
+
     model_name: str
     usage: ModelUsage
     call_duration: float | None = None
@@ -78,7 +94,7 @@ class ModelUsageData:
 
 @dataclass(frozen=True)
 class ApiKeyOverride:
-    """Api key override info."""
+    """Api key override hook event data."""
 
     env_var_name: str
     """The name of the environment var containing the API key (e.g. OPENAI_API_KEY)."""
@@ -191,6 +207,10 @@ T = TypeVar("T", bound=Hooks)
 
 def hooks(name: str) -> Callable[..., Type[T]]:
     """Decorator for registering a hook subscriber.
+
+    Either decorate a subclass of `Hooks`, or a function which returns the type
+    of a subclass of `Hooks`. This decorator will instantiate the hook class
+    and store it in the registry.
 
     Args:
         name (str): Name of the subscriber.

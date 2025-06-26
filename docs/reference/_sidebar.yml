@@ -618,10 +618,12 @@ website:
       - section: inspect_ai.hooks
         href: reference/inspect_ai.hooks.qmd
         contents:
-        - text: ApiKeyOverride
-          href: reference/inspect_ai.hooks.qmd#apikeyoverride
         - text: Hooks
           href: reference/inspect_ai.hooks.qmd#hooks
+        - text: hooks
+          href: reference/inspect_ai.hooks.qmd#hooks
+        - text: ApiKeyOverride
+          href: reference/inspect_ai.hooks.qmd#apikeyoverride
         - text: ModelUsageData
           href: reference/inspect_ai.hooks.qmd#modelusagedata
         - text: RunEnd
@@ -638,8 +640,6 @@ website:
           href: reference/inspect_ai.hooks.qmd#taskend
         - text: TaskStart
           href: reference/inspect_ai.hooks.qmd#taskstart
-        - text: 'hooks '
-          href: 'reference/inspect_ai.hooks.qmd#hooks '
     - section: Inspect CLI
       href: reference/inspect_eval.qmd
       contents:
