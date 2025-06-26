@@ -137,7 +137,7 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
-  "anthropic",
+  "anthropic>=0.52.0",
   "aioboto3",
   "azure-ai-inference",
   "google-cloud-aiplatform",

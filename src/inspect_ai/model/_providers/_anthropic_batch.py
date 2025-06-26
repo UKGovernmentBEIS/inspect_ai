@@ -145,6 +145,13 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     def _get_request_failed_error(self, request: BatchRequest[Message]) -> Exception:
         return InternalServerError(
             message="Request failed",
-            response=httpx.Response(status_code=500, text="Request failed"),
+            response=httpx.Response(
+                status_code=500,
+                text="Request failed",
+                request=httpx.Request(
+                    method="POST",
+                    url="https://api.anthropic.com/v1/messages/batches",
+                ),
+            ),
             body=None,
         )
