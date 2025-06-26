@@ -8,6 +8,7 @@
 - Inspect View: Support for displaying and navigating directories of evaluation logs.
 - Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
 - Bugfix: Fix infinite recursion edge case in _flatten_exception.
+- MCP: Conform to breaking changes in latest mcp package (1.10.0).
 
 ## 0.3.108 (25 June 2025)
 
