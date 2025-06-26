@@ -169,19 +169,30 @@ def test_api_key_override(mock_hook: MockHook) -> None:
 
 
 def test_api_key_override_falls_back_to_legacy(mock_hook: MockHook) -> None:
+    def legacy_hook_override(var: str, value: str) -> str | None:
+        return f"legacy-{var}-{value}"
+
     mock_hook.should_enable = False
 
     with environ_var("INSPECT_API_KEY_OVERRIDE", "._legacy_hook_override"):
         with patch(
-            "inspect_ai.hooks._hooks.override_api_key_legacy", _legacy_hook_override
+            "inspect_ai.hooks._hooks.override_api_key_legacy", legacy_hook_override
         ):
             overridden = override_api_key("TEST_VAR", "test_value")
 
     assert overridden == "legacy-TEST_VAR-test_value"
 
 
-def _legacy_hook_override(var: str, value: str) -> str | None:
-    return f"legacy-{var}-{value}"
+def test_init_hooks_can_be_called_multiple_times(mock_hook: MockHook) -> None:
+    from inspect_ai.hooks._startup import init_hooks
+
+    # Ensure that init_hooks can be called multiple times without issues.
+    init_hooks()
+    init_hooks()
+
+    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+
+    assert len(mock_hook.run_start_events) == 1
 
 
 T = TypeVar("T", bound=Hooks)

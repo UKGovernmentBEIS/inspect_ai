@@ -22,7 +22,6 @@ def running_in_notebook() -> bool:
 def platform_init() -> None:
     from inspect_ai.hooks._startup import init_hooks
 
-    # TODO: init hooks here. Ensure idempotent.
     init_hooks()
 
     # set exception hook if we haven't already
