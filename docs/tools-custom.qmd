@@ -129,9 +129,6 @@ def web_surfer(instance: str | None = None) -> Tool:
     Input can either be requests to do research or questions about 
     previous research.
     """
-
-    instance = instance if instance is not None else uuid()
-
     async def execute(input: str, clear_history: bool = False) -> str:
         """Use the web to research a topic.
 
@@ -191,7 +188,15 @@ def web_surfer(instance: str | None = None) -> Tool:
     return execute
 ```
 
-Note that we use an `instance` parameter (which defaults to `uuid()`) to ensure that each call to the `web_surfer()` function creates its own instance of the tool. We then pass this `instance` to the `store_as()` function (to store our own tool's message history) and the `web_browser()` function (so that we also provision a unique browser for the web surfer session).
+Note that we make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We then pass this `instance` to the `store_as()` function (to store our own tool's message history) and the `web_browser()` function (so that we also provision a unique browser for the web surfer session).
+
+For example, this creates a distinct instance of the `web_surfer()` with its own state and browser:
+
+```{python}
+from shortuuid import uuid
+
+react(..., tools=[web_surfer(instance=uuid())])
+```
 
 
 ## Tool Choice
