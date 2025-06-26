@@ -613,9 +613,10 @@ async def _eval_async_inner(
         # run tasks - 2 codepaths, one for the traditional task at a time
         # (w/ optional multiple models) and the other for true multi-task
         # (which requires different scheduling and UI)
-        await emit_run_start(run_id, resolved_tasks)
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
+
+        await emit_run_start(run_id, resolved_tasks)
 
         # single task definition (could be multi-model) or max_tasks capped to 1
         if parallel == 1:

@@ -304,6 +304,7 @@ def override_api_key(env_var_name: str, value: str) -> str | None:
             logger.warning(
                 f"Exception calling override_api_key on hook '{hook.__class__.__name__}': {ex}"
             )
+    # If none have been overridden, fall back to legacy behaviour.
     return override_api_key_legacy(env_var_name, value)
 
 
