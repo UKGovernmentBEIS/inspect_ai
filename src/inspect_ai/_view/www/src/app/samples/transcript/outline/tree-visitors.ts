@@ -141,6 +141,11 @@ export const collapseTurns = (eventNodes: EventNode[]): EventNode[] => {
 
   for (const node of eventNodes) {
     if (node.event.event === "span_begin" && node.event.type === kTurnType) {
+      // Check depth to ensure we are collecting turns at the same level
+      if (collecting.length > 0 && collecting[0].depth !== node.depth) {
+        collect();
+      }
+
       collecting.push(node);
     } else {
       collect();

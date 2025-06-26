@@ -23,6 +23,7 @@ export const ApplicationIcons = {
     down: "bi bi-arrow-down",
     up: "bi bi-arrow-up",
   },
+  cancelled: "bi bi-x-circle",
   caret: {
     right: "bi bi-caret-right",
     down: "bi bi-caret-down",
@@ -36,11 +37,12 @@ export const ApplicationIcons = {
     right: "bi bi-chevron-right",
     down: "bi bi-chevron-down",
   },
+  "clear-text": "bi bi-x-circle-fill",
+  close: "bi bi-x",
   collapse: {
     all: "bi bi-arrows-collapse",
     up: "bi bi-chevron-up",
   },
-  close: "bi bi-x",
   config: "bi bi-gear",
   confirm: "bi bi-check",
   copy: "bi bi-copy",
@@ -48,12 +50,18 @@ export const ApplicationIcons = {
     return `bi bi-${epoch}-circle`;
   },
   error: "bi bi-exclamation-circle",
+  eval: "bi bi-info-circle-fill",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  file: "bi bi-file-code",
+  filter: "bi bi-funnel",
+  folder: "bi bi-folder",
   fork: "bi bi-signpost-split",
+  home: "bi bi-house",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",
-  inspect: "bi bi-gear",
+  inspect: "ii inspect-icon-16",
+  inspectFile: "ii inspect-icon-file",
   json: "bi bi-filetype-json",
   limits: {
     messages: "bi bi-chat-right-text",
@@ -73,6 +81,13 @@ export const ApplicationIcons = {
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",
   "multiple-choice": "bi bi-card-list",
+  navbar: {
+    home: "ii inspect-icon-home",
+    back: "ii inspect-icon-back",
+    forward: "ii inspect-icon-forward",
+    inspectLogo: "ii inspect-icon-16",
+  },
+
   next: "bi bi-chevron-right",
   noSamples: "bi bi-ban",
   play: "bi bi-play-fill",
@@ -103,6 +118,7 @@ export const ApplicationIcons = {
   },
   step: "bi bi-fast-forward-btn",
   subtask: "bi bi-subtract",
+  success: "bi bi-check-circle",
   transcript: "bi bi-list-columns-reverse",
   tree: {
     open: "bi bi-caret-down-fill",

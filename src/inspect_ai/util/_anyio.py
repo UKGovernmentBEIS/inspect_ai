@@ -10,11 +10,20 @@ if sys.version_info < (3, 11):
 
 
 def inner_exception(exc: Exception) -> Exception:
-    return _flatten_exception(exc)[0]
+    return _flatten_exception(exc, set())[0]
 
 
-def _flatten_exception(exc: Exception) -> list[Exception]:
+def _flatten_exception(exc: Exception, seen: set[int] | None = None) -> list[Exception]:
     """Recursively flatten an exception to get all related (__context__) and contained (ExceptionGroup) exceptions."""
+    if seen is None:
+        seen = set()
+
+    # Prevent infinite recursion by tracking seen exceptions by their id
+    exc_id = id(exc)
+    if exc_id in seen:
+        return []
+    seen.add(exc_id)
+
     context_to_follow = (
         [exc.__context__]
         # conceptually, if __cause__ is present, it means that this exception
@@ -36,7 +45,7 @@ def _flatten_exception(exc: Exception) -> list[Exception]:
     other_exceptions = [
         flattened_e
         for e in set(itertools.chain(context_to_follow, children_to_follow))
-        for flattened_e in _flatten_exception(e)
+        for flattened_e in _flatten_exception(e, seen)
     ]
 
     return maybe_this_exception + other_exceptions

@@ -8,6 +8,14 @@ export const kLogViewInfoTabId = "info";
 export const kLogViewModelsTabId = "models";
 export const kLogViewTaskTabId = "task";
 
+export const kWorkspaceTabs = [
+  kLogViewSamplesTabId,
+  kLogViewJsonTabId,
+  kLogViewInfoTabId,
+  kLogViewModelsTabId,
+  kLogViewTaskTabId,
+];
+
 // Sample tab constants
 export const kSampleMessagesTabId = `messages`;
 export const kSampleTranscriptTabId = `transcript`;
@@ -16,6 +24,16 @@ export const kSampleMetdataTabId = `metadata`;
 export const kSampleErrorTabId = `error`;
 export const kSampleErrorRetriesTabId = `retry-errors`;
 export const kSampleJsonTabId = `json`;
+
+export const kSampleTabIds = [
+  kSampleMessagesTabId,
+  kSampleTranscriptTabId,
+  kSampleScoringTabId,
+  kSampleMetdataTabId,
+  kSampleErrorTabId,
+  kSampleErrorRetriesTabId,
+  kSampleJsonTabId,
+];
 
 // Scoring constants
 export const kScoreTypePassFail = "passfail";

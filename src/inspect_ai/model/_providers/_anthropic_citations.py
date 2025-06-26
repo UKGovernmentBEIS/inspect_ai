@@ -93,10 +93,7 @@ def to_inspect_citation(input: TextCitation) -> Citation:
 
 
 def to_anthropic_citation(input: Citation) -> TextCitationParam:
-    cited_text = input.cited_text
-    assert isinstance(cited_text, str), (
-        "anthropic citations must have a string cited_text"
-    )
+    cited_text = str(input.cited_text)
 
     match input:
         case UrlCitation(title=title, url=url, internal=internal):

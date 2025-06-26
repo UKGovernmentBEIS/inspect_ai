@@ -1,6 +1,33 @@
 ## Unreleased
 
+- Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
+- Fix store_as examples, document inspect_ai.scorer.score
+- Docs: Correct docs for `web_browser()` and `bash_session()` to indicate that you must pass an `instance` explicitly to get distinct processes. 
+- Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.
+- Inspect View: Properly wrap log configuration values in evaluation header.
+- Inspect View: Support for displaying and navigating directories of evaluation logs.
+- Inspect View: Improved handling of agent handoffs in transcript outline view.
+- Inspect View: Use numerical rather the correct/incorrect UI for scores with 0/1 values.
+- Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
+- Bugfix: Fix infinite recursion edge case in _flatten_exception.
+- MCP: Conform to breaking changes in latest mcp package (1.10.0).
+
+## 0.3.108 (25 June 2025)
+
+- Bugfix: Don't raise error on Anthropic cited_text not being a `str`.
+
+## 0.3.107 (24 June 2025)
+
+- Bugfix: Shield critical shutdown code from cancel scope.
+
+## v0.3.106 (21 June 2025)
+
+- OpenAI: Use prefix matching when detecting compatible models for `web_search()`.
+- Groq: Capture `executed_tools` field as model output metadata.
+- ReAct agent: Always send `str` returned from `on_continue` to the model (formerly this was only done if there were no tool calls).
+- Web Search: Added provider for Perplexity's internal web search tool.
 - Eval: Wrap eval execution in TaskGroup.
+- Bugfix: Remove correlated reasoning content items when removing submit tool calls from ChatMessageAssistant instances in multi-agent scenarios.
 
 ## v0.3.105 (17 June 2025)
 

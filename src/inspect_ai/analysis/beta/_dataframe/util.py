@@ -139,18 +139,13 @@ def add_unreferenced_columns(
 
 
 def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
+    import pandas as pd
     import pyarrow as pa
 
-    # create arrow table
-    records = normalize_records(records)
-    table = pa.Table.from_pylist(records)
-
-    # convert arrow to pandas
-    df = table.to_pandas(types_mapper=arrow_types_mapper)
-
-    # swap numpy-backed nullable columns for arrow-backed equivalents
-    # df = df.convert_dtypes(dtype_backend="pyarrow")
-    return df
+    # arrow backed df w/ our types mapper
+    df = pd.DataFrame(records)
+    table = pa.Table.from_pandas(df)
+    return table.to_pandas(types_mapper=arrow_types_mapper)
 
 
 def arrow_types_mapper(arrow_type: pa.DataType) -> pd.ArrowDtype:
@@ -160,3 +155,104 @@ def arrow_types_mapper(arrow_type: pa.DataType) -> pd.ArrowDtype:
     if pa.types.is_null(arrow_type):
         arrow_type = pa.string()
     return pd.ArrowDtype(arrow_type)
+
+
+# sample_id                       string[pyarrow]
+# eval_id                         string[pyarrow]
+# id                              string[pyarrow]
+# epoch                            int64[pyarrow]
+# input                           string[pyarrow]
+# target                          string[pyarrow]
+# metadata_challenge_address      string[pyarrow]
+# metadata_challenge_type         string[pyarrow]
+# metadata_color                  string[pyarrow]
+# metadata_cookie                 string[pyarrow]
+# metadata_foo                    string[pyarrow]
+# metadata_get_flag_cmd           string[pyarrow]
+# metadata_get_flag_service       string[pyarrow]
+# metadata_label_confidence       double[pyarrow]
+# metadata_long                   string[pyarrow]
+# metadata_objective_prompt       string[pyarrow]
+# metadata_prompt                 string[pyarrow]
+# metadata_variant                string[pyarrow]
+# score_another_rand_score        double[pyarrow]
+# score_check_flag                string[pyarrow]
+# score_choice                    string[pyarrow]
+# score_compare_quantities        double[pyarrow]
+# score_complex_scorer            string[pyarrow]
+# score_exact                     string[pyarrow]
+# score_foo                       double[pyarrow]
+# score_generating_scorer         double[pyarrow]
+# score_includes                  string[pyarrow]
+# score_letter_count              string[pyarrow]
+# score_match                     string[pyarrow]
+# score_model_graded_fact         string[pyarrow]
+# score_model_graded_qa           string[pyarrow]
+# score_nested_dict_scorer        string[pyarrow]
+# score_nested_list_scorer        string[pyarrow]
+# score_rand_score                double[pyarrow]
+# score_score_color               string[pyarrow]
+# score_score_table               string[pyarrow]
+# score_simple_score              string[pyarrow]
+# score_simple_score1             string[pyarrow]
+# score_simple_score2             string[pyarrow]
+# score_slow_scorer               double[pyarrow]
+# score_token_consuming_scorer    double[pyarrow]
+# score_wildcard_scorer           string[pyarrow]
+# model_usage                     string[pyarrow]
+# total_time                      double[pyarrow]
+# working_time                    double[pyarrow]
+# error                           string[pyarrow]
+# limit                           string[pyarrow]
+# retries                          int64[pyarrow]
+# dtype: object
+
+# sample_id                       string[pyarrow]
+# eval_id                         string[pyarrow]
+# id                              string[pyarrow]
+# epoch                            int64[pyarrow]
+# input                           string[pyarrow]
+# target                          string[pyarrow]
+# metadata_challenge_address      string[pyarrow]
+# metadata_challenge_type         string[pyarrow]
+# metadata_color                  string[pyarrow]
+# metadata_cookie                 string[pyarrow]
+# metadata_foo                    string[pyarrow]
+# metadata_get_flag_cmd           string[pyarrow]
+# metadata_get_flag_service       string[pyarrow]
+# metadata_label_confidence       double[pyarrow]
+# metadata_long                   string[pyarrow]
+# metadata_objective_prompt       string[pyarrow]
+# metadata_prompt                 string[pyarrow]
+# metadata_variant                string[pyarrow]
+# score_another_rand_score         int64[pyarrow]
+# score_check_flag                string[pyarrow]
+# score_choice                    string[pyarrow]
+# score_compare_quantities        double[pyarrow]
+# score_complex_scorer            string[pyarrow]
+# score_exact                     string[pyarrow]
+# score_foo                       double[pyarrow]
+# score_generating_scorer          int64[pyarrow]
+# score_includes                  string[pyarrow]
+# score_letter_count              string[pyarrow]
+# score_match                     string[pyarrow]
+# score_model_graded_fact         string[pyarrow]
+# score_model_graded_qa           string[pyarrow]
+# score_nested_dict_scorer        string[pyarrow]
+# score_nested_list_scorer        string[pyarrow]
+# score_rand_score                 int64[pyarrow]
+# score_score_color               string[pyarrow]
+# score_score_table               string[pyarrow]
+# score_simple_score              string[pyarrow]
+# score_simple_score1             string[pyarrow]
+# score_simple_score2             string[pyarrow]
+# score_slow_scorer                int64[pyarrow]
+# score_token_consuming_scorer     int64[pyarrow]
+# score_wildcard_scorer           string[pyarrow]
+# model_usage                     string[pyarrow]
+# total_time                      double[pyarrow]
+# working_time                    double[pyarrow]
+# error                           string[pyarrow]
+# limit                           string[pyarrow]
+# retries                          int64[pyarrow]
+# dtype: object

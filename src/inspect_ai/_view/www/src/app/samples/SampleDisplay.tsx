@@ -38,7 +38,7 @@ import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
-import { sampleUrl } from "../routing/url";
+import { sampleUrl, useLogRouteParams } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
@@ -113,15 +113,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Get all URL parameters at component level
   const {
     logPath: urlLogPath,
-    tabId: urlTabId,
     sampleId: urlSampleId,
     epoch: urlEpoch,
-  } = useParams<{
-    logPath?: string;
-    tabId?: string;
-    sampleId?: string;
-    epoch?: string;
-  }>();
+  } = useLogRouteParams();
 
   // Tab selection
   const onSelectedTab = useCallback(
@@ -136,15 +130,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         navigate(url);
       }
     },
-    [
-      sampleTabId,
-      urlLogPath,
-      urlTabId,
-      urlSampleId,
-      urlEpoch,
-      navigate,
-      setSelectedTab,
-    ],
+    [sampleTabId, urlLogPath, urlSampleId, urlEpoch, navigate, setSelectedTab],
   );
 
   const sampleMetadatas = metadataViewsForSample(

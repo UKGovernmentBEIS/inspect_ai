@@ -46,7 +46,7 @@ const scoreCategorizers: ScoreCategorizer[] = [
           return val === 1 || val === 0;
         })
       ) {
-        return booleanScoreDescriptor();
+        return numericScoreDescriptor(values);
       }
     },
   },

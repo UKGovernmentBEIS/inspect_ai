@@ -15,6 +15,7 @@ from mcp.types import (
     AudioContent,
     EmbeddedResource,
     ImageContent,
+    ResourceLink,
     TextContent,
     TextResourceContents,
 )
@@ -283,7 +284,9 @@ def create_server_sandbox(
 
 
 def tool_result_as_text(
-    content: list[TextContent | ImageContent | AudioContent | EmbeddedResource],
+    content: list[
+        TextContent | ImageContent | AudioContent | ResourceLink | EmbeddedResource
+    ],
 ) -> str:
     content_list: list[str] = []
     for c in content:
@@ -293,6 +296,8 @@ def tool_result_as_text(
             content_list.append("(base64 encoded image omitted)")
         elif isinstance(c, AudioContent):
             content_list.append("(base64 encoded audio omitted)")
+        elif isinstance(c, ResourceLink):
+            content_list.append(f"{c.description} ({c.uri})")
         elif isinstance(c.resource, TextResourceContents):
             content_list.append(c.resource.text)
 

@@ -49,4 +49,6 @@ title: "inspect_ai.scorer"
 ### metric
 ### score_reducer
 
+## Intermediate Scoring
 
+### score

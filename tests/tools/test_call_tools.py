@@ -134,7 +134,7 @@ def complex_tool():
             "either": either,
             "td": td,
             "dc": {"value": dc.value, "flag": dc.flag},
-            "pm": pm.dict(),
+            "pm": pm.model_dump(),
             "timestamp": timestamp,
             "the_date": the_date,
             "the_time": the_time,

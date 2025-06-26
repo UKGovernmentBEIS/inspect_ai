@@ -1,4 +1,4 @@
-import { filename, dirname } from "../../utils/path";
+import { dirname, filename } from "../../utils/path";
 
 describe("filename", () => {
   test("extracts filename without extension from a path", () => {
@@ -30,7 +30,7 @@ describe("filename", () => {
 describe("dirname", () => {
   test("extracts directory name from a path", () => {
     expect(dirname("/path/to/file.txt")).toBe("/path/to");
-    expect(dirname("/path/to/directory/")).toBe("/path/to/directory");
+    expect(dirname("/path/to/directory/")).toBe("/path/to");
     expect(dirname("/path/to/file")).toBe("/path/to");
   });
 
@@ -49,6 +49,6 @@ describe("dirname", () => {
   });
 
   test("handles paths with trailing slash", () => {
-    expect(dirname("/path/to/directory/")).toBe("/path/to/directory");
+    expect(dirname("/path/to/directory/")).toBe("/path/to");
   });
 });

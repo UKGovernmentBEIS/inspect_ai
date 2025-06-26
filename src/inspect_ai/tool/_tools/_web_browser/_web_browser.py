@@ -1,7 +1,6 @@
 import re
 
 from pydantic import BaseModel, Field
-from shortuuid import uuid
 
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
@@ -32,15 +31,11 @@ class CrawlerResult(BaseModel):
     error: str | None = None
 
 
-def web_browser(
-    *, interactive: bool = True, instance: str | None = uuid()
-) -> list[Tool]:
+def web_browser(*, interactive: bool = True, instance: str | None = None) -> list[Tool]:
     """Tools used for web browser navigation.
 
-    By default, a separate web browser process is created within the sandbox for each
-    call to `web_browser()`. You can modify this behavior by passing `instance=None`
-    (which will result in a single web browser for the entire sample) or use other
-    `instance` values that implement another scheme).
+    To create a separate web browser process for each
+    call to `web_browser()`, pass a unique value for `instance`.
 
     See complete documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
 

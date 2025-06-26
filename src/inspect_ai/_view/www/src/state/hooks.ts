@@ -11,7 +11,7 @@ import {
   bySample,
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
-import { SampleSummary } from "../client/api/types";
+import { LogFile, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
@@ -554,5 +554,122 @@ export const useSamplePopover = (id: string) => {
     show,
     hide,
     isShowing,
+  };
+};
+
+export const useLogs = () => {
+  // Loading logs
+  const load = useStore((state) => state.logsActions.loadLogs);
+  const setLogs = useStore((state) => state.logsActions.setLogs);
+  const setStatus = useStore((state) => state.appActions.setStatus);
+
+  const loadLogs = useCallback(async () => {
+    const exec = async () => {
+      setStatus({ loading: true, error: undefined });
+      const logs = await load();
+      setLogs(logs);
+      setStatus({ loading: false, error: undefined });
+    };
+    exec().catch((e) => {
+      log.error("Error loading logs", e);
+      setStatus({ loading: false, error: e });
+    });
+  }, [load, setLogs, setStatus]);
+
+  // Loading headers
+  const storeLoadHeaders = useStore((state) => state.logsActions.loadHeaders);
+  const existingHeaders = useStore((state) => state.logs.logHeaders);
+  const allLogFiles = useStore((state) => state.logs.logs.files);
+
+  const loadHeaders = useCallback(
+    async (logFiles: LogFile[] = allLogFiles) => {
+      await storeLoadHeaders(logFiles);
+    },
+    [storeLoadHeaders, allLogFiles],
+  );
+
+  const loadAllHeaders = useCallback(async () => {
+    const logsToLoad = allLogFiles.filter((logFile) => {
+      const existingHeader = existingHeaders[logFile.name];
+      return !existingHeader || existingHeader.status === "started";
+    });
+
+    if (logsToLoad.length > 0) {
+      await storeLoadHeaders(logsToLoad);
+    }
+  }, [storeLoadHeaders, allLogFiles, existingHeaders]);
+
+  return { loadLogs, loadHeaders, loadAllHeaders };
+};
+
+export const usePagination = (name: string, defaultPageSize: number) => {
+  const page = useStore((state) => state.app.pagination[name]?.page || 0);
+  const itemsPerPage = useStore(
+    (state) => state.app.pagination[name]?.pageSize || defaultPageSize,
+  );
+  const setPagination = useStore((state) => state.appActions.setPagination);
+
+  const setPage = useCallback(
+    (newPage: number) => {
+      setPagination(name, { page: newPage, pageSize: itemsPerPage });
+    },
+    [name, setPagination, itemsPerPage],
+  );
+
+  const setPageSize = useCallback(
+    (newPageSize: number) => {
+      setPagination(name, { page, pageSize: newPageSize });
+    },
+    [name, setPagination, page],
+  );
+
+  return {
+    page,
+    itemsPerPage,
+    setPage,
+    setPageSize,
+  };
+};
+
+export const useLogsListing = () => {
+  const sorting = useStore((state) => state.logs.listing.sorting);
+  const setSorting = useStore((state) => state.logsActions.setSorting);
+
+  const filtering = useStore((state) => state.logs.listing.filtering);
+  const setFiltering = useStore((state) => state.logsActions.setFiltering);
+
+  const globalFilter = useStore((state) => state.logs.listing.globalFilter);
+  const setGlobalFilter = useStore(
+    (state) => state.logsActions.setGlobalFilter,
+  );
+
+  const columnResizeMode = useStore(
+    (state) => state.logs.listing.columnResizeMode,
+  );
+  const setColumnResizeMode = useStore(
+    (state) => state.logsActions.setColumnResizeMode,
+  );
+
+  const columnSizes = useStore((state) => state.logs.listing.columnSizes);
+  const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
+
+  const filteredCount = useStore((state) => state.logs.listing.filteredCount);
+  const setFilteredCount = useStore(
+    (state) => state.logsActions.setFilteredCount,
+  );
+
+  return {
+    sorting,
+    setSorting,
+    filtering,
+    setFiltering,
+    globalFilter,
+    setGlobalFilter,
+    columnResizeMode,
+    setColumnResizeMode,
+    columnSizes,
+    setColumnSize,
+    filteredCount,
+    setFilteredCount,
   };
 };
