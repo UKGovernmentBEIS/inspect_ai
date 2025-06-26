@@ -7,6 +7,7 @@
 - Inspect View: Properly wrap log configuration values in evaluation header.
 - Inspect View: Support for displaying and navigating directories of evaluation logs.
 - Inspect View: Improved handling of agent handoffs in transcript outline view.
+- Inspect View: Use numerical rather the correct/incorrect UI for scores with 0/1 values.
 - Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
 - Bugfix: Fix infinite recursion edge case in _flatten_exception.
 - MCP: Conform to breaking changes in latest mcp package (1.10.0).
