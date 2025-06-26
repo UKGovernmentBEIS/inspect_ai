@@ -5,6 +5,7 @@ from typing import Any, Literal, Union
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
 from inspect_ai.util._json import JSONSchema
 
 
@@ -23,6 +24,13 @@ class ResponseSchema(BaseModel):
     strict: bool | None = Field(default=None)
     """Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the schema field.
     OpenAI and Mistral only."""
+
+
+class BatchConfig(BaseModel):
+    size: int | None = Field(default=None)
+    send_delay: float | None = Field(default=None)
+    tick: float | None = Field(default=None)
+    max_batches: int | None = Field(default=None)
 
 
 class GenerateConfigArgs(TypedDict, total=False):
@@ -109,17 +117,11 @@ class GenerateConfigArgs(TypedDict, total=False):
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
-    batch: bool | None
-    """Use batch API. Set to False to disable batching for a specific request."""
+    batch: bool | int | None
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, or a number to enable batching of the specified batch size. """
 
-    batch_size: int | None
-    """Batch size. OpenAI and Anthropic only."""
-
-    batch_max_send_delay: float | None
-    """Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only."""
-
-    batch_tick: float
-    """Time between checking for new batch requests. OpenAI and Anthropic only."""
+    batch_config: BatchConfig | None
+    """A BatchConfig object specifying the batching configuration."""
 
 
 class GenerateConfig(BaseModel):
@@ -210,17 +212,11 @@ class GenerateConfig(BaseModel):
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
-    batch: bool | None = Field(default=None)
-    """Use batch API. Set to False to disable batching for a specific request."""
+    batch: bool | int | None = Field(default=None)
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, or a number to enable batching of the specified batch size. """
 
-    batch_size: int | None = Field(default=None)
-    """Batch size. OpenAI and Anthropic only."""
-
-    batch_max_send_delay: float | None = Field(default=None)
-    """Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only."""
-
-    batch_tick: float | None = Field(default=None)
-    """Time between checking for new batch requests. OpenAI and Anthropic only."""
+    batch_config: BatchConfig | None = Field(default=None)
+    """A BatchConfig object specifying the batching configuration."""
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
@@ -269,3 +265,15 @@ def set_active_generate_config(config: GenerateConfig) -> None:
 active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
     "generate_config", default=GenerateConfig()
 )
+
+
+def normalized_batch_config(
+    batch: bool | int | None, batch_config: BatchConfig | None
+) -> BatchConfig | None:
+    if batch_config:
+        return batch_config
+
+    if not batch:
+        return None
+
+    return BatchConfig(size=DEFAULT_BATCH_SIZE if batch is True else batch)

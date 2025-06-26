@@ -12,13 +12,13 @@ import anyio
 import anyio.abc
 
 from inspect_ai._util._async import run_in_background, tg_collect
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
 from inspect_ai._util.notgiven import sanitize_notgiven
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 
 DEFAULT_BATCH_TICK = 15
-DEFAULT_MAX_SEND_DELAY = 60
+DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
 DEFAULT_MAX_BATCHES = 50
-DEFAULT_BATCH_SIZE = 100
 
 logger = getLogger(__name__)
 
@@ -52,13 +52,17 @@ class Batch(Generic[ResponseT]):
 class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     def __init__(
         self,
-        config: GenerateConfig,
+        config: BatchConfig,
         max_batch_request_count: int,
         max_batch_size_mb: int,
     ) -> None:
-        self.config = config
+        # self.config = config
         self.max_batch_request_count = max_batch_request_count
         self.max_batch_size_bytes = max_batch_size_mb * 1024 * 1024
+        self._batch_size = config.size or DEFAULT_BATCH_SIZE
+        self._send_delay = config.send_delay or DEFAULT_SEND_DELAY
+        self._tick = config.tick or DEFAULT_BATCH_TICK
+        self._max_batches = config.max_batches or DEFAULT_MAX_BATCHES
         self._intake_queue: deque[BatchRequest[ResponseT]] = deque()
         self._next_batch: list[BatchRequest[ResponseT]] | None = None
         self.next_batch_timeout: float | None = None
@@ -94,7 +98,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
             await self._maybe_send_next_batch()
 
-            await anyio.sleep(self.config.batch_tick or DEFAULT_BATCH_TICK)
+            await anyio.sleep(self._tick)
 
         self._is_batch_worker_running = False
 
@@ -141,9 +145,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         if self._next_batch is None:
             self._next_batch = []
             self._next_batch_aggregate_size = None
-            self.next_batch_timeout = time.time() + (
-                self.config.batch_max_send_delay or DEFAULT_MAX_SEND_DELAY
-            )
+            self.next_batch_timeout = time.time() + self._send_delay
 
         # Process intake queue, moving requests that fit into next batch
         while self._intake_queue:
@@ -163,9 +165,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     async def _maybe_send_next_batch(self) -> None:
         if (
             not self._next_batch
-            or len(self._inflight_batches) >= DEFAULT_MAX_BATCHES
+            or len(self._inflight_batches) >= self._max_batches
             or (
-                len(self._next_batch) < (self.config.batch_size or DEFAULT_BATCH_SIZE)
+                len(self._next_batch) < self._batch_size
                 and not (
                     self.next_batch_timeout and time.time() > self.next_batch_timeout
                 )

@@ -8,6 +8,7 @@ from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
+    DEFAULT_BATCH_SIZE,
     DEFAULT_EPOCHS,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
     DEFAULT_LOG_SHARED,
@@ -62,6 +63,7 @@ MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
 )
 TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
+BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration, or specify e.g. `--batch=1000` to configure batches of 1000 requests."
 
 
 def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -468,16 +470,19 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
     )
     @click.option(
-        "--batch-size",
-        type=int,
-        help="Batch size. OpenAI and Anthropic only.",
-        envvar="INSPECT_EVAL_BATCH_SIZE",
+        "--batch",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=int_or_bool_flag_callback(DEFAULT_BATCH_SIZE, None),
+        help=BATCH_HELP,
+        envvar="INSPECT_EVAL_BATCH",
     )
     @click.option(
-        "--batch-max-send-delay",
-        type=float,
-        help="Maximum delay between queuing and sending a batch request. OpenAI and Anthropic only.",
-        envvar="INSPECT_EVAL_BATCH_MAX_SEND_DELAY",
+        "--batch-config",
+        type=str,
+        envvar="INSPECT_EVAL_BATCH_CONFIG",
+        help="YAML or JSON config file with batch configuration.",
     )
     @click.option(
         "--log-format",
@@ -554,8 +559,8 @@ def eval_command(
     reasoning_summary: Literal["concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
-    batch_size: int | None,
-    batch_max_send_delay: float | None,
+    batch: int | None,
+    batch_config: str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -732,6 +737,8 @@ def eval_set_command(
     reasoning_summary: Literal["concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    batch: int | None,
+    batch_config: str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,

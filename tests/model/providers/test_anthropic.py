@@ -25,6 +25,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.anthropic import AnthropicAPI
 
 if TYPE_CHECKING:
@@ -86,9 +87,9 @@ async def test_anthropic_batch(mocker: MockerFixture):
     model_name = "claude-3-7-sonnet-20250219"
     max_tokens = 1000
     generate_config = GenerateConfig(
-        batch_size=10,
-        batch_max_send_delay=batch_max_send_delay,
-        batch_tick=batch_tick,
+        batch_config=BatchConfig(
+            size=10, send_delay=batch_max_send_delay, tick=batch_tick
+        ),
         max_tokens=max_tokens,
     )
     model = AnthropicAPI(model_name=model_name, api_key="test-key")

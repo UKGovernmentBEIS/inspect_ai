@@ -64,7 +64,7 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
-from .._generate_config import GenerateConfig
+from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
@@ -296,9 +296,12 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
-        if config.batch is not False and config.batch_size:
+        # TODO: Bogus that we have to do this on each call. Ideally, it would be
+        # done only once and ideally by non-provider specific code.
+        batch_config = normalized_batch_config(config.batch, config.batch_config)
+        if batch_config:
             if not self._batcher:
-                self._batcher = AnthropicBatcher(self.client, config)
+                self._batcher = AnthropicBatcher(self.client, batch_config)
             head_message = await self._batcher.generate(request, config)
         elif streaming:
             async with self.client.messages.stream(**request) as stream:

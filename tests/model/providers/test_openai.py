@@ -27,6 +27,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers._openai_batch import CompletedBatchInfo, OpenAIBatcher
 from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.util.batch import Batch, BatchRequest
@@ -139,9 +140,9 @@ async def test_openai_batch(mocker: MockerFixture):
     batch_tick = 0.01
     batch_max_send_delay = 1.0
     generate_config = GenerateConfig(
-        batch_size=10,
-        batch_max_send_delay=batch_max_send_delay,
-        batch_tick=batch_tick,
+        batch_config=BatchConfig(
+            size=10, send_delay=batch_max_send_delay, tick=batch_tick
+        )
     )
     model = OpenAIAPI(
         model_name="gpt-3.5-turbo",
@@ -380,11 +381,7 @@ async def test_openai_batcher_handle_batch_result(
 
     batcher = OpenAIBatcher(
         client=mock_client,
-        config=GenerateConfig(
-            batch_size=10,
-            batch_max_send_delay=batch_max_send_delay,
-            batch_tick=batch_tick,
-        ),
+        config=BatchConfig(size=10, send_delay=batch_max_send_delay, tick=batch_tick),
     )
 
     send_stream, receive_stream = anyio.create_memory_object_stream[

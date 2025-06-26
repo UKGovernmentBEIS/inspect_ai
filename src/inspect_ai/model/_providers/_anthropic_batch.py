@@ -28,7 +28,7 @@ from anthropic.types.messages.batch_create_params import (
     Request as AnthropicBatchRequest,
 )
 
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
 
 from .util.batch import (
     Batch,
@@ -44,7 +44,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     def __init__(
         self,
         client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
-        config: GenerateConfig,
+        config: BatchConfig,
     ):
         super().__init__(
             config,

@@ -156,11 +156,8 @@ def _cache_key(entry: CacheEntry) -> str:
                     "max_connections",
                     "max_retries",
                     "timeout",
-                    *(
-                        field
-                        for field in GenerateConfig.model_fields
-                        if field.startswith("batch")
-                    ),
+                    "batch",
+                    "batch_config",
                 ]
             )
         ),

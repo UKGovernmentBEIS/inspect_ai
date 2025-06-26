@@ -8,9 +8,16 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
 def int_or_bool_flag_callback(
-    true_value: int, false_value: int = 0
-) -> Callable[[click.Context, click.Parameter, Any], int]:
-    def callback(ctx: click.Context, param: click.Parameter, value: Any) -> int:
+    true_value: int, false_value: int | None = 0
+) -> Callable[[click.Context, click.Parameter, Any], int | None]:
+    # TODO: Review this scenario with JJ and consider a cleaner solution.
+    # Previously:
+    #   - "Not specified at all" yielded the default value of the flag which is typically 0,
+    #   - Merging mistakenly overwrote the `batch=True` that was part of the Task's
+    #     config when executing the code below in task_run().
+    #       generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
+    #     this is because the merge code merges in any value that is not None
+    def callback(ctx: click.Context, param: click.Parameter, value: Any) -> int | None:
         """Callback to parse the an option that can either be a boolean flag or integer.
 
         Desired behavior:

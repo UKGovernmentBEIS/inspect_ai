@@ -16,6 +16,7 @@ from typing_extensions import override
 from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
+from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
@@ -330,14 +331,17 @@ class OpenAIAPI(ModelAPI):
     async def _get_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if config.batch is False or not config.batch_size:
+        # TODO: Bogus that we have to do this on each call. Ideally, it would be
+        # done only once and ideally by non-provider specific code.
+        batch_config = normalized_batch_config(config.batch, config.batch_config)
+        if batch_config:
+            if not self._batcher:
+                self._batcher = OpenAIBatcher(self.client, batch_config)
+            return await self._batcher.generate(request, config)
+        else:
             return cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)
             )
-
-        if not self._batcher:
-            self._batcher = OpenAIBatcher(self.client, config)
-        return await self._batcher.generate(request, config)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""

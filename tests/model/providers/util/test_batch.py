@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.util.batch import (
     Batch,
     Batcher,
@@ -28,11 +28,7 @@ class FakeBatcher(Batcher[str, CompletedBatchInfo]):
         *,
         batch_check_counts: dict[str, int] | None = None,
         inflight_batches: dict[str, Batch[str]] | None = None,
-        config: GenerateConfig = GenerateConfig(
-            batch_size=10,
-            batch_max_send_delay=1.0,
-            batch_tick=0.01,
-        ),
+        config: BatchConfig = BatchConfig(size=10, send_delay=1.0, tick=0.01),
     ):
         super().__init__(config, 1000, 100)
         if inflight_batches is not None:

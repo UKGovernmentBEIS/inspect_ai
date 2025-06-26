@@ -12,7 +12,7 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 
 from inspect_ai._util._async import tg_collect
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
 
 from .util.batch import (
     Batch,
@@ -27,9 +27,9 @@ class CompletedBatchInfo(TypedDict):
 
 
 class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
-    def __init__(self, client: AsyncOpenAI, config: GenerateConfig):
+    def __init__(self, client: AsyncOpenAI, config: BatchConfig):
         super().__init__(
-            config,
+            config=config,
             max_batch_request_count=50000,
             max_batch_size_mb=200,
         )
