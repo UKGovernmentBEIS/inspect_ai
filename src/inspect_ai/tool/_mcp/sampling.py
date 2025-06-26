@@ -10,6 +10,7 @@ from mcp.types import (
     EmbeddedResource,
     ErrorData,
     ImageContent,
+    ResourceLink,
     TextContent,
     TextResourceContents,
 )
@@ -94,7 +95,11 @@ async def sampling_fn(
 
 
 def as_inspect_content(
-    content: TextContent | ImageContent | AudioContent | EmbeddedResource,
+    content: TextContent
+    | ImageContent
+    | AudioContent
+    | ResourceLink
+    | EmbeddedResource,
 ) -> Content:
     if isinstance(content, TextContent):
         return ContentText(text=content.text)
@@ -107,6 +112,8 @@ def as_inspect_content(
             audio=f"data:audio/{content.mimeType};base64,{content.data}",
             format=_get_audio_format(content.mimeType),
         )
+    elif isinstance(content, ResourceLink):
+        return ContentText(text=f"{content.description} ({content.uri})")
     elif isinstance(content.resource, TextResourceContents):
         return ContentText(text=content.resource.text)
     else:
