@@ -3,7 +3,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
 from semver import Version
-from shortuuid import uuid
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool import ToolResult
@@ -82,7 +81,7 @@ def bash_session(
     *,
     timeout: int | None = None,  # default is max_wait + 5 seconds
     wait_for_output: int | None = None,  # default is 30 seconds
-    instance: str | None = uuid(),
+    instance: str | None = None,
 ) -> Tool:
     """Interactive bash shell session tool.
 
@@ -91,10 +90,8 @@ def bash_session(
     which could be a command followed by a newline character or any other input
     text such as the response to a password prompt.
 
-    By default, a separate bash process is created within the sandbox for each
-    call to `bash_session()`. You can modify this behavior by passing
-    `instance=None` (which will result in a single bash process for the entire
-    sample) or use other `instance` values that implement another scheme).
+    To create a separate bash process for each
+    call to `bash_session()`, pass a unique value for `instance`
 
     See complete documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-bash-session>.
 
