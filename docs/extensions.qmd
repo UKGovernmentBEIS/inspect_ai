@@ -455,7 +455,7 @@ class WBHook(Hooks):
         })
 ```
 
-Implementations of the `Hooks` class can override an `enabled()` method.
+See the `Hooks` class for more documentation and the full list of available hooks.
 
 ### API Key Override
 

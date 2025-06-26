@@ -1,4 +1,8 @@
-"""Legacy hooks for telemetry and API key overrides."""
+"""Legacy hooks for telemetry and API key overrides.
+
+These are deprecated and will be removed in a future release. Please use the new hooks
+defined in `inspect_ai.hooks` instead.
+"""
 
 import importlib
 import os
