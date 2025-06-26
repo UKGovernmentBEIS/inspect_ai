@@ -1,11 +1,10 @@
+"""Legacy hooks for telemetry and API key overrides."""
+
 import importlib
 import os
 from typing import Any, Awaitable, Callable, Literal, cast
 
-from rich import print
-
-from .constants import PKG_NAME
-from .error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError
 
 # Hooks are functions inside packages that are installed with an
 # environment variable (e.g. INSPECT_TELEMETRY='mypackage.send_telemetry')
@@ -31,7 +30,7 @@ from .error import PrerequisiteError
 TelemetrySend = Callable[[str, str], Awaitable[bool]]
 
 
-async def send_telemetry(
+async def send_telemetry_legacy(
     type: Literal["model_usage", "eval_log", "eval_log_location"], json: str
 ) -> Literal["handled", "not_handled", "no_subscribers"]:
     global _send_telemetry
@@ -57,7 +56,7 @@ _send_telemetry: TelemetrySend | None = None
 ApiKeyOverride = Callable[[str, str], str | None]
 
 
-def override_api_key(var: str, value: str) -> str | None:
+def override_api_key_legacy(var: str, value: str) -> str | None:
     global _override_api_key
     if _override_api_key:
         return _override_api_key(var, value)
@@ -68,14 +67,12 @@ def override_api_key(var: str, value: str) -> str | None:
 _override_api_key: ApiKeyOverride | None = None
 
 
-def init_hooks() -> None:
-    # messages we'll print for hooks if we have them
+def init_legacy_hooks() -> list[str]:
     messages: list[str] = []
-
     # telemetry
     global _send_telemetry
     if not _send_telemetry:
-        result = init_hook(
+        result = init_legacy_hook(
             "telemetry",
             "INSPECT_TELEMETRY",
             "(eval logs and token usage will be recorded by the provider)",
@@ -87,7 +84,7 @@ def init_hooks() -> None:
     # api key override
     global _override_api_key
     if not _override_api_key:
-        result = init_hook(
+        result = init_legacy_hook(
             "api key override",
             "INSPECT_API_KEY_OVERRIDE",
             "(api keys will be read and modified by the provider)",
@@ -96,16 +93,10 @@ def init_hooks() -> None:
             _override_api_key, message = result
             messages.append(message)
 
-    # if any hooks are enabled, let the user know
-    if len(messages) > 0:
-        version = importlib.metadata.version(PKG_NAME)
-        all_messages = "\n".join([f"- {message}" for message in messages])
-        print(
-            f"[blue][bold]inspect_ai v{version}[/bold][/blue]\n[bright_black]{all_messages}[/bright_black]\n"
-        )
+    return messages
 
 
-def init_hook(
+def init_legacy_hook(
     name: str, env: str, message: str
 ) -> tuple[Callable[..., Any], str] | None:
     hook = os.environ.get(env, "")

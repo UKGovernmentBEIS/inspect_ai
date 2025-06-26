@@ -29,7 +29,6 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import (
     is_registry_object,
@@ -139,6 +138,9 @@ class TaskRunOptions:
 
 
 async def task_run(options: TaskRunOptions) -> EvalLog:
+    from inspect_ai.hooks._hooks import emit_task_end, emit_task_start
+    from inspect_ai.hooks._legacy import send_telemetry_legacy
+
     # destructure options
     task = options.task
     model = options.model
@@ -229,6 +231,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         tags=tags,
         log_location=log_location,
     )
+
+    await emit_task_start(logger)
 
     with display().task(
         profile,
@@ -383,6 +387,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # finish w/ success status
             eval_log = await logger.log_finish("success", stats, results, reductions)
 
+            await emit_task_end(logger, eval_log)
+
             # display task summary
             td.complete(
                 TaskSuccess(
@@ -433,13 +439,14 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     view_notify_eval(logger.location)
 
     try:
+        # TODO: Also send this to "new" hooks (including eval log location).
         if (
-            await send_telemetry("eval_log_location", eval_log.location)
+            await send_telemetry_legacy("eval_log_location", eval_log.location)
             == "not_handled"
         ):
             # Converting the eval log to JSON is expensive. Only do so if
             # eval_log_location was not handled.
-            await send_telemetry("eval_log", eval_log_json_str(eval_log))
+            await send_telemetry_legacy("eval_log", eval_log_json_str(eval_log))
     except Exception as ex:
         py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
 
@@ -537,6 +544,12 @@ async def task_run_sample(
     working_limit: int | None,
     semaphore: anyio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
+    from inspect_ai.hooks._hooks import (
+        emit_sample_abort,
+        emit_sample_end,
+        emit_sample_start,
+    )
+
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
         previous_sample = sample_source(sample.id, state.epoch)
@@ -679,16 +692,18 @@ async def task_run_sample(
                         # mark started
                         active.started = datetime.now().timestamp()
 
+                        sample_summary = EvalSampleSummary(
+                            id=sample_id,
+                            epoch=state.epoch,
+                            input=sample.input,
+                            target=sample.target,
+                            metadata=sample.metadata or {},
+                        )
+
                         if logger is not None:
-                            await logger.start_sample(
-                                EvalSampleSummary(
-                                    id=sample_id,
-                                    epoch=state.epoch,
-                                    input=sample.input,
-                                    target=sample.target,
-                                    metadata=sample.metadata or {},
-                                )
-                            )
+                            await logger.start_sample(sample_summary)
+                        # TODO: Where can I get run_id and eval_id?
+                        await emit_sample_start("", "", sample_id, sample_summary)
 
                         # set progress for plan then run it
                         async with span("solvers"):
@@ -828,29 +843,32 @@ async def task_run_sample(
         if not error or (retry_on_error == 0):
             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-            # log it
-            if logger is not None:
-                # if we are logging images then be sure to base64 images injected by solvers
-                if log_images:
-                    state = (await states_with_base64_content([state]))[0]
+            # if we are logging images then be sure to base64 images injected by solvers
+            if log_images:
+                state = (await states_with_base64_content([state]))[0]
 
-                # otherwise ensure there are no base64 images in sample or messages
-                else:
-                    sample = sample_without_base64_content(sample)
-                    state = state_without_base64_content(state)
+            # otherwise ensure there are no base64 images in sample or messages
+            else:
+                sample = sample_without_base64_content(sample)
+                state = state_without_base64_content(state)
 
-                # log the sample
-                await log_sample(
-                    start_time=start_time,
-                    logger=logger,
-                    sample=sample,
-                    state=state,
-                    scores=results,
-                    error=error,
-                    limit=limit,
-                    error_retries=error_retries,
-                    log_images=log_images,
-                )
+            # log the sample
+            eval_sample = await log_sample(
+                start_time=start_time,
+                logger=logger,
+                sample=sample,
+                state=state,
+                scores=results,
+                error=error,
+                limit=limit,
+                error_retries=error_retries,
+                log_images=log_images,
+            )
+
+            # TODO: Where can I get run_id and eval_id?
+            # TODO: Do we only want to emit sample end if there was no error?
+            if not error:
+                await emit_sample_end("", "", sample_id, eval_sample.summary())
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -899,16 +917,18 @@ async def task_run_sample(
 
     # we have an error and should raise it
     elif raise_error is not None:
+        await emit_sample_abort("", "", sample_id, error)
         raise raise_error
 
     # we have an error and should not raise it
+    # TODO: Do I need to emit a sample abort for this?
     else:
         return None
 
 
 async def log_sample(
     start_time: float | None,
-    logger: TaskLogger,
+    logger: TaskLogger | None,
     sample: Sample,
     state: TaskState,
     scores: dict[str, SampleScore],
@@ -916,7 +936,7 @@ async def log_sample(
     limit: EvalSampleLimit | None,
     error_retries: list[EvalError],
     log_images: bool,
-) -> None:
+) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
     if id is None:
@@ -955,7 +975,12 @@ async def log_sample(
         limit=limit,
     )
 
-    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
+    if logger is not None:
+        await logger.complete_sample(
+            condense_sample(eval_sample, log_images), flush=True
+        )
+
+    return eval_sample
 
 
 async def resolve_dataset(
