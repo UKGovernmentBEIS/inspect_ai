@@ -145,9 +145,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#june-2025" id="toc-june-2025" class="nav-link" data-scroll-target="#june-2025">0.3.108 (25 June 2025)</a></li>
-  <li><a href="#june-2025-1" id="toc-june-2025-1" class="nav-link" data-scroll-target="#june-2025-1">0.3.107 (24 June 2025)</a></li>
+  <li><a href="#june-2025" id="toc-june-2025" class="nav-link active" data-scroll-target="#june-2025">0.3.109 (27 June 2025)</a></li>
+  <li><a href="#june-2025-1" id="toc-june-2025-1" class="nav-link" data-scroll-target="#june-2025-1">0.3.108 (25 June 2025)</a></li>
+  <li><a href="#june-2025-2" id="toc-june-2025-2" class="nav-link" data-scroll-target="#june-2025-2">0.3.107 (24 June 2025)</a></li>
   <li><a href="#v0.3.106-21-june-2025" id="toc-v0.3.106-21-june-2025" class="nav-link" data-scroll-target="#v0.3.106-21-june-2025">v0.3.106 (21 June 2025)</a></li>
   <li><a href="#v0.3.105-17-june-2025" id="toc-v0.3.105-17-june-2025" class="nav-link" data-scroll-target="#v0.3.105-17-june-2025">v0.3.105 (17 June 2025)</a></li>
   <li><a href="#v0.3.104-12-june-2025" id="toc-v0.3.104-12-june-2025" class="nav-link" data-scroll-target="#v0.3.104-12-june-2025">v0.3.104 (12 June 2025)</a></li>
@@ -262,24 +262,32 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="june-2025" class="level2">
+<h2 class="anchored" data-anchor-id="june-2025">0.3.109 (27 June 2025)</h2>
 <ul>
 <li>Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).</li>
+<li>Fix store_as examples, document inspect_ai.scorer.score</li>
+<li>Delay cleanup of sample buffer database to account for potential sharing of data dir.</li>
+<li>Vertex: Ignore types to workaround update that removes type information from some of their sub-packages (tests still pass).</li>
+<li>MCP: Conform to breaking changes in latest mcp package (1.10.0).</li>
+<li>Docs: Correct docs for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> to indicate that you must pass an <code>instance</code> explicitly to get distinct processes.</li>
+<li>Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.</li>
 <li>Inspect View: Properly wrap log configuration values in evaluation header.</li>
 <li>Inspect View: Support for displaying and navigating directories of evaluation logs.</li>
+<li>Inspect View: Improved handling of agent handoffs in transcript outline view.</li>
+<li>Inspect View: Use numerical rather the correct/incorrect UI for scores with 0/1 values.</li>
 <li>Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.</li>
-<li>Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.</li>
+<li>Bugfix: Fix infinite recursion edge case in _flatten_exception.</li>
 </ul>
 </section>
-<section id="june-2025" class="level2">
-<h2 class="anchored" data-anchor-id="june-2025">0.3.108 (25 June 2025)</h2>
+<section id="june-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="june-2025-1">0.3.108 (25 June 2025)</h2>
 <ul>
 <li>Bugfix: Don’t raise error on Anthropic cited_text not being a <code>str</code>.</li>
 </ul>
 </section>
-<section id="june-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="june-2025-1">0.3.107 (24 June 2025)</h2>
+<section id="june-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="june-2025-2">0.3.107 (24 June 2025)</h2>
 <ul>
 <li>Bugfix: Shield critical shutdown code from cancel scope.</li>
 </ul>
@@ -664,7 +672,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Improve sample score rendering (single scoring tab with scores rendered in a table).</li>
 <li>Inspect View: Improve sample count display in sample list footer.</li>
 <li>Inspect View: Properly refresh running evals when restoring from being backgrounded.</li>
-<li>Bugfix: Support for calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function within Jupyter notebooks.</li>
+<li>Bugfix: Support for calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> function within Jupyter notebooks.</li>
 <li>Bugfix: Handle process lookup errors that can occur during timeout race conditions.</li>
 <li>Bugfix: Correctly capture and return logs from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> when a cancellation occurs.</li>
 <li>Bugfix: Correctly handle custom <code>api_version</code> model argument for OpenAI on Azure.</li>
@@ -902,12 +910,12 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li><a href="https://inspect.aisi.org.uk/reference/">Reference documentation</a> for Python API and CLI commands.</li>
 <li>Add support for <a href="https://inspect.aisi.org.uk/scorers.html#clustered-standard-errors">clustered standard errors</a> via a new <code>cluster</code> parameter for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#stderr">stderr()</a></span> metric.</li>
-<li>Improvements to <a href="https://inspect.aisi.org.uk/scorers.html#sec-scorer-workflow">scoring workflow</a> (<code>inspect score</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function).</li>
+<li>Improvements to <a href="https://inspect.aisi.org.uk/scorers.html#sec-scorer-workflow">scoring workflow</a> (<code>inspect score</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> function).</li>
 <li>Metrics now take <code>list[SampleScore]</code> rather than <code>list[Score]</code> (previous signature is deprecated but still works with a warning).</li>
 <li>Use a sample adjustment for the <code>var()</code> metric.</li>
 <li>Google: Speculative fix for completion candidates not being returned as a list.</li>
 <li>Python and Bash tools: Add <code>sandbox</code> argument for running in non-default sandboxes.</li>
-<li>Transcript: Log <code>ScoreEvent</code> (with <code>intermediate=True</code>) when the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function is called.</li>
+<li>Transcript: Log <code>ScoreEvent</code> (with <code>intermediate=True</code>) when the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> function is called.</li>
 <li>Transcript: Add <code>source</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#infoevent">InfoEvent</a></span> and use it for events logged by the human agent.</li>
 <li>Docker: Support Dockerfiles with <code>.Dockerfile</code> extension.</li>
 <li>Docker: Raise error when there is an explicitly configured <code>container_name</code> (incompatible with epochs &gt; 1).</li>

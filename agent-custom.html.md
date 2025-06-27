@@ -198,8 +198,8 @@ activity = store_as(Activity)
 ### Agent Instances
 
 If you want an agent to have a store-per-instance by default, add an
-`instance` parameter to your `@agent` function and default it to
-`uuid()`. Then, forward the `instance` on to `store_as()` as well as any
+`instance` parameter to your `@agent` function and pass it a unique
+value. Then, forward the `instance` on to `store_as()` as well as any
 tools you call that are also stateful (e.g. `web_browser()`). For
 example:
 
@@ -215,7 +215,7 @@ class WebSurferState(StoreModel):
     messages: list[ChatMessage] = Field(default_factory=list)
 
 @agent
-def web_surfer(instance: str | None = uuid()) -> Agent:
+def web_surfer(instance: str | None = None) -> Agent:
     
     async def execute(state: AgentState) -> AgentState:
 
@@ -228,6 +228,14 @@ def web_surfer(instance: str | None = uuid()) -> Agent:
         messages, state.output = await get_model().generate_loop(
             state.messages, tools=web_browser(instance=instance)
         )
+```
+
+Then, pass a unique id as the `instance`:
+
+``` python
+from shortuuid import uuid
+
+react(..., tools=[web_surfer(instance=uuid())])
 ```
 
 This enables you to have multiple instances of the `web_surfer()` agent,
