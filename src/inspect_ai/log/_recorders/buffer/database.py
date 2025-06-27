@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import json
 import os
@@ -15,6 +16,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
@@ -692,11 +694,18 @@ def maximum_ids(
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
     db_dir = resolve_db_dir(db_dir)
     for db in db_dir.glob("*.*.db"):
-        _, pid_str, _ = db.name.rsplit(".", 2)
-        if pid_str.isdigit():
-            pid = int(pid_str)
-            if not psutil.pid_exists(pid):
-                cleanup_sample_buffer_db(db)
+        # this is a failsafe cleanup method for buffer db's leaked during
+        # abnormal terminations. therefore, it's not critical that we clean
+        # it up immediately. it's also possible that users are _sharing_
+        # their inspect_data_dir across multiple pid namespaces (e.g. in an
+        # effort to share their cache) one eval could remove the db of
+        # another running eval if we don't put in a delay.
+        if is_file_older_than(db, datetime.timedelta(days=3), default=False):
+            _, pid_str, _ = db.name.rsplit(".", 2)
+            if pid_str.isdigit():
+                pid = int(pid_str)
+                if not psutil.pid_exists(pid):
+                    cleanup_sample_buffer_db(db)
 
 
 def cleanup_sample_buffer_db(path: Path) -> None:

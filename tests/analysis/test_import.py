@@ -5,7 +5,7 @@ import pytest
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.datetime import iso_now
+from inspect_ai._util.dateutil import iso_now
 from inspect_ai.analysis.beta import Column, EvalColumns
 from inspect_ai.analysis.beta._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_record
