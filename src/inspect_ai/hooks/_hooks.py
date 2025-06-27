@@ -238,7 +238,7 @@ def hooks(name: str) -> Callable[..., Type[T]]:
         if not issubclass(hook_type, Hooks):
             raise TypeError(f"Hook must be a subclass of Hooks, got {hook_type}")
 
-        # Instantiate an instance of the hook class.
+        # Instantiate an instance of the Hooks class.
         hook_instance = hook_type()
         hook_name = registry_name(hook_instance, name)
         registry_add(
