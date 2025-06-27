@@ -25,8 +25,9 @@ def init_hooks() -> None:
         _registry_hooks_loaded = True
         if hooks:
             hook_names = [f"  {registry_info(hook).name}" for hook in hooks]
+            hook_names_joined = "\n".join(hook_names)
             messages.append(
-                f"[bold]hooks enabled: {len(hooks)}[/bold]\n{'\n'.join(hook_names)}"
+                f"[bold]hooks enabled: {len(hooks)}[/bold]\n{hook_names_joined}"
             )
 
     # if any hooks are enabled, let the user know
