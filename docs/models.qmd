@@ -208,156 +208,104 @@ inspect eval math.py \
 
 ## Batch Processing
 
-Inspect supports batch processing for OpenAI and Anthropic models, which can significantly reduce costs and improve efficiency for large-scale evaluations. When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider's batch API rather than making individual API calls.
-
-### Enabling Batch Processing
-
-The simplest way to enable batch processing is to set `batch=True`. When enabled, the system uses reasonable defaults for all batching parameters:
+::: callout-note
+Batch processing is available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
-# Enable batching with default settings
-inspect eval arc.py --model openai/gpt-4o --batch True
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
+:::
 
-Or in Python:
+Inspect supports calling the batch processing APIs for OpenAI and [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing) models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times (batched generations typically complete within an hour but can take longer).
 
-``` python
-from inspect_ai import eval
-from inspect_ai.model import GenerateConfig
+When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider's batch API rather than making individual API calls.
 
-eval("arc.py", 
-     model="openai/gpt-4o", 
-     config=GenerateConfig(batch=True))
-```
+::: callout-important
+When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g. a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.
 
-You can also enable batching by specifying a batch size (this automatically enables batching unless explicitly disabled with `batch=False`):
+On the other hand, evaluations with a large and/or variable number of generations (e.g. agentic tasks) can often take many hours or days due to both the large number of batches that must be waited on and the path dependency created between requests in a batch.
+:::
+
+### Enabling Batch Mode
+
+Pass the `--batch` CLI flag or `batch=True` to `eval()` in order to enable batch processing for providers that support it (you can also optionally specify a batch size):
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o --batch-size 100
+inspect eval arc.py --model openai/gpt-4o --batch
+inspect eval arc.py --model openai/gpt-4o --batch 1000
 ```
 
-You can also configure batching directly in your task definition:
+Or:
 
 ``` python
-from inspect_ai import Task
-from inspect_ai.model import GenerateConfig
-
-@task
-def my_task():
-    config = GenerateConfig(
-        batch=True,
-        batch_size=100,
-        batch_max_send_delay=15,
-        batch_tick=15
-    )
-    return Task(
-        dataset=my_dataset(),
-        config=config,
-        # ... other task configuration
-    )
+eval("arc.py", model="openai/gpt-4o", batch=True)
+eval("arc.py", model="openai/gpt-4o", batch=1000)
 ```
 
-### Batch Configuration Options
+If a provider does not support batch processing the `batch` option is ignored for that provider.
 
-The following configuration options control batch processing behavior:
+### Batch Configuration
 
-- **`batch`** (`bool`): Enable or disable batch processing. When set to `True`, uses reasonable defaults for all other batching parameters. Set to `False` to disable batching entirely.
+There are additional batch processing options available by specifying a `BatchConfig` (or YAML config file on the CLI) to the `batch_config` option. For example:
 
-- **`batch_size`** (`int`): Customize the target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don't fit within size limits.
+``` bash
+inspect eval arc.py \
+   --model openai/gpt-4o \
+   --batch-config batch.yml
+```
 
-- **`batch_max_send_delay`** (`float`): Customize the maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 60 seconds. This prevents indefinite waiting when request volume is low.
-
-- **`batch_tick`** (`float`): Customize the time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.
-
-### How Batch Processing Works
-
-When batch processing is enabled:
-
-1. **Request Queuing**: Individual model requests are queued rather than sent immediately
-2. **Batch Formation**: Requests are grouped into batches based on size limits and timeouts
-3. **Batch Submission**: Complete batches are submitted to the provider's batch API
-4. **Status Monitoring**: Inspect periodically checks batch completion status
-5. **Result Distribution**: When batches complete, results are distributed back to the original requests
-
-### Provider-Specific Details
-
-#### OpenAI Batching
-
-- Maximum 50,000 requests per batch
-- Maximum 200 MB total size per batch
-- Batches are processed within a 24-hour window
-
-#### Anthropic Batching
-
-- Maximum 100,000 requests per batch  
-- Maximum 256 MB total size per batch
-- Batches begin processing immediately
-- Can take up to 24 hours to complete
-
-### Benefits
-
-Batch processing provides multiple significant benefits:
-
-**Cost Savings:**
-Both OpenAI and Anthropic offer 50% cost savings when using the Batch API as compared to the standard API pricing
-
-**Relaxed Rate Limits:**
-
-- **OpenAI**: Batch requests use separate rate limit quotas from standard API calls, allowing higher throughput
-
-- **Anthropic**: Message Batches API has separate rate limits from the Messages API, including dedicated RPM limits and the ability to queue up to 100,000 batch requests simultaneously (compared to the much lower per-minute limits of the standard Messages API)
-
-This combination of cost savings and increased capacity makes batch processing ideal for large-scale evaluations.
-
-### When to Use Batching
-
-Batch processing is most beneficial when:
-
-- Running large-scale evaluations with many samples
-- Cost optimization is important
-- Real-time response is not required
-- You can tolerate processing delays (up to 24 hours)
-
-### Limitations
-
-- Batches may take up to 24 hours to complete
-- Not suitable for interactive or real-time evaluations
-- Stream responses are not supported with batching
-- Some model features may not be available in batch mode
-- Sandbox evaluations: The relatively low limit on concurrent sandboxes (correlated to the number of CPU cores) can significantly increase the time a batched evaluation takes
-- Multi-turn evaluations: Evaluations with many conversation turns may be problematic since each turn could take up to 24 hours to complete, leading to extremely long total evaluation times
-
-### Example Usage
-
-Here's a complete example of using batch processing for a large-scale evaluation:
+Or:
 
 ``` python
-from inspect_ai import Task, eval
-from inspect_ai.dataset import example_dataset
-from inspect_ai.model import GenerateConfig
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import generate, self_critique
-
-@task
-def large_scale_eval():
-    # Configure batching for cost-effective processing
-    config = GenerateConfig(
-        batch=True,
-        batch_size=100,          # Process 100 requests per batch
-        batch_max_send_delay=30, # Wait max 30 seconds for partial batches
-        batch_tick=10           # Check batch status every 10 seconds
-    )
-    
-    return Task(
-        dataset=example_dataset("my_large_dataset", sample_fields={"input": "question"}),
-        plan=[generate(), self_critique()],
-        scorer=model_graded_fact(),
-        config=config
-    )
-
-# Run the evaluation
-eval(large_scale_eval(), model="openai/gpt-4o")
+from inspect_ai.model import BatchConfig
+eval(
+    "arc.py", model="openai/gpt-4o", 
+    batch_config=BatchConfig(size=200, send_delay=60)
+)
 ```
+
+Available `BatchConfig` options include:
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `size` | Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits. |
+| `send_delay` | Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low. |
+| `tick` | Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds. |
+| `max_batches` | Maximum number of batches to have in flight at once for a provider (defaults to 100). |
+
+: {tbl-colwidths=\[30,70\]}
+
+### Batch Processing Flow
+
+When batch processing is enabled, the following steps are taken when handling generation requests:
+
+1.  **Request Queuing**: Individual model requests are queued rather than sent immediately
+
+2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts.
+
+3.  **Batch Submission**: Complete batches are submitted to the provider's batch API.
+
+4.  **Status Monitoring**: Inspect periodically checks batch completion status.
+
+5.  **Result Distribution**: When batches complete, results are distributed back to the original requests
+
+These steps are transparent to the caller, however do have implications for total evaluation time as discussed above.
+
+### Details and Limitations
+
+See the following documentation for additional provider-specific details on batch processing, including token costs, rate limits, and limitations:
+
+-   [Open AI Batch Processing](https://platform.openai.com/docs/guides/batch)
+
+-   [Anthropic Batch Processing](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
+
+In general, you should keep the following limitations in mind when using batch processing:
+
+-   Batches may take up to 24 hours to complete.
+
+-   Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.
+
+-   If you are using sandboxes then your machine's resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.
 
 ## Learning More
 

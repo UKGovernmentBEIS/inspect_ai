@@ -27,10 +27,21 @@ class ResponseSchema(BaseModel):
 
 
 class BatchConfig(BaseModel):
+    """Batch processing configuration."""
+
     size: int | None = Field(default=None)
+    """Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits."""
+
     send_delay: float | None = Field(default=None)
+    """Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low.
+    """
+
     tick: float | None = Field(default=None)
+    """Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.
+    """
+
     max_batches: int | None = Field(default=None)
+    """Maximum number of batches to have in flight at once for a provider (defaults to 100)."""
 
 
 class GenerateConfigArgs(TypedDict, total=False):
