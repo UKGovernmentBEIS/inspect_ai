@@ -143,7 +143,7 @@ def eval(
             Either a path to an approval policy config file or a list of approval policies.
             Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-            "info", "warning", "error", or "critical" (defaults to "warning")
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results
             (defaults to file log in ./logs directory).
@@ -322,7 +322,7 @@ async def eval_async(
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-          "info", "warning", "error", or "critical" (defaults to "warning")
+          "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
@@ -706,7 +706,7 @@ def eval_retry(
     Args:
         tasks: Log files for task(s) to retry.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-            "info", "warning", "error", or "critical" (defaults to "warning")
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results
             (defaults to file log in ./logs directory).
@@ -820,7 +820,7 @@ async def eval_retry_async(
     Args:
         tasks: Log files for task(s) to retry.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-          "info", "warning", "error", or "critical" (defaults to "warning")
+          "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).

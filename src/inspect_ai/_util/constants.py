@@ -22,6 +22,7 @@ ALL_LOG_LEVELS = [
     "WARNING",
     "ERROR",
     "CRITICAL",
+    "NOTSET",
 ]
 DEFAULT_LOG_LEVEL = "warning"
 DEFAULT_LOG_LEVEL_TRANSCRIPT = "info"

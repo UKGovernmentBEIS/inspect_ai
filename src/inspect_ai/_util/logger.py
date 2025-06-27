@@ -2,6 +2,7 @@ import atexit
 import os
 from logging import (
     INFO,
+    NOTSET,
     WARNING,
     FileHandler,
     Formatter,
@@ -78,7 +79,7 @@ class LogHandler(RichHandler):
     @override
     def emit(self, record: LogRecord) -> None:
         # write to stderr if we are at or above the threshold
-        if record.levelno >= self.display_level:
+        if record.levelno >= self.display_level and self.display_level != NOTSET:
             super().emit(record)
 
         # write to file if the log file level matches. if the
@@ -109,7 +110,7 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
     if log_level == "sandbox" or log_level == "tools":
         log_level = "trace"
 
-    # register http and tools levels
+    # register http, trace, and none levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
     addLevelName(TRACE, TRACE_LOG_LEVEL)
 
@@ -139,24 +140,27 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
     transcript_levelno = getLevelName(log_level_transcript)
 
     # set capture level for our logs (we won't actually display/write all of them)
-    capture_level = min(TRACE, levelno, transcript_levelno)
+    if levelno != NOTSET:
+        capture_level = min(TRACE, levelno, transcript_levelno)
+    else:
+        capture_level = min(TRACE, transcript_levelno)
 
     # init logging handler on demand
     global _logHandler
     if not _logHandler:
-        root_logger = getLogger()
-        if root_logger.hasHandlers():
-            # someone else has already set up logging
-            return
-
         _logHandler = LogHandler(
             capture_levelno=capture_level,
             display_levelno=levelno,
             transcript_levelno=transcript_levelno,
         )
 
-        # set the global log level
-        root_logger.setLevel(log_level)
+        if log_level != "NOTSET":
+            # set the global log level
+            getLogger().setLevel(log_level)
+            # httpx currently logs all requests at the INFO level
+            # this is a bit aggressive and we already do this at
+            # our own HTTP level
+            getLogger("httpx").setLevel(WARNING)
 
         # set the log level for our package
         getLogger(PKG_NAME).setLevel(capture_level)
@@ -164,12 +168,7 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
         getLogger(PKG_NAME).propagate = False
 
         # add our logger to the global handlers
-        root_logger.addHandler(_logHandler)
-
-        # httpx currently logs all requests at the INFO level
-        # this is a bit aggressive and we already do this at
-        # our own HTTP level
-        getLogger("httpx").setLevel(WARNING)
+        getLogger().addHandler(_logHandler)
 
 
 _logHandler: LogHandler | None = None
