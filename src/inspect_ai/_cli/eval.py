@@ -886,7 +886,7 @@ def eval_exec(
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
     # TODO: Is this the right place to resolve the batch config?
-    if isinstance(kwargs["batch"], str):
+    if isinstance(kwargs.get("batch", None), str):
         kwargs["batch"] = BatchConfig.model_validate(resolve_args(kwargs["batch"]))
 
     # parse model roles
