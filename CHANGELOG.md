@@ -2,6 +2,7 @@
 
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
 - Fix store_as examples, document inspect_ai.scorer.score
+- Delay cleanup of sample buffer database to account for potential sharing of data dir.
 - Vertex: Ignore types to workaround update that removes type information from some of their sub-packages (tests still pass).
 - Docs: Correct docs for `web_browser()` and `bash_session()` to indicate that you must pass an `instance` explicitly to get distinct processes. 
 - Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.
