@@ -96,9 +96,9 @@ def vertex() -> type[ModelAPI]:
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
 
     # in the clear
-    from .vertex import VertexAPI
+    from .vertex import VertexAPI  # type: ignore
 
-    return VertexAPI
+    return VertexAPI  # type: ignore
 
 
 @modelapi(name="google")
