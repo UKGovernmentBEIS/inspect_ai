@@ -197,6 +197,10 @@ class Hooks:
     async def on_model_usage(self, data: ModelUsageData) -> None:
         """Called when a call to a model's generate() method completes successfully.
 
+        Note that this is not called when Inspect's local cache is used and is a cache
+        hit (i.e. if no external API call was made). Provider-side caching will result
+        in this being called.
+
         Args:
            data: Model usage data.
         """
@@ -232,7 +236,7 @@ def hooks(name: str) -> Callable[..., Type[T]]:
     """
 
     def wrapper(hook_type: Type[T] | Callable[..., Type[T]]) -> Type[T]:
-        # Resolve the hook type it's a function.
+        # Resolve the hook type if it's a function.
         if not isinstance(hook_type, type):
             hook_type = hook_type()
         if not issubclass(hook_type, Hooks):
