@@ -692,20 +692,23 @@ def maximum_ids(
 
 
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
-    db_dir = resolve_db_dir(db_dir)
-    for db in db_dir.glob("*.*.db"):
-        # this is a failsafe cleanup method for buffer db's leaked during
-        # abnormal terminations. therefore, it's not critical that we clean
-        # it up immediately. it's also possible that users are _sharing_
-        # their inspect_data_dir across multiple pid namespaces (e.g. in an
-        # effort to share their cache) one eval could remove the db of
-        # another running eval if we don't put in a delay.
-        if is_file_older_than(db, datetime.timedelta(days=3), default=False):
-            _, pid_str, _ = db.name.rsplit(".", 2)
-            if pid_str.isdigit():
-                pid = int(pid_str)
-                if not psutil.pid_exists(pid):
-                    cleanup_sample_buffer_db(db)
+    try:
+        db_dir = resolve_db_dir(db_dir)
+        for db in db_dir.glob("*.*.db"):
+            # this is a failsafe cleanup method for buffer db's leaked during
+            # abnormal terminations. therefore, it's not critical that we clean
+            # it up immediately. it's also possible that users are _sharing_
+            # their inspect_data_dir across multiple pid namespaces (e.g. in an
+            # effort to share their cache) one eval could remove the db of
+            # another running eval if we don't put in a delay.
+            if is_file_older_than(db, datetime.timedelta(days=3), default=False):
+                _, pid_str, _ = db.name.rsplit(".", 2)
+                if pid_str.isdigit():
+                    pid = int(pid_str)
+                    if not psutil.pid_exists(pid):
+                        cleanup_sample_buffer_db(db)
+    except Exception as ex:
+        logger.warning(f"Error cleaning up sample buffer databases at {db_dir}: {ex}")
 
 
 def cleanup_sample_buffer_db(path: Path) -> None:
