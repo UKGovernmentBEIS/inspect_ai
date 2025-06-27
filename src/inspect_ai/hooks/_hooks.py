@@ -126,6 +126,10 @@ class Hooks:
     async def on_run_start(self, data: RunStart) -> None:
         """On run start.
 
+        A "run" is a single invocation of `eval()` or `eval_retry()` which may contain
+        many Tasks, each with many Samples and many epochs. Note that `eval_retry()`
+        can be invoked multiple times within an `eval_set()`.
+
         Args:
            data: Run start data.
         """
@@ -158,6 +162,10 @@ class Hooks:
     async def on_sample_start(self, data: SampleStart) -> None:
         """On sample start.
 
+        If a sample is run for multiple epochs, this will be called once per epoch.
+
+        If a sample is retried, this will be called again for each new attempt.
+
         Args:
            data: Sample start data.
         """
@@ -165,6 +173,10 @@ class Hooks:
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         """On sample end.
+
+        This will be called when a sample has completed without error. If there are
+        multiple epochs for a sample, this will be called once per successfully
+        completed epoch.
 
         Args:
            data: Sample end data.
@@ -174,13 +186,16 @@ class Hooks:
     async def on_sample_abort(self, data: SampleAbort) -> None:
         """A sample has been aborted due to an error, and will not be retried.
 
+        If there are multiple epochs for a sample, this will be called once per
+        aborted epoch of the sample.
+
         Args:
            data: Sample end data.
         """
         pass
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
-        """On model usage.
+        """Called when a call to a model's generate() method completes successfully.
 
         Args:
            data: Model usage data.
