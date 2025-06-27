@@ -6,6 +6,7 @@ from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
+from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -19,7 +20,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._generate_config import ResponseSchema
+from inspect_ai.model._generate_config import BatchConfig, ResponseSchema
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
@@ -29,6 +30,7 @@ from .common import (
     process_common_options,
 )
 from .util import (
+    int_bool_or_str_flag_callback,
     int_or_bool_flag_callback,
     parse_cli_args,
     parse_cli_config,
@@ -63,7 +65,7 @@ MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
 )
 TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
-BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration, or specify e.g. `--batch=1000` to configure batches of 1000 requests."
+BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
 
 
 def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -474,15 +476,9 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=False,
         flag_value="true",
         default=None,
-        callback=int_or_bool_flag_callback(DEFAULT_BATCH_SIZE, None),
+        callback=int_bool_or_str_flag_callback(DEFAULT_BATCH_SIZE, None),
         help=BATCH_HELP,
         envvar="INSPECT_EVAL_BATCH",
-    )
-    @click.option(
-        "--batch-config",
-        type=str,
-        envvar="INSPECT_EVAL_BATCH_CONFIG",
-        help="YAML or JSON config file with batch configuration.",
     )
     @click.option(
         "--log-format",
@@ -559,8 +555,7 @@ def eval_command(
     reasoning_summary: Literal["concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
-    batch: int | None,
-    batch_config: str | None,
+    batch: int | str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -737,8 +732,7 @@ def eval_set_command(
     reasoning_summary: Literal["concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
-    batch: int | None,
-    batch_config: str | None,
+    batch: int | str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -891,6 +885,9 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+    # TODO: Is this the right place to resolve the batch config?
+    if isinstance(kwargs["batch"], str):
+        kwargs["batch"] = BatchConfig.model_validate(resolve_args(kwargs["batch"]))
 
     # parse model roles
     eval_model_roles = parse_cli_args(model_role, force_str=True)

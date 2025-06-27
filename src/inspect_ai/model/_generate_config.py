@@ -128,11 +128,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
-    batch: bool | int | None
-    """Use batching API when available. True to enable batching with default configuration, False to disable batching, or a number to enable batching of the specified batch size. """
-
-    batch_config: BatchConfig | None
-    """A BatchConfig object specifying the batching configuration."""
+    batch: bool | int | BatchConfig | None
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
 
 
 class GenerateConfig(BaseModel):
@@ -223,11 +220,8 @@ class GenerateConfig(BaseModel):
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
-    batch: bool | int | None = Field(default=None)
-    """Use batching API when available. True to enable batching with default configuration, False to disable batching, or a number to enable batching of the specified batch size. """
-
-    batch_config: BatchConfig | None = Field(default=None)
-    """A BatchConfig object specifying the batching configuration."""
+    batch: bool | int | BatchConfig | None = Field(default=None)
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
@@ -279,12 +273,12 @@ active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
 
 
 def normalized_batch_config(
-    batch: bool | int | None, batch_config: BatchConfig | None
+    batch: bool | int | BatchConfig | None,
 ) -> BatchConfig | None:
-    if batch_config:
-        return batch_config
-
-    if not batch:
-        return None
-
-    return BatchConfig(size=DEFAULT_BATCH_SIZE if batch is True else batch)
+    return (
+        batch
+        if isinstance(batch, BatchConfig)
+        else None
+        if not batch
+        else BatchConfig(size=DEFAULT_BATCH_SIZE if batch is True else batch)
+    )

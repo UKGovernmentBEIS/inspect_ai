@@ -90,9 +90,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
     model_name = "claude-3-7-sonnet-20250219"
     max_tokens = 1000
     generate_config = GenerateConfig(
-        batch_config=BatchConfig(
-            size=10, send_delay=batch_max_send_delay, tick=batch_tick
-        ),
+        batch=BatchConfig(size=10, send_delay=batch_max_send_delay, tick=batch_tick),
         max_tokens=max_tokens,
     )
     model = AnthropicAPI(model_name=model_name, api_key="test-key")

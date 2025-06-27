@@ -72,7 +72,7 @@ export type Strict = boolean | null;
 export type ExtraBody = {
   [k: string]: unknown;
 } | null;
-export type Batch = boolean | number | null;
+export type Batch = boolean | number | BatchConfig | null;
 export type Size = number | null;
 export type SendDelay = number | null;
 export type Tick = number | null;
@@ -786,7 +786,6 @@ export interface GenerateConfig {
   response_schema: ResponseSchema | null;
   extra_body: ExtraBody;
   batch: Batch;
-  batch_config: BatchConfig | null;
 }
 /**
  * Schema for model response when using Structured Output.
@@ -815,6 +814,9 @@ export interface JSONSchema {
 export interface Default {
   [k: string]: unknown;
 }
+/**
+ * Batch processing configuration.
+ */
 export interface BatchConfig {
   size: Size;
   send_delay: SendDelay;
@@ -962,7 +964,6 @@ export interface GenerateConfig1 {
   response_schema: ResponseSchema | null;
   extra_body: ExtraBody;
   batch: Batch;
-  batch_config: BatchConfig | null;
 }
 /**
  * Scoring results from evaluation.

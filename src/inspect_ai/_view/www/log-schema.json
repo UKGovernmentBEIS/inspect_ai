@@ -171,6 +171,7 @@
       "type": "object"
     },
     "BatchConfig": {
+      "description": "Batch processing configuration.",
       "properties": {
         "size": {
           "anyOf": [
@@ -1965,8 +1966,7 @@
             "reasoning_history": null,
             "response_schema": null,
             "extra_body": null,
-            "batch": null,
-            "batch_config": null
+            "batch": null
           }
         }
       },
@@ -3402,22 +3402,14 @@
               "type": "integer"
             },
             {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Batch"
-        },
-        "batch_config": {
-          "anyOf": [
-            {
               "$ref": "#/$defs/BatchConfig"
             },
             {
               "type": "null"
             }
           ],
-          "default": null
+          "default": null,
+          "title": "Batch"
         }
       },
       "title": "GenerateConfig",
@@ -3450,8 +3442,7 @@
         "reasoning_history",
         "response_schema",
         "extra_body",
-        "batch",
-        "batch_config"
+        "batch"
       ],
       "additionalProperties": false
     },

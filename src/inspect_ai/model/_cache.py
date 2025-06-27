@@ -157,7 +157,6 @@ def _cache_key(entry: CacheEntry) -> str:
                     "max_retries",
                     "timeout",
                     "batch",
-                    "batch_config",
                 ]
             )
         ),

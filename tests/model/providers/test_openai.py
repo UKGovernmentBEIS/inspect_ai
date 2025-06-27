@@ -140,9 +140,7 @@ async def test_openai_batch(mocker: MockerFixture):
     batch_tick = 0.01
     batch_max_send_delay = 1.0
     generate_config = GenerateConfig(
-        batch_config=BatchConfig(
-            size=10, send_delay=batch_max_send_delay, tick=batch_tick
-        )
+        batch=BatchConfig(size=10, send_delay=batch_max_send_delay, tick=batch_tick)
     )
     model = OpenAIAPI(
         model_name="gpt-3.5-turbo",

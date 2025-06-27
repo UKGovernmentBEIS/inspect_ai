@@ -333,7 +333,7 @@ class OpenAIAPI(ModelAPI):
     ) -> ChatCompletion:
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
-        batch_config = normalized_batch_config(config.batch, config.batch_config)
+        batch_config = normalized_batch_config(config.batch)
         if batch_config:
             if not self._batcher:
                 self._batcher = OpenAIBatcher(self.client, batch_config)
