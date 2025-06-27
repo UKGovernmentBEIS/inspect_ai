@@ -1,3 +1,5 @@
+# type: ignore
+
 import functools
 import json
 from copy import copy
