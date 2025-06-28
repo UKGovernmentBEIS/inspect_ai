@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.110 (28 June 2025)
 
 - Bugfix: Return inner exception from `run_sample`.
 
