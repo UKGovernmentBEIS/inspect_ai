@@ -469,3 +469,20 @@ async def test_openai_batcher_handle_batch_result(
     else:
         assert isinstance(result, OpenAIError), "Should return an OpenAIError object"
         mock_client._make_status_error_from_response.assert_called_once()
+
+
+def test_batcher_get_request_failed_error():
+    batcher = OpenAIBatcher(
+        client=AsyncOpenAI(api_key="test-key"),
+        config=BatchConfig(size=10, send_delay=1.0, tick=0.01),
+    )
+    send_stream, _ = anyio.create_memory_object_stream[ChatCompletion | Exception]()
+    error = batcher._get_request_failed_error(  # pyright: ignore[reportPrivateUsage]
+        BatchRequest[ChatCompletion](
+            request={"foo": "bar"},
+            result_stream=send_stream,
+            custom_id="test-id",
+        )
+    )
+
+    assert isinstance(error, Exception)

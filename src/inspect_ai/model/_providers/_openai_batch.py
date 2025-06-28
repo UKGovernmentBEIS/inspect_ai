@@ -144,6 +144,15 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
     ) -> Exception:
         return InternalServerError(
             message="Request failed",
-            response=httpx.Response(status_code=500, text="Request failed"),
+            response=httpx.Response(
+                status_code=500,
+                text="Request failed",
+                request=httpx.Request(
+                    method=request.request.get("method", "POST"),
+                    url=request.request.get(
+                        "url", "https://api.openai.com/v1/chat/completions"
+                    ),
+                ),
+            ),
             body=None,
         )

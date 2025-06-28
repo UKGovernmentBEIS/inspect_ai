@@ -265,7 +265,7 @@ async def test_anthropic_batch(mocker: MockerFixture):
     assert not model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
 
 
-def test_get_request_failed_error(mocker: MockerFixture):
+def test_batcher_get_request_failed_error(mocker: MockerFixture):
     batcher = AnthropicBatcher(
         client=AsyncAnthropic(api_key="test-key"),
         config=BatchConfig(size=10, send_delay=1.0, tick=0.01),
