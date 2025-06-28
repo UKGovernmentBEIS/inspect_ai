@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Return inner exception from `run_sample`.
+
 ## 0.3.109 (27 June 2025)
 
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
