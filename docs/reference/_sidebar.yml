@@ -246,6 +246,8 @@ website:
           href: reference/inspect_ai.model.qmd#generateconfig
         - text: GenerateConfigArgs
           href: reference/inspect_ai.model.qmd#generateconfigargs
+        - text: BatchConfig
+          href: reference/inspect_ai.model.qmd#batchconfig
         - text: ResponseSchema
           href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput

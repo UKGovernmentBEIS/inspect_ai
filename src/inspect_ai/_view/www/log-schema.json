@@ -170,6 +170,68 @@
       "title": "ApproverPolicyConfig",
       "type": "object"
     },
+    "BatchConfig": {
+      "description": "Batch processing configuration.",
+      "properties": {
+        "size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size"
+        },
+        "send_delay": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Send Delay"
+        },
+        "tick": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tick"
+        },
+        "max_batches": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Batches"
+        }
+      },
+      "title": "BatchConfig",
+      "type": "object",
+      "required": [
+        "size",
+        "send_delay",
+        "tick",
+        "max_batches"
+      ],
+      "additionalProperties": false
+    },
     "ChatCompletionChoice": {
       "description": "Choice generated for completion.",
       "properties": {
@@ -1903,7 +1965,8 @@
             "reasoning_summary": null,
             "reasoning_history": null,
             "response_schema": null,
-            "extra_body": null
+            "extra_body": null,
+            "batch": null
           }
         }
       },
@@ -3329,6 +3392,24 @@
           ],
           "default": null,
           "title": "Extra Body"
+        },
+        "batch": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/BatchConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Batch"
         }
       },
       "title": "GenerateConfig",
@@ -3360,7 +3441,8 @@
         "reasoning_summary",
         "reasoning_history",
         "response_schema",
-        "extra_body"
+        "extra_body",
+        "batch"
       ],
       "additionalProperties": false
     },

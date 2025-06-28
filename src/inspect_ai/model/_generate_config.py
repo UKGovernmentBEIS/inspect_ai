@@ -5,6 +5,7 @@ from typing import Any, Literal, Union
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
 from inspect_ai.util._json import JSONSchema
 
 
@@ -23,6 +24,24 @@ class ResponseSchema(BaseModel):
     strict: bool | None = Field(default=None)
     """Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the schema field.
     OpenAI and Mistral only."""
+
+
+class BatchConfig(BaseModel):
+    """Batch processing configuration."""
+
+    size: int | None = Field(default=None)
+    """Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits."""
+
+    send_delay: float | None = Field(default=None)
+    """Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low.
+    """
+
+    tick: float | None = Field(default=None)
+    """Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.
+    """
+
+    max_batches: int | None = Field(default=None)
+    """Maximum number of batches to have in flight at once for a provider (defaults to 100)."""
 
 
 class GenerateConfigArgs(TypedDict, total=False):
@@ -108,6 +127,9 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    batch: bool | int | BatchConfig | None
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
 
 
 class GenerateConfig(BaseModel):
@@ -198,6 +220,9 @@ class GenerateConfig(BaseModel):
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
+    batch: bool | int | BatchConfig | None = Field(default=None)
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
+
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
     @classmethod
@@ -245,3 +270,15 @@ def set_active_generate_config(config: GenerateConfig) -> None:
 active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
     "generate_config", default=GenerateConfig()
 )
+
+
+def normalized_batch_config(
+    batch: bool | int | BatchConfig | None,
+) -> BatchConfig | None:
+    return (
+        batch
+        if isinstance(batch, BatchConfig)
+        else None
+        if not batch
+        else BatchConfig(size=DEFAULT_BATCH_SIZE if batch is True else batch)
+    )

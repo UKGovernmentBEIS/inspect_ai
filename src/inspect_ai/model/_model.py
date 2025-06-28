@@ -32,7 +32,11 @@ from tenacity import (
 )
 from tenacity.stop import StopBaseT
 
-from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS, HTTP
+from inspect_ai._util.constants import (
+    DEFAULT_MAX_CONNECTIONS,
+    DEFAULT_MAX_CONNECTIONS_BATCH,
+    HTTP,
+)
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -127,7 +131,6 @@ class ModelAPI(abc.ABC):
         """
         self.model_name = model_name
         self.base_url = base_url
-        self.config = config
 
         # apply api key override
         for key in api_key_vars:
@@ -755,6 +758,8 @@ class Model:
         max_connections = (
             config.max_connections
             if config.max_connections
+            else DEFAULT_MAX_CONNECTIONS_BATCH
+            if config.batch
             else self.api.max_connections()
         )
         model_name = ModelName(self)
