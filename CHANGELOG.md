@@ -1,3 +1,8 @@
+## Unreleased
+
+- Analysis: Provide `score_headline_stderr` field in standard evals column definitions.
+- Analysis: Provide `task_name` without package namespace by default.
+
 ## 0.3.109 (27 June 2025)
 
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
