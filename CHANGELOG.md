@@ -1,3 +1,8 @@
+## Unreleased
+
+- Analysis: Provide `score_headline_stderr` field in standard evals column definitions.
+- Analysis: Provide `task_name` without package namespace by default.
+
 ## 0.3.111 (29 June 2025)
 
 - Inspect View: Fix issue with tab switching when running in VS Code.
