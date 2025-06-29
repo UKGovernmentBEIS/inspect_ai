@@ -1,3 +1,7 @@
+## 0.3.111 (29 June 2025)
+
+- Inspect View: Fix issue with tab switching when running in VS Code.
+
 ## 0.3.110 (28 June 2025)
 
 - Bugfix: Return inner exception from `run_sample`.
