@@ -192,8 +192,10 @@ def value_to_float(
                 return float(value)
 
         # couldn't extract a value
-        logger.warning(f"Unable to convert value to float: {value}")
-        return 0.0
+        raise ValueError(
+            f"Unable to convert value '{value}' to float. "
+            "If you need to support values that are not floats, you can use a custom value_to_float function, or a custom scorer, metric, or reducer."
+        )
 
     return to_float
 
