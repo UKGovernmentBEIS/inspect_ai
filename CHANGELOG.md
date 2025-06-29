@@ -2,6 +2,7 @@
 
 - Analysis: Provide `score_headline_stderr` field in standard evals column definitions.
 - Analysis: Provide `task_name` without package namespace by default.
+- Analysis: Don't show dataframe import progress by default in notebooks (leaves empty cell output artifact).
 
 ## 0.3.111 (29 June 2025)
 
