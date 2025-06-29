@@ -1,29 +1,35 @@
 import contextlib
 import logging
+from datetime import datetime
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 import anyio
-from rich.console import Console
 
 from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.platform import running_in_notebook
+from inspect_ai.log import EvalStats
 
 from ...util import throttle
 from ...util._concurrency import concurrency_status_display
+from ..core.config import task_config_str
 from ..core.display import (
     TR,
     Display,
     Progress,
+    TaskCancelled,
     TaskDisplay,
     TaskDisplayMetric,
+    TaskError,
     TaskProfile,
     TaskResult,
     TaskScreen,
     TaskSpec,
+    TaskSuccess,
     TaskWithResult,
 )
 from ..core.footer import task_http_retries_str
-from ..core.results import task_metric, tasks_results
+from ..core.panel import task_title
+from ..core.results import task_metric
 
 
 class LogDisplay(Display):
@@ -56,13 +62,8 @@ class LogDisplay(Display):
         self.total_tasks = len(tasks)
         self.tasks = []
         self.parallel = parallel
-        try:
-            logging.info(f"Running {self.total_tasks} tasks...", stacklevel=3)
-            yield TaskScreen()
-        finally:
-            # Log final results
-            if self.tasks:
-                self._log_results()
+        logging.info(f"Running {self.total_tasks} tasks...", stacklevel=3)
+        yield TaskScreen()
 
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
@@ -70,6 +71,7 @@ class LogDisplay(Display):
         task = TaskWithResult(profile, None)
         self.tasks.append(task)
         yield LogTaskDisplay(task)
+        self._log_result(task)
         self._log_status()
 
     def display_counter(self, caption: str, value: str) -> None:
@@ -81,11 +83,59 @@ class LogDisplay(Display):
         total_tasks = len(self.tasks)
         logging.info(f"{completed_tasks}/{total_tasks} tasks complete", stacklevel=4)
 
-    def _log_results(self) -> None:
-        """Log final results"""
-        results = tasks_results(self.tasks)
-        console = Console(width=120)
-        console.log(results, _stack_offset=4)
+    def _task_stats_str(self, stats: EvalStats) -> str:
+        # eval time
+        started = datetime.fromisoformat(stats.started_at)
+        completed = datetime.fromisoformat(stats.completed_at)
+        elapsed = completed - started
+        res = f"total time: {elapsed}"
+        # token usage
+        for model, usage in stats.model_usage.items():
+            if (
+                usage.input_tokens_cache_read is not None
+                or usage.input_tokens_cache_write is not None
+            ):
+                input_tokens_cache_read = usage.input_tokens_cache_read or 0
+                input_tokens_cache_write = usage.input_tokens_cache_write or 0
+                input_tokens = f"I: {usage.input_tokens:,}, CW: {input_tokens_cache_write:,}, CR: {input_tokens_cache_read:,}"
+            else:
+                input_tokens = f"I: {usage.input_tokens:,}"
+
+            if usage.reasoning_tokens is not None:
+                reasoning_tokens = f", R: {usage.reasoning_tokens:,}"
+            else:
+                reasoning_tokens = ""
+
+            model_token_usage = f"{model}:  {usage.total_tokens:,} tokens [{input_tokens}, O: {usage.output_tokens:,}{reasoning_tokens}]"
+
+            res += f"\n{model_token_usage}"
+
+        return res
+
+    def _log_result(self, task: TaskWithResult) -> None:
+        """Log final result"""
+        title = task_title(task.profile, True)
+        if isinstance(task.result, TaskCancelled):
+            config = task_config_str(task.profile)
+            stats = self._task_stats_str(task.result.stats)
+            logging.info(
+                f"{title} cancelled ({task.result.samples_completed}/{task.profile.samples} logged)\n{config}\n{stats}",
+                stacklevel=4,
+            )
+        elif isinstance(task.result, TaskError):
+            logging.error(
+                f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)",
+                exc_info=(
+                    task.result.exc_type,
+                    task.result.exc_value,
+                    task.result.traceback,
+                ),
+                stacklevel=4,
+            )
+        elif isinstance(task.result, TaskSuccess):
+            config = task_config_str(task.profile)
+            stats = self._task_stats_str(task.result.stats)
+            logging.info(f"{title} succeeded\n{config}\n{stats}", stacklevel=4)
 
 
 class LogProgress(Progress):

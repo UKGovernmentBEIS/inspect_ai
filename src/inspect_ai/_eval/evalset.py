@@ -142,7 +142,7 @@ def eval_set(
             Defaults to no approval policy.
         score: Score output (defaults to True)
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-            "info", "warning", "error", or "critical" (defaults to "warning")
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_format: Format for writing
             log files (defaults to "eval", the native high-performance format).
