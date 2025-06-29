@@ -1,3 +1,5 @@
+# type: ignore
+
 import functools
 import json
 from copy import copy
@@ -340,6 +342,7 @@ async def content_part(content: Content | str) -> Part:
         if isinstance(content, ContentAudio):
             file = content.audio
         elif isinstance(content, ContentData):
+            file = ""
             assert False, "Vertex provider should never encounter ContentData"
         else:
             # it's ContentVideo

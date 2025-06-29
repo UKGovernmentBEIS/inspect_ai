@@ -21,6 +21,17 @@ def list_as_str(x: JsonValue) -> str:
     return ",".join([str(e) for e in (x if isinstance(x, list) else [x])])
 
 
+def remove_namespace(x: JsonValue) -> JsonValue:
+    if isinstance(x, str):
+        parts = x.split("/", maxsplit=1)
+        if len(parts) == 1:
+            return parts[0]
+        else:
+            return parts[1]
+    else:
+        return x
+
+
 def score_values(x: JsonValue) -> dict[str, JsonValue]:
     scores = cast(dict[str, Any], x)
     return {k: v["value"] for k, v in scores.items()}

@@ -11,11 +11,11 @@ from inspect_ai.model import (
 from inspect_ai.scorer import includes
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_vertex
 async def test_vertex_api() -> None:
     model = get_model(
-        "vertex/gemini-1.5-flash",
+        "vertex/gemini-2.0-flash",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -52,6 +52,6 @@ def test_vertex_safety_settings():
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
             scorer=includes(),
         ),
-        model="vertex/gemini-1.5-flash",
+        model="vertex/gemini-2.0-flash",
         safety_settings=safety_settings,
     )

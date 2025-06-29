@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, TypeAlias
 
+from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model._chat_message import ChatMessage
 
@@ -26,7 +27,7 @@ def messages_df(
     filter: MessageFilter | None = None,
     strict: Literal[True] = True,
     parallel: bool | int = False,
-    quiet: bool = False,
+    quiet: bool | None = None,
 ) -> "pd.DataFrame": ...
 
 
@@ -37,7 +38,7 @@ def messages_df(
     filter: MessageFilter | None = None,
     strict: Literal[False] = False,
     parallel: bool | int = False,
-    quiet: bool = False,
+    quiet: bool | None = None,
 ) -> tuple["pd.DataFrame", list[ColumnError]]: ...
 
 
@@ -47,7 +48,7 @@ def messages_df(
     filter: MessageFilter | None = None,
     strict: bool = True,
     parallel: bool | int = False,
-    quiet: bool = False,
+    quiet: bool | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     """Read a dataframe containing messages from a set of evals.
 
@@ -63,7 +64,8 @@ def messages_df(
           (with workers based on `mp.cpu_count()`, capped at 8). If `int`, read
           in parallel with the specified number of workers. If `False` (the default)
           do not read in parallel.
-       quiet: If `True` do not print any output or progress (defaults to `False`).
+       quiet: If `True`, do not show any output or progress. Defaults to `False`
+          for terminal environments, and `True` for notebooks.
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
@@ -78,6 +80,7 @@ def messages_df(
     else:
         detail = MessagesDetail()
 
+    quiet = quiet if quiet is not None else running_in_notebook()
     return _read_samples_df(
         logs=logs,
         columns=columns,
