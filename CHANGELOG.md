@@ -3,6 +3,8 @@
 - Analysis: Provide `score_headline_stderr` field in standard evals column definitions.
 - Analysis: Provide `task_name` without package namespace by default.
 - Analysis: Don't show dataframe import progress by default in notebooks (leaves empty cell output artifact).
+- Analysis: Include `order` field in `messages_df()` and `events_df()`.
+- Logging: Improvements to `--display=log` (improved task info formatting, ability to disable rich logging)
 
 ## 0.3.111 (29 June 2025)
 
