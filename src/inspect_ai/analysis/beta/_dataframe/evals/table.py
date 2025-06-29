@@ -3,6 +3,7 @@ from __future__ import annotations
 from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
+from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis.beta._dataframe.progress import import_progress, no_progress
 from inspect_ai.log._file import (
     list_eval_logs,
@@ -36,7 +37,7 @@ def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[True] = True,
-    quiet: bool = False,
+    quiet: bool | None = None,
 ) -> "pd.DataFrame": ...
 
 
@@ -45,7 +46,7 @@ def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[False] = False,
-    quiet: bool = False,
+    quiet: bool | None = None,
 ) -> tuple["pd.DataFrame", Sequence[ColumnError]]: ...
 
 
@@ -53,7 +54,7 @@ def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = EvalColumns,
     strict: bool = True,
-    quiet: bool = False,
+    quiet: bool | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", Sequence[ColumnError]]:
     """Read a dataframe containing evals.
 
@@ -64,7 +65,8 @@ def evals_df(
        columns: Specification for what columns to read from log files.
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
-       quiet: If `True`, do not show any output or progress. Defaults to `False`.
+       quiet: If `True`, do not show any output or progress. Defaults to `False`
+          for terminal environments, and `True` for notebooks.
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
@@ -77,6 +79,7 @@ def evals_df(
     log_paths = resolve_logs(logs)
 
     # establish progress
+    quiet = quiet if quiet is not None else running_in_notebook()
     progress_cm = (
         import_progress("reading logs", total=len(log_paths))
         if not quiet
