@@ -340,6 +340,9 @@ def _read_samples_df_serial(
                         ids = {SAMPLE_ID: sample_id, f"{detail.name}_id": detail_id}
                         detail_record = ids | detail_record
 
+                        # inject order
+                        detail_record["order"] = index + 1
+
                         # append detail record
                         detail_records.append(detail_record)
 
