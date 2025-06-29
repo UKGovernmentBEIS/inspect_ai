@@ -154,7 +154,14 @@ export const useLogRouteParams = () => {
 
     if (foundTabId && tabIdIndex > 0) {
       // Found a valid tab ID, split the path there
-      const logPath = pathSegments.slice(0, tabIdIndex).join("/");
+      const pathSlice = pathSegments.slice(0, tabIdIndex);
+      const firstSegment = pathSlice[0];
+      const logPath =
+        firstSegment?.endsWith(":") && !firstSegment.includes("://")
+          ? firstSegment +
+            (firstSegment === "file:" ? "///" : "//") +
+            pathSlice.slice(1).join("/")
+          : pathSlice.join("/");
 
       return {
         logPath: decodeUrlParam(logPath),

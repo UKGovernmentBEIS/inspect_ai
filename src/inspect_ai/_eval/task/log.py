@@ -6,7 +6,7 @@ from shortuuid import uuid
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.datetime import iso_now
+from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (

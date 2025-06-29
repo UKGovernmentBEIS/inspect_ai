@@ -8,9 +8,9 @@ from typing_extensions import override
 from inspect_ai.log._log import EvalLog
 
 from ..columns import Column, ColumnType
-from ..extract import list_as_str
+from ..extract import list_as_str, remove_namespace
 from ..validate import resolved_schema
-from .extract import eval_log_location, eval_log_scores_dict
+from .extract import eval_log_headline_stderr, eval_log_location, eval_log_scores_dict
 
 
 class EvalColumn(Column):
@@ -62,7 +62,7 @@ EvalInfo: list[Column] = [
 """Eval basic information columns."""
 
 EvalTask: list[Column] = [
-    EvalColumn("task_name", path="eval.task", required=True),
+    EvalColumn("task_name", path="eval.task", required=True, value=remove_namespace),
     EvalColumn("task_version", path="eval.task_version", required=True),
     EvalColumn("task_file", path="eval.task_file"),
     EvalColumn("task_attribs", path="eval.task_attribs"),
@@ -112,6 +112,7 @@ EvalResults: list[Column] = [
     EvalColumn("score_headline_name", path="results.scores[0].scorer"),
     EvalColumn("score_headline_metric", path="results.scores[0].metrics.*.name"),
     EvalColumn("score_headline_value", path="results.scores[0].metrics.*.value"),
+    EvalColumn("score_headline_stderr", path=eval_log_headline_stderr),
 ]
 """Eval results columns."""
 
