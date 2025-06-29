@@ -469,6 +469,8 @@ async def _eval_async_inner(
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
+    from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
+
     # only a single call to eval_async can be active at a time, this used
     # to be due to running tasks switching to the task's directory, however
     # that feature no longer exists so we may be able to revisit this
@@ -487,6 +489,8 @@ async def _eval_async_inner(
     # resolve model and task args
     model_args = resolve_args(model_args)
     task_args = resolve_args(task_args)
+
+    run_id = uuid()
 
     try:
         # intialise eval
@@ -609,9 +613,10 @@ async def _eval_async_inner(
         # run tasks - 2 codepaths, one for the traditional task at a time
         # (w/ optional multiple models) and the other for true multi-task
         # (which requires different scheduling and UI)
-        run_id = uuid()
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
+
+        await emit_run_start(run_id, resolved_tasks)
 
         # single task definition (could be multi-model) or max_tasks capped to 1
         if parallel == 1:
@@ -668,6 +673,10 @@ async def _eval_async_inner(
         cleanup_sample_buffers(log_dir)
 
     finally:
+        try:
+            await emit_run_end(run_id, logs)
+        except UnboundLocalError:
+            await emit_run_end(run_id, EvalLogs([]))
         _eval_async_running = False
 
     # return logs

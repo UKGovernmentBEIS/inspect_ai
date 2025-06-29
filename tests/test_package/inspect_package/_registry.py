@@ -1,5 +1,6 @@
 # ruff: noqa: F401
 
+from inspect_ai.hooks import hooks
 from inspect_ai.model import modelapi
 from inspect_ai.util import sandboxenv
 
@@ -25,3 +26,10 @@ def podman():
     from .sandboxenv.podman import PodmanSandboxEnvironment
 
     return PodmanSandboxEnvironment
+
+
+@hooks(name="custom_hook")
+def custom_hook():
+    from .hooks.custom import CustomHooks
+
+    return CustomHooks
