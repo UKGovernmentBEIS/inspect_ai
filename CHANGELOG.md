@@ -3,6 +3,14 @@
 - Analysis: Provide `score_headline_stderr` field in standard evals column definitions.
 - Analysis: Provide `task_name` without package namespace by default.
 
+## 0.3.111 (29 June 2025)
+
+- Inspect View: Fix issue with tab switching when running in VS Code.
+
+## 0.3.110 (28 June 2025)
+
+- Bugfix: Return inner exception from `run_sample`.
+
 ## 0.3.109 (27 June 2025)
 
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
