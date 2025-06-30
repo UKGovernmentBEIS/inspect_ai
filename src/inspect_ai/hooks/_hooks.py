@@ -24,7 +24,9 @@ class RunStart:
     """Run start hook event data."""
 
     run_id: str
+    """The unique identifier for the run."""
     task_names: list[str]
+    """The names of the tasks which will be used in the run."""
 
 
 @dataclass(frozen=True)
@@ -32,7 +34,9 @@ class RunEnd:
     """Run end hook event data."""
 
     run_id: str
+    """The unique identifier for the run."""
     logs: EvalLogs
+    """All eval logs generated during the run."""
 
 
 @dataclass(frozen=True)
@@ -40,8 +44,11 @@ class TaskStart:
     """Task start hook event data."""
 
     run_id: str
+    """The unique identifier for the run."""
     eval_id: str
+    """The unique identifier for this task within the run."""
     spec: EvalSpec
+    """Specification of the task."""
 
 
 @dataclass(frozen=True)
@@ -49,8 +56,11 @@ class TaskEnd:
     """Task end hook event data."""
 
     run_id: str
+    """The unique identifier for the run."""
     eval_id: str
+    """The unique identifier for this task within the run."""
     log: EvalLog
+    """The log generated for this task."""
 
 
 @dataclass(frozen=True)
@@ -58,9 +68,12 @@ class SampleStart:
     """Sample start hook event data."""
 
     run_id: str
+    """The unique identifier for the run."""
     eval_id: str
+    """The unique identifier for the sample's task within the run."""
     sample_id: int | str
     summary: EvalSampleSummary
+    """Summary of the sample to be run."""
 
 
 @dataclass(frozen=True)
@@ -68,9 +81,13 @@ class SampleEnd:
     """Sample end hook event data."""
 
     run_id: str
+    """The unique identifier for the run."""
     eval_id: str
+    """The unique identifier for the sample's task within the run."""
     sample_id: int | str
+    # TODO: Are these different to the user-supplied Sample IDs?
     summary: EvalSampleSummary
+    """Summary of the sample that has run."""
 
 
 @dataclass(frozen=True)
@@ -78,9 +95,14 @@ class SampleAbort:
     """Sample abort hook event data."""
 
     run_id: str
+    """The unique identifier for the run."""
     eval_id: str
+    """The unique identifier for the sample's task within the run."""
     sample_id: int | str
+    # TODO: Document sample id.
     error: EvalError
+    """The error that caused the sample to be aborted. If the sample has been retried,
+    this is the last error."""
 
 
 @dataclass(frozen=True)
@@ -88,8 +110,13 @@ class ModelUsageData:
     """Model usage hook event data."""
 
     model_name: str
+    """The name of the model that was used."""
     usage: ModelUsage
-    call_duration: float | None = None
+    """The model usage metrics."""
+    call_duration: float
+    """The duration of the model call in seconds. If HTTP retries were made, this is the
+    time taken for the successful call. This excludes retry waiting (e.g. exponential
+    backoff) time."""
 
 
 @dataclass(frozen=True)
@@ -306,7 +333,7 @@ async def emit_sample_abort(
 
 
 async def emit_model_usage(
-    model_name: str, usage: ModelUsage, call_duration: float | None
+    model_name: str, usage: ModelUsage, call_duration: float
 ) -> None:
     data = ModelUsageData(
         model_name=model_name, usage=usage, call_duration=call_duration
