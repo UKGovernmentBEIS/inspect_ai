@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import BaseModel, Field, JsonValue, model_validator, field_validator
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
@@ -12,6 +12,8 @@ from inspect_ai.tool._tool_call import ToolCallError
 from ._reasoning import parse_content_with_reasoning
 
 logger = getLogger(__name__)
+
+FAST_CONSTRUCT = "fast_construct"
 
 
 class ChatMessageBase(BaseModel):
@@ -30,14 +32,22 @@ class ChatMessageBase(BaseModel):
     """Model provider specific payload - typically used to aid transformation back to model types."""
 
     def model_post_init(self, __context: Any) -> None:
-        # check if deserializing
+        # check if deserializing or fast constructing
         is_deserializing = isinstance(__context, dict) and __context.get(
             DESERIALIZING, False
         )
+        is_fast_construct = isinstance(__context, dict) and __context.get(
+            FAST_CONSTRUCT, False
+        )
+        # Check if marked as fast constructed via instance flag
+        is_fast_constructed_flag = getattr(self, "_fast_constructed", False)
 
-        # Generate ID if needed and not deserializing
-        if self.id is None and not is_deserializing:
-            self.id = uuid()
+        # Disable automatic UUID generation for performance during log reading
+        pass
+
+        # Clean up the flag
+        if is_fast_constructed_flag:
+            self.__dict__.pop("_fast_constructed", None)
 
     @property
     def text(self) -> str:

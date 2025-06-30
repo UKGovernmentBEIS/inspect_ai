@@ -8,6 +8,42 @@ from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessageAssistant
 
+FAST_CONSTRUCT = "fast_construct"
+
+
+def _process_chatmessage_fields(v: dict, context: dict) -> dict:
+    """Process fields that might contain nested models needing construction"""
+    v = v.copy()
+
+    # Handle message field in ChatCompletionChoice
+    if "message" in v and isinstance(v["message"], dict):
+        msg_data = v["message"].copy()
+        msg_data["id"] = None  # Clear the ID
+        # Construct ChatMessageAssistant
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+
+        v["message"] = ChatMessageAssistant.model_construct(**msg_data)
+
+    # Handle choices field in ModelOutput (list of ChatCompletionChoice)
+    if "choices" in v and isinstance(v["choices"], list):
+        choices = []
+        for choice in v["choices"]:
+            if isinstance(choice, dict):
+                choices.append(
+                    ChatCompletionChoice.model_construct(
+                        **_process_chatmessage_fields(choice, context)
+                    )
+                )
+            else:
+                choices.append(choice)
+        v["choices"] = choices
+
+    # Handle usage field in ModelOutput
+    if "usage" in v and isinstance(v["usage"], dict):
+        v["usage"] = ModelUsage.model_construct(**v["usage"])
+
+    return v
+
 
 class ModelUsage(BaseModel):
     """Token usage for completion."""

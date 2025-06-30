@@ -26,6 +26,7 @@ from .._log import (
     EvalSpec,
     EvalStats,
     sort_samples,
+    FAST_CONSTRUCT,
 )
 from .file import FileRecorder
 
@@ -218,7 +219,9 @@ class EvalRecorder(FileRecorder):
                                 sample_data, context=DESERIALIZING_CONTEXT
                             )
                         else:
-                            return EvalSample.model_construct(**sample_data)
+                            # FAST PATH: Use existing fast construct but optimize UUID generation
+                            context = {FAST_CONSTRUCT: True, **DESERIALIZING_CONTEXT}
+                            return EvalSample.model_validate(sample_data, context=context)
                 except KeyError:
                     raise IndexError(
                         f"Sample id {id} for epoch {epoch} not found in log {location}"
@@ -399,8 +402,10 @@ def _read_log(
                                 ),
                             )
                         else:
+                            # FAST PATH: Use existing fast construct but optimize UUID generation
+                            context = {FAST_CONSTRUCT: True, **DESERIALIZING_CONTEXT}
                             samples.append(
-                                EvalSample.model_construct(**sample_data),
+                                EvalSample.model_validate(sample_data, context=context),
                             )
             sort_samples(samples)
             evalLog.samples = samples

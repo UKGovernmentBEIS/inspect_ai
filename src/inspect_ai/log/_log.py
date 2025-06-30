@@ -4,7 +4,7 @@ import sys
 import traceback
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Tuple, Type, TypedDict
+from typing import Any, Literal, Tuple, Type, TypedDict, List, Dict, Union
 
 import click
 import tenacity
@@ -14,10 +14,12 @@ from pydantic import (
     Field,
     PrivateAttr,
     model_validator,
+    field_validator,
 )
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 from shortuuid import uuid
+from functools import lru_cache
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, DESERIALIZING, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
@@ -31,12 +33,301 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
-from ._transcript import Event
+from ._transcript import (
+    Event,
+)
 from ._util import text_input_only, thin_metadata
 
 logger = getLogger(__name__)
 
 SCORER_PLACEHOLDER = "88F74D2C"
+
+
+FAST_CONSTRUCT = "fast_construct"
+
+FAST_CONSTRUCT = "fast_construct"
+
+
+def _parse_timestamp_optimized(timestamp_str: str):
+    """Optimized timestamp parsing."""
+    try:
+        from datetime import datetime
+
+        # Try the most common ISO format first
+        if timestamp_str.endswith("Z"):
+            return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        else:
+            return datetime.fromisoformat(timestamp_str)
+    except:
+        try:
+            import dateutil.parser
+
+            return dateutil.parser.parse(timestamp_str)
+        except:
+            # Return original string if all parsing fails
+            return timestamp_str
+
+
+def _create_chat_message_optimized(msg_data: dict):
+    """Optimized ChatMessage creation."""
+    from inspect_ai.model._chat_message import (
+        ChatMessageSystem,
+        ChatMessageUser,
+        ChatMessageAssistant,
+        ChatMessageTool,
+    )
+
+    optimized_data = msg_data.copy()
+    optimized_data["id"] = None
+
+    role = optimized_data["role"]
+    if role == "system":
+        msg = ChatMessageSystem.model_construct(**optimized_data)
+    elif role == "user":
+        msg = ChatMessageUser.model_construct(**optimized_data)
+    elif role == "assistant":
+        msg = ChatMessageAssistant.model_construct(**optimized_data)
+    elif role == "tool":
+        msg = ChatMessageTool.model_construct(**optimized_data)
+    else:
+        from inspect_ai.model._chat_message import ChatMessage
+        msg = ChatMessage.model_construct(**optimized_data)
+
+    msg.id = None
+    return msg
+
+
+def _batch_process_messages(messages_data: list[dict]) -> list:
+    """Optimized message processing."""
+    if not messages_data:
+        return []
+
+    processed_messages = []
+    for msg_data in messages_data:
+        if isinstance(msg_data, dict) and "role" in msg_data:
+            message_obj = _create_chat_message_optimized(msg_data)
+            processed_messages.append(message_obj)
+        else:
+            processed_messages.append(msg_data)
+
+    return processed_messages
+
+
+def _batch_process_events(events_data: list[dict]) -> list:
+    """Optimized batch process events - preserve data integrity, optimize UUIDs."""
+    if not events_data:
+        return []
+
+    # Import event types once
+    from ._transcript import (
+        SampleInitEvent,
+        StepEvent,
+        StateEvent,
+        ModelEvent,
+        ScoreEvent,
+        ToolEvent,
+        SandboxEvent,
+        BaseEvent,
+        _process_event_fields,
+    )
+
+    processed_events = []
+    for event_data in events_data:
+        if isinstance(event_data, dict) and "event" in event_data:
+            # KEEP _process_event_fields for data integrity
+            processed_data = _process_event_fields(event_data, {FAST_CONSTRUCT: True})
+
+            # ONLY optimize UUID generation - don't touch other data
+            # Force id_ to None to prevent UUID generation but keep all other fields
+            if "id_" in processed_data:
+                processed_data["id_"] = None
+
+            # Parse timestamp efficiently
+            if "timestamp" in processed_data and isinstance(
+                processed_data["timestamp"], str
+            ):
+                processed_data["timestamp"] = _parse_timestamp_optimized(
+                    processed_data["timestamp"]
+                )
+
+            # Create event object based on type
+            event_type = event_data["event"]
+            if event_type == "sample_init":
+                event_obj = SampleInitEvent.model_construct(**processed_data)
+            elif event_type == "step":
+                event_obj = StepEvent.model_construct(**processed_data)
+            elif event_type == "state":
+                event_obj = StateEvent.model_construct(**processed_data)
+            elif event_type == "model":
+                event_obj = ModelEvent.model_construct(**processed_data)
+            elif event_type == "score":
+                event_obj = ScoreEvent.model_construct(**processed_data)
+            elif event_type == "tool":
+                event_obj = ToolEvent.model_construct(**processed_data)
+            elif event_type == "sandbox":
+                event_obj = SandboxEvent.model_construct(**processed_data)
+            else:
+                event_obj = BaseEvent.model_construct(**processed_data)
+
+            # ONLY set the ID to None to prevent UUID generation - don't touch other fields
+            if hasattr(event_obj, "id_"):
+                event_obj.id_ = None
+
+            processed_events.append(event_obj)
+        else:
+            processed_events.append(event_data)
+
+    return processed_events
+
+
+class FastConstructMixin:
+    """Mixin that handles nested model construction for specific fields"""
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _fast_construct_model(cls, v, handler, info):
+        if not (
+            info.context and info.context.get(FAST_CONSTRUCT) and isinstance(v, dict)
+        ):
+            return handler(v)
+
+        # Handle ChatMessage objects directly like in _transcript.py
+        if "role" in v and "content" in v:
+            from inspect_ai.model._chat_message import (
+                ChatMessageSystem,
+                ChatMessageUser,
+                ChatMessageAssistant,
+                ChatMessageTool,
+            )
+
+            # Force id to None for ChatMessages
+            v = v.copy()
+            v["id"] = None
+
+            role = v["role"]
+            if role == "system" and cls.__name__ != "ChatMessageSystem":
+                return ChatMessageSystem.model_construct(**v)
+            elif role == "user" and cls.__name__ != "ChatMessageUser":
+                return ChatMessageUser.model_construct(**v)
+            elif role == "assistant" and cls.__name__ != "ChatMessageAssistant":
+                return ChatMessageAssistant.model_construct(**v)
+            elif role == "tool" and cls.__name__ != "ChatMessageTool":
+                return ChatMessageTool.model_construct(**v)
+
+        try:
+            # Process specific nested fields that need model construction
+            processed_data = v.copy()
+
+            # Handle scores field (dict of Score objects)
+            if "scores" in processed_data and isinstance(
+                processed_data["scores"], dict
+            ):
+                from inspect_ai.scorer import Score
+
+                scores = {}
+                for k, score_data in processed_data["scores"].items():
+                    if (
+                        isinstance(score_data, dict)
+                        and "value" in score_data
+                        and "answer" in score_data
+                    ):
+                        scores[k] = Score.model_construct(**score_data)
+                    else:
+                        scores[k] = score_data
+                processed_data["scores"] = scores
+
+            # Handle usage field (ModelUsage object)
+            if "usage" in processed_data and isinstance(processed_data["usage"], dict):
+                usage_data = processed_data["usage"]
+                if "input_tokens" in usage_data and "output_tokens" in usage_data:
+                    from inspect_ai.model import ModelUsage
+
+                    processed_data["usage"] = ModelUsage.model_validate(
+                        usage_data, context={FAST_CONSTRUCT: True}
+                    )
+
+            # Handle output field (ModelOutput object)
+            if "output" in processed_data and isinstance(
+                processed_data["output"], dict
+            ):
+                from inspect_ai.model import ModelOutput
+
+                # Process the output data to clear ChatMessage IDs
+                output_data = processed_data["output"].copy()
+                if "choices" in output_data and isinstance(
+                    output_data["choices"], list
+                ):
+                    for choice in output_data["choices"]:
+                        if isinstance(choice, dict) and "message" in choice:
+                            if isinstance(choice["message"], dict):
+                                choice["message"] = choice["message"].copy()
+                                choice["message"]["id"] = None  # Clear ChatMessage ID
+
+                processed_data["output"] = ModelOutput.model_validate(
+                    output_data, context={FAST_CONSTRUCT: True}
+                )
+
+                # Fix ChatMessage IDs in the constructed ModelOutput
+                if hasattr(processed_data["output"], "choices"):
+                    for choice in processed_data["output"].choices:
+                        if hasattr(choice, "message") and hasattr(choice.message, "id"):
+                            choice.message.id = None
+
+            # Handle messages field (list of ChatMessage objects)
+            if "messages" in processed_data and isinstance(
+                processed_data["messages"], list
+            ):
+                for msg in processed_data["messages"]:
+                    if isinstance(msg, dict):
+                        msg["id"] = None
+                processed_data["messages"] = _batch_process_messages(
+                    processed_data["messages"]
+                )
+
+            # Handle input field (can be list of ChatMessage objects)
+            if "input" in processed_data and isinstance(processed_data["input"], list):
+                if (
+                    processed_data["input"]
+                    and isinstance(processed_data["input"][0], dict)
+                    and "role" in processed_data["input"][0]
+                ):
+                    for msg in processed_data["input"]:
+                        if isinstance(msg, dict):
+                            msg["id"] = None
+                    processed_data["input"] = _batch_process_messages(
+                        processed_data["input"]
+                    )
+
+            # Handle events field (list of Event objects)
+            if "events" in processed_data and isinstance(
+                processed_data["events"], list
+            ):
+                for event in processed_data["events"]:
+                    if isinstance(event, dict):
+                        event["id_"] = None
+                        if "input" in event and isinstance(event["input"], list):
+                            for msg in event["input"]:
+                                if isinstance(msg, dict):
+                                    msg["id"] = None
+                        if "output" in event and isinstance(event["output"], dict):
+                            output = event["output"]
+                            if "choices" in output and isinstance(
+                                output["choices"], list
+                            ):
+                                for choice in output["choices"]:
+                                    if isinstance(choice, dict) and "message" in choice:
+                                        if isinstance(choice["message"], dict):
+                                            choice["message"]["id"] = None
+                processed_data["events"] = _batch_process_events(
+                    processed_data["events"]
+                )
+
+            # Use model_construct with processed data
+            return cls.model_construct(**processed_data)
+
+        except Exception:
+            # Fallback to normal validation
+            return handler(v)
 
 
 class EvalConfigDefaults(TypedDict):
@@ -63,7 +354,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
     }
 
 
-class EvalConfig(BaseModel):
+class EvalConfig(BaseModel, FastConstructMixin):
     """Configuration used for evaluation."""
 
     limit: int | tuple[int, int] | None = Field(default=None)
@@ -157,7 +448,7 @@ class EvalConfig(BaseModel):
         return values
 
 
-class EvalSampleLimit(BaseModel):
+class EvalSampleLimit(BaseModel, FastConstructMixin):
     """Limit encontered by sample."""
 
     type: Literal[
@@ -169,7 +460,7 @@ class EvalSampleLimit(BaseModel):
     """The limit value"""
 
 
-class EvalSampleSummary(BaseModel):
+class EvalSampleSummary(BaseModel, FastConstructMixin):
     """Summary information (including scoring) for a sample."""
 
     id: int | str
@@ -233,7 +524,7 @@ class EvalSampleSummary(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-class EvalSample(BaseModel):
+class EvalSample(BaseModel, FastConstructMixin):
     """Sample from evaluation task."""
 
     id: int | str
@@ -428,7 +719,7 @@ class EvalSample(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-class EvalEvents(BaseModel):
+class EvalEvents(BaseModel, FastConstructMixin):
     events: list[Event] = Field(default_factory=list)
     """List of events."""
 
@@ -436,7 +727,7 @@ class EvalEvents(BaseModel):
     """Content references."""
 
 
-class EvalPlanStep(BaseModel):
+class EvalPlanStep(BaseModel, FastConstructMixin):
     """Solver step."""
 
     solver: str
@@ -446,7 +737,7 @@ class EvalPlanStep(BaseModel):
     """Parameters used to instantiate solver."""
 
 
-class EvalPlan(BaseModel):
+class EvalPlan(BaseModel, FastConstructMixin):
     """Plan (solvers) used in evaluation."""
 
     name: str = Field(default="plan")
@@ -462,7 +753,7 @@ class EvalPlan(BaseModel):
     """Generation config."""
 
 
-class EvalMetric(BaseModel):
+class EvalMetric(BaseModel, FastConstructMixin):
     """Metric for evaluation score."""
 
     name: str
@@ -478,7 +769,7 @@ class EvalMetric(BaseModel):
     """Additional metadata associated with metric."""
 
 
-class EvalScore(BaseModel):
+class EvalScore(BaseModel, FastConstructMixin):
     """Score for evaluation task."""
 
     name: str
@@ -507,7 +798,7 @@ class EvalSampleScore(Score):
     """Sample ID."""
 
 
-class EvalSampleReductions(BaseModel):
+class EvalSampleReductions(BaseModel, FastConstructMixin):
     """Score reductions."""
 
     scorer: str
@@ -520,7 +811,7 @@ class EvalSampleReductions(BaseModel):
     """List of reduced scores"""
 
 
-class EvalResults(BaseModel):
+class EvalResults(BaseModel, FastConstructMixin):
     """Scoring results from evaluation."""
 
     total_samples: int = Field(default=0)
@@ -604,7 +895,7 @@ class EvalResults(BaseModel):
         return values
 
 
-class EvalDataset(BaseModel):
+class EvalDataset(BaseModel, FastConstructMixin):
     """Dataset used for evaluation."""
 
     name: str | None = Field(default=None)
@@ -623,14 +914,14 @@ class EvalDataset(BaseModel):
     """Was the dataset shuffled after reading."""
 
 
-class EvalMetricDefinition(BaseModel):
+class EvalMetricDefinition(BaseModel, FastConstructMixin):
     name: str
     """Metric name"""
 
     options: dict[str, Any] | None = Field(default=None)
 
 
-class EvalScorer(BaseModel):
+class EvalScorer(BaseModel, FastConstructMixin):
     name: str
     """Scorer name"""
 
@@ -647,7 +938,7 @@ class EvalScorer(BaseModel):
     """Scorer metadata"""
 
 
-class EvalRevision(BaseModel):
+class EvalRevision(BaseModel, FastConstructMixin):
     """Git revision for evaluation."""
 
     type: Literal["git"]
@@ -660,7 +951,7 @@ class EvalRevision(BaseModel):
     """Revision commit."""
 
 
-class EvalModelConfig(BaseModel):
+class EvalModelConfig(BaseModel, FastConstructMixin):
     """Model config."""
 
     model: str
@@ -676,7 +967,7 @@ class EvalModelConfig(BaseModel):
     """Model specific arguments."""
 
 
-class EvalSpec(BaseModel):
+class EvalSpec(BaseModel, FastConstructMixin):
     """Eval target and configuration."""
 
     eval_id: str = Field(default_factory=str)
@@ -763,18 +1054,21 @@ class EvalSpec(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     def model_post_init(self, __context: Any) -> None:
-        # check if deserializing
+        # check if deserializing or fast constructing
         is_deserializing = isinstance(__context, dict) and __context.get(
             DESERIALIZING, False
         )
+        is_fast_construct = isinstance(__context, dict) and __context.get(
+            FAST_CONSTRUCT, False
+        )
 
-        # Generate eval_id if needed
+        # Generate eval_id if needed and not fast constructing
         if self.eval_id == "":
             if is_deserializing:
                 # we want the eval_id to be stable across reads of the eval log so we compose it
                 # as a hash that matches the size/apperance of shortuuid-based uuids
                 self.eval_id = base57_id_hash(self.run_id + self.task_id + self.created)
-            else:
+            elif not is_fast_construct:
                 self.eval_id = uuid()
 
     @model_validator(mode="before")
@@ -879,7 +1173,7 @@ def truncate_traceback(
     return truncated_header + truncated_frames + truncated_error, True
 
 
-class EvalStats(BaseModel):
+class EvalStats(BaseModel, FastConstructMixin):
     """Timing and usage statistics."""
 
     started_at: str = Field(default_factory=str)
@@ -895,7 +1189,7 @@ class EvalStats(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-class EvalLog(BaseModel):
+class EvalLog(BaseModel, FastConstructMixin):
     """Evaluation log."""
 
     # WARNING: The order of these fields is important for the log file format.
