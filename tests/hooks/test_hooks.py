@@ -103,19 +103,19 @@ def hook_minimal() -> Generator[MockMinimalHook, None, None]:
 
 
 def test_can_run_eval_with_no_hooks() -> None:
-    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
 
 def test_respects_enabled(mock_hook: MockHook) -> None:
     mock_hook.assert_no_events()
 
     mock_hook.should_enable = False
-    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     mock_hook.assert_no_events()
 
     mock_hook.should_enable = True
-    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(mock_hook.run_start_events) == 1
 
@@ -123,15 +123,15 @@ def test_respects_enabled(mock_hook: MockHook) -> None:
 def test_can_subscribe_to_events(mock_hook: MockHook) -> None:
     mock_hook.assert_no_events()
 
-    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(mock_hook.run_start_events) == 1
     assert mock_hook.run_start_events[0].run_id is not None
     assert len(mock_hook.run_end_events) == 1
     assert len(mock_hook.task_start_events) == 1
     assert len(mock_hook.task_end_events) == 1
-    assert len(mock_hook.sample_start_events) == 2
-    assert len(mock_hook.sample_end_events) == 2
+    assert len(mock_hook.sample_start_events) == 1
+    assert len(mock_hook.sample_end_events) == 1
     assert len(mock_hook.sample_abort_events) == 0
     assert len(mock_hook.model_usage_events) == 0
 
@@ -142,7 +142,7 @@ def test_can_subscribe_to_events_with_multiple_hooks(
     mock_hook.assert_no_events()
     hook_2.assert_no_events()
 
-    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     for h in (mock_hook, hook_2):
         assert len(h.run_start_events) == 1
@@ -150,19 +150,63 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.run_end_events) == 1
         assert len(h.task_start_events) == 1
         assert len(h.task_end_events) == 1
-        assert len(h.sample_start_events) == 2
-        assert len(h.sample_end_events) == 2
+        assert len(h.sample_start_events) == 1
+        assert len(h.sample_end_events) == 1
         assert len(h.sample_abort_events) == 0
         assert len(h.model_usage_events) == 0
 
 
+def test_hooks_on_multiple_tasks(mock_hook: MockHook) -> None:
+    eval(
+        [
+            Task(dataset=[Sample("task_1_sample_1")]),
+            Task(dataset=[Sample("task_2_sample_1")]),
+        ],
+        model="mockllm/model",
+    )
+
+    assert len(mock_hook.run_start_events) == 1
+    assert len(mock_hook.run_end_events) == 1
+    assert len(mock_hook.task_start_events) == 2
+    assert len(mock_hook.task_end_events) == 2
+    assert len(mock_hook.sample_start_events) == 2
+    assert len(mock_hook.sample_end_events) == 2
+    assert len(mock_hook.sample_abort_events) == 0
+
+
+def test_hooks_on_multiple_samples(mock_hook: MockHook) -> None:
+    eval(
+        [
+            Task(dataset=[Sample("sample_1"), Sample("sample_2")]),
+        ],
+        model="mockllm/model",
+    )
+
+    assert len(mock_hook.run_start_events) == 1
+    assert len(mock_hook.run_end_events) == 1
+    assert len(mock_hook.task_start_events) == 1
+    assert len(mock_hook.task_end_events) == 1
+    assert len(mock_hook.sample_start_events) == 2
+    assert len(mock_hook.sample_end_events) == 2
+    assert len(mock_hook.sample_abort_events) == 0
+
+
+def test_hooks_on_multiple_epochs(mock_hook: MockHook) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")]),
+        model="mockllm/model",
+        epochs=3,
+    )
+
+    assert len(mock_hook.sample_start_events) == 3
+    assert len(mock_hook.sample_end_events) == 3
+    assert len(mock_hook.sample_abort_events) == 0
+
+
 def test_hooks_on_sample_retries(mock_hook: MockHook) -> None:
     eval(
-        Task(
-            dataset=[Sample("hello")],
-            model="mockllm/model",
-            solver=_fail_n_times_solver(2),
-        ),
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(2)),
+        model="mockllm/model",
         retry_on_error=10,
     )
 
@@ -173,11 +217,8 @@ def test_hooks_on_sample_retries(mock_hook: MockHook) -> None:
 
 def test_hooks_on_sample_abort(mock_hook: MockHook) -> None:
     eval(
-        Task(
-            dataset=[Sample("hello")],
-            model="mockllm/model",
-            solver=_fail_n_times_solver(10),
-        ),
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(10)),
+        model="mockllm/model",
         retry_on_error=0,
     )
 
@@ -189,7 +230,7 @@ def test_hooks_on_sample_abort(mock_hook: MockHook) -> None:
 def test_hook_does_not_need_to_subscribe_to_all_events(
     hook_minimal: MockMinimalHook,
 ) -> None:
-    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(hook_minimal.run_start_events) == 1
 
@@ -222,7 +263,7 @@ def test_init_hooks_can_be_called_multiple_times(mock_hook: MockHook) -> None:
     init_hooks()
     init_hooks()
 
-    eval(Task(dataset=[Sample("hello"), Sample("bye")], model="mockllm/model"))
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(mock_hook.run_start_events) == 1
 
