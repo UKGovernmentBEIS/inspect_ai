@@ -25,9 +25,7 @@ def init_hooks() -> None:
         hooks = get_all_hooks()
         _registry_hooks_loaded = True
         if hooks:
-            hook_names = [
-                f"  {f'[bold]{hook.name}[/bold]: {hook.description}'}" for hook in hooks
-            ]
+            hook_names = [f"  {_format_hook_for_printing(hook)}" for hook in hooks]
             hook_names_joined = "\n".join(hook_names)
             messages.append(
                 f"[bold]hooks enabled: {len(hooks)}[/bold]\n{hook_names_joined}"
@@ -41,3 +39,9 @@ def init_hooks() -> None:
             f"[blue][bold]inspect_ai v{version}[/bold][/blue]\n"
             f"[bright_black]{all_messages}[/bright_black]\n"
         )
+
+
+def _format_hook_for_printing(hook: Hooks) -> str:
+    info = registry_info(hook)
+    description = info.metadata["description"]
+    return f"[bold]{info.name}[/bold]: {description}"

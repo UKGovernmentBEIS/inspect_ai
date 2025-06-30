@@ -45,14 +45,6 @@ class MockHook(Hooks):
         assert not self.sample_end_events
         assert not self.model_usage_events
 
-    @property
-    def name(self) -> str:
-        return "test_hook"
-
-    @property
-    def description(self) -> str:
-        return "test_hook_description"
-
     def enabled(self) -> bool:
         return self.should_enable
 
@@ -81,30 +73,12 @@ class MockHook(Hooks):
         return f"mocked-{data.env_var_name}-{data.value}"
 
 
-class MockHook2(MockHook):
-    @property
-    def name(self) -> str:
-        return "test_hook_2"
-
-    @property
-    def description(self) -> str:
-        return "test_hook_2_description"
-
-
 class MockMinimalHook(Hooks):
     def __init__(self) -> None:
         self.run_start_events: list[RunStart] = []
 
     async def on_run_start(self, data: RunStart) -> None:
         self.run_start_events.append(data)
-
-    @property
-    def name(self) -> str:
-        return "test_hook_minimal"
-
-    @property
-    def description(self) -> str:
-        return "test_hook_minimal_description"
 
 
 @pytest.fixture
@@ -114,7 +88,7 @@ def mock_hook() -> Generator[MockHook, None, None]:
 
 @pytest.fixture
 def hook_2() -> Generator[MockHook, None, None]:
-    yield from _create_mock_hook("test_hook_2", MockHook2)
+    yield from _create_mock_hook("test_hook_2", MockHook)
 
 
 @pytest.fixture
@@ -287,15 +261,14 @@ def test_hook_name_and_description(mock_hook: MockHook) -> None:
     info = registry_info(mock_hook)
 
     assert info.name == "test_hook"
-    assert mock_hook.name == "test_hook"
-    assert mock_hook.description == "test_hook_description"
+    assert info.metadata["description"] == "test_hook-description"
 
 
 T = TypeVar("T", bound=Hooks)
 
 
 def _create_mock_hook(name: str, hook_class: Type[T]) -> Generator[T, None, None]:
-    @hooks()
+    @hooks(name, description=f"{name}-description")
     def get_hook_class() -> type[T]:
         return hook_class
 

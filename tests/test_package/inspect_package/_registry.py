@@ -28,7 +28,7 @@ def podman():
     return PodmanSandboxEnvironment
 
 
-@hooks()
+@hooks(name="custom_hook", description="Custom hooks")
 def custom_hook():
     from .hooks.custom import CustomHooks
 
