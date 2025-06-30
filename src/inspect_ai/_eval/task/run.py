@@ -548,11 +548,7 @@ async def task_run_sample(
     run_id: str,
     task_id: str,
 ) -> dict[str, SampleScore] | None:
-    from inspect_ai.hooks._hooks import (
-        emit_sample_abort,
-        emit_sample_end,
-        emit_sample_start,
-    )
+    from inspect_ai.hooks._hooks import emit_sample_end, emit_sample_start
 
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
@@ -709,7 +705,7 @@ async def task_run_sample(
                         # only emit the sample start once: not on retries
                         if not error_retries:
                             await emit_sample_start(
-                                run_id, task_id, sample_id, sample_summary
+                                run_id, task_id, state.uuid, sample_summary
                             )
 
                         # set progress for plan then run it
@@ -873,9 +869,7 @@ async def task_run_sample(
                 await log_sample(
                     eval_sample=eval_sample, logger=logger, log_images=log_images
                 )
-            # TODO: Do we only want to emit sample end if there was no error?
-            if not error:
-                await emit_sample_end(run_id, task_id, sample_id, eval_sample.summary())
+            await emit_sample_end(run_id, task_id, state.uuid, eval_sample.summary())
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -926,11 +920,9 @@ async def task_run_sample(
 
     # we have an error and should raise it
     elif raise_error is not None:
-        await emit_sample_abort(run_id, task_id, sample_id, error)
         raise raise_error
 
     # we have an error and should not raise it
-    # TODO: Do I need to emit a sample abort for this?
     else:
         return None
 

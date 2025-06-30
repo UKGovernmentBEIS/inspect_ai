@@ -5,7 +5,6 @@ from typing import Awaitable, Callable, Type, TypeVar, cast
 from inspect_ai._eval.eval import EvalLogs
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._util.error import EvalError
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -24,7 +23,7 @@ class RunStart:
     """Run start hook event data."""
 
     run_id: str
-    """The unique identifier for the run."""
+    """The globally unique identifier for the run."""
     task_names: list[str]
     """The names of the tasks which will be used in the run."""
 
@@ -34,9 +33,10 @@ class RunEnd:
     """Run end hook event data."""
 
     run_id: str
-    """The unique identifier for the run."""
+    """The globally unique identifier for the run."""
     logs: EvalLogs
-    """All eval logs generated during the run."""
+    """All eval logs generated during the run. Can be headers only if the run was an
+    `eval_set()`."""
 
 
 @dataclass(frozen=True)
@@ -44,9 +44,9 @@ class TaskStart:
     """Task start hook event data."""
 
     run_id: str
-    """The unique identifier for the run."""
+    """The globally unique identifier for the run."""
     eval_id: str
-    """The unique identifier for this task within the run."""
+    """The globally unique identifier for this task execution."""
     spec: EvalSpec
     """Specification of the task."""
 
@@ -56,11 +56,12 @@ class TaskEnd:
     """Task end hook event data."""
 
     run_id: str
-    """The unique identifier for the run."""
+    """The globally unique identifier for the run."""
     eval_id: str
-    """The unique identifier for this task within the run."""
+    """The globally unique identifier for the task execution."""
     log: EvalLog
-    """The log generated for this task."""
+    """The log generated for the task. Can be header only if the run was an
+    `eval_set()`"""
 
 
 @dataclass(frozen=True)
@@ -68,10 +69,11 @@ class SampleStart:
     """Sample start hook event data."""
 
     run_id: str
-    """The unique identifier for the run."""
+    """The globally unique identifier for the run."""
     eval_id: str
-    """The unique identifier for the sample's task within the run."""
-    sample_id: int | str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
     summary: EvalSampleSummary
     """Summary of the sample to be run."""
 
@@ -81,28 +83,13 @@ class SampleEnd:
     """Sample end hook event data."""
 
     run_id: str
-    """The unique identifier for the run."""
+    """The globally unique identifier for the run."""
     eval_id: str
-    """The unique identifier for the sample's task within the run."""
-    sample_id: int | str
-    # TODO: Are these different to the user-supplied Sample IDs?
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
     summary: EvalSampleSummary
     """Summary of the sample that has run."""
-
-
-@dataclass(frozen=True)
-class SampleAbort:
-    """Sample abort hook event data."""
-
-    run_id: str
-    """The unique identifier for the run."""
-    eval_id: str
-    """The unique identifier for the sample's task within the run."""
-    sample_id: int | str
-    # TODO: Document sample id.
-    error: EvalError
-    """The error that caused the sample to be aborted. If the sample has been retried,
-    this is the last error."""
 
 
 @dataclass(frozen=True)
@@ -136,6 +123,8 @@ class Hooks:
     catch any exceptions that may occur. This is to ensure that a hook failure does not
     affect the overall execution of the eval. If a hook fails, a warning will be logged.
     """
+
+    # TODO: Add name and description properties.
 
     def enabled(self) -> bool:
         """Check if the hook should be enabled.
@@ -189,9 +178,10 @@ class Hooks:
     async def on_sample_start(self, data: SampleStart) -> None:
         """On sample start.
 
-        If a sample is run for multiple epochs, this will be called once per epoch.
+        Called when a sample is about to be start. If the sample errors and retries,
+        this will not be called again.
 
-        This is not called again on sample retries.
+        If a sample is run for multiple epochs, this will be called once per epoch.
 
         Args:
            data: Sample start data.
@@ -201,20 +191,10 @@ class Hooks:
     async def on_sample_end(self, data: SampleEnd) -> None:
         """On sample end.
 
-        This will be called when a sample has completed without error. If there are
-        multiple epochs for a sample, this will be called once per successfully
-        completed epoch.
+        Called when a sample has either completed successfully, or when a sample has
+        errored and has no retries remaining.
 
-        Args:
-           data: Sample end data.
-        """
-        pass
-
-    async def on_sample_abort(self, data: SampleAbort) -> None:
-        """A sample has been aborted due to an error, and will not be retried.
-
-        If there are multiple epochs for a sample, this will be called once per
-        aborted epoch of the sample.
+        If a sample is run for multiple epochs, this will be called once per epoch.
 
         Args:
            data: Sample end data.
@@ -308,7 +288,7 @@ async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
 
 
 async def emit_sample_start(
-    run_id: str, eval_id: str, sample_id: int | str, summary: EvalSampleSummary
+    run_id: str, eval_id: str, sample_id: str, summary: EvalSampleSummary
 ) -> None:
     data = SampleStart(
         run_id=run_id, eval_id=eval_id, sample_id=sample_id, summary=summary
@@ -317,19 +297,12 @@ async def emit_sample_start(
 
 
 async def emit_sample_end(
-    run_id: str, eval_id: str, sample_id: int | str, summary: EvalSampleSummary
+    run_id: str, eval_id: str, sample_id: str, summary: EvalSampleSummary
 ) -> None:
     data = SampleEnd(
         run_id=run_id, eval_id=eval_id, sample_id=sample_id, summary=summary
     )
     await _emit_to_all(lambda hook: hook.on_sample_end(data))
-
-
-async def emit_sample_abort(
-    run_id: str, eval_id: str, sample_id: int | str, error: EvalError
-) -> None:
-    data = SampleAbort(run_id=run_id, eval_id=eval_id, sample_id=sample_id, error=error)
-    await _emit_to_all(lambda hook: hook.on_sample_abort(data))
 
 
 async def emit_model_usage(

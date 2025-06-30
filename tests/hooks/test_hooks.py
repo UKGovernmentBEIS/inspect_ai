@@ -14,7 +14,6 @@ from inspect_ai.hooks._hooks import (
     ModelUsageData,
     RunEnd,
     RunStart,
-    SampleAbort,
     SampleEnd,
     SampleStart,
     TaskEnd,
@@ -35,7 +34,6 @@ class MockHook(Hooks):
         self.task_end_events: list[TaskEnd] = []
         self.sample_start_events: list[SampleStart] = []
         self.sample_end_events: list[SampleEnd] = []
-        self.sample_abort_events: list[SampleAbort] = []
         self.model_usage_events: list[ModelUsageData] = []
 
     def assert_no_events(self) -> None:
@@ -45,7 +43,6 @@ class MockHook(Hooks):
         assert not self.task_end_events
         assert not self.sample_start_events
         assert not self.sample_end_events
-        assert not self.sample_abort_events
         assert not self.model_usage_events
 
     def enabled(self) -> bool:
@@ -68,9 +65,6 @@ class MockHook(Hooks):
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         self.sample_end_events.append(data)
-
-    async def on_sample_abort(self, data: SampleAbort) -> None:
-        self.sample_abort_events.append(data)
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         self.model_usage_events.append(data)
@@ -132,7 +126,6 @@ def test_can_subscribe_to_events(mock_hook: MockHook) -> None:
     assert len(mock_hook.task_end_events) == 1
     assert len(mock_hook.sample_start_events) == 1
     assert len(mock_hook.sample_end_events) == 1
-    assert len(mock_hook.sample_abort_events) == 0
     assert len(mock_hook.model_usage_events) == 0
 
 
@@ -152,7 +145,6 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.task_end_events) == 1
         assert len(h.sample_start_events) == 1
         assert len(h.sample_end_events) == 1
-        assert len(h.sample_abort_events) == 0
         assert len(h.model_usage_events) == 0
 
 
@@ -171,10 +163,9 @@ def test_hooks_on_multiple_tasks(mock_hook: MockHook) -> None:
     assert len(mock_hook.task_end_events) == 2
     assert len(mock_hook.sample_start_events) == 2
     assert len(mock_hook.sample_end_events) == 2
-    assert len(mock_hook.sample_abort_events) == 0
 
 
-def test_hooks_on_multiple_samples(mock_hook: MockHook) -> None:
+def test_hooks_with_multiple_samples(mock_hook: MockHook) -> None:
     eval(
         [
             Task(dataset=[Sample("sample_1"), Sample("sample_2")]),
@@ -188,10 +179,9 @@ def test_hooks_on_multiple_samples(mock_hook: MockHook) -> None:
     assert len(mock_hook.task_end_events) == 1
     assert len(mock_hook.sample_start_events) == 2
     assert len(mock_hook.sample_end_events) == 2
-    assert len(mock_hook.sample_abort_events) == 0
 
 
-def test_hooks_on_multiple_epochs(mock_hook: MockHook) -> None:
+def test_hooks_with_multiple_epochs(mock_hook: MockHook) -> None:
     eval(
         Task(dataset=[Sample("sample_1")]),
         model="mockllm/model",
@@ -200,31 +190,30 @@ def test_hooks_on_multiple_epochs(mock_hook: MockHook) -> None:
 
     assert len(mock_hook.sample_start_events) == 3
     assert len(mock_hook.sample_end_events) == 3
-    assert len(mock_hook.sample_abort_events) == 0
 
 
-def test_hooks_on_sample_retries(mock_hook: MockHook) -> None:
+def test_hooks_with_sample_retries(mock_hook: MockHook) -> None:
     eval(
         Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(2)),
         model="mockllm/model",
         retry_on_error=10,
     )
 
+    # Will succeed on 3rd attempt, but just 1 sample start and end event.
     assert len(mock_hook.sample_start_events) == 1
     assert len(mock_hook.sample_end_events) == 1
-    assert len(mock_hook.sample_abort_events) == 0
 
 
-def test_hooks_on_sample_abort(mock_hook: MockHook) -> None:
+def test_hooks_with_error_and_no_retries(mock_hook: MockHook) -> None:
     eval(
         Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(10)),
         model="mockllm/model",
         retry_on_error=0,
     )
 
+    # Will fail on first attempt without any retries.
     assert len(mock_hook.sample_start_events) == 1
-    assert len(mock_hook.sample_end_events) == 0
-    assert len(mock_hook.sample_abort_events) == 1
+    assert len(mock_hook.sample_end_events) == 1
 
 
 def test_hook_does_not_need_to_subscribe_to_all_events(
