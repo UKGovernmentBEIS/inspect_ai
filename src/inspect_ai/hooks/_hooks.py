@@ -124,8 +124,6 @@ class Hooks:
     affect the overall execution of the eval. If a hook fails, a warning will be logged.
     """
 
-    # TODO: Add name and description properties.
-
     def enabled(self) -> bool:
         """Check if the hook should be enabled.
 
