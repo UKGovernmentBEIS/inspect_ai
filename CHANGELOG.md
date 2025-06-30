@@ -5,6 +5,7 @@
 - Analysis: Don't show dataframe import progress by default in notebooks (leaves empty cell output artifact).
 - Analysis: Include `order` field in `messages_df()` and `events_df()`.
 - Logging: Improvements to `--display=log` (improved task info formatting, ability to disable rich logging)
+- Task Display: Limit console to a maximum of 100 lines to prevent rendering performance problems.
 
 ## 0.3.111 (29 June 2025)
 
