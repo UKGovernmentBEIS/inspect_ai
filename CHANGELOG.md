@@ -5,6 +5,7 @@
 - Analysis: Don't show dataframe import progress by default in notebooks (leaves empty cell output artifact).
 - Analysis: Include `order` field in `messages_df()` and `events_df()`.
 - Logging: Improvements to `--display=log` (improved task info formatting, ability to disable rich logging)
+- [Hooks](https://inspect.aisi.org.uk/extensions.html#hooks): Generic lifecycle hooks for Inspect extensions.
 
 ## 0.3.111 (29 June 2025)
 
