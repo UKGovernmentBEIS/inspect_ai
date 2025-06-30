@@ -22,6 +22,8 @@ from inspect_ai.hooks._hooks import (
     hooks,
     override_api_key,
 )
+from inspect_ai.solver._solver import Generate, Solver, solver
+from inspect_ai.solver._task_state import TaskState
 
 
 class MockHook(Hooks):
@@ -154,6 +156,36 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.model_usage_events) == 0
 
 
+def test_hooks_on_sample_retries(mock_hook: MockHook) -> None:
+    eval(
+        Task(
+            dataset=[Sample("hello")],
+            model="mockllm/model",
+            solver=_fail_n_times_solver(2),
+        ),
+        retry_on_error=10,
+    )
+
+    assert len(mock_hook.sample_start_events) == 1
+    assert len(mock_hook.sample_end_events) == 1
+    assert len(mock_hook.sample_abort_events) == 0
+
+
+def test_hooks_on_sample_abort(mock_hook: MockHook) -> None:
+    eval(
+        Task(
+            dataset=[Sample("hello")],
+            model="mockllm/model",
+            solver=_fail_n_times_solver(10),
+        ),
+        retry_on_error=0,
+    )
+
+    assert len(mock_hook.sample_start_events) == 1
+    assert len(mock_hook.sample_end_events) == 0
+    assert len(mock_hook.sample_abort_events) == 1
+
+
 def test_hook_does_not_need_to_subscribe_to_all_events(
     hook_minimal: MockMinimalHook,
 ) -> None:
@@ -217,3 +249,18 @@ def _create_mock_hook(name: str, hook_class: Type[T]) -> Generator[T, None, None
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry[f"hooks:{name}"]
+
+
+@solver
+def _fail_n_times_solver(target_failures: int) -> Solver:
+    """Fails N times, then succeeds."""
+    attempts = 0
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        nonlocal attempts
+        attempts += 1
+        if attempts < target_failures:
+            raise RuntimeError(f"Simulated failure {attempts}")
+        return state
+
+    return solve

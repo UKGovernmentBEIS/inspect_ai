@@ -706,9 +706,11 @@ async def task_run_sample(
                         )
                         if logger is not None:
                             await logger.start_sample(sample_summary)
-                        await emit_sample_start(
-                            run_id, task_id, sample_id, sample_summary
-                        )
+                        # only emit the sample start once: not on retries
+                        if not error_retries:
+                            await emit_sample_start(
+                                run_id, task_id, sample_id, sample_summary
+                            )
 
                         # set progress for plan then run it
                         async with span("solvers"):

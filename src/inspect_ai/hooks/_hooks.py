@@ -164,7 +164,7 @@ class Hooks:
 
         If a sample is run for multiple epochs, this will be called once per epoch.
 
-        If a sample is retried, this will be called again for each new attempt.
+        This is not called again on sample retries.
 
         Args:
            data: Sample start data.
