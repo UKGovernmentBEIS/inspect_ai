@@ -39,7 +39,7 @@ def view(
         port: Tcp/ip port (defaults to 7575).
         authorization: Validate requests by checking for this authorization header.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-            "info", "warning", "error", or "critical" (defaults to "warning").
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         fs_options: Additional arguments to pass through to the filesystem provider
             (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
             public S3 bucket with no credentials.

@@ -26,7 +26,7 @@ from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
 )
-from inspect_ai._util.datetime import iso_now
+from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
@@ -85,6 +85,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
@@ -352,8 +353,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         finally:
                             tg.cancel_scope.cancel()
 
-                    async with anyio.create_task_group() as tg:
-                        tg.start_soon(run, tg)
+                    try:
+                        async with anyio.create_task_group() as tg:
+                            tg.start_soon(run, tg)
+                    except Exception as ex:
+                        raise inner_exception(ex)
 
                     return result
 

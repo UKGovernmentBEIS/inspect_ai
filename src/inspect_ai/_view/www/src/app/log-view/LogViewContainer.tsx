@@ -2,6 +2,7 @@ import { FC, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
 import {
+  useEvalSpec,
   useFilteredSamples,
   usePrevious,
   useTotalSampleCount,
@@ -20,6 +21,7 @@ export const LogViewContainer: FC = () => {
   const clearInitialState = useStore(
     (state) => state.appActions.clearInitialState,
   );
+  const evalSpec = useEvalSpec();
   const setSampleTab = useStore((state) => state.appActions.setSampleTab);
   const setShowingSampleDialog = useStore(
     (state) => state.appActions.setShowingSampleDialog,
@@ -47,7 +49,7 @@ export const LogViewContainer: FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (initialState) {
+    if (initialState && !evalSpec) {
       const url = baseUrl(
         initialState.log,
         initialState.sample_id,
@@ -56,7 +58,7 @@ export const LogViewContainer: FC = () => {
       clearInitialState();
       navigate(url);
     }
-  }, [initialState]);
+  }, [initialState, evalSpec]);
 
   const prevLogPath = usePrevious<string | undefined>(logPath);
 
