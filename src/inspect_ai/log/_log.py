@@ -91,6 +91,7 @@ def _create_chat_message_optimized(msg_data: dict):
         msg = ChatMessageTool.model_construct(**optimized_data)
     else:
         from inspect_ai.model._chat_message import ChatMessage
+
         msg = ChatMessage.model_construct(**optimized_data)
 
     msg.id = None
@@ -191,13 +192,56 @@ class FastConstructMixin:
         ):
             return handler(v)
 
+        # Handle Event objects - add proper Event Union discrimination
+        if "event" in v and "timestamp" in v:
+            # Parse timestamp string to datetime if needed
+            if isinstance(v.get("timestamp"), str):
+                try:
+                    import dateutil.parser
+
+                    v = v.copy()
+                    v["timestamp"] = dateutil.parser.parse(v["timestamp"])
+                except Exception:
+                    pass
+
+            # Process nested fields for events
+            from ._transcript import _process_event_fields
+
+            v = _process_event_fields(v, info.context)
+
+            event_type = v["event"]
+            from ._transcript import (
+                ModelEvent,
+                SampleInitEvent,
+                SandboxEvent,
+                ScoreEvent,
+                StateEvent,
+                StepEvent,
+                ToolEvent,
+            )
+
+            if event_type == "sample_init" and cls.__name__ != "SampleInitEvent":
+                return SampleInitEvent.model_construct(**v)
+            elif event_type == "step" and cls.__name__ != "StepEvent":
+                return StepEvent.model_construct(**v)
+            elif event_type == "state" and cls.__name__ != "StateEvent":
+                return StateEvent.model_construct(**v)
+            elif event_type == "model" and cls.__name__ != "ModelEvent":
+                return ModelEvent.model_construct(**v)
+            elif event_type == "score" and cls.__name__ != "ScoreEvent":
+                return ScoreEvent.model_construct(**v)
+            elif event_type == "tool" and cls.__name__ != "ToolEvent":
+                return ToolEvent.model_construct(**v)
+            elif event_type == "sandbox" and cls.__name__ != "SandboxEvent":
+                return SandboxEvent.model_construct(**v)
+
         # Handle ChatMessage objects directly like in _transcript.py
-        if "role" in v and "content" in v:
+        elif "role" in v and "content" in v:
             from inspect_ai.model._chat_message import (
-                ChatMessageSystem,
-                ChatMessageUser,
                 ChatMessageAssistant,
+                ChatMessageSystem,
                 ChatMessageTool,
+                ChatMessageUser,
             )
 
             # Force id to None for ChatMessages

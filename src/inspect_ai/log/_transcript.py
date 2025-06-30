@@ -132,87 +132,86 @@ class FastConstructMixin:
 
 
 def _process_event_fields(v: dict, context: dict) -> dict:
-    """Process nested fields within events that need special handling"""
-    v = v.copy()
+    """Process nested fields within events that need special handling - OPTIMIZED"""
+    # Pre-check what fields exist to avoid expensive operations
+    has_sample = "sample" in v and isinstance(v.get("sample"), dict)
+    has_score = "score" in v and isinstance(v.get("score"), dict)
+    has_changes = "changes" in v and isinstance(v.get("changes"), list)
+    has_input = "input" in v and isinstance(v.get("input"), list)
+    has_config = "config" in v and isinstance(v.get("config"), dict)
+    has_output = "output" in v and isinstance(v.get("output"), dict)
+    has_call = "call" in v and isinstance(v.get("call"), dict)
+
+    # Only copy if we need to make changes
+    if (
+        has_sample
+        or has_score
+        or has_changes
+        or has_input
+        or has_config
+        or has_output
+        or has_call
+    ):
+        v = v.copy()
 
     # Handle sample field (convert dict to Sample)
-    if "sample" in v and isinstance(v["sample"], dict):
+    if has_sample:
         from inspect_ai.dataset._dataset import Sample
 
         v["sample"] = Sample.model_construct(**v["sample"])
 
     # Handle score field (convert dict to Score)
-    if "score" in v and isinstance(v["score"], dict):
+    if has_score:
         from inspect_ai.scorer import Score
 
         score_data = v["score"]
         if "value" in score_data and "answer" in score_data:
             v["score"] = Score.model_construct(**score_data)
 
-    # Handle changes field (convert dicts to JsonChange)
-    if "changes" in v and isinstance(v["changes"], list):
+    # Handle changes field (convert dicts to JsonChange) - OPTIMIZED
+    if has_changes:
         from inspect_ai._util.json import JsonChange
 
-        changes = []
-        for change in v["changes"]:
-            if isinstance(change, dict):
-                changes.append(JsonChange.model_construct(**change))
-            else:
-                changes.append(change)
-        v["changes"] = changes
+        # Only process if there are dict items
+        changes_list = v["changes"]
+        if any(isinstance(change, dict) for change in changes_list):
+            changes = []
+            for change in changes_list:
+                if isinstance(change, dict):
+                    changes.append(JsonChange.model_construct(**change))
+                else:
+                    changes.append(change)
+            v["changes"] = changes
 
     # Handle input field (convert dicts to ChatMessages) - OPTIMIZED
-    if "input" in v and isinstance(v["input"], list):
-        if context and context.get("fast_construct", False):
-            from ._log import _batch_process_messages
-            for msg in v["input"]:
+    if has_input:
+        # Use optimized batch processing for chat messages
+        input_list = v["input"]
+        if any(isinstance(msg, dict) and "role" in msg for msg in input_list):
+            from inspect_ai.log._log import _batch_process_messages
+
+            # Clear all message IDs efficiently
+            for msg in input_list:
                 if isinstance(msg, dict):
                     msg["id"] = None
-            v["input"] = _batch_process_messages(v["input"])
-        else:
-            from inspect_ai.model._chat_message import (
-                ChatMessageSystem,
-                ChatMessageUser,
-                ChatMessageAssistant,
-                ChatMessageTool,
-            )
+            v["input"] = _batch_process_messages(input_list)
 
-            messages = []
-            for msg in v["input"]:
-                if isinstance(msg, dict) and "role" in msg:
-                    msg = msg.copy()
-                    msg["id"] = None  # Clear ChatMessage IDs
-                    role = msg["role"]
-                    if role == "system":
-                        messages.append(ChatMessageSystem.model_construct(**msg))
-                    elif role == "user":
-                        messages.append(ChatMessageUser.model_construct(**msg))
-                    elif role == "assistant":
-                        messages.append(ChatMessageAssistant.model_construct(**msg))
-                    elif role == "tool":
-                        messages.append(ChatMessageTool.model_construct(**msg))
-                    else:
-                        messages.append(msg)
-                else:
-                    messages.append(msg)
-            v["input"] = messages
-
-    # NEW: Handle config field (convert dict to GenerateConfig)
-    if "config" in v and isinstance(v["config"], dict):
+    # Handle config field (convert dict to GenerateConfig)
+    if has_config:
         from inspect_ai.model._generate_config import GenerateConfig
 
         v["config"] = GenerateConfig.model_construct(**v["config"])
 
-    # NEW: Handle output field (convert dict to ModelOutput)
-    if "output" in v and isinstance(v["output"], dict):
+    # Handle output field (convert dict to ModelOutput)
+    if has_output:
         from inspect_ai.model._model_output import ModelOutput
 
         # Process nested ModelOutput fields first
         output_data = _process_model_output_fields(v["output"], context)
         v["output"] = ModelOutput.model_construct(**output_data)
 
-    # NEW: Handle call field (convert dict to ModelCall)
-    if "call" in v and isinstance(v["call"], dict):
+    # Handle call field (convert dict to ModelCall)
+    if has_call:
         from inspect_ai.model._model_call import ModelCall
 
         v["call"] = ModelCall.model_construct(**v["call"])
@@ -220,32 +219,44 @@ def _process_event_fields(v: dict, context: dict) -> dict:
     return v
 
 
-def _process_model_output_fields(output_data: dict, context: dict) -> dict:
-    """Process nested fields within ModelOutput"""
-    output_data = output_data.copy()
+def _process_model_output_fields(
+    output_data: dict, context: dict | None = None
+) -> dict:
+    """Process nested fields within ModelOutput - OPTIMIZED"""
+    # Pre-check what needs processing
+    has_choices = "choices" in output_data and isinstance(output_data["choices"], list)
+    has_usage = "usage" in output_data and isinstance(output_data["usage"], dict)
 
-    # Handle choices field (list of ChatCompletionChoice)
-    if "choices" in output_data and isinstance(output_data["choices"], list):
-        from inspect_ai.model._model_output import ChatCompletionChoice
+    # Only copy if needed
+    if has_choices or has_usage:
+        output_data = output_data.copy()
 
-        choices = []
-        for choice in output_data["choices"]:
-            if isinstance(choice, dict):
-                # Process ChatMessage in choice
-                choice_data = choice.copy()
-                if "message" in choice_data and isinstance(
-                    choice_data["message"], dict
-                ):
-                    msg_data = choice_data["message"].copy()
-                    msg_data["id"] = None  # Clear ChatMessage ID
-                    choice_data["message"] = msg_data
-                choices.append(ChatCompletionChoice.model_construct(**choice_data))
-            else:
-                choices.append(choice)
-        output_data["choices"] = choices
+    # Handle choices field (list of ChatCompletionChoice) - OPTIMIZED
+    if has_choices:
+        choices_list = output_data["choices"]
+        if any(isinstance(choice, dict) for choice in choices_list):
+            from inspect_ai.model._model_output import ChatCompletionChoice
+
+            choices = []
+            for choice in choices_list:
+                if isinstance(choice, dict):
+                    # Process ChatMessage in choice efficiently
+                    choice_data = choice.copy()
+                    if "message" in choice_data and isinstance(
+                        choice_data["message"], dict
+                    ):
+                        msg_data = choice_data["message"].copy()
+                        msg_data["id"] = None  # Clear ChatMessage ID
+                        # Convert to proper ChatMessage object
+                        from inspect_ai.log._log import _create_chat_message_optimized
+                        choice_data["message"] = _create_chat_message_optimized(msg_data)
+                    choices.append(ChatCompletionChoice.model_construct(**choice_data))
+                else:
+                    choices.append(choice)
+            output_data["choices"] = choices
 
     # Handle usage field (ModelUsage)
-    if "usage" in output_data and isinstance(output_data["usage"], dict):
+    if has_usage:
         from inspect_ai.model._model_output import ModelUsage
 
         output_data["usage"] = ModelUsage.model_construct(**output_data["usage"])
