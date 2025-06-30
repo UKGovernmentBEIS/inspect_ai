@@ -22,6 +22,10 @@ def recorder_type_for_format(format: Literal["eval", "json"]) -> type[Recorder]:
         raise ValueError(f"No recorder for format: {format}")
 
 
+def validate_for_format(recorder_type: type[Recorder]) -> bool:
+    return recorder_type != EvalRecorder
+
+
 def create_recorder_for_location(location: str, log_dir: str) -> Recorder:
     recorder = recorder_type_for_location(location)
     return cast(Callable[[str], Recorder], recorder)(log_dir)
