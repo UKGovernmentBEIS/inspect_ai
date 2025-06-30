@@ -13,7 +13,6 @@ title: "inspect_ai.hooks"
 ### ModelUsageData
 ### RunEnd
 ### RunStart
-### SampleAbort
 ### SampleEnd
 ### SampleStart
 ### TaskEnd

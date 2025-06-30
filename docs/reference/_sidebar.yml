@@ -632,8 +632,6 @@ website:
           href: reference/inspect_ai.hooks.qmd#runend
         - text: RunStart
           href: reference/inspect_ai.hooks.qmd#runstart
-        - text: SampleAbort
-          href: reference/inspect_ai.hooks.qmd#sampleabort
         - text: SampleEnd
           href: reference/inspect_ai.hooks.qmd#sampleend
         - text: SampleStart
