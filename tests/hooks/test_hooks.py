@@ -6,7 +6,7 @@ import pytest
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_var
-from inspect_ai._util.registry import _registry, registry_lookup
+from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
@@ -195,11 +195,18 @@ def test_init_hooks_can_be_called_multiple_times(mock_hook: MockHook) -> None:
     assert len(mock_hook.run_start_events) == 1
 
 
+def test_hook_name_and_description(mock_hook: MockHook) -> None:
+    info = registry_info(mock_hook)
+
+    assert info.name == "test_hook"
+    assert info.metadata["description"] == "test_hook-description"
+
+
 T = TypeVar("T", bound=Hooks)
 
 
 def _create_mock_hook(name: str, hook_class: Type[T]) -> Generator[T, None, None]:
-    @hooks(name)
+    @hooks(name, description=f"{name}-description")
     def get_hook_class() -> type[T]:
         return hook_class
 

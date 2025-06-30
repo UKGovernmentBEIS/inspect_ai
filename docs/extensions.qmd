@@ -439,7 +439,7 @@ import wandb
 
 from inspect_ai.hooks import Hooks, RunEnd, RunStart, SampleEnd, hooks
 
-@hooks(name="w&b_hook")
+@hooks(name="w&b_hook", description="Weights & Biases integration")
 class WBHook(Hooks):
     async def on_run_start(self, data: RunStart) -> None:
         wandb.init(name=data.run_id)
@@ -467,7 +467,7 @@ There is a hook to optionally override the value of model API key environment va
 ``` python
 from inspect_ai.hooks import hooks, Hooks, ApiKeyOverride
 
-@hooks(name="api_key_fetcher")
+@hooks(name="api_key_fetcher", description="Fetches API key from secrets manager")
 class ApiKeyFetcher(Hooks):
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
         original_env_var_value = data.value

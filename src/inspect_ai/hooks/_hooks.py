@@ -224,7 +224,7 @@ class Hooks:
 T = TypeVar("T", bound=Hooks)
 
 
-def hooks(name: str) -> Callable[..., Type[T]]:
+def hooks(name: str, description: str) -> Callable[..., Type[T]]:
     """Decorator for registering a hook subscriber.
 
     Either decorate a subclass of `Hooks`, or a function which returns the type
@@ -232,7 +232,9 @@ def hooks(name: str) -> Callable[..., Type[T]]:
     and store it in the registry.
 
     Args:
-        name (str): Name of the subscriber.
+        name (str): Name of the subscriber (e.g. "audit logging").
+        description (str): Short description of the hook (e.g. "Copies eval files to
+            S3 bucket for auditing.").
     """
 
     def wrapper(hook_type: Type[T] | Callable[..., Type[T]]) -> Type[T]:
@@ -247,7 +249,9 @@ def hooks(name: str) -> Callable[..., Type[T]]:
         hook_name = registry_name(hook_instance, name)
         registry_add(
             hook_instance,
-            RegistryInfo(type="hooks", name=hook_name),
+            RegistryInfo(
+                type="hooks", name=hook_name, metadata={"description": description}
+            ),
         )
         return cast(Type[T], hook_instance)
 
