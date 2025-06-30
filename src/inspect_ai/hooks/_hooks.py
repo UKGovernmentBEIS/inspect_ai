@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
@@ -124,7 +125,24 @@ class Hooks:
     affect the overall execution of the eval. If a hook fails, a warning will be logged.
     """
 
-    # TODO: Add name and description properties.
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Get the name of the hook.
+
+        This is used for logging and display purposes.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """Get the description of the hook.
+
+        This is used for logging and debugging purposes. It should provide a brief
+        overview of what the hook does.
+        """
+        raise NotImplementedError
 
     def enabled(self) -> bool:
         """Check if the hook should be enabled.
@@ -231,17 +249,12 @@ class Hooks:
 T = TypeVar("T", bound=Hooks)
 
 
-def hooks(name: str, description: str) -> Callable[..., Type[T]]:
+def hooks() -> Callable[..., Type[T]]:
     """Decorator for registering a hook subscriber.
 
     Either decorate a subclass of `Hooks`, or a function which returns the type
     of a subclass of `Hooks`. This decorator will instantiate the hook class
     and store it in the registry.
-
-    Args:
-        name (str): Name of the subscriber (e.g. "audit logging").
-        description (str): Short description of the hook (e.g. "Copies eval files to
-            S3 bucket for auditing.").
     """
 
     def wrapper(hook_type: Type[T] | Callable[..., Type[T]]) -> Type[T]:
@@ -253,12 +266,10 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
 
         # Instantiate an instance of the Hooks class.
         hook_instance = hook_type()
-        hook_name = registry_name(hook_instance, name)
+        namespaced_hook_name = registry_name(hook_instance, hook_instance.name)
         registry_add(
             hook_instance,
-            RegistryInfo(
-                type="hooks", name=hook_name, metadata={"description": description}
-            ),
+            RegistryInfo(type="hooks", name=namespaced_hook_name),
         )
         return cast(Type[T], hook_instance)
 
