@@ -619,6 +619,29 @@ website:
           href: reference/inspect_ai.util.qmd#jsonschema
         - text: json_schema
           href: reference/inspect_ai.util.qmd#json_schema
+      - section: inspect_ai.hooks
+        href: reference/inspect_ai.hooks.qmd
+        contents:
+        - text: Hooks
+          href: reference/inspect_ai.hooks.qmd#hooks
+        - text: hooks
+          href: reference/inspect_ai.hooks.qmd#hooks
+        - text: ApiKeyOverride
+          href: reference/inspect_ai.hooks.qmd#apikeyoverride
+        - text: ModelUsageData
+          href: reference/inspect_ai.hooks.qmd#modelusagedata
+        - text: RunEnd
+          href: reference/inspect_ai.hooks.qmd#runend
+        - text: RunStart
+          href: reference/inspect_ai.hooks.qmd#runstart
+        - text: SampleEnd
+          href: reference/inspect_ai.hooks.qmd#sampleend
+        - text: SampleStart
+          href: reference/inspect_ai.hooks.qmd#samplestart
+        - text: TaskEnd
+          href: reference/inspect_ai.hooks.qmd#taskend
+        - text: TaskStart
+          href: reference/inspect_ai.hooks.qmd#taskstart
     - section: Inspect CLI
       href: reference/inspect_eval.qmd
       contents:

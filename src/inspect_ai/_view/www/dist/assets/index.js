@@ -42613,7 +42613,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         }
         if (foundTabId && tabIdIndex > 0) {
-          const logPath = pathSegments.slice(0, tabIdIndex).join("/");
+          const pathSlice = pathSegments.slice(0, tabIdIndex);
+          const firstSegment = pathSlice[0];
+          const logPath = (firstSegment == null ? void 0 : firstSegment.endsWith(":")) && !firstSegment.includes("://") ? firstSegment + (firstSegment === "file:" ? "///" : "//") + pathSlice.slice(1).join("/") : pathSlice.join("/");
           return {
             logPath: decodeUrlParam(logPath),
             tabId: foundTabId,
@@ -91998,6 +92000,7 @@ Supported expressions:
       const clearInitialState = useStore(
         (state) => state.appActions.clearInitialState
       );
+      const evalSpec = useEvalSpec();
       const setSampleTab = useStore((state) => state.appActions.setSampleTab);
       const setShowingSampleDialog = useStore(
         (state) => state.appActions.setShowingSampleDialog
@@ -92020,7 +92023,7 @@ Supported expressions:
       const totalSampleCount = useTotalSampleCount();
       const navigate = useNavigate();
       reactExports.useEffect(() => {
-        if (initialState2) {
+        if (initialState2 && !evalSpec) {
           const url = baseUrl(
             initialState2.log,
             initialState2.sample_id,
@@ -92029,7 +92032,7 @@ Supported expressions:
           clearInitialState();
           navigate(url);
         }
-      }, [initialState2]);
+      }, [initialState2, evalSpec]);
       const prevLogPath = usePrevious(logPath);
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {

@@ -30,7 +30,6 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import (
     is_registry_object,
@@ -87,6 +86,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
@@ -140,6 +140,9 @@ class TaskRunOptions:
 
 
 async def task_run(options: TaskRunOptions) -> EvalLog:
+    from inspect_ai.hooks._hooks import emit_task_end, emit_task_start
+    from inspect_ai.hooks._legacy import send_telemetry_legacy
+
     # destructure options
     task = options.task
     model = options.model
@@ -230,6 +233,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         tags=tags,
         log_location=log_location,
     )
+
+    await emit_task_start(logger)
 
     with display().task(
         profile,
@@ -343,12 +348,17 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                                 time_limit=config.time_limit,
                                 working_limit=config.working_limit,
                                 semaphore=sample_semaphore,
+                                run_id=logger.eval.run_id,
+                                task_id=logger.eval.eval_id,
                             )
                         finally:
                             tg.cancel_scope.cancel()
 
-                    async with anyio.create_task_group() as tg:
-                        tg.start_soon(run, tg)
+                    try:
+                        async with anyio.create_task_group() as tg:
+                            tg.start_soon(run, tg)
+                    except Exception as ex:
+                        raise inner_exception(ex)
 
                     return result
 
@@ -383,6 +393,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
             # finish w/ success status
             eval_log = await logger.log_finish("success", stats, results, reductions)
+
+            await emit_task_end(logger, eval_log)
 
             # display task summary
             td.complete(
@@ -434,13 +446,14 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     view_notify_eval(logger.location)
 
     try:
+        # Log file locations are emitted to the "new" hooks via the "task end" event,
         if (
-            await send_telemetry("eval_log_location", eval_log.location)
+            await send_telemetry_legacy("eval_log_location", eval_log.location)
             == "not_handled"
         ):
             # Converting the eval log to JSON is expensive. Only do so if
             # eval_log_location was not handled.
-            await send_telemetry("eval_log", eval_log_json_str(eval_log))
+            await send_telemetry_legacy("eval_log", eval_log_json_str(eval_log))
     except Exception as ex:
         py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
 
@@ -537,7 +550,11 @@ async def task_run_sample(
     time_limit: int | None,
     working_limit: int | None,
     semaphore: anyio.Semaphore | None,
+    run_id: str,
+    task_id: str,
 ) -> dict[str, SampleScore] | None:
+    from inspect_ai.hooks._hooks import emit_sample_end, emit_sample_start
+
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
         previous_sample = sample_source(sample.id, state.epoch)
@@ -680,15 +697,20 @@ async def task_run_sample(
                         # mark started
                         active.started = datetime.now().timestamp()
 
+                        # emit/log sample start
+                        sample_summary = EvalSampleSummary(
+                            id=sample_id,
+                            epoch=state.epoch,
+                            input=sample.input,
+                            target=sample.target,
+                            metadata=sample.metadata or {},
+                        )
                         if logger is not None:
-                            await logger.start_sample(
-                                EvalSampleSummary(
-                                    id=sample_id,
-                                    epoch=state.epoch,
-                                    input=sample.input,
-                                    target=sample.target,
-                                    metadata=sample.metadata or {},
-                                )
+                            await logger.start_sample(sample_summary)
+                        # only emit the sample start once: not on retries
+                        if not error_retries:
+                            await emit_sample_start(
+                                run_id, task_id, state.uuid, sample_summary
                             )
 
                         # set progress for plan then run it
@@ -829,29 +851,30 @@ async def task_run_sample(
         if not error or (retry_on_error == 0):
             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-            # log it
-            if logger is not None:
-                # if we are logging images then be sure to base64 images injected by solvers
-                if log_images:
-                    state = (await states_with_base64_content([state]))[0]
+            # if we are logging images then be sure to base64 images injected by solvers
+            if log_images:
+                state = (await states_with_base64_content([state]))[0]
 
-                # otherwise ensure there are no base64 images in sample or messages
-                else:
-                    sample = sample_without_base64_content(sample)
-                    state = state_without_base64_content(state)
+            # otherwise ensure there are no base64 images in sample or messages
+            else:
+                sample = sample_without_base64_content(sample)
+                state = state_without_base64_content(state)
 
-                # log the sample
+            # emit/log sample end
+            eval_sample = create_eval_sample(
+                start_time=start_time,
+                sample=sample,
+                state=state,
+                scores=results,
+                error=error,
+                limit=limit,
+                error_retries=error_retries,
+            )
+            if logger:
                 await log_sample(
-                    start_time=start_time,
-                    logger=logger,
-                    sample=sample,
-                    state=state,
-                    scores=results,
-                    error=error,
-                    limit=limit,
-                    error_retries=error_retries,
-                    log_images=log_images,
+                    eval_sample=eval_sample, logger=logger, log_images=log_images
                 )
+            await emit_sample_end(run_id, task_id, state.uuid, eval_sample.summary())
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -889,6 +912,8 @@ async def task_run_sample(
             working_limit=working_limit,
             semaphore=semaphore,
             tg=tg,
+            run_id=run_id,
+            task_id=task_id,
         )
 
     # no error
@@ -907,17 +932,15 @@ async def task_run_sample(
         return None
 
 
-async def log_sample(
+def create_eval_sample(
     start_time: float | None,
-    logger: TaskLogger,
     sample: Sample,
     state: TaskState,
     scores: dict[str, SampleScore],
     error: EvalError | None,
     limit: EvalSampleLimit | None,
     error_retries: list[EvalError],
-    log_images: bool,
-) -> None:
+) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
     if id is None:
@@ -930,7 +953,7 @@ async def log_sample(
     # compute total time if we can
     total_time = time.monotonic() - start_time if start_time is not None else None
 
-    eval_sample = EvalSample(
+    return EvalSample(
         id=id,
         epoch=state.epoch,
         input=sample.input,
@@ -956,6 +979,10 @@ async def log_sample(
         limit=limit,
     )
 
+
+async def log_sample(
+    eval_sample: EvalSample, logger: TaskLogger, log_images: bool
+) -> None:
     await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
 
 

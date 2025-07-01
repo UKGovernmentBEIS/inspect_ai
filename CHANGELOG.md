@@ -1,9 +1,29 @@
 ## Unreleased
 
+- [Hooks](https://inspect.aisi.org.uk/extensions.html#hooks): Generic lifecycle hooks for Inspect extensions.
+- OpenAI: Enable web search for o3 and o4-mini models.
+- Analysis: Provide `score_headline_stderr` field in standard evals column definitions.
+- Analysis: Provide `task_name` without package namespace by default.
+- Analysis: Don't show dataframe import progress by default in notebooks (leaves empty cell output artifact).
+- Analysis: Include `order` field in `messages_df()` and `events_df()`.
+- Logging: Improvements to `--display=log` (improved task info formatting, ability to disable rich logging)
+- Task Display: Limit console to a maximum of 100 lines to prevent rendering performance problems.
+
+## 0.3.111 (29 June 2025)
+
+- Inspect View: Fix issue with tab switching when running in VS Code.
+
+## 0.3.110 (28 June 2025)
+
+- Bugfix: Return inner exception from `run_sample`.
+
+## 0.3.109 (27 June 2025)
+
 - Analysis: More forgiving column reading (use Pandas default reader rather than PyArrow).
 - Fix store_as examples, document inspect_ai.scorer.score
 - Delay cleanup of sample buffer database to account for potential sharing of data dir.
 - Vertex: Ignore types to workaround update that removes type information from some of their sub-packages (tests still pass).
+- MCP: Conform to breaking changes in latest mcp package (1.10.0).
 - Docs: Correct docs for `web_browser()` and `bash_session()` to indicate that you must pass an `instance` explicitly to get distinct processes. 
 - Docs: Correct shared documentation snippet that describes Dockerfile customization for Inspect Tool Support.
 - Inspect View: Properly wrap log configuration values in evaluation header.
@@ -12,7 +32,7 @@
 - Inspect View: Use numerical rather the correct/incorrect UI for scores with 0/1 values.
 - Bugfix: Prevent concurrent accesses of eval event database from raising lock errors.
 - Bugfix: Fix infinite recursion edge case in _flatten_exception.
-- MCP: Conform to breaking changes in latest mcp package (1.10.0).
+
 
 ## 0.3.108 (25 June 2025)
 

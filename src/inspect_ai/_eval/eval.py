@@ -143,7 +143,7 @@ def eval(
             Either a path to an approval policy config file or a list of approval policies.
             Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-            "info", "warning", "error", or "critical" (defaults to "warning")
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results
             (defaults to file log in ./logs directory).
@@ -322,7 +322,7 @@ async def eval_async(
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-          "info", "warning", "error", or "critical" (defaults to "warning")
+          "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
@@ -469,6 +469,8 @@ async def _eval_async_inner(
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
+    from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
+
     # only a single call to eval_async can be active at a time, this used
     # to be due to running tasks switching to the task's directory, however
     # that feature no longer exists so we may be able to revisit this
@@ -487,6 +489,8 @@ async def _eval_async_inner(
     # resolve model and task args
     model_args = resolve_args(model_args)
     task_args = resolve_args(task_args)
+
+    run_id = uuid()
 
     try:
         # intialise eval
@@ -609,9 +613,10 @@ async def _eval_async_inner(
         # run tasks - 2 codepaths, one for the traditional task at a time
         # (w/ optional multiple models) and the other for true multi-task
         # (which requires different scheduling and UI)
-        run_id = uuid()
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
+
+        await emit_run_start(run_id, resolved_tasks)
 
         # single task definition (could be multi-model) or max_tasks capped to 1
         if parallel == 1:
@@ -668,6 +673,10 @@ async def _eval_async_inner(
         cleanup_sample_buffers(log_dir)
 
     finally:
+        try:
+            await emit_run_end(run_id, logs)
+        except UnboundLocalError:
+            await emit_run_end(run_id, EvalLogs([]))
         _eval_async_running = False
 
     # return logs
@@ -706,7 +715,7 @@ def eval_retry(
     Args:
         tasks: Log files for task(s) to retry.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-            "info", "warning", "error", or "critical" (defaults to "warning")
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results
             (defaults to file log in ./logs directory).
@@ -820,7 +829,7 @@ async def eval_retry_async(
     Args:
         tasks: Log files for task(s) to retry.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-          "info", "warning", "error", or "critical" (defaults to "warning")
+          "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).

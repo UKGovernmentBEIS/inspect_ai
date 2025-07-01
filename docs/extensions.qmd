@@ -14,6 +14,8 @@ There are several ways to extend Inspect to integrate with systems not directly 
 
 4.  Storage Systems (for datasets, prompts, and evaluation logs)
 
+5.  Hooks (for logging and monitoring frameworks)
+
 For each of these, you can create an extension within a Python package, and then use it without any special registration with Inspect (this is done via [setuptools entry points](https://setuptools.pypa.io/en/latest/userguide/entry_point.html)).
 
 ## Model APIs {#sec-model-api-extensions}
@@ -425,3 +427,74 @@ myfs = "evaltools:MyFs"
 :::
 
 Once this package is installed, you'll be able to use `myfs://` with Inspect without any further registration.
+
+## Hooks
+
+::: callout-note
+Hooks are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Hooks enable you to run arbitrary code during certain events of Inspect's lifecycle, for example when runs, tasks or samples start and end.
+
+Here is a hypothetical integration with Weights & Biases.
+
+``` python
+import wandb
+
+from inspect_ai.hooks import Hooks, RunEnd, RunStart, SampleEnd, hooks
+
+@hooks(name="w&b_hooks", description="Weights & Biases integration")
+class WBHooks(Hooks):
+    async def on_run_start(self, data: RunStart) -> None:
+        wandb.init(name=data.run_id)
+
+    async def on_run_end(self, data: RunEnd) -> None:
+        wandb.finish()
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        scores = {k: v.value for k, v in data.summary.scores.items()}
+        wandb.log({
+            "sample_id": data.sample_id,
+            "scores": scores
+        })
+```
+
+See the `Hooks` class for more documentation and the full list of available hook events.
+
+Each set of hooks (i.e. each `@hooks`-decorated class) can register for any events (even if they're overlapping).
+
+Alternatively, you may decorate a function which returns the type of a `Hooks` subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).
+
+``` {.python filename="providers.py"}
+@hooks(name="w&b_hooks", description="Weights & Biases integration")
+def wandb_hooks():
+    from .wb_hooks import WBHooks
+
+    return WBHooks
+```
+
+### API Key Override
+
+There is a hook event to optionally override the value of model API key environment variables. This could be used to:
+
+* inject API keys at runtime (e.g. fetched from a secrets manager), to avoid having to store these in your environment or .env file
+* use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys
+
+``` python
+from inspect_ai.hooks import hooks, Hooks, ApiKeyOverride
+
+@hooks(name="api_key_fetcher", description="Fetches API key from secrets manager")
+class ApiKeyFetcher(Hooks):
+    def override_api_key(self, data: ApiKeyOverride) -> str | None:
+        original_env_var_value = data.value
+        if original_env_var_value.startswith("arn:aws:secretsmanager:"):
+            return fetch_aws_secret(original_env_var_value)
+        return None
+
+def fetch_aws_secret(aws_arn: str) -> str:
+    ...
+```

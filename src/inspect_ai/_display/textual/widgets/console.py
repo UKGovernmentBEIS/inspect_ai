@@ -2,6 +2,9 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widgets import RichLog
 
+# maximum number of lines to keep in the console
+MAX_CONSOLE_LINES = 100
+
 
 class ConsoleView(RichLog):
     DEFAULT_CSS = """
@@ -20,6 +23,7 @@ class ConsoleView(RichLog):
         super().__init__()
         self.active = False
         self.show_horizontal_scrollbar = False
+        self.max_lines = MAX_CONSOLE_LINES
 
     async def notify_active(self, active: bool) -> None:
         self.active = active

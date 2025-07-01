@@ -43,7 +43,6 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
@@ -131,6 +130,8 @@ class ModelAPI(abc.ABC):
         """
         self.model_name = model_name
         self.base_url = base_url
+
+        from inspect_ai.hooks._hooks import override_api_key
 
         # apply api key override
         for key in api_key_vars:
@@ -493,6 +494,8 @@ class Model:
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
     ) -> tuple[ModelOutput, BaseModel]:
+        from inspect_ai.hooks._hooks import emit_model_usage
+        from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._samples import track_active_model_event
         from inspect_ai.log._transcript import ModelEvent
 
@@ -685,8 +688,11 @@ class Model:
                 # record usage
                 record_and_check_model_usage(f"{self}", output.usage)
 
-                # send telemetry if its hooked up
-                await send_telemetry(
+                # send telemetry to hooks
+                await emit_model_usage(
+                    model_name=str(self), usage=output.usage, call_duration=output.time
+                )
+                await send_telemetry_legacy(
                     "model_usage",
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
                 )
@@ -927,6 +933,8 @@ def get_model(
         Model instance.
 
     """
+    from inspect_ai.hooks._startup import init_hooks
+
     # start with seeing if a model was passed
     if isinstance(model, Model):
         return model
