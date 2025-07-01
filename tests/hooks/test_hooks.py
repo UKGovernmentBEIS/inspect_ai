@@ -3,9 +3,11 @@ from unittest.mock import patch
 
 import pytest
 
+import inspect_ai.hooks._startup as hooks_startup_module
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_var
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.hooks._hooks import (
@@ -21,6 +23,7 @@ from inspect_ai.hooks._hooks import (
     hooks,
     override_api_key,
 )
+from inspect_ai.hooks._startup import init_hooks
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 
@@ -79,6 +82,14 @@ class MockMinimalHooks(Hooks):
 
     async def on_run_start(self, data: RunStart) -> None:
         self.run_start_events.append(data)
+
+
+@pytest.fixture(autouse=True)
+def reset_hooks() -> None:
+    # Reset the _registry_hooks_loaded flag before each test, which ensures that
+    # _load_registry_hooks() is called for each test (required for tests which verify
+    # INSPECT_REQUIRED_HOOKS).
+    hooks_startup_module._registry_hooks_loaded = False
 
 
 @pytest.fixture
@@ -246,8 +257,6 @@ def test_api_key_override_falls_back_to_legacy(mock_hooks: MockHooks) -> None:
 
 
 def test_init_hooks_can_be_called_multiple_times(mock_hooks: MockHooks) -> None:
-    from inspect_ai.hooks._startup import init_hooks
-
     # Ensure that init_hooks can be called multiple times without issues.
     init_hooks()
     init_hooks()
@@ -272,6 +281,23 @@ def test_hooks_decorator_returns_class() -> None:
     assert isinstance(TestHooksClass, type)
     instance = TestHooksClass()
     assert isinstance(instance, Hooks)
+
+
+def test_required_hooks_when_all_installed(
+    monkeypatch: pytest.MonkeyPatch, mock_hooks: MockHooks, hooks_2: MockHooks
+) -> None:
+    with environ_var("INSPECT_REQUIRED_HOOKS", "test_hooks"):
+        init_hooks()
+
+
+def test_required_hooks_when_one_missing(
+    monkeypatch: pytest.MonkeyPatch, mock_hooks: MockHooks
+) -> None:
+    with environ_var("INSPECT_REQUIRED_HOOKS", "test_hooks,fake"):
+        with pytest.raises(PrerequisiteError) as exc_info:
+            init_hooks()
+
+    assert "missing: {'fake'}" in str(exc_info.value)
 
 
 T = TypeVar("T", bound=Hooks)
