@@ -22,8 +22,8 @@ from ._agent import Agent, AgentState, agent, agent_with
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
-    DEFAULT_CONTINUE_PROMOT_NO_SUBMIT,
     DEFAULT_CONTINUE_PROMPT,
+    DEFAULT_CONTINUE_PROMPT_NO_SUBMIT,
     AgentAttempts,
     AgentContinue,
     AgentPrompt,
@@ -329,7 +329,7 @@ def react_no_submit(
                         if not state.output.message.tool_calls:
                             state.messages.append(
                                 ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMOT_NO_SUBMIT
+                                    content=DEFAULT_CONTINUE_PROMPT_NO_SUBMIT
                                 )
                             )
                     elif isinstance(do_continue, str):

@@ -55,7 +55,7 @@ Please proceed to the next step using your best judgement. If you believe you
 have completed the task, please call the `{submit}()` tool with your final answer.
 """
 
-DEFAULT_CONTINUE_PROMOT_NO_SUBMIT = """
+DEFAULT_CONTINUE_PROMPT_NO_SUBMIT = """
 Please proceed to the next step using your best judgement.
 """
 
