@@ -51591,9 +51591,9 @@ categories: ${categories.join(" ")}`;
       const allColumns = [
         iconColumn(),
         taskColumn(),
+        modelColumn(),
         fileNameColumn(),
         completedDateColumn(),
-        modelColumn(),
         scoreColumn(),
         statusColumn()
       ];
