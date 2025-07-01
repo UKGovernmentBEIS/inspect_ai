@@ -133,7 +133,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                     error or self._get_request_failed_error(request)
                 )
             except anyio.BrokenResourceError:
-                # TODO: VERIFY Stream already closed, ignore
+                # Stream closed (client disconnected/completed) - continue
+                # notifying remaining requests
                 pass
 
     def _process_intake_queue(self) -> None:
