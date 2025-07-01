@@ -430,7 +430,15 @@ Once this package is installed, you'll be able to use `myfs://` with Inspect wit
 
 ## Hooks
 
-Hooks allow you to run arbitrary code during certain events of Inspect's lifecycle, for example when runs, tasks or samples start and end.
+::: callout-note
+Hooks are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Hooks enable you to run arbitrary code during certain events of Inspect's lifecycle, for example when runs, tasks or samples start and end.
 
 Here is a hypothetical integration with Weights & Biases.
 

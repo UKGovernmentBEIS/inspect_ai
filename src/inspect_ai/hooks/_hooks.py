@@ -232,6 +232,14 @@ T = TypeVar("T", bound=Hooks)
 def hooks(name: str, description: str) -> Callable[..., Type[T]]:
     """Decorator for registering a hook subscriber.
 
+    ::: callout-note
+    The `@hooks` decorator is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
     Either decorate a subclass of `Hooks`, or a function which returns the type
     of a subclass of `Hooks`. This decorator will instantiate the hook class
     and store it in the registry.
