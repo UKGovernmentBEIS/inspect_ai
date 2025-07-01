@@ -511,6 +511,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#filesystem-functions" id="toc-filesystem-functions" class="nav-link" data-scroll-target="#filesystem-functions">Filesystem Functions</a></li>
   <li><a href="#sec-custom-filesystems" id="toc-sec-custom-filesystems" class="nav-link" data-scroll-target="#sec-custom-filesystems">Custom Filesystems</a></li>
   </ul></li>
+  <li><a href="#hooks" id="toc-hooks" class="nav-link" data-scroll-target="#hooks">Hooks</a>
+  <ul class="collapse">
+  <li><a href="#api-key-override" id="toc-api-key-override" class="nav-link" data-scroll-target="#api-key-override">API Key Override</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -544,6 +548,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Sandboxes (local or cloud container runtimes)</p></li>
 <li><p>Approvers (approve, modify, or reject tool calls)</p></li>
 <li><p>Storage Systems (for datasets, prompts, and evaluation logs)</p></li>
+<li><p>Hooks (for logging and monitoring frameworks)</p></li>
 </ol>
 <p>For each of these, you can create an extension within a Python package, and then use it without any special registration with Inspect (this is done via <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry points</a>).</p>
 </section>
@@ -1028,6 +1033,76 @@ pyproject.toml</code></pre>
 </div>
 </div>
 <p>Once this package is installed, you’ll be able to use <code>myfs://</code> with Inspect without any further registration.</p>
+</section>
+</section>
+<section id="hooks" class="level2">
+<h2 class="anchored" data-anchor-id="hooks">Hooks</h2>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Hooks are available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+<p>Hooks enable you to run arbitrary code during certain events of Inspect’s lifecycle, for example when runs, tasks or samples start and end.</p>
+<p>Here is a hypothetical integration with Weights &amp; Biases.</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> wandb</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> Hooks, RunEnd, RunStart, SampleEnd, hooks</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WBHooks(Hooks):</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_run_start(<span class="va">self</span>, data: RunStart) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>        wandb.init(name<span class="op">=</span>data.run_id)</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_run_end(<span class="va">self</span>, data: RunEnd) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>        wandb.finish()</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_sample_end(<span class="va">self</span>, data: SampleEnd) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> {k: v.value <span class="cf">for</span> k, v <span class="kw">in</span> data.summary.scores.items()}</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>        wandb.log({</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">"sample_id"</span>: data.sample_id,</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>            <span class="st">"scores"</span>: scores</span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>        })</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#hooks">Hooks</a></span> class for more documentation and the full list of available hook events.</p>
+<p>Each set of hooks (i.e.&nbsp;each <code>@hooks</code>-decorated class) can register for any events (even if they’re overlapping).</p>
+<p>Alternatively, you may decorate a function which returns the type of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#hooks">Hooks</a></span> subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>providers.py</strong></pre>
+</div>
+<div class="sourceCode" id="cb26" data-filename="providers.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wandb_hooks():</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> .wb_hooks <span class="im">import</span> WBHooks</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> WBHooks</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<section id="api-key-override" class="level3">
+<h3 class="anchored" data-anchor-id="api-key-override">API Key Override</h3>
+<p>There is a hook event to optionally override the value of model API key environment variables. This could be used to:</p>
+<ul>
+<li>inject API keys at runtime (e.g.&nbsp;fetched from a secrets manager), to avoid having to store these in your environment or .env file</li>
+<li>use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys</li>
+</ul>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> hooks, Hooks, ApiKeyOverride</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"api_key_fetcher"</span>, description<span class="op">=</span><span class="st">"Fetches API key from secrets manager"</span>)</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApiKeyFetcher(Hooks):</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> override_api_key(<span class="va">self</span>, data: ApiKeyOverride) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>        original_env_var_value <span class="op">=</span> data.value</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> original_env_var_value.startswith(<span class="st">"arn:aws:secretsmanager:"</span>):</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> fetch_aws_secret(original_env_var_value)</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fetch_aws_secret(aws_arn: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>

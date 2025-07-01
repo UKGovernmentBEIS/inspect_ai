@@ -35,7 +35,7 @@ inspect cache clear [OPTIONS]
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’) | `warning` |
+| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--all` | boolean | Clear all cache files in the cache directory. | `False` |
 | `--model` | text | Clear the cache for a specific model (e.g. –model=openai/gpt-4). Can be passed multiple times. | None |
 | `--help` | boolean | Show this message and exit. | `False` |
@@ -91,6 +91,6 @@ inspect cache prune [OPTIONS]
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’) | `warning` |
+| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--model` | text | Only prune a specific model (e.g. –model=openai/gpt-4). Can be passed multiple times. | None |
 | `--help` | boolean | Show this message and exit. | `False` |

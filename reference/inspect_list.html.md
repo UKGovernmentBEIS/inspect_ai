@@ -32,7 +32,7 @@ inspect list tasks [OPTIONS] [PATHS]...
 | `-F` | text | One or more boolean task filters (e.g. -F light=true or -F draft~=false) | None |
 | `--absolute` | boolean | List absolute paths to task scripts (defaults to relative to the cwd). | `False` |
 | `--json` | boolean | Output listing as JSON | `False` |
-| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’) | `warning` |
+| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |

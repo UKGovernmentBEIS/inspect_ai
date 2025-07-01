@@ -795,7 +795,7 @@ inspect eval arc.py --model ollama/llama3.1
 ```
 
 Note that you should be sure that Ollama is running on your system
-berore using it with Inspect.
+before using it with Inspect.
 
 The following environment variables are supported by the Ollma provider
 
