@@ -1,5 +1,6 @@
 ## Unreleased
 
+- [Hooks](https://inspect.aisi.org.uk/extensions.html#hooks): Generic lifecycle hooks for Inspect extensions.
 - OpenAI: Enable web search for o3 and o4-mini models.
 - Analysis: Provide `score_headline_stderr` field in standard evals column definitions.
 - Analysis: Provide `task_name` without package namespace by default.
