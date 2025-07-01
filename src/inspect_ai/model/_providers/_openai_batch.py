@@ -1,6 +1,7 @@
 import functools
 import json
 import tempfile
+from logging import getLogger
 from typing import Any, Literal, TypedDict
 
 import httpx
@@ -20,6 +21,8 @@ from .util.batch import (
     BatchRequest,
 )
 from .util.hooks import HttpxHooks
+
+logger = getLogger(__name__)
 
 
 class CompletedBatchInfo(TypedDict):
@@ -125,9 +128,9 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             result: dict[str, Any] = json.loads(line)
             request_id = result.pop("custom_id")
             if not request_id:
-                # TODO: Does this happen? Seems like a coding error if it does.
-                # either ours or openai's
-                #
+                logger.error(
+                    f"Unable to find custom_id in batched request result. {result}"
+                )
                 continue
 
             batch_request = batch.requests.pop(request_id)
