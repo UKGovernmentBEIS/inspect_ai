@@ -6,6 +6,7 @@ from typing import Any, Literal
 from mistralai import (
     ContentChunk,
     DocumentURLChunk,
+    FileChunk,
     FunctionCall,
     FunctionName,
     ImageURL,
@@ -491,6 +492,8 @@ def completion_content(content: str | list[ContentChunk]) -> str | list[Content]
 
 
 def completion_content_chunks(content: ContentChunk) -> list[Content]:
+    if isinstance(content, FileChunk):
+        raise TypeError("FileChunk content is not supported by Inspect.")
     if isinstance(content, ReferenceChunk):
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
