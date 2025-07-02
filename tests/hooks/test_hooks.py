@@ -264,6 +264,16 @@ def test_hooks_name_and_description(mock_hooks: MockHooks) -> None:
     assert info.metadata["description"] == "test_hooks-description"
 
 
+def test_hooks_decorator_returns_class() -> None:
+    @hooks(name="test_hooks_class", description="test")
+    class TestHooksClass(Hooks):
+        pass
+
+    assert isinstance(TestHooksClass, type)
+    instance = TestHooksClass()
+    assert isinstance(instance, Hooks)
+
+
 T = TypeVar("T", bound=Hooks)
 
 

@@ -10,9 +10,9 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect-vscode)"
   categories: ["Tooling"]
 
-- name: "[Docent](https://docent.transluce.org/)"
+- name: "[Docent](https://docs.transluce.org/)"
   description: |
-    Agent transcript analysis. Identify corrupted tasks, scaffolding issues, unexpected behaviors, and agent weaknesses
+    Docent provides tools to summarize, cluster, and search over agent transcripts.
   author: "[Transluce](https://transluce.org/introducing-docent)"
   categories: ["Analysis"]
 

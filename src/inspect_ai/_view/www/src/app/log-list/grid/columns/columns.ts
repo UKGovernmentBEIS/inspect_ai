@@ -14,9 +14,9 @@ export const getColumns = (columnIds?: string[]) => {
   const allColumns = [
     iconColumn(),
     taskColumn(),
+    modelColumn(),
     fileNameColumn(),
     completedDateColumn(),
-    modelColumn(),
     scoreColumn(),
     statusColumn(),
   ];
