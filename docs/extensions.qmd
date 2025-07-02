@@ -79,6 +79,13 @@ For example, if your package was named `evaltools` and your model provider was e
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -236,6 +243,13 @@ For example, if your package was named `evaltools` and your sandbox environment 
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -337,6 +351,13 @@ You can then register your `auto_approver` Inspect extension (and anything else 
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -418,6 +439,13 @@ As with Model APIs and Sandbox Environments, fsspec filesystems should be regist
 myfs = "evaltools:MyFs"
 ```
 
+## uv
+
+``` toml
+[project.entry-points."fsspec.specs"]
+myfs = "evaltools:MyFs"
+```
+
 ## Poetry
 
 ``` toml
@@ -439,6 +467,37 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 :::
 
 Hooks enable you to run arbitrary code during certain events of Inspect's lifecycle, for example when runs, tasks or samples start and end.
+
+### Hooks Registration
+
+You should build your custom `Hooks` class within a Python package, and then register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension at startup and will display its name and description to the user.
+
+For example, if your package was named `evaltools` and your model provider was exported from a source file named `_hooks_.py` at the root of your package, you would register it like this in `pyproject.toml`:
+
+::: {.panel-tabset group="entry-points"}
+## Setuptools
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._hooks"
+```
+
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._hooks"
+```
+
+## Poetry
+
+``` toml
+[tool.poetry.plugins.inspect_ai]
+evaltools = "evaltools._hooks"
+```
+:::
+
+### Hooks Usage
 
 Here is a hypothetical integration with Weights & Biases.
 
@@ -477,7 +536,7 @@ def wandb_hooks():
     return WBHooks
 ```
 
-### API Key Override
+#### API Key Override
 
 There is a hook event to optionally override the value of model API key environment variables. This could be used to:
 
