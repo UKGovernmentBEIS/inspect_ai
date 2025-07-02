@@ -6,6 +6,7 @@
 - Analysis: Provide `task_name` without package namespace by default.
 - Analysis: Don't show dataframe import progress by default in notebooks (leaves empty cell output artifact).
 - Analysis: Include `order` field in `messages_df()` and `events_df()`.
+- Eval: Introduce `run_samples` option to disable running samples (resulting in a log file with status "started" and no samples).
 - Logging: Improvements to `--display=log` (improved task info formatting, ability to disable rich logging)
 - Task Display: Limit console to a maximum of 100 lines to prevent rendering performance problems.
 - Bugfix: Conform to breaking changes in `mistralai` package (1.9.1).
