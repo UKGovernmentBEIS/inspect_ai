@@ -20,20 +20,31 @@ from inspect_ai.solver import (
 from inspect_ai.tool import ToolCallError, text_editor
 
 
-def inspect_tool_support_sandbox() -> tuple[str, str]:
-    return (
-        "docker",
-        (Path(__file__).parent / "test_inspect_tool_support.yaml").as_posix(),
-    )
+@pytest.fixture(scope="session")
+def inspect_tool_support_sandbox(local_inspect_tools) -> tuple[str, str]:
+    """
+    Return tuple of (docker, path to sandbox config) based on args.
+
+    Return a path to a docker project configuration for a container
+    with the inspect tools package installed. If pytest is run with
+    --local-inspect-tools, build from source, otherwise pull from
+    dockerhub.
+    """
+    base = Path(__file__).parent
+    if local_inspect_tools:
+        cfg = "test_inspect_tool_support.from_source.yaml"
+    else:
+        cfg = "test_inspect_tool_support.yaml"
+    return "docker", (base / cfg).as_posix()
 
 
 @pytest.mark.slow
-def test_text_editor_read():
+def test_text_editor_read(inspect_tool_support_sandbox):
     task = Task(
         dataset=[Sample(input="Please read the file '/etc/passwd'")],
         solver=[use_tools([text_editor()]), generate()],
         scorer=match(),
-        sandbox=inspect_tool_support_sandbox(),
+        sandbox=inspect_tool_support_sandbox,
     )
     model = get_model(
         "mockllm/model",
@@ -64,12 +75,12 @@ def test_text_editor_read():
 
 
 @pytest.mark.slow
-def test_text_editor_read_missing():
+def test_text_editor_read_missing(inspect_tool_support_sandbox):
     task = Task(
         dataset=[Sample(input="Please read the file '/missing.txt'")],
         solver=[use_tools([text_editor()]), generate()],
         scorer=match(),
-        sandbox=inspect_tool_support_sandbox(),
+        sandbox=inspect_tool_support_sandbox,
     )
     model = get_model(
         "mockllm/model",
