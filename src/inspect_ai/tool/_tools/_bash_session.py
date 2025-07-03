@@ -81,6 +81,7 @@ def bash_session(
     *,
     timeout: int | None = None,  # default is max_wait + 5 seconds
     wait_for_output: int | None = None,  # default is 30 seconds
+    user: str | None = None,
     instance: str | None = None,
 ) -> Tool:
     """Interactive bash shell session tool.
@@ -101,6 +102,7 @@ def bash_session(
           output is received within this period, the function will return an
           empty string. The model may need to make multiple tool calls to obtain
           all output from a given command.
+      user: Username to run commands as
       instance: Instance id (each unique instance id has its own bash process)
 
     Returns:
@@ -199,6 +201,7 @@ def bash_session(
                     {},
                     NewSessionResult,
                     TRANSPORT_TIMEOUT,
+                    user=user,
                 )
             ).session_name
 
@@ -220,6 +223,7 @@ def bash_session(
             {"session_name": store.session_id, **(action_specific[action])},
             str,
             timeout,
+            user=user,
         )
 
         # Return the appropriate response
