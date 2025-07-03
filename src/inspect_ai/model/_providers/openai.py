@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from openai import (
     AsyncAzureOpenAI,
@@ -16,6 +16,7 @@ from typing_extensions import override
 from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
+from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
@@ -45,6 +46,7 @@ from .._openai import (
     openai_should_retry,
 )
 from .._openai_responses import is_native_tool_configured
+from ._openai_batch import OpenAIBatcher
 from .openai_o1 import generate_o1
 from .util import environment_prerequisite_error, model_base_url
 
@@ -53,6 +55,7 @@ logger = getLogger(__name__)
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
+
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
 
@@ -176,6 +179,8 @@ class OpenAIAPI(ModelAPI):
                 timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
+
+        self._batcher: OpenAIBatcher | None = None
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -305,10 +310,7 @@ class OpenAIAPI(ModelAPI):
         )
 
         try:
-            # generate completion
-            completion: ChatCompletion = await self.client.chat.completions.create(
-                **request
-            )
+            completion: ChatCompletion = await self._get_completion(request, config)
 
             # save response for model_call
             response = completion.model_dump()
@@ -318,6 +320,21 @@ class OpenAIAPI(ModelAPI):
             return model_output_from_openai(completion, choices), model_call()
         except (BadRequestError, UnprocessableEntityError) as e:
             return openai_handle_bad_request(self.service_model_name(), e), model_call()
+
+    async def _get_completion(
+        self, request: dict[str, Any], config: GenerateConfig
+    ) -> ChatCompletion:
+        # TODO: Bogus that we have to do this on each call. Ideally, it would be
+        # done only once and ideally by non-provider specific code.
+        batch_config = normalized_batch_config(config.batch)
+        if batch_config:
+            if not self._batcher:
+                self._batcher = OpenAIBatcher(self.client, batch_config)
+            return await self._batcher.generate(request, config)
+        else:
+            return cast(
+                ChatCompletion, await self.client.chat.completions.create(**request)
+            )
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""

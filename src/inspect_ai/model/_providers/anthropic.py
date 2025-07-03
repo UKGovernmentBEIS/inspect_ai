@@ -64,7 +64,7 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
-from .._generate_config import GenerateConfig
+from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
@@ -72,6 +72,7 @@ from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
+from ._anthropic_batch import AnthropicBatcher
 from .util import environment_prerequisite_error, model_base_url
 from .util.hooks import HttpxHooks
 
@@ -173,6 +174,8 @@ class AnthropicAPI(ModelAPI):
                 **model_args,
             )
 
+        self._batcher: AnthropicBatcher | None = None
+
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
 
@@ -259,7 +262,7 @@ class AnthropicAPI(ModelAPI):
             )
 
             message, output = await self._perform_request_and_continuations(
-                request, streaming, tools
+                request, streaming, tools, config
             )
 
             response = message.model_dump()
@@ -285,6 +288,7 @@ class AnthropicAPI(ModelAPI):
         request: dict[str, Any],
         streaming: bool,
         tools: list[ToolInfo],
+        config: GenerateConfig,
     ) -> tuple[Message, ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -292,7 +296,14 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
-        if streaming:
+        # TODO: Bogus that we have to do this on each call. Ideally, it would be
+        # done only once and ideally by non-provider specific code.
+        batch_config = normalized_batch_config(config.batch)
+        if batch_config:
+            if not self._batcher:
+                self._batcher = AnthropicBatcher(self.client, batch_config)
+            head_message = await self._batcher.generate(request, config)
+        elif streaming:
             async with self.client.messages.stream(**request) as stream:
                 head_message = await stream.get_final_message()
         else:
@@ -308,7 +319,7 @@ class AnthropicAPI(ModelAPI):
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
             _, tail_model_output = await self._perform_request_and_continuations(
-                tail_request, streaming, tools
+                tail_request, streaming, tools, config
             )
 
             head_content = _content_list(head_model_output.message.content)

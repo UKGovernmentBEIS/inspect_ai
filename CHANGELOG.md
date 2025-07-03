@@ -1,3 +1,7 @@
+## Unreleased
+
+- Batch: Support for batch processing when using OpenAI or Anthropic models.
+
 ## 0.3.112 (03 July 2025)
 
 - [Hooks](https://inspect.aisi.org.uk/extensions.html#hooks): Generic lifecycle hooks for Inspect extensions.

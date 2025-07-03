@@ -25,6 +25,7 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
+    DEFAULT_MAX_CONNECTIONS_BATCH,
 )
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
@@ -1108,6 +1109,8 @@ def create_sample_semaphore(
     max_samples = (
         generate_config.max_connections
         if generate_config.max_connections is not None
+        else DEFAULT_MAX_CONNECTIONS_BATCH
+        if generate_config.batch
         else modelapi.max_connections()
         if modelapi
         else DEFAULT_MAX_CONNECTIONS

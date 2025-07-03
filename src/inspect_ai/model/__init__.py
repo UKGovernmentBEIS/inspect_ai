@@ -37,6 +37,7 @@ from ._chat_message import (
 )
 from ._conversation import ModelConversation
 from ._generate_config import (
+    BatchConfig,
     GenerateConfig,
     GenerateConfigArgs,
     ResponseSchema,
@@ -62,6 +63,7 @@ from ._registry import modelapi
 from ._trim import trim_messages
 
 __all__ = [
+    "BatchConfig",
     "GenerateConfig",
     "GenerateConfigArgs",
     "ResponseSchema",
