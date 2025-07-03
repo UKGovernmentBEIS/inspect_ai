@@ -1,0 +1,8 @@
+{
+  "workbench.preferredDarkColorTheme": "Ayu Dark",
+  "workbench.preferredLightColorTheme": "Noctis Hibernus",
+  "workbench.colorTheme": "Ayu Dark",
+  "python.testing.pytestArgs": ["src"],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
+}

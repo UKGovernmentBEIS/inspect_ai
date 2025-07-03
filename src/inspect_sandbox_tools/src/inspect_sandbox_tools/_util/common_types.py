@@ -1,6 +1,5 @@
 from typing import NewType
 
-
 class ToolException(Exception):
     """Raised when a tool encounters an error."""
 
