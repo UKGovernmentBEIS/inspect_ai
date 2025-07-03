@@ -18,7 +18,7 @@ from ._tavily import TavilyOptions, tavily_search_provider
 from ._web_search_provider import SearchProvider
 
 Provider: TypeAlias = Literal[
-    "gemini", "openai", "anthropic", "perplexity", "tavily", "google", "exa"
+    "grok", "gemini", "openai", "anthropic", "perplexity", "tavily", "google", "exa"
 ]
 valid_providers = set(get_args(Provider))
 
@@ -34,6 +34,7 @@ valid_providers = set(get_args(Provider))
 class Providers(TypedDict, total=False):
     openai: dict[str, Any] | Literal[True]
     anthropic: dict[str, Any] | Literal[True]
+    grok: dict[str, Any] | Literal[True]
     gemini: dict[str, Any] | Literal[True]
     perplexity: dict[str, Any] | Literal[True]
     tavily: dict[str, Any] | Literal[True]
@@ -44,6 +45,7 @@ class Providers(TypedDict, total=False):
 class _NormalizedProviders(TypedDict, total=False):
     openai: dict[str, Any]
     anthropic: dict[str, Any]
+    grok: dict[str, Any]
     gemini: dict[str, Any]
     perplexity: dict[str, Any]
     tavily: dict[str, Any]
@@ -69,10 +71,10 @@ def web_search(
     Web searches are executed using a provider. Providers are split
     into two categories:
 
-    - Internal providers: "openai", "anthropic", "gemini", "perplexity" - these use the model's built-in
-      search capability and do not require separate API keys. These work only for
-      their respective model provider (e.g. the "openai" search provider
-      works only for `openai/*` models).
+    - Internal providers: "openai", "anthropic", "grok", "gemini", "perplexity".
+      These use the model's built-in search capability and do not require separate
+      API keys. These work only for their respective model provider (e.g. the
+      "openai" search provider works only for `openai/*` models).
 
     - External providers: "tavily", "google", and "exa". These are external services
       that work with any model and require separate accounts and API keys.
@@ -86,11 +88,12 @@ def web_search(
 
     Args:
       providers: Configuration for the search providers to use. Currently supported
-        providers are "openai", "anthropic", "perplexity", "tavily", "google", and "exa". The
-        `providers` parameter supports several formats based on either a `str`
-        specifying a provider or a `dict` whose keys are the provider names and
-        whose values are the provider-specific options. A single value or a list
-        of these can be passed. This arg is optional just for backwards compatibility.
+        providers are "openai", "anthropic", "perplexity", "tavily", "gemini", "grok",
+        "google", and "exa". The `providers` parameter supports several formats
+        based on either a `str` specifying a provider or a `dict` whose keys are
+        the provider names and whose values are the provider-specific options. A
+        single value or a list of these can be passed. This arg is optional just
+        for backwards compatibility.
         New code should always provide this argument.
 
         Single provider:
@@ -134,6 +137,9 @@ def web_search(
 
         - google: Supports options like `num_results`, `max_provider_calls`,
           `max_connections`, and `model`
+
+        - grok: Supports X-AI's live search parameters.
+          See https://docs.x.ai/docs/guides/live-search#live-search
 
       **deprecated: Deprecated arguments.
 

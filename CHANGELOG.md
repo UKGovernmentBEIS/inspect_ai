@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Batch: Support for batch processing when using OpenAI or Anthropic models.
+- Added native Grok web search to [web_search()](https://inspect.aisi.org.uk/tools-standard.html#sec-web-search) tool.
+
 
 ## 0.3.112 (03 July 2025)
 

@@ -42909,7 +42909,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const MessageCitation = ({ citation }) => {
       const innards = decodeHtmlEntities(
-        citation.title ?? (typeof citation.cited_text === "string" ? citation.cited_text : "")
+        citation.title ?? (typeof citation.cited_text === "string" ? citation.cited_text : citation.type === "url" ? citation.url : "")
       );
       return citation.type === "url" ? /* @__PURE__ */ jsxRuntimeExports.jsx(UrlCitation, { citation, children: innards }) : /* @__PURE__ */ jsxRuntimeExports.jsx(OtherCitation, { children: innards });
     };
@@ -42923,8 +42923,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         target: "_blank",
         rel: "noopener noreferrer",
         className: clsx(styles$1s.citationLink),
-        title: `${citation.cited_text || ""}
-${citation.url}`,
+        title: citation.cited_text ? `${citation.cited_text}
+${citation.url}` : citation.url,
         children: children2
       }
     );
