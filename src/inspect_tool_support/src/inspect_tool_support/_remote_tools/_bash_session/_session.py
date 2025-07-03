@@ -6,8 +6,8 @@ from .tool_types import BashRestartResult, InteractResult
 
 class Session:
     @classmethod
-    async def create(cls) -> "Session":
-        return cls(await Process.create())
+    async def create(cls, user: str) -> "Session":
+        return cls(await Process.create(user=user))
 
     def __init__(self, process: Process) -> None:
         self._process = process

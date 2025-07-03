@@ -26,6 +26,10 @@ class BashParams(RootModel[InteractParams | RestartParams]):
     pass
 
 
+class NewSessionParams(BaseModel):
+    user: str = "root"
+
+
 class NewSessionResult(BaseModel):
     session_name: str
 

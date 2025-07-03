@@ -1,5 +1,6 @@
 import asyncio
 import os
+import pwd
 import re
 from asyncio.subprocess import Process as AsyncIOProcess
 
@@ -10,8 +11,22 @@ from .tool_types import InteractResult
 
 class Process:
     @classmethod
-    async def create(cls) -> "Process":
+    async def create(cls, user: str) -> "Process":
         pty = await PseudoTerminal.create()
+
+        # validate the user exists
+        preexec = {}
+        if user != "root":
+            try:
+                pw = pwd.getpwnam(user)
+            except KeyError as e:
+                raise ValueError(f"No such user: {user!r}") from e
+
+            def _demote():
+                os.setgid(pw.pw_gid)
+                os.setuid(pw.pw_uid)
+
+            preexec = {"preexec_fn": _demote}
 
         return cls(
             await asyncio.create_subprocess_exec(
@@ -22,6 +37,7 @@ class Process:
                 stderr=pty.subprocess_fd,
                 env={**os.environ, "TERM": "dumb"},
                 start_new_session=True,
+                **preexec,
             ),
             pty,
         )

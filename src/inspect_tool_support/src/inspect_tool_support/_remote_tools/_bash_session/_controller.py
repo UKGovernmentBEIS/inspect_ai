@@ -1,3 +1,5 @@
+from functools import partial
+
 from ..._util.session_controller import SessionController
 from ._session import Session
 from .tool_types import BashRestartResult, InteractResult
@@ -8,8 +10,10 @@ DEFAULT_SESSION_NAME = "BashSession"
 class Controller(SessionController[Session]):
     """BashSessionController provides support for isolated inspect subtask sessions."""
 
-    async def new_session(self) -> str:
-        return await self.create_new_session(DEFAULT_SESSION_NAME, Session.create)
+    async def new_session(self, user) -> str:
+        return await self.create_new_session(
+            DEFAULT_SESSION_NAME, partial(Session.create, user)
+        )
 
     async def interact(
         self,

@@ -82,6 +82,7 @@ def bash_session(
     timeout: int | None = None,  # default is max_wait + 5 seconds
     wait_for_output: int | None = None,  # default is 30 seconds
     instance: str | None = None,
+    user: str = "root",
 ) -> Tool:
     """Interactive bash shell session tool.
 
@@ -102,6 +103,8 @@ def bash_session(
           empty string. The model may need to make multiple tool calls to obtain
           all output from a given command.
       instance: Instance id (each unique instance id has its own bash process)
+      user: Username to run commands as. Note user is ignored (defaulting to root) in
+          inspect_tool_support prior to v1.1.1.
 
     Returns:
       String with output from the shell.
@@ -196,7 +199,7 @@ def bash_session(
                 await exec_model_request(
                     sandbox,
                     "bash_session_new_session",
-                    {},
+                    {"user": user},
                     NewSessionResult,
                     TRANSPORT_TIMEOUT,
                 )
