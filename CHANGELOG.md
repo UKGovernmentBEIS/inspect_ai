@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.112 (03 July 2025)
 
 - [Hooks](https://inspect.aisi.org.uk/extensions.html#hooks): Generic lifecycle hooks for Inspect extensions.
 - Datasets: Expand glob wildcards when processing `--sample_id` filter for datasets.
