@@ -47,8 +47,6 @@ def main() -> None:
 # {"jsonrpc": "2.0", "method": "editor", "id": 666, "params": {"command": "view", "path": "/tmp"}}
 # {"jsonrpc": "2.0", "method": "bash", "id": 666, "params": {"command": "ls ~/Downloads"}}
 async def _exec(request: str | None) -> None:
-    _ensure_server_is_running()
-
     in_process_tools = load_tools("inspect_tool_support._in_process_tools")
 
     request_json_str = request or sys.stdin.read().strip()
@@ -69,6 +67,7 @@ async def _dispatch_local_method(request_json_str: str) -> JSONRPCResponseJSON:
 
 
 async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
+    _ensure_server_is_running()
     return await json_rpc_http_call(_SERVER_URL, request_json_str)
 
 
