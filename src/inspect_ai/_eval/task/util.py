@@ -1,6 +1,7 @@
 import os
 import reprlib
 from copy import deepcopy
+from fnmatch import fnmatch
 from logging import getLogger
 from typing import cast
 
@@ -66,8 +67,13 @@ def slice_dataset(
                     logger, f"sample id '{id}' not found in dataset '{dataset.name}'."
                 )
 
+        # helper to check for a matching sample id
+        def include_sample(sample: Sample) -> bool:
+            id = normalise(sample.id)
+            return any(fnmatch(id, pat) for pat in sample_id)
+
         # filter the dataset
-        filtered = dataset.filter(lambda sample: normalise(sample.id) in sample_id)
+        filtered = dataset.filter(include_sample)
 
         # raise error if we got no hits
         if len(filtered) == 0:

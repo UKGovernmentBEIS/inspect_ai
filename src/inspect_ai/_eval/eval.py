@@ -110,6 +110,7 @@ def eval(
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
+    run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -188,6 +189,8 @@ def eval(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         log_header_only: If `True`, the function should return only log headers rather
             than full logs with samples (defaults to `False`).
+        run_samples: Run samples. If `False`, a log with `status=="started"` and an
+            empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -200,7 +203,7 @@ def eval(
 
     # resolve eval trace
     max_tasks, max_samples = init_eval_display(
-        display, trace, max_tasks, max_samples, model
+        display, trace, max_tasks, max_samples, model, run_samples
     )
 
     async def run_task_app() -> list[EvalLog]:
@@ -242,6 +245,7 @@ def eval(
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
+                run_samples=run_samples,
                 score=score,
                 score_display=score_display,
                 **kwargs,
@@ -297,6 +301,7 @@ async def eval_async(
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
+    run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -356,6 +361,8 @@ async def eval_async(
         log_shared: Indicate that the log directory is shared, which results in additional
         syncing of realtime log data for Inspect View.
         log_header_only: If `True`, the function should return only log headers rather than full logs with samples (defaults to `False`).
+        run_samples: Run samples. If `False`, a log with `status=="started"` and an
+           empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -406,6 +413,7 @@ async def eval_async(
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
+                run_samples=run_samples,
                 score=score,
                 score_display=score_display,
                 **kwargs,
@@ -465,6 +473,7 @@ async def _eval_async_inner(
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
+    run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -638,6 +647,7 @@ async def _eval_async_inner(
                         solver=solver,
                         tags=tags,
                         metadata=metadata,
+                        run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
                         **kwargs,
@@ -664,6 +674,7 @@ async def _eval_async_inner(
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
+                run_samples=run_samples,
                 score=score,
                 **kwargs,
             )
@@ -1109,6 +1120,7 @@ def init_eval_display(
     max_tasks: int | None,
     max_samples: int | None,
     model: Any = None,
+    run_samples: bool = True,
 ) -> tuple[int | None, int | None]:
     # propagate any trace value to display_type
     if trace:
@@ -1119,7 +1131,10 @@ def init_eval_display(
         display = "conversation"
 
     # apply default and init
-    display = display or display_type()
+    if not run_samples:
+        display = "none"
+    else:
+        display = display or display_type()
     init_display_type(display)
 
     # adapt task/samples as required if we are in conversation mode

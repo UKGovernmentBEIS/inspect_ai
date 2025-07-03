@@ -92169,19 +92169,29 @@ Supported expressions:
       );
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
-          if (selectedLogFile && selectedLogFile !== loadedLogFile) {
-            try {
-              setAppStatus({ loading: true, error: void 0 });
-              await loadLog(selectedLogFile);
-              setAppStatus({ loading: false, error: void 0 });
-            } catch (e) {
-              console.log(e);
-              setAppStatus({ loading: false, error: e });
-            }
+          if (!selectedLogFile) {
+            return;
+          }
+          if (selectedLogFile === loadedLogFile && selectedLogSummary) {
+            return;
+          }
+          try {
+            setAppStatus({ loading: true, error: void 0 });
+            await loadLog(selectedLogFile);
+            setAppStatus({ loading: false, error: void 0 });
+          } catch (e) {
+            console.log(e);
+            setAppStatus({ loading: false, error: e });
           }
         };
         loadSpecificLog();
-      }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus]);
+      }, [
+        selectedLogFile,
+        loadedLogFile,
+        selectedLogSummary,
+        loadLog,
+        setAppStatus
+      ]);
       reactExports.useEffect(() => {
         const doPoll = async () => {
           await pollLog();

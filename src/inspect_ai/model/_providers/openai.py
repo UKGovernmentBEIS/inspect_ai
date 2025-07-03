@@ -219,16 +219,9 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        # o1-pro, o1, and computer_use_preview support image inputs
+        # computer_use_preview supports tool calls returning images
         if self.is_computer_use_preview():
             return True
-        elif self.is_o_series():
-            if self.is_o1_early():
-                return False
-            elif self.is_o3_mini():
-                return False
-            else:
-                return True
         else:
             return False
 
