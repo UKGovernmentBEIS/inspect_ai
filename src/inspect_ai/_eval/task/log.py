@@ -234,7 +234,7 @@ class TaskLogger:
 
     async def log_finish(
         self,
-        status: Literal["success", "cancelled", "error"],
+        status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None = None,
         reductions: list[EvalSampleReductions] | None = None,
