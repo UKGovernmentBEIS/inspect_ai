@@ -120,6 +120,13 @@ root of your package, you would register it like this in
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -422,6 +429,13 @@ this in `pyproject.toml`:
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -544,6 +558,13 @@ anything else imported into `_registry.py`) like this in
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -653,6 +674,13 @@ the root of the package, you would register it like this in
 myfs = "evaltools:MyFs"
 ```
 
+## uv
+
+``` toml
+[project.entry-points."fsspec.specs"]
+myfs = "evaltools:MyFs"
+```
+
 ## Poetry
 
 ``` toml
@@ -677,6 +705,8 @@ Inspect without any further registration.
 Hooks enable you to run arbitrary code during certain events of
 Inspect’s lifecycle, for example when runs, tasks or samples start and
 end.
+
+### Hooks Usage
 
 Here is a hypothetical integration with Weights & Biases.
 
@@ -722,14 +752,94 @@ def wandb_hooks():
     return WBHooks
 ```
 
+### Registration
+
+Packages that provide hooks should register an `inspect_ai` [setuptools
+entry
+point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html).
+This will ensure that inspect loads the extension at startup.
+
+For example, let’s say your package is named `evaltools` and has this
+structure:
+
+    evaltools/
+      wandb.py
+      _registry.py
+    pyproject.toml
+
+The `_registry.py` file serves as a place to import things that you want
+registered with Inspect. For example:
+
+**\_registry.py**
+
+``` python
+from .wandb import wandb_hooks
+```
+
+You can then register your `wandb_hooks` Inspect extension (and anything
+else imported into `_registry.py`) like this in `pyproject.toml`:
+
+## Setuptools
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
+## Poetry
+
+``` toml
+[tool.poetry.plugins.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
+Once you’ve done this, your hook will be enabled for Inspect users that
+have this package installed.
+
+### Disabling Hooks
+
+You might not always want every installed hook enabled—for example, a
+Weights and Biases hook might only want to be enabled if a specific
+environment variable is defined. You can control this by implementing an
+`enabled()` method on your hook. For example:
+
+``` python
+@hooks(name="w&b_hooks", description="Weights & Biases integration")
+class WBHooks(Hooks):
+    def enabled():
+        return "WANDB_API_KEY" in os.environ
+    ...
+```
+
+### Requiring Hooks
+
+Another thing you might want to do is *ensure* that all users in a given
+environment are running with a particular set of hooks enabled. To do
+this, define the `INSPECT_REQUIRED_HOOKS` environment variable, listing
+all of the hooks that are required:
+
+``` bash
+INSPECT_REQUIRED_HOOKS=w&b_hooks
+```
+
+If the required hooks aren’t installed then an appropriate error will
+occur at startup time.
+
 ### API Key Override
 
 There is a hook event to optionally override the value of model API key
 environment variables. This could be used to:
 
-- inject API keys at runtime (e.g. fetched from a secrets manager), to
+- Inject API keys at runtime (e.g. fetched from a secrets manager), to
   avoid having to store these in your environment or .env file
-- use some custom model API authentication mechanism in conjunction with
+- Use some custom model API authentication mechanism in conjunction with
   a custom reverse proxy for the model API to avoid Inspect ever having
   access to real API keys
 

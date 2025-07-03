@@ -14736,6 +14736,13 @@ root of your package, you would register it like this in
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -15038,6 +15045,13 @@ this in `pyproject.toml`:
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -15160,6 +15174,13 @@ anything else imported into `_registry.py`) like this in
 evaltools = "evaltools._registry"
 ```
 
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
 ## Poetry
 
 ``` toml
@@ -15269,6 +15290,13 @@ the root of the package, you would register it like this in
 myfs = "evaltools:MyFs"
 ```
 
+## uv
+
+``` toml
+[project.entry-points."fsspec.specs"]
+myfs = "evaltools:MyFs"
+```
+
 ## Poetry
 
 ``` toml
@@ -15293,6 +15321,8 @@ Inspect without any further registration.
 Hooks enable you to run arbitrary code during certain events of
 Inspect’s lifecycle, for example when runs, tasks or samples start and
 end.
+
+### Hooks Usage
 
 Here is a hypothetical integration with Weights & Biases.
 
@@ -15338,14 +15368,94 @@ def wandb_hooks():
     return WBHooks
 ```
 
+### Registration
+
+Packages that provide hooks should register an `inspect_ai` [setuptools
+entry
+point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html).
+This will ensure that inspect loads the extension at startup.
+
+For example, let’s say your package is named `evaltools` and has this
+structure:
+
+    evaltools/
+      wandb.py
+      _registry.py
+    pyproject.toml
+
+The `_registry.py` file serves as a place to import things that you want
+registered with Inspect. For example:
+
+**\_registry.py**
+
+``` python
+from .wandb import wandb_hooks
+```
+
+You can then register your `wandb_hooks` Inspect extension (and anything
+else imported into `_registry.py`) like this in `pyproject.toml`:
+
+## Setuptools
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
+## Poetry
+
+``` toml
+[tool.poetry.plugins.inspect_ai]
+evaltools = "evaltools._registry"
+```
+
+Once you’ve done this, your hook will be enabled for Inspect users that
+have this package installed.
+
+### Disabling Hooks
+
+You might not always want every installed hook enabled—for example, a
+Weights and Biases hook might only want to be enabled if a specific
+environment variable is defined. You can control this by implementing an
+`enabled()` method on your hook. For example:
+
+``` python
+@hooks(name="w&b_hooks", description="Weights & Biases integration")
+class WBHooks(Hooks):
+    def enabled():
+        return "WANDB_API_KEY" in os.environ
+    ...
+```
+
+### Requiring Hooks
+
+Another thing you might want to do is *ensure* that all users in a given
+environment are running with a particular set of hooks enabled. To do
+this, define the `INSPECT_REQUIRED_HOOKS` environment variable, listing
+all of the hooks that are required:
+
+``` bash
+INSPECT_REQUIRED_HOOKS=w&b_hooks
+```
+
+If the required hooks aren’t installed then an appropriate error will
+occur at startup time.
+
 ### API Key Override
 
 There is a hook event to optionally override the value of model API key
 environment variables. This could be used to:
 
-- inject API keys at runtime (e.g. fetched from a secrets manager), to
+- Inject API keys at runtime (e.g. fetched from a secrets manager), to
   avoid having to store these in your environment or .env file
-- use some custom model API authentication mechanism in conjunction with
+- Use some custom model API authentication mechanism in conjunction with
   a custom reverse proxy for the model API to avoid Inspect ever having
   access to real API keys
 
@@ -15373,7 +15483,7 @@ def fetch_aws_secret(aws_arn: str) -> str:
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/eval.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/eval.py#L74)
 
 ``` python
 def eval(
@@ -15415,6 +15525,7 @@ def eval(
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
+    run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -15565,6 +15676,10 @@ sync every 10 seconds, otherwise an integer to sync every `n` seconds.
 If `True`, the function should return only log headers rather than full
 logs with samples (defaults to `False`).
 
+`run_samples` bool  
+Run samples. If `False`, a log with `status=="started"` and an empty
+`samples` list is returned.
+
 `score` bool  
 Score output (defaults to True)
 
@@ -15578,7 +15693,7 @@ Model generation options.
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/eval.py#L686)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/eval.py#L697)
 
 ``` python
 def eval_retry(
@@ -15707,7 +15822,7 @@ Model API)
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/evalset.py#L57)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/evalset.py#L57)
 
 ``` python
 def eval_set(
@@ -15932,7 +16047,7 @@ Model generation options.
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/score.py#L37)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/score.py#L37)
 
 ``` python
 def score(
@@ -15964,7 +16079,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/task/task.py#L41)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/task/task.py#L41)
 
 ``` python
 class Task
@@ -15975,7 +16090,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/task/task.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/task/task.py#L47)
 
 ``` python
 def __init__(
@@ -16090,7 +16205,7 @@ This function modifies the passed task in place and returns it. If you
 want to create multiple variations of a single task using `task_with()`
 you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/task/task.py#L180)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/task/task.py#L180)
 
 ``` python
 def task_with(
@@ -16205,7 +16320,7 @@ Number of epochs to repeat samples over and optionally one or more
 reducers used to combine scores from samples across epochs. If not
 specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -16216,7 +16331,7 @@ class Epochs
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -16233,7 +16348,7 @@ One or more reducers used to combine scores from samples across epochs
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/task/task.py#L296)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/task/task.py#L296)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -16259,7 +16374,7 @@ including directory names, task functions, task classes, and task
 instances (a single task or list of tasks can be specified). None is a
 request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -16287,7 +16402,7 @@ Tasks: TypeAlias = (
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_view/view.py#L24)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_view/view.py#L24)
 
 ``` python
 def view(
@@ -16331,7 +16446,7 @@ public S3 bucket with no credentials.
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any
@@ -16359,7 +16474,7 @@ Generate output from the model and append it to task message history.
 
 generate() is the default solver if none is specified for a given task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_solver.py#L264)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_solver.py#L264)
 
 ``` python
 @solver
@@ -16389,7 +16504,7 @@ Optional generation config arguments.
 
 Inject tools into the task state to be used in generate().
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_use_tools.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_use_tools.py#L11)
 
 ``` python
 @solver
@@ -16423,7 +16538,7 @@ Prompt template containing a `{prompt}` placeholder and any number of
 additional `params`. All values contained in sample `metadata` and
 `store` are also automatically included in the `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_prompt.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_prompt.py#L17)
 
 ``` python
 @solver
@@ -16448,7 +16563,7 @@ sample `metadata` and `store` are also automatically included in the
 The new message will go after other system messages (if there are none
 it will be inserted at the beginning of the conversation).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_prompt.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_prompt.py#L45)
 
 ``` python
 @solver
@@ -16470,7 +16585,7 @@ substitution using the `str.format()` method. All values contained in
 sample `metadata` and `store` are also automatically included in the
 `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_prompt.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_prompt.py#L77)
 
 ``` python
 @solver
@@ -16492,7 +16607,7 @@ for substitution using the `str.format()` method. All values contained
 in sample `metadata` and `store` are also automatically included in the
 `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_prompt.py#L104)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_prompt.py#L104)
 
 ``` python
 @solver
@@ -16509,7 +16624,7 @@ Parameters to fill into the template.
 
 Solver which modifies the user prompt to encourage chain of thought.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_prompt.py#L142)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_prompt.py#L142)
 
 ``` python
 @solver
@@ -16529,7 +16644,7 @@ The `critique_template` is used to generate a critique and the
 for an improved response. Note that you can specify an alternate `model`
 for critique (you don’t need to use the model being evaluated).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_critique.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_critique.py#L13)
 
 ``` python
 @solver
@@ -16564,7 +16679,7 @@ Note that due to the way this solver works, it has some constraints:
 2.  The only built-in compatible scorer is the `choice` scorer.
 3.  It calls `generate()` internally, so you don’t need to call it again
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_multiple_choice.py#L197)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_multiple_choice.py#L197)
 
 ``` python
 @solver
@@ -16621,7 +16736,7 @@ Solvers are executed in turn, and a solver step event is added to the
 transcript for each. If a solver returns a state with `completed=True`,
 the chain is terminated early.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_chain.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_chain.py#L12)
 
 ``` python
 @solver
@@ -16642,7 +16757,7 @@ Solver gets its own copy of the TaskState and is run (in parallel) in an
 independent Subtask (meaning that is also has its own independent Store
 that doesn’t affect the Store of other subtasks or the parent).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_fork.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_fork.py#L25)
 
 ``` python
 async def fork(
@@ -16668,7 +16783,7 @@ call the `generate()` function to create a new state resulting from
 model generation. Solvers may also do prompt engineering or other types
 of elicitation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_solver.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_solver.py#L77)
 
 ``` python
 class Solver(Protocol):
@@ -16701,7 +16816,7 @@ def prompt_cot(template: str) -> Solver:
 
 Solver specification used to (re-)create solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_solver.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_solver.py#L64)
 
 ``` python
 @dataclass(frozen=True)
@@ -16726,7 +16841,7 @@ sample’s evaluation. It allows us to maintain the manipulated message
 history, the tools available to the model, the final output of the
 model, and whether the task is completed or has hit a limit.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_task_state.py#L136)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_task_state.py#L136)
 
 ``` python
 class TaskState
@@ -16815,7 +16930,7 @@ Globally unique identifier for sample run.
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_task_state.py#L387)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_task_state.py#L387)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -16827,7 +16942,7 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_task_state.py#L401)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_task_state.py#L401)
 
 ``` python
 def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT
@@ -16845,7 +16960,7 @@ StoreModel type within a single sample)
 Generate using the model and add the assistant message to the task
 state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_solver.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_solver.py#L36)
 
 ``` python
 class Generate(Protocol):
@@ -16883,7 +16998,7 @@ Optional generation config arguments.
 
 Decorator for registering solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/solver/_solver.py#L154)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/solver/_solver.py#L154)
 
 ``` python
 def solver(
@@ -16919,7 +17034,7 @@ Bash shell command execution tool.
 
 Execute bash shell commands using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_execute.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_execute.py#L22)
 
 ``` python
 @tool(viewer=code_viewer("bash", "cmd"))
@@ -16943,7 +17058,7 @@ Python code execution tool.
 
 Execute Python code using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_execute.py#L62)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_execute.py#L62)
 
 ``` python
 @tool(viewer=code_viewer("python", "code"))
@@ -16976,7 +17091,7 @@ pass a unique value for `instance`
 See complete documentation at
 <https://inspect.aisi.org.uk/tools-standard.html#sec-bash-session>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_bash_session.py#L79)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_bash_session.py#L79)
 
 ``` python
 @tool()
@@ -17011,7 +17126,7 @@ IMPORTANT: This tool does not currently support Subtask isolation. This
 means that a change made to a file by on Subtask will be visible to
 another Subtask.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_text_editor.py#L63)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_text_editor.py#L63)
 
 ``` python
 @tool()
@@ -17034,7 +17149,7 @@ To create a separate web browser process for each call to
 See complete documentation at
 <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L34)
 
 ``` python
 def web_browser(*, interactive: bool = True, instance: str | None = None) -> list[Tool]
@@ -17054,7 +17169,7 @@ Desktop computer tool.
 See documentation at
 <https://inspect.aisi.org.uk/tools-standard.html#sec-computer>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_computer/_computer.py#L38)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_computer/_computer.py#L38)
 
 ``` python
 @tool
@@ -17094,7 +17209,7 @@ specified.
 See further documentation at
 <https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_web_search/_web_search.py#L62)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_web_search/_web_search.py#L62)
 
 ``` python
 @tool
@@ -17170,7 +17285,7 @@ Please see the documentation on using the [think
 tool](https://inspect.aisi.org.uk/tools-standard.html#sec-think) before
 using it in your evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tools/_think.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tools/_think.py#L6)
 
 ``` python
 @tool
@@ -17197,7 +17312,7 @@ references an MCPServer, and if so, that server will be connected to
 upon entering the context and disconnected from upon exiting the
 context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_mcp/connection.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_mcp/connection.py#L11)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -17216,7 +17331,7 @@ MCP Server (Stdio).
 Stdio interface to MCP server. Use this for MCP servers that run
 locally.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_mcp/server.py#L40)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_mcp/server.py#L40)
 
 ``` python
 def mcp_server_stdio(
@@ -17249,7 +17364,7 @@ MCP Server (SSE).
 SSE interface to MCP server. Use this for MCP servers available via a
 URL endpoint.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_mcp/server.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_mcp/server.py#L13)
 
 ``` python
 def mcp_server_sse(
@@ -17280,7 +17395,7 @@ MCP Server (Sandbox).
 
 Interface to MCP server running in an Inspect sandbox.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_mcp/server.py#L69)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_mcp/server.py#L69)
 
 ``` python
 def mcp_server_sandbox(
@@ -17318,7 +17433,7 @@ Timeout (in seconds) for command.
 
 Tools from MCP server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_mcp/tools.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_mcp/tools.py#L7)
 
 ``` python
 def mcp_tools(
@@ -17342,7 +17457,7 @@ Model Context Protocol server interface.
 `MCPServer` can be passed in the `tools` argument as a source of tools
 (use the `mcp_tools()` function to filter the list of tools)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_mcp/_types.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_mcp/_types.py#L10)
 
 ``` python
 class MCPServer(ToolSource)
@@ -17353,7 +17468,7 @@ class MCPServer(ToolSource)
 tools  
 List of all tools provided by this server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_mcp/_types.py#L18)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_mcp/_types.py#L18)
 
 ``` python
 async def tools(self) -> list[Tool]
@@ -17369,7 +17484,7 @@ This function modifies the passed tool in place and returns it. If you
 want to create multiple variations of a single tool using `tool_with()`
 you should create the underlying tool multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_with.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_with.py#L14)
 
 ``` python
 def tool_with(
@@ -17410,7 +17525,7 @@ as model input.
 
 Tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_def.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_def.py#L36)
 
 ``` python
 class ToolDef
@@ -17448,7 +17563,7 @@ customize the implementation of the tool
 \_\_init\_\_  
 Create a tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_def.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_def.py#L39)
 
 ``` python
 def __init__(
@@ -17496,7 +17611,7 @@ customize the implementation of the tool
 as_tool  
 Convert a ToolDef to a Tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_def.py#L146)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_def.py#L146)
 
 ``` python
 def as_tool(self) -> Tool
@@ -17508,7 +17623,7 @@ def as_tool(self) -> Tool
 
 Additional tool that an agent can use to solve a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool.py#L90)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool.py#L90)
 
 ``` python
 class Tool(Protocol):
@@ -17540,7 +17655,7 @@ def add() -> Tool:
 
 Valid types for results from tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool.py#L35)
 
 ``` python
 ToolResult = (
@@ -17575,7 +17690,7 @@ sample). If you want to raise a fatal error from a tool call use an
 appropriate standard exception type (e.g. `RuntimeError`, `ValueError`,
 etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool.py#L58)
 
 ``` python
 class ToolError(Exception)
@@ -17586,7 +17701,7 @@ class ToolError(Exception)
 \_\_init\_\_  
 Create a ToolError.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool.py#L68)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool.py#L68)
 
 ``` python
 def __init__(self, message: str) -> None
@@ -17599,7 +17714,7 @@ Error message to report to the model.
 
 Error raised by a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_call.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_call.py#L60)
 
 ``` python
 @dataclass
@@ -17622,7 +17737,7 @@ Specify which tool to call.
 “none” means never call a tool; ToolFunction instructs the model to call
 a specific function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_choice.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_choice.py#L13)
 
 ``` python
 ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
@@ -17632,7 +17747,7 @@ ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
 
 Indicate that a specific tool function should be called.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_choice.py#L5)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_choice.py#L5)
 
 ``` python
 @dataclass
@@ -17671,7 +17786,7 @@ ToolParam(
 )
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_info.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_info.py#L19)
 
 ``` python
 class ToolInfo(BaseModel)
@@ -17696,7 +17811,7 @@ customize the implementation of the tool
 
 Description of tool parameters object in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_params.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_params.py#L14)
 
 ``` python
 class ToolParams(BaseModel)
@@ -17720,7 +17835,7 @@ Are additional object properties allowed? (always `False`)
 
 Description of tool parameter in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool_params.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool_params.py#L10)
 
 ``` python
 ToolParam: TypeAlias = JSONSchema
@@ -17730,7 +17845,7 @@ ToolParam: TypeAlias = JSONSchema
 
 Protocol for dynamically providing a set of tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool.py#L117)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool.py#L117)
 
 ``` python
 @runtime_checkable
@@ -17742,7 +17857,7 @@ class ToolSource(Protocol)
 tools  
 Retrieve tools from tool source.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool.py#L121)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool.py#L121)
 
 ``` python
 async def tools(self) -> list[Tool]
@@ -17754,7 +17869,7 @@ async def tools(self) -> list[Tool]
 
 Decorator for registering tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/tool/_tool.py#L171)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/tool/_tool.py#L171)
 
 ``` python
 def tool(
@@ -17825,7 +17940,7 @@ are permitted).
 By default, the model will be urged to continue if it fails to call a
 tool. Customise this behavior using the `on_continue` option.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_react.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_react.py#L36)
 
 ``` python
 @agent
@@ -17891,7 +18006,7 @@ Bridge an external agent into an Inspect Agent.
 
 See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_bridge/bridge.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_bridge/bridge.py#L15)
 
 ``` python
 @agent
@@ -17915,7 +18030,7 @@ If the user is running in VS Code with the Inspect extension, they will
 also be presented with links to login to the sandbox using a VS Code
 Window or Terminal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_human/agent.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_human/agent.py#L16)
 
 ``` python
 @agent
@@ -17947,7 +18062,7 @@ User to login as. Defaults to the sandbox environment’s default user.
 
 Create a tool that enables models to handoff to agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_handoff.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_handoff.py#L19)
 
 ``` python
 def handoff(
@@ -17996,7 +18111,7 @@ Run an agent.
 The input messages(s) will be copied prior to running so are not
 modified in place.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_run.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_run.py#L33)
 
 ``` python
 async def run(
@@ -18036,7 +18151,7 @@ of type `str`). Provide optional `agent_kwargs` to mask out agent
 parameters with default values (these parameters will not be presented
 to the model as part of the tool interface)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_as_tool.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_as_tool.py#L19)
 
 ``` python
 @tool
@@ -18071,7 +18186,7 @@ Note that agents used as solvers will only receive their first parameter
 (`state`). Any other parameters must provide appropriate defaults or be
 explicitly specified in `agent_kwargs`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_as_solver.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_as_solver.py#L20)
 
 ``` python
 def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> Solver
@@ -18097,7 +18212,7 @@ Remove tool calls from messages.
 Removes all instances of `ChatMessageTool` as well as the `tool_calls`
 field from `ChatMessageAssistant`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_filter.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_filter.py#L13)
 
 ``` python
 async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -18110,7 +18225,7 @@ Messages to remove tool calls from.
 
 Remove all but the last message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_filter.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_filter.py#L36)
 
 ``` python
 async def last_message(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -18123,7 +18238,7 @@ Target messages.
 
 Filter messages sent to or received from agent handoffs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_filter.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_filter.py#L9)
 
 ``` python
 MessageFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
@@ -18145,7 +18260,7 @@ the `handoff()` function.
 You can create a simple tool (that receives a string as input) from an
 agent using `as_tool()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L91)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L91)
 
 ``` python
 class Agent(Protocol):
@@ -18170,7 +18285,7 @@ Keyword arguments for the agent.
 
 Agent state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L33)
 
 ``` python
 class AgentState
@@ -18188,7 +18303,7 @@ Model output.
 
 Decorator for registering agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L139)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L139)
 
 ``` python
 def agent(
@@ -18218,7 +18333,7 @@ This function modifies the passed agent in place and returns it. If you
 want to create multiple variations of a single agent using
 `agent_with()` you should create the underlying agent multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L213)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L213)
 
 ``` python
 def agent_with(
@@ -18246,7 +18361,7 @@ Determines if the provided object is registered as an Agent in the
 system registry. When this function returns True, type checkers will
 recognize ‘obj’ as an Agent type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L272)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L272)
 
 ``` python
 def is_agent(obj: Any) -> TypeGuard[Agent]
@@ -18261,7 +18376,7 @@ Object to check against the registry.
 
 Prompt for agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L33)
 
 ``` python
 class AgentPrompt(NamedTuple)
@@ -18293,7 +18408,7 @@ Submissions are evaluated using the task’s main scorer, with value of
 (e.g. “C” becomes 1.0) using the standard value_to_float() function.
 Provide an alternate conversion scheme as required via `score_value`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L72)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L72)
 
 ``` python
 class AgentAttempts(NamedTuple)
@@ -18320,7 +18435,7 @@ Returns `True` to continue (with no additional messages inserted),
 return `False` to stop. Returns `str` to continue with an additional
 custom user message inserted.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L63)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L63)
 
 ``` python
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
@@ -18330,7 +18445,7 @@ AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
 
 Configure the submit tool of a react agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L94)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L94)
 
 ``` python
 class AgentSubmit(NamedTuple)
@@ -18373,7 +18488,7 @@ model generated along with the call to `submit()`.
 
 Scorer which matches text or a number.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_match.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_match.py#L8)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -18401,7 +18516,7 @@ rules are used and numbers are normalized before comparison).
 
 Check whether the specified text is included in the model output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_match.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_match.py#L39)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -18422,7 +18537,7 @@ The regex can have a single capture group or multiple groups. In the
 case of multiple groups, the scorer can be configured to match either
 one or all of the extracted groups
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_pattern.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_pattern.py#L46)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -18450,7 +18565,7 @@ comparison with the target.
 
 Note that you must specify a `type` for the answer scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_answer.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_answer.py#L35)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -18484,7 +18599,7 @@ correct answer, e.g. the `Target` would be `"A"` for the above question.
 If multiple choices are correct, the `Target` can be an array of these
 letters.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_choice.py#L40)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_choice.py#L40)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -18498,7 +18613,7 @@ Scorer which produces an F1 score
 Computes the `F1` score for the answer (which balances recall precision
 by taking the harmonic mean between recall and precision).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_classification.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_classification.py#L13)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -18522,7 +18637,7 @@ Normalizes the text of the answer and target(s) and performs an exact
 matching comparison of the text. This scorer will return `CORRECT` when
 the answer is an exact match to one or more targets.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_classification.py#L42)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_classification.py#L42)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -18533,7 +18648,7 @@ def exact() -> Scorer
 
 Score a question/answer task using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_model.py#L76)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_model.py#L76)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -18585,7 +18700,7 @@ being evaluated is used.
 
 Score a question/answer task with a fact response using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_model.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_model.py#L28)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -18638,7 +18753,7 @@ being evaluated is used.
 Returns a Scorer that runs multiple Scorers in parallel and aggregates
 their results into a single Score using the provided reducer function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_multi.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_multi.py#L13)
 
 ``` python
 def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer
@@ -18656,7 +18771,7 @@ a function which takes in a list of Scores and returns a single Score.
 
 Compute proportion of total answers which are correct.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
 
 ``` python
 @metric
@@ -18674,7 +18789,7 @@ complex object (list or dict).
 
 Compute mean of all scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metrics/mean.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metrics/mean.py#L6)
 
 ``` python
 @metric
@@ -18685,7 +18800,7 @@ def mean() -> Metric
 
 Calculates the sample standard deviation of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metrics/std.py#L137)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metrics/std.py#L137)
 
 ``` python
 @metric
@@ -18703,7 +18818,7 @@ complex object (list or dict).
 
 Standard error of the mean using Central Limit Theorem.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metrics/std.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metrics/std.py#L50)
 
 ``` python
 @metric
@@ -18728,7 +18843,7 @@ errors](https://en.wikipedia.org/wiki/Clustered_standard_errors).
 
 Standard error of the mean using bootstrap.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metrics/std.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metrics/std.py#L17)
 
 ``` python
 @metric
@@ -18754,7 +18869,7 @@ complex object (list or dict).
 Score correct if there are at least k score values greater than or equal
 to the value.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/reducer.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/reducer.py#L77)
 
 ``` python
 @score_reducer
@@ -18777,7 +18892,7 @@ Function to convert score values to float.
 Probability of at least 1 correct sample given `k` epochs
 (<https://arxiv.org/pdf/2107.03374>).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/reducer.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/reducer.py#L109)
 
 ``` python
 @score_reducer
@@ -18799,7 +18914,7 @@ Function to convert score values to float.
 
 Take the maximum value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/reducer.py#L144)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/reducer.py#L144)
 
 ``` python
 @score_reducer(name="max")
@@ -18813,7 +18928,7 @@ Function to convert the value to a float
 
 Take the mean of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/reducer.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/reducer.py#L39)
 
 ``` python
 @score_reducer(name="mean")
@@ -18827,7 +18942,7 @@ Function to convert the value to a float
 
 Take the median value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/reducer.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/reducer.py#L58)
 
 ``` python
 @score_reducer(name="median")
@@ -18841,7 +18956,7 @@ Function to convert the value to a float
 
 Take the mode from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/reducer.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/reducer.py#L13)
 
 ``` python
 @score_reducer(name="mode")
@@ -18857,7 +18972,7 @@ Score model outputs.
 Evaluate the passed outputs and targets and return a dictionary with
 scoring outcomes and context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_scorer.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_scorer.py#L34)
 
 ``` python
 class Scorer(Protocol):
@@ -18894,7 +19009,7 @@ Target for scoring against the current TaskState.
 Target is a sequence of one or more strings. Use the `text` property to
 access the value as a single string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_target.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_target.py#L4)
 
 ``` python
 class Target(Sequence[str])
@@ -18904,7 +19019,7 @@ class Target(Sequence[str])
 
 Score generated by a scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L56)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L56)
 
 ``` python
 class Score(BaseModel)
@@ -18932,7 +19047,7 @@ Read the score as text.
 as_str  
 Read the score as a string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L76)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L76)
 
 ``` python
 def as_str(self) -> str
@@ -18941,7 +19056,7 @@ def as_str(self) -> str
 as_int  
 Read the score as an integer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L80)
 
 ``` python
 def as_int(self) -> int
@@ -18950,7 +19065,7 @@ def as_int(self) -> int
 as_float  
 Read the score as a float.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L84)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L84)
 
 ``` python
 def as_float(self) -> float
@@ -18959,7 +19074,7 @@ def as_float(self) -> float
 as_bool  
 Read the score as a boolean.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L88)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L88)
 
 ``` python
 def as_bool(self) -> bool
@@ -18968,7 +19083,7 @@ def as_bool(self) -> bool
 as_list  
 Read the score as a list.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L92)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L92)
 
 ``` python
 def as_list(self) -> list[str | int | float | bool]
@@ -18977,7 +19092,7 @@ def as_list(self) -> list[str | int | float | bool]
 as_dict  
 Read the score as a dictionary.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L99)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L99)
 
 ``` python
 def as_dict(self) -> dict[str, str | int | float | bool | None]
@@ -18990,7 +19105,7 @@ Value provided by a score.
 Use the methods of `Score` to easily treat the `Value` as a simple
 scalar of various types.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L44)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L44)
 
 ``` python
 Value = Union[
@@ -19004,7 +19119,7 @@ Value = Union[
 
 Reduce a set of scores to a single score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/types.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/types.py#L8)
 
 ``` python
 class ScoreReducer(Protocol):
@@ -19022,7 +19137,7 @@ The Metric signature changed in release v0.3.64. Both the previous and
 new signatures are supported – you should use `MetricProtocol` for new
 code as the depreacated signature will eventually be removed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L229)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L229)
 
 ``` python
 Metric = MetricProtocol | MetricDeprecated
@@ -19032,7 +19147,7 @@ Metric = MetricProtocol | MetricDeprecated
 
 Compute a metric on a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L208)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L208)
 
 ``` python
 class MetricProtocol(Protocol):
@@ -19056,7 +19171,7 @@ def mean() -> Metric:
 
 Score for a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L113)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L113)
 
 ``` python
 class SampleScore(BaseModel)
@@ -19081,7 +19196,7 @@ Registry name of scorer that created this score.
 sample_metadata_as  
 Pydantic model interface to sample metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L125)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L125)
 
 ``` python
 def sample_metadata_as(self, metadata_cls: Type[MT]) -> MT | None
@@ -19096,7 +19211,7 @@ Pydantic model type
 
 Decorator for registering scorers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_scorer.py#L123)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_scorer.py#L123)
 
 ``` python
 def scorer(
@@ -19134,7 +19249,7 @@ def custom_scorer() -> Scorer:
 
 Decorator for registering metrics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_metric.py#L315)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_metric.py#L315)
 
 ``` python
 def metric(
@@ -19157,7 +19272,7 @@ for score in scores\]).item() return metric
 
 Decorator for registering Score Reducers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_reducer/registry.py#L37)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_reducer/registry.py#L37)
 
 ``` python
 def score_reducer(
@@ -19182,7 +19297,7 @@ Score a model conversation.
 Score a model conversation (you may pass `TaskState` or `AgentState` as
 the value for `conversation`)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/scorer/_score.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/scorer/_score.py#L12)
 
 ``` python
 async def score(conversation: ModelConversation) -> list[Score]
@@ -19217,7 +19332,7 @@ async with get_model("openai/gpt-4o") as model:
 In this case, the model client will be closed at the end of the context
 manager and will not be available in the get_model() cache.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L879)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L879)
 
 ``` python
 def get_model(
@@ -19276,7 +19391,7 @@ async with get_model("openai/gpt-4o") as model:
     response = await model.generate("Say hello")
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L259)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L259)
 
 ``` python
 class Model
@@ -19301,7 +19416,7 @@ Model role.
 \_\_init\_\_  
 Create a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L278)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L278)
 
 ``` python
 def __init__(
@@ -19321,7 +19436,7 @@ Optional model args
 generate  
 Generate output from the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L344)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L344)
 
 ``` python
 async def generate(
@@ -19359,7 +19474,7 @@ The loop terminates when the model stops calling tools. The final
 `ModelOutput` as well the message list for the conversation are returned
 as a tuple.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L437)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L437)
 
 ``` python
 async def generate_loop(
@@ -19388,7 +19503,7 @@ Caching behavior for generate responses (defaults to no caching).
 
 Model generation options.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_generate_config.py#L113)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_generate_config.py#L113)
 
 ``` python
 class GenerateConfig(BaseModel)
@@ -19511,7 +19626,7 @@ OpenAI, vLLM, and SGLang only.
 merge  
 Merge another model configuration into this one.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_generate_config.py#L214)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_generate_config.py#L214)
 
 ``` python
 def merge(
@@ -19526,7 +19641,7 @@ Configuration to merge.
 
 Type for kwargs that selectively override GenerateConfig.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_generate_config.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_generate_config.py#L28)
 
 ``` python
 class GenerateConfigArgs(TypedDict, total=False)
@@ -19648,7 +19763,7 @@ OpenAI, vLLM, and SGLang only.
 
 Schema for model response when using Structured Output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_generate_config.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_generate_config.py#L11)
 
 ``` python
 class ResponseSchema(BaseModel)
@@ -19676,7 +19791,7 @@ the schema field. OpenAI and Mistral only.
 
 Output from model generation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L131)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L131)
 
 ``` python
 class ModelOutput(BaseModel)
@@ -19716,7 +19831,7 @@ Text of first message choice text.
 from_content  
 Create ModelOutput from simple text content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L191)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L191)
 
 ``` python
 @staticmethod
@@ -19743,7 +19858,7 @@ Error message.
 for_tool_call  
 Returns a ModelOutput for requesting a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L219)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L219)
 
 ``` python
 @staticmethod
@@ -19780,7 +19895,7 @@ tool {tool_name}”.
 
 Model call (raw request/response data).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_call.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_call.py#L16)
 
 ``` python
 class ModelCall(BaseModel)
@@ -19806,7 +19921,7 @@ Create a ModelCall from arbitrary request and response objects (they
 might be dataclasses, Pydandic objects, dicts, etc.). Converts all
 values to JSON serialiable (exluding those that can’t be)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_call.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_call.py#L28)
 
 ``` python
 @staticmethod
@@ -19834,7 +19949,7 @@ Time taken for underlying ModelCall
 
 Model conversation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_conversation.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_conversation.py#L7)
 
 ``` python
 class ModelConversation(Protocol)
@@ -19852,7 +19967,7 @@ Model output.
 
 Token usage for completion.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L12)
 
 ``` python
 class ModelUsage(BaseModel)
@@ -19882,7 +19997,7 @@ Number of tokens used for reasoning.
 
 Reason that the model stopped or failed to generate.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L59)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L59)
 
 ``` python
 StopReason = Literal[
@@ -19899,7 +20014,7 @@ StopReason = Literal[
 
 Choice generated for completion.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L106)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L106)
 
 ``` python
 class ChatCompletionChoice(BaseModel)
@@ -19922,7 +20037,7 @@ Logprobs.
 
 Message in a chat conversation
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_chat_message.py#L198)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_chat_message.py#L198)
 
 ``` python
 ChatMessage = Union[
@@ -19934,7 +20049,7 @@ ChatMessage = Union[
 
 Base class for chat messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_chat_message.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_chat_message.py#L17)
 
 ``` python
 class ChatMessageBase(BaseModel)
@@ -19973,7 +20088,7 @@ together (separated by newline)
 
 System chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_chat_message.py#L88)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_chat_message.py#L88)
 
 ``` python
 class ChatMessageSystem(ChatMessageBase)
@@ -19988,7 +20103,7 @@ Conversation role.
 
 User chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_chat_message.py#L95)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_chat_message.py#L95)
 
 ``` python
 class ChatMessageUser(ChatMessageBase)
@@ -20006,7 +20121,7 @@ ID(s) of tool call(s) this message has the content payload for.
 
 Assistant chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_chat_message.py#L105)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_chat_message.py#L105)
 
 ``` python
 class ChatMessageAssistant(ChatMessageBase)
@@ -20027,7 +20142,7 @@ Model used to generate assistant message.
 
 Tool chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_chat_message.py#L158)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_chat_message.py#L158)
 
 ``` python
 class ChatMessageTool(ChatMessageBase)
@@ -20058,7 +20173,7 @@ Ensuring that all assistant tool calls have corresponding tool
 messages. - Ensuring that the sequence of messages doesn’t end with an
 assistant message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_trim.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_trim.py#L6)
 
 ``` python
 def trim_messages(
@@ -20078,7 +20193,7 @@ Ratio of converation messages to preserve (defaults to 0.7)
 
 Content sent to or received from a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/content.py#L100)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/content.py#L100)
 
 ``` python
 Content = Union[
@@ -20095,7 +20210,7 @@ Content = Union[
 
 Text content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/content.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/content.py#L13)
 
 ``` python
 class ContentText(ContentBase)
@@ -20123,7 +20238,7 @@ See the specification for [thinking
 blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks)
 for Claude models.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/content.py#L29)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/content.py#L29)
 
 ``` python
 class ContentReasoning(ContentBase)
@@ -20149,7 +20264,7 @@ redacted.
 
 Image content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/content.py#L48)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/content.py#L48)
 
 ``` python
 class ContentImage(ContentBase)
@@ -20173,7 +20288,7 @@ guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image
 
 Audio content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/content.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/content.py#L64)
 
 ``` python
 class ContentAudio(ContentBase)
@@ -20194,7 +20309,7 @@ Format of audio data (‘mp3’ or ‘wav’)
 
 Video content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/content.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/content.py#L77)
 
 ``` python
 class ContentVideo(ContentBase)
@@ -20215,7 +20330,7 @@ Format of video data (‘mp4’, ‘mpeg’, or ‘mov’)
 
 Model internal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/content.py#L90)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/content.py#L90)
 
 ``` python
 class ContentData(ContentBase)
@@ -20235,7 +20350,7 @@ Model provider specific payload - required for internal content.
 
 A citation sent to or received from a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/citation.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/citation.py#L80)
 
 ``` python
 Citation: TypeAlias = Annotated[
@@ -20252,7 +20367,7 @@ Citation: TypeAlias = Annotated[
 
 Base class for citations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/citation.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/citation.py#L6)
 
 ``` python
 class CitationBase(BaseModel)
@@ -20277,7 +20392,7 @@ back to model types.
 
 A citation that refers to a URL.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/citation.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/citation.py#L70)
 
 ``` python
 class UrlCitation(CitationBase)
@@ -20295,7 +20410,7 @@ URL of the cited resource.
 
 A citation that refers to a page range in a document.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/citation.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/citation.py#L60)
 
 ``` python
 class DocumentCitation(CitationBase)
@@ -20313,7 +20428,7 @@ Range of the document that is cited.
 
 A generic content citation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/citation.py#L40)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/citation.py#L40)
 
 ``` python
 class ContentCitation(CitationBase)
@@ -20330,7 +20445,7 @@ Type.
 
 Perform tool calls in the last assistant message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_call_tools.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_call_tools.py#L97)
 
 ``` python
 async def execute_tools(
@@ -20359,7 +20474,7 @@ In conventional tool calling scenarios there will be only a list of
 `handoff()` tools (used in multi-agent systems) then other messages may
 be appended and an `output` may be available as well.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_call_tools.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_call_tools.py#L81)
 
 ``` python
 class ExecuteToolsResult(NamedTuple)
@@ -20379,7 +20494,7 @@ Model output if a generation occurred within the conversation.
 
 Log probability for a token.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L83)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L83)
 
 ``` python
 class Logprob(BaseModel)
@@ -20405,7 +20520,7 @@ probabilities.
 
 Log probability information for a completion choice.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L99)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L99)
 
 ``` python
 class Logprobs(BaseModel)
@@ -20422,7 +20537,7 @@ probabilities for each generated token.
 List of the most likely tokens and their log probability, at this token
 position.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model_output.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model_output.py#L70)
 
 ``` python
 class TopLogprob(BaseModel)
@@ -20463,7 +20578,7 @@ cache independently of the epoch.
 the cache key. This allows for more fine-grained control over the cache
 key generation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_cache.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_cache.py#L58)
 
 ``` python
 class CachePolicy
@@ -20474,7 +20589,7 @@ class CachePolicy
 \_\_init\_\_  
 Create a CachePolicy.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_cache.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_cache.py#L80)
 
 ``` python
 def __init__(
@@ -20501,7 +20616,7 @@ Calculate the size of various cached directories and files
 If neither `subdirs` nor `files` are provided, the entire cache
 directory will be calculated.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_cache.py#L334)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_cache.py#L334)
 
 ``` python
 def cache_size(
@@ -20521,7 +20636,7 @@ these up by their parent directory
 
 Clear the cache directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_cache.py#L249)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_cache.py#L249)
 
 ``` python
 def cache_clear(model: str = "") -> bool
@@ -20535,7 +20650,7 @@ Model to clear cache for.
 Returns a list of all the cached files that have passed their expiry
 time.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_cache.py#L363)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_cache.py#L363)
 
 ``` python
 def cache_list_expired(filter_by: list[str] = []) -> list[Path]
@@ -20549,7 +20664,7 @@ will search the entire cache.
 
 Delete all expired cache entries.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_cache.py#L403)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_cache.py#L403)
 
 ``` python
 def cache_prune(files: list[Path] = []) -> None
@@ -20562,7 +20677,7 @@ List of files to prune. If empty, this will search the entire cache.
 
 Path to cache directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_cache.py#L269)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_cache.py#L269)
 
 ``` python
 def cache_path(model: str = "") -> Path
@@ -20577,7 +20692,7 @@ Path to cache directory for specific model.
 
 Decorator for registering model APIs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_registry.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_registry.py#L30)
 
 ``` python
 def modelapi(name: str) -> Callable[..., type[ModelAPI]]
@@ -20598,7 +20713,7 @@ initialisation code (for example, here is what many of the built-in
 providers do with the `model_args` passed to them:
 <https://inspect.aisi.org.uk/models.html#model-args>)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L97)
 
 ``` python
 class ModelAPI(abc.ABC)
@@ -20609,7 +20724,7 @@ class ModelAPI(abc.ABC)
 \_\_init\_\_  
 Create a model API provider.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L109)
 
 ``` python
 def __init__(
@@ -20641,7 +20756,7 @@ Model configuration.
 aclose  
 Async close method for closing any client allocated for the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L153)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L153)
 
 ``` python
 async def aclose(self) -> None
@@ -20650,7 +20765,7 @@ async def aclose(self) -> None
 close  
 Sync close method for closing any client allocated for the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L157)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L157)
 
 ``` python
 def close(self) -> None
@@ -20659,7 +20774,7 @@ def close(self) -> None
 generate  
 Generate output from the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L168)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L168)
 
 ``` python
 @abc.abstractmethod
@@ -20688,7 +20803,7 @@ Model configuration.
 max_tokens  
 Default max_tokens.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L195)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L195)
 
 ``` python
 def max_tokens(self) -> int | None
@@ -20697,7 +20812,7 @@ def max_tokens(self) -> int | None
 max_tokens_for_config  
 Default max_tokens for a given config.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L199)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L199)
 
 ``` python
 def max_tokens_for_config(self, config: GenerateConfig) -> int | None
@@ -20709,7 +20824,7 @@ Generation config.
 max_connections  
 Default max_connections.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L210)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L210)
 
 ``` python
 def max_connections(self) -> int
@@ -20718,7 +20833,7 @@ def max_connections(self) -> int
 connection_key  
 Scope for enforcement of max_connections.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L214)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L214)
 
 ``` python
 def connection_key(self) -> str
@@ -20727,7 +20842,7 @@ def connection_key(self) -> str
 should_retry  
 Should this exception be retried?
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L218)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L218)
 
 ``` python
 def should_retry(self, ex: Exception) -> bool
@@ -20739,7 +20854,7 @@ Exception to check for retry
 collapse_user_messages  
 Collapse consecutive user messages into a single message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L226)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L226)
 
 ``` python
 def collapse_user_messages(self) -> bool
@@ -20748,7 +20863,7 @@ def collapse_user_messages(self) -> bool
 collapse_assistant_messages  
 Collapse consecutive assistant messages into a single message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L230)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L230)
 
 ``` python
 def collapse_assistant_messages(self) -> bool
@@ -20757,7 +20872,7 @@ def collapse_assistant_messages(self) -> bool
 tools_required  
 Any tool use in a message stream means that tools must be passed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L234)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L234)
 
 ``` python
 def tools_required(self) -> bool
@@ -20766,7 +20881,7 @@ def tools_required(self) -> bool
 tool_result_images  
 Tool results can contain images
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L238)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L238)
 
 ``` python
 def tool_result_images(self) -> bool
@@ -20775,7 +20890,7 @@ def tool_result_images(self) -> bool
 disable_computer_screenshot_truncation  
 Some models do not support truncation of computer screenshots.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L242)
 
 ``` python
 def disable_computer_screenshot_truncation(self) -> bool
@@ -20785,7 +20900,7 @@ emulate_reasoning_history
 Chat message assistant messages with reasoning should playback reasoning
 with emulation (.e.g. tags)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L246)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L246)
 
 ``` python
 def emulate_reasoning_history(self) -> bool
@@ -20794,7 +20909,7 @@ def emulate_reasoning_history(self) -> bool
 force_reasoning_history  
 Force a specific reasoning history behavior for this provider.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L250)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L250)
 
 ``` python
 def force_reasoning_history(self) -> Literal["none", "all", "last"] | None
@@ -20803,7 +20918,7 @@ def force_reasoning_history(self) -> Literal["none", "all", "last"] | None
 auto_reasoning_history  
 Behavior to use for reasoning_history=‘auto’
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/model/_model.py#L254)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/model/_model.py#L254)
 
 ``` python
 def auto_reasoning_history(self) -> Literal["none", "all", "last"]
@@ -20835,7 +20950,7 @@ are permitted).
 By default, the model will be urged to continue if it fails to call a
 tool. Customise this behavior using the `on_continue` option.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_react.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_react.py#L36)
 
 ``` python
 @agent
@@ -20901,7 +21016,7 @@ Bridge an external agent into an Inspect Agent.
 
 See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_bridge/bridge.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_bridge/bridge.py#L15)
 
 ``` python
 @agent
@@ -20925,7 +21040,7 @@ If the user is running in VS Code with the Inspect extension, they will
 also be presented with links to login to the sandbox using a VS Code
 Window or Terminal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_human/agent.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_human/agent.py#L16)
 
 ``` python
 @agent
@@ -20957,7 +21072,7 @@ User to login as. Defaults to the sandbox environment’s default user.
 
 Create a tool that enables models to handoff to agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_handoff.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_handoff.py#L19)
 
 ``` python
 def handoff(
@@ -21006,7 +21121,7 @@ Run an agent.
 The input messages(s) will be copied prior to running so are not
 modified in place.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_run.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_run.py#L33)
 
 ``` python
 async def run(
@@ -21046,7 +21161,7 @@ of type `str`). Provide optional `agent_kwargs` to mask out agent
 parameters with default values (these parameters will not be presented
 to the model as part of the tool interface)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_as_tool.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_as_tool.py#L19)
 
 ``` python
 @tool
@@ -21081,7 +21196,7 @@ Note that agents used as solvers will only receive their first parameter
 (`state`). Any other parameters must provide appropriate defaults or be
 explicitly specified in `agent_kwargs`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_as_solver.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_as_solver.py#L20)
 
 ``` python
 def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> Solver
@@ -21107,7 +21222,7 @@ Remove tool calls from messages.
 Removes all instances of `ChatMessageTool` as well as the `tool_calls`
 field from `ChatMessageAssistant`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_filter.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_filter.py#L13)
 
 ``` python
 async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -21120,7 +21235,7 @@ Messages to remove tool calls from.
 
 Remove all but the last message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_filter.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_filter.py#L36)
 
 ``` python
 async def last_message(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -21133,7 +21248,7 @@ Target messages.
 
 Filter messages sent to or received from agent handoffs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_filter.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_filter.py#L9)
 
 ``` python
 MessageFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
@@ -21155,7 +21270,7 @@ the `handoff()` function.
 You can create a simple tool (that receives a string as input) from an
 agent using `as_tool()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L91)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L91)
 
 ``` python
 class Agent(Protocol):
@@ -21180,7 +21295,7 @@ Keyword arguments for the agent.
 
 Agent state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L33)
 
 ``` python
 class AgentState
@@ -21198,7 +21313,7 @@ Model output.
 
 Decorator for registering agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L139)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L139)
 
 ``` python
 def agent(
@@ -21228,7 +21343,7 @@ This function modifies the passed agent in place and returns it. If you
 want to create multiple variations of a single agent using
 `agent_with()` you should create the underlying agent multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L213)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L213)
 
 ``` python
 def agent_with(
@@ -21256,7 +21371,7 @@ Determines if the provided object is registered as an Agent in the
 system registry. When this function returns True, type checkers will
 recognize ‘obj’ as an Agent type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_agent.py#L272)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_agent.py#L272)
 
 ``` python
 def is_agent(obj: Any) -> TypeGuard[Agent]
@@ -21271,7 +21386,7 @@ Object to check against the registry.
 
 Prompt for agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L33)
 
 ``` python
 class AgentPrompt(NamedTuple)
@@ -21303,7 +21418,7 @@ Submissions are evaluated using the task’s main scorer, with value of
 (e.g. “C” becomes 1.0) using the standard value_to_float() function.
 Provide an alternate conversion scheme as required via `score_value`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L72)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L72)
 
 ``` python
 class AgentAttempts(NamedTuple)
@@ -21330,7 +21445,7 @@ Returns `True` to continue (with no additional messages inserted),
 return `False` to stop. Returns `str` to continue with an additional
 custom user message inserted.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L63)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L63)
 
 ``` python
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
@@ -21340,7 +21455,7 @@ AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
 
 Configure the submit tool of a react agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/agent/_types.py#L94)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/agent/_types.py#L94)
 
 ``` python
 class AgentSubmit(NamedTuple)
@@ -21383,7 +21498,7 @@ model generated along with the call to `submit()`.
 
 Read dataset from CSV file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_sources/csv.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_sources/csv.py#L20)
 
 ``` python
 def csv_dataset(
@@ -21465,7 +21580,7 @@ a JSON Lines file containing one object per line. These objects may
 already be formatted as `Sample` instances, or may require some mapping
 using the `sample_fields` argument.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_sources/json.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_sources/json.py#L22)
 
 ``` python
 def json_dataset(
@@ -21529,7 +21644,7 @@ Datasets read using the Hugging Face `datasets` package.
 The `hf_dataset` function supports reading datasets using the Hugging
 Face `datasets` package, including remote datasets on Hugging Face Hub.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_sources/hf.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_sources/hf.py#L22)
 
 ``` python
 def hf_dataset(
@@ -21614,7 +21729,7 @@ the `datasets` package.
 
 Sample for an evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L30)
 
 ``` python
 class Sample(BaseModel)
@@ -21652,7 +21767,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 \_\_init\_\_  
 Create a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L33)
 
 ``` python
 def __init__(
@@ -21700,7 +21815,7 @@ SandboxEnvironment).
 metadata_as  
 Metadata as a Pydantic model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L86)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -21713,7 +21828,7 @@ BaseModel derived class.
 
 Specification for mapping data source fields to sample fields.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L209)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L209)
 
 ``` python
 @dataclass
@@ -21750,7 +21865,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 
 Callable that maps raw dictionary record to a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L238)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L238)
 
 ``` python
 RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
@@ -21763,7 +21878,7 @@ A sequence of Sample objects.
 Datasets provide sequential access (via conventional indexes or slicing)
 to a collection of Sample objects.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L130)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L130)
 
 ``` python
 class Dataset(Sequence[Sample], abc.ABC)
@@ -21780,7 +21895,7 @@ them, ascending or descending, according to their function values.
 The key function defaults to measuring the length of the sample’s input
 field.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L161)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L161)
 
 ``` python
 @abc.abstractmethod
@@ -21801,7 +21916,7 @@ sample_input_len).
 filter  
 Filter the dataset using a predicate.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L178)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L178)
 
 ``` python
 @abc.abstractmethod
@@ -21819,7 +21934,7 @@ Name for filtered dataset (optional).
 shuffle  
 Shuffle the order of the dataset (in place).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L192)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L192)
 
 ``` python
 @abc.abstractmethod
@@ -21832,7 +21947,7 @@ Random seed for shuffling (optional).
 shuffle_choices  
 Shuffle the order of the choices with each sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L200)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L200)
 
 ``` python
 @abc.abstractmethod
@@ -21846,7 +21961,7 @@ Random seed for shuffling (optional).
 
 A Dataset stored in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L242)
 
 ``` python
 class MemoryDataset(Dataset)
@@ -21872,7 +21987,7 @@ Datasets provide sequential access (via conventional indexes or slicing)
 to a collection of Sample objects. The ListDataset is explicitly
 initialized with a list that is held in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/dataset/_dataset.py#L245)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/dataset/_dataset.py#L245)
 
 ``` python
 def __init__(
@@ -21905,7 +22020,7 @@ Was the dataset shuffled after reading.
 
 Automatically apply a decision to tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/approval/_auto.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/approval/_auto.py#L9)
 
 ``` python
 @approver(name="auto")
@@ -21919,7 +22034,7 @@ Decision to apply.
 
 Interactive human approver.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/approval/_human/approver.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/approval/_human/approver.py#L11)
 
 ``` python
 @approver(name="human")
@@ -21937,7 +22052,7 @@ Choices to present to human.
 
 Approve or reject a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/approval/_approver.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/approval/_approver.py#L12)
 
 ``` python
 class Approver(Protocol):
@@ -21966,7 +22081,7 @@ The current conversation history.
 
 Approval details (decision, explanation, etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/approval/_approval.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/approval/_approval.py#L19)
 
 ``` python
 class Approval(BaseModel)
@@ -21987,7 +22102,7 @@ Explanation for decision.
 
 Represents the possible decisions in an approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/approval/_approval.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/approval/_approval.py#L7)
 
 ``` python
 ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate"]
@@ -21997,7 +22112,7 @@ ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate
 
 Policy mapping approvers to tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/approval/_policy.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/approval/_policy.py#L21)
 
 ``` python
 @dataclass
@@ -22018,7 +22133,7 @@ Tools to use this approver for (can be full tool names or globs).
 
 Decorator for registering approvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/approval/_registry.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/approval/_registry.py#L28)
 
 ``` python
 def approver(*args: Any, name: str | None = None, **attribs: Any) -> Any
@@ -22044,7 +22159,7 @@ Additional approver attributes.
 
 List all eval logs in a directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L52)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L52)
 
 ``` python
 def list_eval_logs(
@@ -22082,7 +22197,7 @@ provider (e.g. `S3FileSystem`).
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L100)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L100)
 
 ``` python
 def write_eval_log(
@@ -22105,7 +22220,7 @@ Write to format (defaults to ‘auto’ based on `log_file` extension)
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L124)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L124)
 
 ``` python
 async def write_eval_log_async(
@@ -22128,7 +22243,7 @@ Write to format (defaults to ‘auto’ based on `log_file` extension)
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L210)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L210)
 
 ``` python
 def read_eval_log(
@@ -22156,7 +22271,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L248)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L248)
 
 ``` python
 async def read_eval_log_async(
@@ -22184,7 +22299,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read a sample from an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L318)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L318)
 
 ``` python
 def read_eval_log_sample(
@@ -22218,7 +22333,7 @@ Read all samples from an evaluation log incrementally.
 Generator for samples in a log file. Only one sample at a time will be
 read into memory and yielded to the caller.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L455)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L455)
 
 ``` python
 def read_eval_log_samples(
@@ -22245,7 +22360,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read sample summaries from an eval log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L400)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L400)
 
 ``` python
 def read_eval_log_sample_summaries(
@@ -22267,7 +22382,7 @@ Convert between log file formats.
 Convert log file(s) to a target format. If a file is already in the
 target format it will just be copied to the output dir.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_convert.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_convert.py#L13)
 
 ``` python
 def convert_eval_logs(
@@ -22294,7 +22409,7 @@ the output file path already exists).
 
 Bundle a log_dir into a statically deployable viewer
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_bundle.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_bundle.py#L23)
 
 ``` python
 def bundle_log_dir(
@@ -22329,7 +22444,7 @@ A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o
 samples) keyed by log file names (names are relative to the log
 directory)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L165)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L165)
 
 ``` python
 def write_log_dir_manifest(
@@ -22362,7 +22477,7 @@ Retryable logs are logs with status “error” or “cancelled” that do not
 have a corresponding log with status “success” (indicating they were
 subsequently retried and completed)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_retry.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_retry.py#L10)
 
 ``` python
 def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]
@@ -22375,7 +22490,7 @@ List of logs to examine.
 
 File info and task identifiers for eval log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_file.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_file.py#L27)
 
 ``` python
 class EvalLogInfo(BaseModel)
@@ -22410,7 +22525,7 @@ Log file suffix (e.g. “-scored”)
 
 Evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L903)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L903)
 
 ``` python
 class EvalLog(BaseModel)
@@ -22452,7 +22567,7 @@ Location that the log file was read from.
 
 Eval target and configuration.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L679)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L679)
 
 ``` python
 class EvalSpec(BaseModel)
@@ -22545,7 +22660,7 @@ metrics and args for this eval
 
 Dataset used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L607)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L607)
 
 ``` python
 class EvalDataset(BaseModel)
@@ -22572,7 +22687,7 @@ Was the dataset shuffled after reading.
 
 Configuration used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L66)
 
 ``` python
 class EvalConfig(BaseModel)
@@ -22656,7 +22771,7 @@ Display scoring metrics realtime.
 
 Model config.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L663)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L663)
 
 ``` python
 class EvalModelConfig(BaseModel)
@@ -22680,7 +22795,7 @@ Model specific arguments.
 
 Git revision for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L650)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L650)
 
 ``` python
 class EvalRevision(BaseModel)
@@ -22701,7 +22816,7 @@ Revision commit.
 
 Plan (solvers) used in evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L449)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L449)
 
 ``` python
 class EvalPlan(BaseModel)
@@ -22725,7 +22840,7 @@ Generation config.
 
 Solver step.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L439)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L439)
 
 ``` python
 class EvalPlanStep(BaseModel)
@@ -22743,7 +22858,7 @@ Parameters used to instantiate solver.
 
 Scoring results from evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L523)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L523)
 
 ``` python
 class EvalResults(BaseModel)
@@ -22772,7 +22887,7 @@ List of per sample scores reduced across epochs
 
 Score for evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L481)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L481)
 
 ``` python
 class EvalScore(BaseModel)
@@ -22802,7 +22917,7 @@ Additional scorer metadata.
 
 Metric for evaluation score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L465)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L465)
 
 ``` python
 class EvalMetric(BaseModel)
@@ -22826,7 +22941,7 @@ Additional metadata associated with metric.
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L510)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L510)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -22847,7 +22962,7 @@ List of reduced scores
 
 Timing and usage statistics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L887)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L887)
 
 ``` python
 class EvalStats(BaseModel)
@@ -22868,7 +22983,7 @@ Model token usage for evaluation.
 
 Eval error details.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/error.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/error.py#L11)
 
 ``` python
 class EvalError(BaseModel)
@@ -22889,7 +23004,7 @@ Error traceback with ANSI color codes.
 
 Sample from evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L236)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L236)
 
 ``` python
 class EvalSample(BaseModel)
@@ -22973,7 +23088,7 @@ The limit that halted the sample
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L275)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L275)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -22985,7 +23100,7 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L289)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L289)
 
 ``` python
 def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT
@@ -23007,7 +23122,7 @@ events, store, and metadata so that it is always fast to load.
 If there are images, audio, or video in the input, they are replaced
 with a placeholder.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L346)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L346)
 
 ``` python
 def summary(self) -> EvalSampleSummary
@@ -23017,7 +23132,7 @@ def summary(self) -> EvalSampleSummary
 
 Summary information (including scoring) for a sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L172)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L172)
 
 ``` python
 class EvalSampleSummary(BaseModel)
@@ -23073,7 +23188,7 @@ Is the sample complete.
 
 Limit encountered by sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L160)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L160)
 
 ``` python
 class EvalSampleLimit(BaseModel)
@@ -23091,7 +23206,7 @@ The limit value
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L510)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L510)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -23112,7 +23227,7 @@ List of reduced scores
 
 Score and sample_id scored.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_log.py#L503)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_log.py#L503)
 
 ``` python
 class EvalSampleScore(Score)
@@ -23129,7 +23244,7 @@ Sample ID.
 
 Get the current `Transcript`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L597)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L597)
 
 ``` python
 def transcript() -> Transcript
@@ -23139,7 +23254,7 @@ def transcript() -> Transcript
 
 Transcript of events.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L537)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L537)
 
 ``` python
 class Transcript
@@ -23150,7 +23265,7 @@ class Transcript
 info  
 Add an `InfoEvent` to the transcript.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L546)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L546)
 
 ``` python
 def info(self, data: JsonValue, *, source: str | None = None) -> None
@@ -23168,7 +23283,7 @@ Context manager for recording StepEvent.
 The `step()` context manager is deprecated and will be removed in a
 future version. Please use the `span()` context manager instead.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L555)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L555)
 
 ``` python
 @contextlib.contextmanager
@@ -23185,7 +23300,7 @@ Optional step type.
 
 Event in a transcript.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L512)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L512)
 
 ``` python
 Event: TypeAlias = Union[
@@ -23216,7 +23331,7 @@ Build a tree representation of a sequence of events.
 
 Organize events heirarchially into event spans.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_tree.py#L42)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_tree.py#L42)
 
 ``` python
 def event_tree(events: Sequence[Event]) -> EventTree
@@ -23229,7 +23344,7 @@ Sequence of `Event`.
 
 Flatten a span forest back into a properly ordered seqeunce.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_tree.py#L93)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_tree.py#L93)
 
 ``` python
 def event_sequence(tree: EventTree) -> Iterable[Event]
@@ -23242,7 +23357,7 @@ Event tree
 
 Tree of events (has invividual events and event spans).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_tree.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_tree.py#L12)
 
 ``` python
 EventTree: TypeAlias = list[EventNode]
@@ -23252,7 +23367,7 @@ EventTree: TypeAlias = list[EventNode]
 
 Node in an event tree.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_tree.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_tree.py#L9)
 
 ``` python
 EventNode: TypeAlias = "SpanNode" | Event
@@ -23262,7 +23377,7 @@ EventNode: TypeAlias = "SpanNode" | Event
 
 Event tree node representing a span of events.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_tree.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_tree.py#L16)
 
 ``` python
 @dataclass
@@ -23296,7 +23411,7 @@ Children in the span.
 
 Beginning of processing a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L89)
 
 ``` python
 class SampleInitEvent(BaseEvent)
@@ -23317,7 +23432,7 @@ Initial state.
 
 The sample was unable to finish processing due to a limit
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L102)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L102)
 
 ``` python
 class SampleLimitEvent(BaseEvent)
@@ -23341,7 +23456,7 @@ The limit value (if any)
 
 Change to the current `TaskState`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L128)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L128)
 
 ``` python
 class StateEvent(BaseEvent)
@@ -23359,7 +23474,7 @@ List of changes to the `TaskState`
 
 Change to data within the current `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L118)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L118)
 
 ``` python
 class StoreEvent(BaseEvent)
@@ -23377,7 +23492,7 @@ List of changes to the `Store`.
 
 Call to a language model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L138)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L138)
 
 ``` python
 class ModelEvent(BaseEvent)
@@ -23431,7 +23546,7 @@ working time for model call that succeeded (i.e. was not retried).
 
 Call to a tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L190)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L190)
 
 ``` python
 class ToolEvent(BaseEvent)
@@ -23489,7 +23604,7 @@ Was the task cancelled?
 
 Sandbox execution or I/O
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L296)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L296)
 
 ``` python
 class SandboxEvent(BaseEvent)
@@ -23528,7 +23643,7 @@ Time that sandbox action completed (see `timestamp` for started)
 
 Tool approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L333)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L333)
 
 ``` python
 class ApprovalEvent(BaseEvent)
@@ -23564,7 +23679,7 @@ Explanation for decision.
 
 Input screen interaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L361)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L361)
 
 ``` python
 class InputEvent(BaseEvent)
@@ -23585,7 +23700,7 @@ Input interaction (ANSI).
 
 Event with sample error.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L397)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L397)
 
 ``` python
 class ErrorEvent(BaseEvent)
@@ -23603,7 +23718,7 @@ Sample error
 
 Log message recorded with Python logger.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L374)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L374)
 
 ``` python
 class LoggerEvent(BaseEvent)
@@ -23621,7 +23736,7 @@ Logging message
 
 Logging level.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_message.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_message.py#L7)
 
 ``` python
 LoggingLevel = Literal[
@@ -23633,7 +23748,7 @@ LoggingLevel = Literal[
 
 Message written to Python log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_message.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_message.py#L13)
 
 ``` python
 class LoggingMessage(BaseModel)
@@ -23666,7 +23781,7 @@ Logged from line number.
 
 Event with custom info/data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L384)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L384)
 
 ``` python
 class InfoEvent(BaseEvent)
@@ -23687,7 +23802,7 @@ Data provided with event.
 
 Mark the beginning of a transcript span.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L427)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L427)
 
 ``` python
 class SpanBeginEvent(BaseEvent)
@@ -23714,7 +23829,7 @@ Span name.
 
 Mark the end of a transcript span.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L446)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L446)
 
 ``` python
 class SpanEndEvent(BaseEvent)
@@ -23732,7 +23847,7 @@ Unique identifier for span.
 
 Subtask spawned.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/log/_transcript.py#L472)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/log/_transcript.py#L472)
 
 ``` python
 class SubtaskEvent(BaseEvent)
@@ -23778,7 +23893,7 @@ model retries).
 
 Read a dataframe containing evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L53)
 
 ``` python
 def evals_df(
@@ -23809,7 +23924,7 @@ terminal environments, and `True` for notebooks.
 
 Column which maps to `EvalLog`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L16)
 
 ``` python
 class EvalColumn(Column)
@@ -23819,7 +23934,7 @@ class EvalColumn(Column)
 
 Default columns to import for `evals_df()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L124)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L124)
 
 ``` python
 EvalColumns: list[Column] = (
@@ -23837,7 +23952,7 @@ EvalColumns: list[Column] = (
 
 Eval basic information columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51)
 
 ``` python
 EvalInfo: list[Column] = [
@@ -23857,7 +23972,7 @@ EvalInfo: list[Column] = [
 
 Eval task configuration columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64)
 
 ``` python
 EvalTask: list[Column] = [
@@ -23877,7 +23992,7 @@ EvalTask: list[Column] = [
 
 Eval model columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77)
 
 ``` python
 EvalModel: list[Column] = [
@@ -23893,7 +24008,7 @@ EvalModel: list[Column] = [
 
 Eval configuration columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95)
 
 ``` python
 EvalConfig: list[Column] = [
@@ -23911,7 +24026,7 @@ EvalConfig: list[Column] = [
 
 Eval results columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106)
 
 ``` python
 EvalResults: list[Column] = [
@@ -23931,7 +24046,7 @@ EvalResults: list[Column] = [
 
 Eval scores (one score/metric per-columns).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L119)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L119)
 
 ``` python
 EvalScores: list[Column] = [
@@ -23945,7 +24060,7 @@ EvalScores: list[Column] = [
 
 Read a dataframe containing samples from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L76)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L76)
 
 ``` python
 def samples_df(
@@ -23983,7 +24098,7 @@ terminal environments, and `True` for notebooks.
 
 Column which maps to `EvalSample` or `EvalSampleSummary`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L19)
 
 ``` python
 class SampleColumn(Column)
@@ -23993,7 +24108,7 @@ class SampleColumn(Column)
 
 Sample summary columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L58)
 
 ``` python
 SampleSummary: list[Column] = [
@@ -24016,7 +24131,7 @@ SampleSummary: list[Column] = [
 
 Sample messages as a string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L74)
 
 ``` python
 SampleMessages: list[Column] = [
@@ -24030,7 +24145,7 @@ SampleMessages: list[Column] = [
 
 Read a dataframe containing messages from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L45)
 
 ``` python
 def messages_df(
@@ -24072,7 +24187,7 @@ terminal environments, and `True` for notebooks.
 
 Filter for `messages_df()` rows.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L19)
 
 ``` python
 MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
@@ -24082,7 +24197,7 @@ MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
 
 Column which maps to `ChatMessage`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L16)
 
 ``` python
 class MessageColumn(Column)
@@ -24092,7 +24207,7 @@ class MessageColumn(Column)
 
 Message content columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L44)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L44)
 
 ``` python
 MessageContent: list[Column] = [
@@ -24106,7 +24221,7 @@ MessageContent: list[Column] = [
 
 Message tool call columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L51)
 
 ``` python
 MessageToolCalls: list[Column] = [
@@ -24121,7 +24236,7 @@ MessageToolCalls: list[Column] = [
 
 Chat message columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L59)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L59)
 
 ``` python
 MessageColumns: list[Column] = MessageContent + MessageToolCalls
@@ -24133,7 +24248,7 @@ MessageColumns: list[Column] = MessageContent + MessageToolCalls
 
 Read a dataframe containing events from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/events/table.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/events/table.py#L45)
 
 ``` python
 def events_df(
@@ -24175,7 +24290,7 @@ terminal environments, and `True` for notebooks.
 
 Column which maps to `Event`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L19)
 
 ``` python
 class EventColumn(Column)
@@ -24185,7 +24300,7 @@ class EventColumn(Column)
 
 Event basic information columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L47)
 
 ``` python
 EventInfo: list[Column] = [
@@ -24198,7 +24313,7 @@ EventInfo: list[Column] = [
 
 Event timing columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L53)
 
 ``` python
 EventTiming: list[Column] = [
@@ -24213,7 +24328,7 @@ EventTiming: list[Column] = [
 
 Model event columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L61)
 
 ``` python
 ModelEventColumns: list[Column] = [
@@ -24237,7 +24352,7 @@ ModelEventColumns: list[Column] = [
 
 Tool event columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L78)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L78)
 
 ``` python
 ToolEventColumns: list[Column] = [
@@ -24277,7 +24392,7 @@ to a comma-separated string).
 The `root` option indicates which root eval log context the columns
 select from.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/columns.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/columns.py#L21)
 
 ``` python
 class Column(abc.ABC)
@@ -24307,7 +24422,7 @@ value
 Convert extracted value into a column value (defaults to identity
 function).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/columns.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/columns.py#L86)
 
 ``` python
 def value(self, x: JsonValue) -> JsonValue
@@ -24323,7 +24438,7 @@ Valid types for columns.
 Values of `list` and `dict` are converted into column values as JSON
 `str`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/columns.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/columns.py#L14)
 
 ``` python
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
@@ -24333,7 +24448,7 @@ ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 
 Error which occurred parsing a column.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/analysis/beta/_dataframe/columns.py#L115)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/analysis/beta/_dataframe/columns.py#L115)
 
 ``` python
 @dataclass
@@ -24376,7 +24491,7 @@ transcript, values and objects must be JSON serialisable (you can make
 objects with several fields serialisable using the `@dataclass`
 decorator or by inheriting from Pydantic `BaseModel`)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L20)
 
 ``` python
 class Store
@@ -24390,7 +24505,7 @@ Get a value from the store.
 Provide a `default` to automatically initialise a named store value with
 the default when it does not yet exist.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L46)
 
 ``` python
 def get(self, key: str, default: VT | None = None) -> VT | Any
@@ -24405,7 +24520,7 @@ Default value (defaults to `None`)
 set  
 Set a value into the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L64)
 
 ``` python
 def set(self, key: str, value: Any) -> None
@@ -24420,7 +24535,7 @@ Value to set
 delete  
 Remove a value from the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L73)
 
 ``` python
 def delete(self, key: str) -> None
@@ -24432,7 +24547,7 @@ Name of value to remove
 keys  
 View of keys within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L81)
 
 ``` python
 def keys(self) -> KeysView[str]
@@ -24441,7 +24556,7 @@ def keys(self) -> KeysView[str]
 values  
 View of values within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L85)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L85)
 
 ``` python
 def values(self) -> ValuesView[Any]
@@ -24450,7 +24565,7 @@ def values(self) -> ValuesView[Any]
 items  
 View of items within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L89)
 
 ``` python
 def items(self) -> ItemsView[str, Any]
@@ -24460,7 +24575,7 @@ def items(self) -> ItemsView[str, Any]
 
 Get the currently active `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store.py#L103)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store.py#L103)
 
 ``` python
 def store() -> Store
@@ -24470,7 +24585,7 @@ def store() -> Store
 
 Get a Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store_model.py#L121)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store_model.py#L121)
 
 ``` python
 def store_as(model_cls: Type[SMT], instance: str | None = None) -> SMT
@@ -24492,7 +24607,7 @@ already satisfy the validation constraints of the model OR you should
 provide Field(default=) annotations for all of your model fields (the
 latter approach is recommended).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_store_model.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_store_model.py#L8)
 
 ``` python
 class StoreModel(BaseModel)
@@ -24514,7 +24629,7 @@ check_message_limit() themselves whenever the message count is updated.
 
 When a limit is exceeded, a `LimitExceededError` is raised.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L259)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L259)
 
 ``` python
 def message_limit(limit: int | None) -> _MessageLimit
@@ -24538,7 +24653,7 @@ This relies on “cooperative” checking - consumers must call
 
 When a limit is exceeded, a `LimitExceededError` is raised.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L215)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L215)
 
 ``` python
 def token_limit(limit: int | None) -> _TokenLimit
@@ -24569,7 +24684,7 @@ operation which caused the limit to be exceeded (e.g. a call to
 `generate()`). Ensure you handle `LimitExceededError` at the level of
 opening the context manager.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L296)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L296)
 
 ``` python
 def time_limit(limit: float | None) -> _TimeLimit
@@ -24593,7 +24708,7 @@ These limits can be stacked.
 
 When a limit is exceeded, a `LimitExceededError` is raised.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L319)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L319)
 
 ``` python
 def working_limit(limit: float | None) -> _WorkingLimit
@@ -24614,7 +24729,7 @@ Sample level) to propagate.
 Yields a `LimitScope` object which can be used once the context manager
 is closed to determine which, if any, limits were exceeded.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L126)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L126)
 
 ``` python
 @contextmanager
@@ -24638,7 +24753,7 @@ to propagate.
 
 Get the top-level limits applied to the current `Sample`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L195)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L195)
 
 ``` python
 def sample_limits() -> SampleLimits
@@ -24650,7 +24765,7 @@ Data class to hold the limits applied to a Sample.
 
 This is used to return the limits from `sample_limits()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L175)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L175)
 
 ``` python
 @dataclass
@@ -24675,7 +24790,7 @@ Time limit.
 
 Base class for all limit context managers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L73)
 
 ``` python
 class Limit(abc.ABC)
@@ -24704,7 +24819,7 @@ In some scenarios this error may be raised when `value >= limit` to
 prevent another operation which is guaranteed to exceed the limit from
 being wastefully performed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_limit.py#L26)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_limit.py#L26)
 
 ``` python
 class LimitExceededError(Exception)
@@ -24729,7 +24844,7 @@ Note that concurrency for model API access is handled internally via the
 `max_connections` generation config option. Concurrency for launching
 subprocesses is handled via the `subprocess` function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_concurrency.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_concurrency.py#L11)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -24762,7 +24877,7 @@ subprocesses. Automatically enforces a limit on concurrent subprocesses
 (defaulting to os.cpu_count() but controllable via the
 `max_subprocesses` eval config option).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_subprocess.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_subprocess.py#L70)
 
 ``` python
 async def subprocess(
@@ -24806,7 +24921,7 @@ Timeout. If the timeout expires then a `TimeoutError` will be raised.
 
 Execution result from call to `subprocess()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_subprocess.py#L26)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_subprocess.py#L26)
 
 ``` python
 @dataclass
@@ -24833,7 +24948,7 @@ Contents of stderr.
 
 Display a counter in the UI.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_display.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_display.py#L74)
 
 ``` python
 def display_counter(caption: str, value: str) -> None
@@ -24849,7 +24964,7 @@ The counter’s value e.g. “42”.
 
 Get the current console display type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_display.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_display.py#L47)
 
 ``` python
 def display_type() -> DisplayType
@@ -24859,7 +24974,7 @@ def display_type() -> DisplayType
 
 Console display type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_display.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_display.py#L11)
 
 ``` python
 DisplayType = Literal["full", "conversation", "rich", "plain", "log", "none"]
@@ -24872,7 +24987,7 @@ Input screen for receiving user input.
 Context manager that clears the task display and provides a screen for
 receiving console input.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_console.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_console.py#L13)
 
 ``` python
 @contextmanager
@@ -24900,7 +25015,7 @@ Input screen width in characters (defaults to full width)
 
 Context manager for establishing a transcript span.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_span.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_span.py#L11)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -24929,7 +25044,7 @@ Using `collect()` in preference to `asyncio.gather()` is highly
 recommended for both Trio compatibility and more legible transcript
 output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_collect.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_collect.py#L15)
 
 ``` python
 async def collect(*tasks: Awaitable[T]) -> list[T]
@@ -24959,7 +25074,7 @@ If you want to ensure that only local or remote files are consumed,
 specify `type="file"`. For example:
 `resource("templates/prompt.txt", type="file")`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_resource.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_resource.py#L9)
 
 ``` python
 def resource(
@@ -24986,7 +25101,7 @@ are accessing a public S3 bucket with no credentials.
 
 Throttle a function to ensure it is called no more than every n seconds.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_throttle.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_throttle.py#L6)
 
 ``` python
 def throttle(seconds: float) -> Callable[..., Any]
@@ -25015,7 +25130,7 @@ async def run():
         ...
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_background.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_background.py#L19)
 
 ``` python
 def background(
@@ -25041,7 +25156,7 @@ Traces are written to the `TRACE` log level (which is just below `HTTP`
 and `INFO`). List and read trace logs with `inspect trace list` and
 related commands (see `inspect trace --help` for details).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/trace.py#L32)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/trace.py#L32)
 
 ``` python
 @contextmanager
@@ -25073,7 +25188,7 @@ The `TRACE` log level is just below `HTTP` and `INFO`). List and read
 trace logs with `inspect trace list` and related commands (see
 `inspect trace --help` for details).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/trace.py#L133)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/trace.py#L133)
 
 ``` python
 def trace_message(
@@ -25102,7 +25217,7 @@ Named args for `message` format string.
 
 Get the SandboxEnvironment for the current sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/context.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/context.py#L23)
 
 ``` python
 def sandbox(name: str | None = None) -> SandboxEnvironment
@@ -25116,7 +25231,7 @@ Optional sandbox environment name.
 Get the SandboxEnvironment for the current sample that has the specified
 file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/context.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/context.py#L53)
 
 ``` python
 async def sandbox_with(
@@ -25139,7 +25254,7 @@ Optional sandbox environment name.
 
 Set the default sandbox environment for the current context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/context.py#L276)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/context.py#L276)
 
 ``` python
 @contextmanager
@@ -25157,7 +25272,7 @@ Sandbox environments provide both an execution environment as well as a
 per-sample filesystem context to copy samples files into and resolve
 relative paths to.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L84)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L84)
 
 ``` python
 class SandboxEnvironment(abc.ABC)
@@ -25174,7 +25289,7 @@ filesystem context.
 Each output stream (stdout and stderr) is limited to 10 MiB. If
 exceeded, an `OutputLimitExceededError` will be raised.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L91)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L91)
 
 ``` python
 @abc.abstractmethod
@@ -25220,7 +25335,7 @@ Write a file into the sandbox environment.
 If the parent directories of the file path do not exist they should be
 automatically created.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L137)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L137)
 
 ``` python
 @abc.abstractmethod
@@ -25244,7 +25359,7 @@ constructs (e.g. crlf should be preserved not converted to lf). This is
 equivalent to specifying `newline=""` in a call to the Python `open()`
 function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L163)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L163)
 
 ``` python
 @abc.abstractmethod
@@ -25261,7 +25376,7 @@ Read as a utf-8 encoded text file.
 connection  
 Information required to connect to sandbox environment.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L194)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L194)
 
 ``` python
 async def connection(self, *, user: str | None = None) -> SandboxConnection
@@ -25273,7 +25388,7 @@ User to login as.
 as_type  
 Verify and return a reference to a subclass of SandboxEnvironment.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L209)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L209)
 
 ``` python
 def as_type(self, sandbox_cls: Type[ST]) -> ST
@@ -25285,7 +25400,7 @@ Class of sandbox (subclass of SandboxEnvironment)
 default_concurrency  
 Default max_sandboxes for this provider (`None` means no maximum)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L228)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L228)
 
 ``` python
 @classmethod
@@ -25295,7 +25410,7 @@ def default_concurrency(cls) -> int | None
 task_init  
 Called at task startup initialize resources.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L233)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L233)
 
 ``` python
 @classmethod
@@ -25323,7 +25438,7 @@ This is useful for situations where config files are dynamic
 (e.g. through sample metadata variable interpolation) and end up
 yielding different images that need their own init (e.g. ‘docker pull’).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L245)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L245)
 
 ``` python
 @classmethod
@@ -25341,7 +25456,7 @@ metadata: Sample `metadata` field
 sample_init  
 Initialize sandbox environments for a sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L269)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L269)
 
 ``` python
 @classmethod
@@ -25365,7 +25480,7 @@ Sample `metadata` field
 sample_cleanup  
 Cleanup sandbox environments.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L290)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L290)
 
 ``` python
 @classmethod
@@ -25394,7 +25509,7 @@ Was the task interrupted by an error or cancellation
 task_cleanup  
 Called at task exit as a last chance to cleanup resources.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L309)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L309)
 
 ``` python
 @classmethod
@@ -25416,7 +25531,7 @@ Whether to actually cleanup environment resources (False if
 cli_cleanup  
 Handle a cleanup invoked from the CLI (e.g. inspect sandbox cleanup).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L323)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L323)
 
 ``` python
 @classmethod
@@ -25429,7 +25544,7 @@ Optional ID to limit scope of cleanup.
 config_files  
 Standard config files for this provider (used for automatic discovery)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L332)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L332)
 
 ``` python
 @classmethod
@@ -25444,7 +25559,7 @@ Override this method if you support a custom configuration model.
 A basic implementation would be:
 `return MySandboxEnvironmentConfig(**config)`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L337)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L337)
 
 ``` python
 @classmethod
@@ -25459,7 +25574,7 @@ model.
 
 Information required to connect to sandbox.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/environment.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/environment.py#L65)
 
 ``` python
 class SandboxConnection(BaseModel)
@@ -25486,7 +25601,7 @@ Optional container name (does not apply to all sandboxes).
 
 Decorator for registering sandbox environments.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/registry.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/registry.py#L16)
 
 ``` python
 def sandboxenv(name: str) -> Callable[..., Type[T]]
@@ -25522,7 +25637,7 @@ foo = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(foo)
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_sandbox/service.py#L38)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_sandbox/service.py#L38)
 
 ``` python
 async def sandbox_service(
@@ -25566,7 +25681,7 @@ registry_create("scorer", "mypackage/myscorer", ...)
 Object within the Inspect package do not require a prefix, nor do
 objects from imported modules that aren’t in a package.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/registry.py#L289)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/registry.py#L289)
 
 ``` python
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
@@ -25589,7 +25704,7 @@ These are the types of objects in this system that can be registered
 using a decorator (e.g. `@task`, `@solver`). Registered objects can in
 turn be created dynamically using the `registry_create()` function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/_util/registry.py#L38)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/_util/registry.py#L38)
 
 ``` python
 RegistryType = Literal[
@@ -25614,7 +25729,7 @@ RegistryType = Literal[
 
 Valid types within JSON schema.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_json.py#L26)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_json.py#L26)
 
 ``` python
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
@@ -25624,7 +25739,7 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 
 JSON Schema for type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_json.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_json.py#L30)
 
 ``` python
 class JSONSchema(BaseModel)
@@ -25669,7 +25784,7 @@ Provide a JSON Schema for the specified type.
 Schemas can be automatically inferred for a wide variety of Python class
 types including Pydantic BaseModel, dataclasses, and typed dicts.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/util/_json.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/util/_json.py#L64)
 
 ``` python
 def json_schema(t: Type[Any]) -> JSONSchema
@@ -25692,7 +25807,7 @@ block to catch any exceptions that may occur. This is to ensure that a
 hook failure does not affect the overall execution of the eval. If a
 hook fails, a warning will be logged.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L119)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L119)
 
 ``` python
 class Hooks
@@ -25711,7 +25826,7 @@ environment variable or a configuration setting.
 Will be called frequently, so consider caching the result if the
 computation is expensive.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L127)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L127)
 
 ``` python
 def enabled(self) -> bool
@@ -25724,7 +25839,7 @@ A “run” is a single invocation of `eval()` or `eval_retry()` which may
 contain many Tasks, each with many Samples and many epochs. Note that
 `eval_retry()` can be invoked multiple times within an `eval_set()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L140)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L140)
 
 ``` python
 async def on_run_start(self, data: RunStart) -> None
@@ -25736,7 +25851,7 @@ Run start data.
 on_run_end  
 On run end.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L152)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L152)
 
 ``` python
 async def on_run_end(self, data: RunEnd) -> None
@@ -25748,7 +25863,7 @@ Run end data.
 on_task_start  
 On task start.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L160)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L160)
 
 ``` python
 async def on_task_start(self, data: TaskStart) -> None
@@ -25760,7 +25875,7 @@ Task start data.
 on_task_end  
 On task end.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L168)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L168)
 
 ``` python
 async def on_task_end(self, data: TaskEnd) -> None
@@ -25778,7 +25893,7 @@ retries, this will not be called again.
 If a sample is run for multiple epochs, this will be called once per
 epoch.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L176)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L176)
 
 ``` python
 async def on_sample_start(self, data: SampleStart) -> None
@@ -25796,7 +25911,7 @@ has errored and has no retries remaining.
 If a sample is run for multiple epochs, this will be called once per
 epoch.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L189)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L189)
 
 ``` python
 async def on_sample_end(self, data: SampleEnd) -> None
@@ -25813,7 +25928,7 @@ Note that this is not called when Inspect’s local cache is used and is a
 cache hit (i.e. if no external API call was made). Provider-side caching
 will result in this being called.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L202)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L202)
 
 ``` python
 async def on_model_usage(self, data: ModelUsageData) -> None
@@ -25828,7 +25943,7 @@ Optionally override an API key.
 When overridden, this method may return a new API key value which will
 be used in place of the original one during the eval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L214)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L214)
 
 ``` python
 def override_api_key(self, data: ApiKeyOverride) -> str | None
@@ -25854,7 +25969,7 @@ Either decorate a subclass of `Hooks`, or a function which returns the
 type of a subclass of `Hooks`. This decorator will instantiate the hook
 class and store it in the registry.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L232)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L232)
 
 ``` python
 def hooks(name: str, description: str) -> Callable[..., Type[T]]
@@ -25873,7 +25988,7 @@ auditing.”).
 
 Api key override hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L109)
 
 ``` python
 @dataclass(frozen=True)
@@ -25893,7 +26008,7 @@ The original value of the environment variable.
 
 Model usage hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L95)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L95)
 
 ``` python
 @dataclass(frozen=True)
@@ -25917,7 +26032,7 @@ waiting (e.g. exponential backoff) time.
 
 Run end hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L31)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L31)
 
 ``` python
 @dataclass(frozen=True)
@@ -25937,7 +26052,7 @@ was an `eval_set()`.
 
 Run start hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L21)
 
 ``` python
 @dataclass(frozen=True)
@@ -25956,7 +26071,7 @@ The names of the tasks which will be used in the run.
 
 Sample end hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L81)
 
 ``` python
 @dataclass(frozen=True)
@@ -25981,7 +26096,7 @@ Summary of the sample that has run.
 
 Sample start hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L67)
 
 ``` python
 @dataclass(frozen=True)
@@ -26006,7 +26121,7 @@ Summary of the sample to be run.
 
 Task end hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L54)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L54)
 
 ``` python
 @dataclass(frozen=True)
@@ -26029,7 +26144,7 @@ The log generated for the task. Can be header only if the run was an
 
 Task start hook event data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/37d31b0534a288ca3756a23bbe7902ee5b2a6496/src/inspect_ai/hooks/_hooks.py#L42)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b26b1ce92a92879b475d7ffc6aa62dab5e9e9a17/src/inspect_ai/hooks/_hooks.py#L42)
 
 ``` python
 @dataclass(frozen=True)
