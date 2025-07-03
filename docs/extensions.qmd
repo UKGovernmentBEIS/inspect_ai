@@ -470,32 +470,49 @@ Hooks enable you to run arbitrary code during certain events of Inspect's lifecy
 
 ### Hooks Registration
 
-You should build your custom `Hooks` class within a Python package, and then register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension at startup and will display its name and description to the user.
+Packages that provide hooks should register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads the extension at startup.
 
-For example, if your package was named `evaltools` and your model provider was exported from a source file named `_hooks_.py` at the root of your package, you would register it like this in `pyproject.toml`:
+For example, let's say your package is named `evaltools` and has this structure:
+
+```         
+evaltools/
+  wandb.py
+  _registry.py
+pyproject.toml
+```
+
+The `_registry.py` file serves as a place to import things that you want registered with Inspect. For example:
+
+``` {.python filename="_registry.py"}
+from .wandb import wandb_hooks
+```
+
+You can then register your `wandb_hooks` Inspect extension (and anything else imported into `_registry.py`) like this in `pyproject.toml`:
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
 
 ``` toml
 [project.entry-points.inspect_ai]
-evaltools = "evaltools._hooks"
+evaltools = "evaltools._registry"
 ```
 
 ## uv
 
 ``` toml
 [project.entry-points.inspect_ai]
-evaltools = "evaltools._hooks"
+evaltools = "evaltools._registry"
 ```
 
 ## Poetry
 
 ``` toml
 [tool.poetry.plugins.inspect_ai]
-evaltools = "evaltools._hooks"
+evaltools = "evaltools._registry"
 ```
 :::
+
+Once you've done this, your hook will be enabled for Inspect users that have this package installed.
 
 ### Hooks Usage
 
