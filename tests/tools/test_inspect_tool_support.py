@@ -17,7 +17,7 @@ from inspect_ai.solver import (
     generate,
     use_tools,
 )
-from inspect_ai.tool import ToolCallError, text_editor
+from inspect_ai.tool import ToolCallError, bash_session, text_editor
 
 
 @pytest.fixture(scope="session")
@@ -108,4 +108,127 @@ def test_text_editor_read_missing(inspect_tool_support_sandbox):
     assert response.error  # Expect ToolError as file is missing
     assert isinstance(response.error, ToolCallError), (
         f"Expected ToolCallError, got {type(response.error)}"
+    )
+
+
+@pytest.mark.slow
+def test_bash_session_root(inspect_tool_support_sandbox):
+    task = Task(
+        dataset=[
+            Sample(
+                input='What is the output of running the command echo "start $(whoami) end"?'
+            )
+        ],
+        solver=[use_tools([bash_session()]), generate()],
+        scorer=match(),
+        sandbox=inspect_tool_support_sandbox,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={
+                    "action": "type_submit",
+                    "input": 'echo "start $(whoami) end"',
+                },
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.error is None, f"Tool call returns error: {response.error}"
+    assert "start root end" in response.content, (
+        f"Unexpected output from whoami: {response.content}"
+    )
+
+
+@pytest.mark.slow
+def test_bash_session_non_root(inspect_tool_support_sandbox):
+    task = Task(
+        dataset=[
+            Sample(
+                input='What is the output of running the command echo "start $(whoami) end"?'
+            )
+        ],
+        solver=[use_tools([bash_session(user="nobody")]), generate()],
+        scorer=match(),
+        sandbox=inspect_tool_support_sandbox,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={
+                    "action": "type_submit",
+                    "input": 'echo "start $(whoami) end"',
+                },
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.error is None, f"Tool call returns error: {response.error}"
+    assert "start nobody end" in response.content, (
+        f"Unexpected output from whoami: {response.content}"
+    )
+
+
+@pytest.mark.slow
+def test_bash_session_missing_user(inspect_tool_support_sandbox):
+    task = Task(
+        dataset=[
+            Sample(
+                input='What is the output of running the command echo "start $(whoami) end"?'
+            )
+        ],
+        solver=[use_tools([bash_session(user="foo")]), generate()],
+        scorer=match(),
+        sandbox=inspect_tool_support_sandbox,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="bash_session",
+                tool_arguments={
+                    "action": "type_submit",
+                    "input": 'echo "start $(whoami) end"',
+                },
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
+    assert log.samples
+    messages = log.samples[0].messages
+    tool_call = get_tool_call(messages, "bash_session")
+    assert tool_call
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert response.error  # Expect ValueError as user foo doesn't exist
+    assert isinstance(response.error, ValueError), (
+        f"Expected ValueError as user foo is missing, but got {type(response.error)}"
     )
