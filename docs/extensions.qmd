@@ -468,7 +468,47 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 
 Hooks enable you to run arbitrary code during certain events of Inspect's lifecycle, for example when runs, tasks or samples start and end.
 
-### Hooks Registration
+### Hooks Usage
+
+Here is a hypothetical integration with Weights & Biases.
+
+``` python
+import wandb
+
+from inspect_ai.hooks import Hooks, RunEnd, RunStart, SampleEnd, hooks
+
+@hooks(name="w&b_hooks", description="Weights & Biases integration")
+class WBHooks(Hooks):
+    async def on_run_start(self, data: RunStart) -> None:
+        wandb.init(name=data.run_id)
+
+    async def on_run_end(self, data: RunEnd) -> None:
+        wandb.finish()
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        scores = {k: v.value for k, v in data.summary.scores.items()}
+        wandb.log({
+            "sample_id": data.sample_id,
+            "scores": scores
+        })
+```
+
+See the `Hooks` class for more documentation and the full list of available hook events.
+
+Each set of hooks (i.e. each `@hooks`-decorated class) can register for any events (even if they're overlapping).
+
+Alternatively, you may decorate a function which returns the type of a `Hooks` subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).
+
+``` {.python filename="providers.py"}
+@hooks(name="w&b_hooks", description="Weights & Biases integration")
+def wandb_hooks():
+    from .wb_hooks import WBHooks
+
+    return WBHooks
+```
+
+
+### Registration
 
 Packages that provide hooks should register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads the extension at startup.
 
@@ -514,51 +554,34 @@ evaltools = "evaltools._registry"
 
 Once you've done this, your hook will be enabled for Inspect users that have this package installed.
 
-### Hooks Usage
+### Disabling Hooks
 
-Here is a hypothetical integration with Weights & Biases.
+You might not always want every installed hook enabled---for example, a Weights and Biases hook might only want to be enabled if a specific environment variable is defined. You can control this by implementing an `enabled()` method on your hook. For example:
 
-``` python
-import wandb
-
-from inspect_ai.hooks import Hooks, RunEnd, RunStart, SampleEnd, hooks
-
+```python
 @hooks(name="w&b_hooks", description="Weights & Biases integration")
 class WBHooks(Hooks):
-    async def on_run_start(self, data: RunStart) -> None:
-        wandb.init(name=data.run_id)
-
-    async def on_run_end(self, data: RunEnd) -> None:
-        wandb.finish()
-
-    async def on_sample_end(self, data: SampleEnd) -> None:
-        scores = {k: v.value for k, v in data.summary.scores.items()}
-        wandb.log({
-            "sample_id": data.sample_id,
-            "scores": scores
-        })
+    def enabled():
+        return "WANDB_API_KEY" in os.environ
+    ...
 ```
 
-See the `Hooks` class for more documentation and the full list of available hook events.
+### Requiring Hooks
 
-Each set of hooks (i.e. each `@hooks`-decorated class) can register for any events (even if they're overlapping).
+Another thing you might want to do is _ensure_ that all users in a given environment are running with a particular set of hooks enabled. To do this, define the `INSPECT_REQUIRED_HOOKS` environment variable, listing all of the hooks that are required:
 
-Alternatively, you may decorate a function which returns the type of a `Hooks` subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).
-
-``` {.python filename="providers.py"}
-@hooks(name="w&b_hooks", description="Weights & Biases integration")
-def wandb_hooks():
-    from .wb_hooks import WBHooks
-
-    return WBHooks
+```bash
+INSPECT_REQUIRED_HOOKS=w&b_hooks
 ```
 
-#### API Key Override
+If the required hooks aren't installed then an appropriate error will occur at startup time.
+
+### API Key Override {.unlisted}
 
 There is a hook event to optionally override the value of model API key environment variables. This could be used to:
 
-* inject API keys at runtime (e.g. fetched from a secrets manager), to avoid having to store these in your environment or .env file
-* use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys
+* Inject API keys at runtime (e.g. fetched from a secrets manager), to avoid having to store these in your environment or .env file
+* Use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys
 
 ``` python
 from inspect_ai.hooks import hooks, Hooks, ApiKeyOverride
