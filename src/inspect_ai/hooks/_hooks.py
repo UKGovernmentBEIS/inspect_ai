@@ -13,6 +13,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSampleSummary, EvalSpec
+from inspect_ai.log._transcript import Event
 from inspect_ai.model._model_output import ModelUsage
 
 logger = getLogger(__name__)
@@ -104,6 +105,17 @@ class ModelUsageData:
     """The duration of the model call in seconds. If HTTP retries were made, this is the
     time taken for the successful call. This excludes retry waiting (e.g. exponential
     backoff) time."""
+
+
+# TODO: For Jake's request of doing some analysis every N assistant messages, he'll
+# presumably use the ModelEvent. This might not give him the information he needs to
+# associate any analysis with a specific sample though.
+@dataclass(frozen=True)
+class EventData:
+    """Transcript event hook event data."""
+
+    event: Event
+    """The event that was logged to the transcript."""
 
 
 @dataclass(frozen=True)
@@ -208,6 +220,55 @@ class Hooks:
 
         Args:
            data: Model usage data.
+        """
+        pass
+
+    # Note: This hook is simple and will be appropriate for some use cases. But we're
+    # worried about users doing naive things here and blocking the main thread, then
+    # blaming Inspect for being slow. Therefore, we want to encourage users to use
+    # `on_event_batch()` where appropriate.
+    def on_event(self, data: EventData) -> None:
+        """Called when an event is logged to the transcript.
+
+        This method is called synchronously as soon as an event is logged to the
+        transcript. Therefore, this method may be called frequently. Since it is
+        blocking, it should not perform any potentially long-running operations like web
+        requests.
+
+        For hooks that need to perform expensive operations or I/O, please use the
+        `on_event_batch()` method instead.
+
+        Args:
+            data: Event data.
+        """
+        pass
+
+    # TODO: Allow user to control throttling frequency e.g. with an `event_batch_period`
+    # property on their Hooks class. We might always flush any events when we reach the
+    # end of a sample. If we haven't logged any events in a throttling period, do we
+    # emit an empty list?
+    # Different subclasses of Hooks may have different throttling periods, so we may
+    # need to have a background task per hook.
+    # Should we use a background task to emit events in batches (a bit like
+    # inspect_ai.util._background)? We need to decide what we want by making this method
+    # async:
+    # 1. Is it just so that we don't block the main thread and freeze the UI
+    # 2. Or is it that we actually want to allow our eval to continue while the hook is
+    #    being handled? In which case, this is more like a background task or fire &
+    #    forget call.
+    # If we're flushing this in a non-deterministic manner (e.g. periodically on in a
+    # background task), we should document that the ordering of these events relative to
+    # other hooks (e.g. on_sample_end) is not guaranteed.
+    async def on_event_batch(self, events: list[EventData]) -> None:
+        """Called periodically with a batch of logged transcript events.
+
+        This method is called periodically with a batch of events. This is useful for
+        hooks that need to:
+        - Perform operations that are too expensive to do on every event.
+        - Perform I/O operations that should not block the main thread.
+
+        Args:
+            events: List of event data objects.
         """
         pass
 
@@ -318,6 +379,21 @@ async def emit_model_usage(
         model_name=model_name, usage=usage, call_duration=call_duration
     )
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
+
+
+def emit_event(event: Event) -> None:
+    # TODO: Also handle pushing this into a queue for batching, and periodically
+    # flushing the queue to the hooks.
+    data = EventData(event=event)
+    for hook in get_all_hooks():
+        if not hook.enabled():
+            continue
+        try:
+            hook.on_event(data)
+        except Exception as ex:
+            logger.warning(
+                f"Exception calling on_event on hook '{hook.__class__.__name__}': {ex}"
+            )
 
 
 def override_api_key(env_var_name: str, value: str) -> str | None:
