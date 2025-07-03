@@ -885,9 +885,6 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
-    # TODO: Is this the right place to resolve the batch config?
-    if isinstance((batch := kwargs.get("batch", None)), str):
-        kwargs["batch"] = BatchConfig.model_validate(resolve_args(batch))
 
     # parse model roles
     eval_model_roles = parse_cli_args(model_role, force_str=True)
@@ -1018,6 +1015,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
             if key == "response_schema":
                 if value is not None:
                     value = ResponseSchema.model_validate_json(value)
+            if key == "batch":
+                value = BatchConfig.model_validate(resolve_args(value))
+
             config[key] = value  # type: ignore
     return config
 
