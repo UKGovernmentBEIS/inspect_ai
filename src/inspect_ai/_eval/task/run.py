@@ -132,6 +132,7 @@ class TaskRunOptions:
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
     tags: list[str] | None = field(default=None)
+    run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -233,14 +234,19 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         log_location=log_location,
     )
 
-    await emit_task_start(logger)
-
     with display().task(
         profile,
     ) as td:
         try:
             # start the log
             await log_start(logger, plan, generate_config)
+
+            # return immediately if we are not running samples
+            if not options.run_samples:
+                return await logger.log_finish("started", stats)
+
+            # call hook
+            await emit_task_start(logger)
 
             with td.progress() as p:
                 # forward progress
