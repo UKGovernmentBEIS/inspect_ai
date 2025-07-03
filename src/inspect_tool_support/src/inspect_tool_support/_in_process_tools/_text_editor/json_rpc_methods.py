@@ -19,13 +19,15 @@ from inspect_tool_support._util.json_rpc_helpers import validated_json_rpc_metho
 @validated_json_rpc_method(TextEditorParams)
 async def text_editor(params: TextEditorParams) -> str:
     match params.root:
-        case ViewParams(path=path, view_range=view_range):
-            return await view(path, view_range)
-        case CreateParams(path=path, file_text=file_text):
-            return await create(path, file_text)
-        case StrReplaceParams(path=path, old_str=old_str, new_str=new_str):
-            return await str_replace(path, old_str, new_str)
-        case InsertParams(path=path, insert_line=insert_line, new_str=new_str):
-            return await insert(path, insert_line, new_str)
-        case UndoEditParams(path=path):
-            return await undo_edit(path)
+        case ViewParams(path=path, view_range=view_range, user=user):
+            return await view(path, view_range, user)
+        case CreateParams(path=path, file_text=file_text, user=user):
+            return await create(path, file_text, user)
+        case StrReplaceParams(path=path, old_str=old_str, new_str=new_str, user=user):
+            return await str_replace(path, old_str, new_str, user)
+        case InsertParams(
+            path=path, insert_line=insert_line, new_str=new_str, user=user
+        ):
+            return await insert(path, insert_line, new_str, user)
+        case UndoEditParams(path=path, user=user):
+            return await undo_edit(path, user)

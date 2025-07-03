@@ -2,9 +2,11 @@
 
 import os
 import pickle
+import pwd
 from collections import defaultdict
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Iterator, Literal
 
 from inspect_tool_support._in_process_tools._text_editor._run import maybe_truncate, run
 from inspect_tool_support._util.common_types import ToolException
@@ -16,7 +18,9 @@ HistoryEntryType = str | Literal[-1]
 HistoryType = dict[Path, list[HistoryEntryType]]
 
 
-async def view(path_str: str, view_range: list[int] | None = None) -> str:
+async def view(
+    path_str: str, view_range: list[int] | None = None, user: str = "root"
+) -> str:
     path = _validated_path(path_str, "view")
     if path.is_dir():
         path_str = str(path).rstrip("/") + "/"
@@ -35,7 +39,7 @@ async def view(path_str: str, view_range: list[int] | None = None) -> str:
         )
         return f"Here are the files and directories up to 2 levels deep in {path}, excluding hidden items:\n{stdout}\n"
 
-    file_content = _read_file(path)
+    file_content = _read_file(path, user)
     init_line = 1
     if view_range:
         if len(view_range) != 2 or not all(isinstance(i, int) for i in view_range):
@@ -62,24 +66,26 @@ async def view(path_str: str, view_range: list[int] | None = None) -> str:
         else:
             file_content = "\n".join(file_lines[init_line - 1 : final_line])
 
-    return _make_output(file_content, str(path), init_line=init_line)
+    return _make_output(file_content, str(path), init_line=init_line, user=user)
 
 
-async def create(path_str: str, file_text: str) -> str:
+async def create(path_str: str, file_text: str, user: str = "root") -> str:
     path = _validated_path(path_str, "create")
-    _write_file(path, file_text)
+    _write_file(path, file_text, user)
     _add_history_entry(path, -1)
     return f"File created successfully at: {path}"
 
 
-async def str_replace(path_str: str, old_str: str, new_str: str | None = None) -> str:
+async def str_replace(
+    path_str: str, old_str: str, new_str: str | None = None, user: str = "root"
+) -> str:
     if not old_str:
         raise ToolException(
             "str_replace: The `old_str` parameter cannot be empty. Consider using the `insert` command instead."
         )
     path = _validated_path(path_str, "str_replace")
     # Read the file content
-    file_content = _read_file(path).expandtabs()
+    file_content = _read_file(path, user).expandtabs()
     old_str = old_str.expandtabs()
     new_str = new_str.expandtabs() if new_str is not None else ""
 
@@ -102,7 +108,7 @@ async def str_replace(path_str: str, old_str: str, new_str: str | None = None) -
     new_file_content = file_content.replace(old_str, new_str)
 
     # Write the new content to the file
-    _write_file(path, new_file_content)
+    _write_file(path, new_file_content, user)
 
     # Save the content to history
     _add_history_entry(path, file_content)
@@ -121,9 +127,11 @@ async def str_replace(path_str: str, old_str: str, new_str: str | None = None) -
     return success_msg
 
 
-async def insert(path_str: str, insert_line: int, new_str: str) -> str:
+async def insert(
+    path_str: str, insert_line: int, new_str: str, user: str = "root"
+) -> str:
     path = _validated_path(path_str, "insert")
-    file_text = _read_file(path).expandtabs()
+    file_text = _read_file(path, user).expandtabs()
     new_str = new_str.expandtabs()
     file_text_lines = file_text.split("\n")
     n_lines_file = len(file_text_lines)
@@ -146,7 +154,7 @@ async def insert(path_str: str, insert_line: int, new_str: str) -> str:
     new_file_text = "\n".join(new_file_text_lines)
     snippet = "\n".join(snippet_lines)
 
-    _write_file(path, new_file_text)
+    _write_file(path, new_file_text, user)
     _add_history_entry(path, file_text)
 
     success_msg = f"The file {path} has been edited. "
@@ -159,7 +167,7 @@ async def insert(path_str: str, insert_line: int, new_str: str) -> str:
     return success_msg
 
 
-async def undo_edit(path_str: str) -> str:
+async def undo_edit(path_str: str, user: str = "root") -> str:
     path = _validated_path(path_str, "undo_edit")
     history = _load_history()
     if not history[path]:
@@ -169,10 +177,10 @@ async def undo_edit(path_str: str) -> str:
 
     match entry:
         case -1:
-            path.unlink()
+            _unlink_file(path, user)
             return f"File deleted at: {path}"
         case old_text:
-            _write_file(path, old_text)
+            _write_file(path, old_text, user)
             return f"Last edit to {path} undone successfully. {_make_output(old_text, str(path))}"
 
 
@@ -203,20 +211,92 @@ def _validated_path(path_str: str, command: str) -> Path:
     return path
 
 
-def _read_file(path: Path) -> str:
-    """Read the content of a file from a given path; raise a ToolError if an error occurs."""
+@contextmanager
+def _impersonate_linux_user(username: str) -> Iterator[None]:
+    """
+    Temporarily set this thread's effective UID/GID to that of `username`,
+
+    restoring the original IDs on exit.
+
+    Raises KeyError if the user doesn't exist.
+    Raises PermissionError if the process lacks CAP_SETUID/CAP_SETGID.
+    """
+    pw = pwd.getpwnam(username)  # KeyError if no such user
+    old_euid = os.geteuid()
+    old_egid = os.getegid()
     try:
-        return path.read_text()
-    except Exception as e:
-        raise ToolException(f"Ran into {e} while trying to read {path}") from None
+        # Drop to target GID, then UID
+        os.setegid(pw.pw_gid)
+        os.seteuid(pw.pw_uid)
+        yield
+    finally:
+        # Restore in reverse order
+        os.seteuid(old_euid)
+        os.setegid(old_egid)
 
 
-def _write_file(path: Path, file: str) -> None:
-    """Write the content of a file to a given path; raise a ToolError if an error occurs."""
+def _read_file(path: Path, username: str) -> str:
+    """
+    Read the content of `path` as if run by `username`.
+
+    Raises ToolException on invalid user, permission denied, or other I/O errors.
+    """
     try:
-        path.write_text(file)
+        with _impersonate_linux_user(username):
+            return path.read_text()
+    except KeyError as e:
+        raise ToolException(f"Invalid user: {username!r}") from e
+    except PermissionError as e:
+        raise ToolException(
+            f"Permission denied reading {path} as user {username!r}"
+        ) from e
     except Exception as e:
-        raise ToolException(f"Ran into {e} while trying to write to {path}") from None
+        raise ToolException(f"Error reading {path}: {e}") from e
+
+
+def _write_file(path: Path, text: str, username) -> None:
+    """
+    Write `text` to `path` as if run by `username`.
+
+    Raises ToolException on invalid user, permission denied, or other I/O errors.
+    """
+    try:
+        with _impersonate_linux_user(username):
+            # Optionally ensure parent directory exists, etc.
+            path.write_text(text)
+    except KeyError as e:
+        raise ToolException(f"Invalid user: {username!r}") from e
+    except PermissionError as e:
+        raise ToolException(
+            f"Permission denied writing {path} as user {username!r}"
+        ) from e
+    except Exception as e:
+        raise ToolException(f"Error writing to {path}: {e}") from e
+
+
+def _unlink_file(path: Path, username: str) -> None:
+    """
+    Remove `path` (i.e. path.unlink()) as if run by `username`.
+
+    Raises ToolException on invalid user, permission denied, missing file, etc.
+    """
+    try:
+        with _impersonate_linux_user(username):
+            path.unlink()
+    except KeyError as e:
+        # pwd.getpwnam failed
+        raise ToolException(f"Invalid user: {username!r}") from e
+    except PermissionError as e:
+        # user exists but no permission to unlink
+        raise ToolException(
+            f"Permission denied removing {path} as user {username!r}"
+        ) from e
+    except FileNotFoundError as e:
+        # no such file
+        raise ToolException(f"No such file or directory: {path}") from e
+    except Exception as e:
+        # anything else
+        raise ToolException(f"Error removing {path}: {e}") from e
 
 
 def _make_output(
@@ -224,6 +304,7 @@ def _make_output(
     file_descriptor: str,
     init_line: int = 1,
     expand_tabs: bool = True,
+    user: str = "default",
 ) -> str:
     """Generate output for the CLI based on the content of a file."""
     file_content = maybe_truncate(file_content)
@@ -236,7 +317,7 @@ def _make_output(
         ]
     )
     return (
-        f"Here's the result of running `cat -n` on {file_descriptor}:\n"
+        f"Here's the result of running `cat -n` on {file_descriptor}: as {user}\n"
         + file_content
         + "\n"
     )

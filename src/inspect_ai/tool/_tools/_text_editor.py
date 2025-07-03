@@ -18,6 +18,7 @@ from .._tool import Tool, tool
 
 class BaseParams(BaseModel):
     path: str
+    user: str = "root"
 
 
 class ViewParams(BaseParams):
@@ -61,7 +62,7 @@ TextEditorResult = str
 
 
 @tool()
-def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
+def text_editor(timeout: int | None = None, user: str = "root") -> Tool:
     """Custom editing tool for viewing, creating and editing files.
 
     Perform text editor operations using a sandbox environment (e.g. "docker").
@@ -110,6 +111,8 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             for k, v in locals().items()
             if k in inspect.signature(execute).parameters
         }
+
+        params["user"] = user
 
         return await exec_scalar_request(
             sandbox=sandbox,

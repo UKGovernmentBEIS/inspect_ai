@@ -5,6 +5,7 @@ from pydantic import BaseModel, Discriminator, RootModel
 
 class BaseParams(BaseModel):
     path: str
+    user: str = "root"
 
 
 class ViewParams(BaseParams):
