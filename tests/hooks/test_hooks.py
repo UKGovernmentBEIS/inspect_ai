@@ -12,6 +12,7 @@ from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
+    EventData,
     Hooks,
     ModelUsageData,
     RunEnd,
@@ -37,6 +38,8 @@ class MockHooks(Hooks):
         self.task_end_events: list[TaskEnd] = []
         self.sample_start_events: list[SampleStart] = []
         self.sample_end_events: list[SampleEnd] = []
+        self.transcript_events_sync: list[EventData] = []
+        self.transcript_events_async: list[EventData] = []
         self.model_usage_events: list[ModelUsageData] = []
 
     def assert_no_events(self) -> None:
@@ -46,7 +49,18 @@ class MockHooks(Hooks):
         assert not self.task_end_events
         assert not self.sample_start_events
         assert not self.sample_end_events
+        assert not self.transcript_events_sync
+        assert not self.transcript_events_async
         assert not self.model_usage_events
+
+    def equal_transcript_events(self) -> int:
+        sync_count = len(self.transcript_events_sync)
+        async_count = len(self.transcript_events_async)
+        assert sync_count == async_count, (
+            f"Sync and async transcript events counts differ: "
+            f"{sync_count} != {async_count}"
+        )
+        return sync_count
 
     def enabled(self) -> bool:
         return self.should_enable
@@ -71,6 +85,12 @@ class MockHooks(Hooks):
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         self.model_usage_events.append(data)
+
+    def on_event(self, data: EventData) -> None:
+        self.transcript_events_sync.append(data)
+
+    async def on_event_batch(self, events: list[EventData]) -> None:
+        self.transcript_events_async.extend(events)
 
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
         return f"mocked-{data.env_var_name}-{data.value}"
@@ -137,6 +157,7 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.task_end_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
+    assert mock_hooks.equal_transcript_events() >= 11
     assert len(mock_hooks.model_usage_events) == 0
 
 
@@ -156,6 +177,7 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.task_end_events) == 1
         assert len(h.sample_start_events) == 1
         assert len(h.sample_end_events) == 1
+        assert mock_hooks.equal_transcript_events() >= 11
         assert len(h.model_usage_events) == 0
 
 

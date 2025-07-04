@@ -194,6 +194,9 @@ class TaskLogger:
             self._buffer_db.start_sample(sample)
 
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
+        # TODO: Do we want to emit event to hooks here, or in Transcript._event()?
+        # It looks like Transcript._event_logger can be none (if no one has subscribed).
+        # In those cases, I assume we should still emit events to hooks.
         # log the sample event
         if self._buffer_db is not None:
             self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
