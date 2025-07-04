@@ -1016,7 +1016,15 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 if value is not None:
                     value = ResponseSchema.model_validate_json(value)
             if key == "batch":
-                value = BatchConfig.model_validate(resolve_args(value))
+                match value:
+                    case str():
+                        value = BatchConfig.model_validate(resolve_args(value))
+                    case int():
+                        value = BatchConfig(size=value)
+                    case bool():
+                        value = BatchConfig()
+                    case _:
+                        raise ValueError(f"Invalid value for batch: {value}")
 
             config[key] = value  # type: ignore
     return config
