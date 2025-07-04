@@ -1056,42 +1056,28 @@ pyproject.toml</code></pre>
 </section>
 <section id="hooks" class="level2">
 <h2 class="anchored" data-anchor-id="hooks">Hooks</h2>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Hooks are available only in the development version of Inspect. To install the development version from GitHub:</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
 <p>Hooks enable you to run arbitrary code during certain events of Inspect’s lifecycle, for example when runs, tasks or samples start and end.</p>
 <section id="hooks-usage" class="level3">
 <h3 class="anchored" data-anchor-id="hooks-usage">Hooks Usage</h3>
 <p>Here is a hypothetical integration with Weights &amp; Biases.</p>
-<div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> wandb</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> Hooks, RunEnd, RunStart, SampleEnd, hooks</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WBHooks(Hooks):</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_run_start(<span class="va">self</span>, data: RunStart) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>        wandb.init(name<span class="op">=</span>data.run_id)</span>
-<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_run_end(<span class="va">self</span>, data: RunEnd) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>        wandb.finish()</span>
-<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_sample_end(<span class="va">self</span>, data: SampleEnd) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> {k: v.value <span class="cf">for</span> k, v <span class="kw">in</span> data.summary.scores.items()}</span>
-<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a>        wandb.log({</span>
-<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">"sample_id"</span>: data.sample_id,</span>
-<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>            <span class="st">"scores"</span>: scores</span>
-<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>        })</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> wandb</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> Hooks, RunEnd, RunStart, SampleEnd, hooks</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WBHooks(Hooks):</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_run_start(<span class="va">self</span>, data: RunStart) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>        wandb.init(name<span class="op">=</span>data.run_id)</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_run_end(<span class="va">self</span>, data: RunEnd) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>        wandb.finish()</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> on_sample_end(<span class="va">self</span>, data: SampleEnd) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> {k: v.value <span class="cf">for</span> k, v <span class="kw">in</span> data.summary.scores.items()}</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>        wandb.log({</span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">"sample_id"</span>: data.sample_id,</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>            <span class="st">"scores"</span>: scores</span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>        })</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#hooks">Hooks</a></span> class for more documentation and the full list of available hook events.</p>
 <p>Each set of hooks (i.e.&nbsp;each <code>@hooks</code>-decorated class) can register for any events (even if they’re overlapping).</p>
 <p>Alternatively, you may decorate a function which returns the type of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#hooks">Hooks</a></span> subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).</p>
@@ -1099,11 +1085,11 @@ Note
 <div class="code-with-filename-file">
 <pre><strong>providers.py</strong></pre>
 </div>
-<div class="sourceCode" id="cb30" data-filename="providers.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wandb_hooks():</span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> .wb_hooks <span class="im">import</span> WBHooks</span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> WBHooks</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb29" data-filename="providers.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wandb_hooks():</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> .wb_hooks <span class="im">import</span> WBHooks</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> WBHooks</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="registration" class="level3">
@@ -1119,23 +1105,23 @@ pyproject.toml</code></pre>
 <div class="code-with-filename-file">
 <pre><strong>_registry.py</strong></pre>
 </div>
-<div class="sourceCode" id="cb32" data-filename="_registry.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> .wandb <span class="im">import</span> wandb_hooks</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb31" data-filename="_registry.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> .wandb <span class="im">import</span> wandb_hooks</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>You can then register your <code>wandb_hooks</code> Inspect extension (and anything else imported into <code>_registry.py</code>) like this in <code>pyproject.toml</code>:</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset" data-group="entry-points">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-5-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-5-1" role="tab" aria-controls="tabset-5-1" aria-selected="true">Setuptools</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-5-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-5-2" role="tab" aria-controls="tabset-5-2" aria-selected="false">uv</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-5-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-5-3" role="tab" aria-controls="tabset-5-3" aria-selected="false">Poetry</a></li></ul>
 <div class="tab-content" data-group="entry-points">
 <div id="tabset-5-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-5-1-tab">
+<div class="sourceCode" id="cb32"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evaltools</span> <span class="op">=</span> <span class="st">"evaltools._registry"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="tabset-5-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-2-tab">
 <div class="sourceCode" id="cb33"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evaltools</span> <span class="op">=</span> <span class="st">"evaltools._registry"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div id="tabset-5-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-2-tab">
-<div class="sourceCode" id="cb34"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evaltools</span> <span class="op">=</span> <span class="st">"evaltools._registry"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
 <div id="tabset-5-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-3-tab">
-<div class="sourceCode" id="cb35"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins.inspect_ai]</span></span>
-<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evaltools</span> <span class="op">=</span> <span class="st">"evaltools._registry"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins.inspect_ai]</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evaltools</span> <span class="op">=</span> <span class="st">"evaltools._registry"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
@@ -1144,16 +1130,16 @@ pyproject.toml</code></pre>
 <section id="disabling-hooks" class="level3">
 <h3 class="anchored" data-anchor-id="disabling-hooks">Disabling Hooks</h3>
 <p>You might not always want every installed hook enabled—for example, a Weights and Biases hook might only want to be enabled if a specific environment variable is defined. You can control this by implementing an <code>enabled()</code> method on your hook. For example:</p>
-<div class="sourceCode" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WBHooks(Hooks):</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> enabled():</span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"WANDB_API_KEY"</span> <span class="kw">in</span> os.environ</span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"w&amp;b_hooks"</span>, description<span class="op">=</span><span class="st">"Weights &amp; Biases integration"</span>)</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WBHooks(Hooks):</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> enabled():</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"WANDB_API_KEY"</span> <span class="kw">in</span> os.environ</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="requiring-hooks" class="level3">
 <h3 class="anchored" data-anchor-id="requiring-hooks">Requiring Hooks</h3>
 <p>Another thing you might want to do is <em>ensure</em> that all users in a given environment are running with a particular set of hooks enabled. To do this, define the <code>INSPECT_REQUIRED_HOOKS</code> environment variable, listing all of the hooks that are required:</p>
-<div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_REQUIRED_HOOKS</span><span class="op">=</span>w<span class="kw">&amp;</span><span class="ex">b_hooks</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_REQUIRED_HOOKS</span><span class="op">=</span>w<span class="kw">&amp;</span><span class="ex">b_hooks</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If the required hooks aren’t installed then an appropriate error will occur at startup time.</p>
 </section>
 <section id="api-key-override" class="level3 unlisted">
@@ -1163,18 +1149,18 @@ pyproject.toml</code></pre>
 <li>Inject API keys at runtime (e.g.&nbsp;fetched from a secrets manager), to avoid having to store these in your environment or .env file</li>
 <li>Use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys</li>
 </ul>
-<div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> hooks, Hooks, ApiKeyOverride</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"api_key_fetcher"</span>, description<span class="op">=</span><span class="st">"Fetches API key from secrets manager"</span>)</span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApiKeyFetcher(Hooks):</span>
-<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> override_api_key(<span class="va">self</span>, data: ApiKeyOverride) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>:</span>
-<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>        original_env_var_value <span class="op">=</span> data.value</span>
-<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> original_env_var_value.startswith(<span class="st">"arn:aws:secretsmanager:"</span>):</span>
-<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> fetch_aws_secret(original_env_var_value)</span>
-<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
-<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fetch_aws_secret(aws_arn: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
-<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> hooks, Hooks, ApiKeyOverride</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="at">@hooks</span>(name<span class="op">=</span><span class="st">"api_key_fetcher"</span>, description<span class="op">=</span><span class="st">"Fetches API key from secrets manager"</span>)</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApiKeyFetcher(Hooks):</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> override_api_key(<span class="va">self</span>, data: ApiKeyOverride) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>        original_env_var_value <span class="op">=</span> data.value</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> original_env_var_value.startswith(<span class="st">"arn:aws:secretsmanager:"</span>):</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> fetch_aws_secret(original_env_var_value)</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fetch_aws_secret(aws_arn: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>

@@ -175,7 +175,7 @@ If you need per-sample mutable data, use the [sample
 store](agent-custom.qmd#sample-store), which also supports
 [typing](agent-custom.qmd#store-typing) using Pydantic models.
 
-## Filter and Shuffle
+## Filtering
 
 The `Dataset` class includes `filter()` and `shuffle()` methods, as well
 as support for the slice operator.
@@ -195,6 +195,19 @@ To select a subset of records, use standard Python slicing:
 dataset = dataset[0:100]
 ```
 
+You can also filter from the CLI or when calling `eval()`. For example:
+
+``` bash
+inspect eval ctf.py --sample-id 22
+inspect eval ctf.py --sample-id 22,23,24
+inspect eval ctf.py --sample-id *_advanced
+```
+
+The last example above demonstrates using glob (wildcard) syntax to
+select multiple samples with a single expression.
+
+## Shuffling
+
 Shuffling is often helpful when you want to vary the samples used during
 evaluation development. To do this, either use the `shuffle()` method or
 the `shuffle` parameter of the dataset loading functions:
@@ -210,7 +223,7 @@ dataset = json_dataset("data.jsonl", shuffle=True)
 Note that both of these methods optionally support specifying a random
 seed for shuffling.
 
-## Shuffling Choices
+## Choice Shuffling
 
 When working with datasets that contain multiple-choice options, you can
 randomize the order of these choices during data loading. The shuffling

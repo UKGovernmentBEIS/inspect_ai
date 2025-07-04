@@ -693,15 +693,6 @@ Inspect without any further registration.
 
 ## Hooks
 
-> [!NOTE]
->
-> Hooks are available only in the development version of Inspect. To
-> install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Hooks enable you to run arbitrary code during certain events of
 Inspect’s lifecycle, for example when runs, tasks or samples start and
 end.

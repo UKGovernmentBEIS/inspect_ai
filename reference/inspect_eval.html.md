@@ -76,6 +76,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--reasoning-summary` | choice (`concise` \| `detailed` \| `auto`) | Provide summary of reasoning steps (defaults to no summary). Use ‘auto’ to access the most detailed summarizer available for the current model. OpenAI reasoning models only. | None |
 | `--reasoning-history` | choice (`none` \| `all` \| `last` \| `auto`) | Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider) | None |
 | `--response-schema` | text | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. | None |
+| `--batch` | text | Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify –batch to batch with default configuration, specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration. | None |
 | `--log-format` | choice (`eval` \| `json`) | Format for writing log files. | None |
 | `--log-level-transcript` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level of the transcript (defaults to ‘info’) | `info` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
