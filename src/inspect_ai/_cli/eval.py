@@ -1016,7 +1016,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 if value is not None:
                     value = ResponseSchema.model_validate_json(value)
             if key == "batch":
-                value = BatchConfig.model_validate(resolve_args(value))
+                match value:
+                    case str():
+                        value = BatchConfig.model_validate(resolve_args(value))
 
             config[key] = value  # type: ignore
     return config
