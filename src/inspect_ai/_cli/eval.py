@@ -1019,12 +1019,6 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 match value:
                     case str():
                         value = BatchConfig.model_validate(resolve_args(value))
-                    case int():
-                        value = BatchConfig(size=value)
-                    case bool():
-                        value = BatchConfig()
-                    case _:
-                        raise ValueError(f"Invalid value for batch: {value}")
 
             config[key] = value  # type: ignore
     return config
