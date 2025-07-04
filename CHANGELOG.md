@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Batch: Support for batch processing when using OpenAI or Anthropic models.
+- [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
 
 ## 0.3.112 (03 July 2025)
 
