@@ -1,6 +1,10 @@
+import asyncio
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
+
+import anyio
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 from inspect_ai._eval.eval import EvalLogs
 from inspect_ai._eval.task.log import TaskLogger
@@ -17,6 +21,11 @@ from inspect_ai.log._transcript import Event
 from inspect_ai.model._model_output import ModelUsage
 
 logger = getLogger(__name__)
+# I'd naturally use asyncio.Queue (which supports synchronous putting), but given we're
+# using anyio, we should be backend agnostic. I think its closest equivalent is
+# anyio.create_memory_object_stream
+# https://anyio.readthedocs.io/en/stable/streams.html#memory-object-streams
+_batched_event_send: MemoryObjectSendStream["EventData"]
 
 
 @dataclass(frozen=True)
@@ -336,6 +345,15 @@ async def emit_run_start(run_id: str, tasks: list[ResolvedTask]) -> None:
     data = RunStart(run_id=run_id, task_names=[task.task.name for task in tasks])
     await _emit_to_all(lambda hook: hook.on_run_start(data))
 
+    # TODO: Start this background task in a more appropriate place (this could be called
+    # multiple times under eval_set).
+    global _batched_event_send
+    _batched_event_send, batched_event_receive = anyio.create_memory_object_stream[
+        EventData
+    ](max_buffer_size=1024 * 10)
+    # TODO: Ensure flushed before end of eval.
+    asyncio.create_task(periodically_emit_event_batch(batched_event_receive))
+
 
 async def emit_run_end(run_id: str, logs: EvalLogs) -> None:
     data = RunEnd(run_id=run_id, logs=logs)
@@ -394,6 +412,29 @@ def emit_event(event: Event) -> None:
             logger.warning(
                 f"Exception calling on_event on hook '{hook.__class__.__name__}': {ex}"
             )
+    _batched_event_send.send_nowait(data)
+
+
+async def periodically_emit_event_batch(
+    receive: MemoryObjectReceiveStream[EventData],
+) -> None:
+    while True:
+        await asyncio.sleep(1)
+        # TODO: How to get all currently queued events?
+        events = [await receive.receive()]
+        if not events:
+            continue
+        for hook in get_all_hooks():
+            if not hook.enabled():
+                continue
+            try:
+                await hook.on_event_batch(events)
+            except Exception as ex:
+                logger.warning(
+                    f"Exception calling on_event_batch on hook '{hook.__class__.__name__}': {ex}"
+                )
+
+    pass
 
 
 def override_api_key(env_var_name: str, value: str) -> str | None:
