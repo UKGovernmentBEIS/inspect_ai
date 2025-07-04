@@ -45,6 +45,7 @@ def react(
     submit: AgentSubmit | bool | None = None,
     on_continue: str | AgentContinue | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
+    remove_submit: bool = True,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -88,6 +89,8 @@ def react(
           window overflow. Defaults to "disabled" which does no truncation. Pass
           "auto" to use `trim_messages()` to reduce the context size. Pass a
           `MessageFilter` function to do custom truncation.
+        remove_submit: Whether to remove the submit tool call from the messages.
+          Defaults to True.
 
     Returns:
         ReAct agent.
@@ -267,10 +270,11 @@ def react(
                         )
                     )
 
-            # once we are complete, remove submit tool calls from the history
-            # (as they will potentially confuse parent agents who also have
-            # their own submit tools that they are 'watching' for)
-            state.messages = _remove_submit_tool(state.messages, submit_tool.name)
+            if remove_submit:
+                # once we are complete, remove submit tool calls from the history
+                # (as they will potentially confuse parent agents who also have
+                # their own submit tools that they are 'watching' for)
+                state.messages = _remove_submit_tool(state.messages, submit_tool.name)
             return state
 
     return _resolve_agent(execute, name, description)
