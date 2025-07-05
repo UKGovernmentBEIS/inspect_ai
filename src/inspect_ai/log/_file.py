@@ -317,8 +317,9 @@ async def read_eval_log_headers_async(
 
 def read_eval_log_sample(
     log_file: str | Path | EvalLogInfo,
-    id: int | str,
+    id: int | str | None = None,
     epoch: int = 1,
+    uuid: str | None = None,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
@@ -326,8 +327,11 @@ def read_eval_log_sample(
 
     Args:
        log_file (str | FileInfo): Log file to read.
-       id (int | str): Sample id to read.
+       id (int | str): Sample id to read. Optional, alternatively
+         specify `uuid` (you must specify `id` or `uuid`)
        epoch (int): Epoch for sample id (defaults to 1)
+       uuid: Sample uuid to read. Optional, alternatively specify
+         `id` and `epoch` (you must specify either `uuid` or `id`)
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -348,14 +352,17 @@ def read_eval_log_sample(
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
     return run_coroutine(
-        read_eval_log_sample_async(log_file, id, epoch, resolve_attachments, format)
+        read_eval_log_sample_async(
+            log_file, id, epoch, uuid, resolve_attachments, format
+        )
     )
 
 
 async def read_eval_log_sample_async(
     log_file: str | Path | EvalLogInfo,
-    id: int | str,
+    id: int | str | None = None,
     epoch: int = 1,
+    uuid: str | None = None,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
@@ -365,6 +372,7 @@ async def read_eval_log_sample_async(
        log_file (str | FileInfo): Log file to read.
        id (int | str): Sample id to read.
        epoch (int): Epoch for sample id (defaults to 1)
+       uuid: Sample uuid to read.
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -385,11 +393,17 @@ async def read_eval_log_sample_async(
         else log_file.name
     )
 
+    # validate that either id or uuid is passed
+    if id is None and uuid is None:
+        raise ValueError(
+            "You must specify either a sample 'id' and 'epoch' or a sample 'uuid'"
+        )
+
     if format == "auto":
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    sample = await recorder_type.read_log_sample(log_file, id, epoch)
+    sample = await recorder_type.read_log_sample(log_file, id, epoch, uuid)
 
     if resolve_attachments:
         sample = resolve_sample_attachments(sample)
