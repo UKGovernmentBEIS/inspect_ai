@@ -100,9 +100,7 @@ def int_bool_or_str_flag_callback(
             try:
                 return int(value)
             except ValueError:
-                raise click.BadParameter(
-                    f"Expected 'true', 'false', an integer, or string for --{param.name}. Got: {value}"
-                )
+                return str(value)
 
     return callback
 
