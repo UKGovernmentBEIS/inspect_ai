@@ -327,6 +327,7 @@ async def execute_tools(
                 waiting_time=waiting_time_end - waiting_time_start,
                 agent=result_event.agent,
                 failed=True if result_exception else None,
+                message_id=result_messages[0].id if len(result_messages) > 0 else None,
             )
             transcript()._event_updated(event)
 
