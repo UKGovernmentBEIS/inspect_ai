@@ -3,7 +3,7 @@
 - [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
 - Web search: Added support for Grok as an internal search provider.
 - Google: Set `thought=True` on content when replaying `ContentReasoning` back to the model.
-- Transcript: Add globally unique `uuid` field to events.
+- Transcript: Add globally unique `uuid` field and `metadata` field to `Event`.
 - Eval log: Add option to select sample by `uuid` in `read_eval_log_sample()`.
 
 ## 0.3.112 (03 July 2025)

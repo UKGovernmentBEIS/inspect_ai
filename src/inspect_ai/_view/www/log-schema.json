@@ -36,6 +36,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -116,6 +129,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "message",
@@ -1323,6 +1337,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -1350,6 +1377,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "error"
@@ -3508,6 +3536,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3547,6 +3588,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "source",
@@ -3592,6 +3634,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3624,6 +3679,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "input",
@@ -3874,6 +3930,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3901,6 +3970,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "message"
@@ -4120,6 +4190,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -4285,6 +4368,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "model",
@@ -4669,6 +4753,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -4699,6 +4796,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "sample",
@@ -4743,6 +4841,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -4796,6 +4907,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "type",
@@ -4861,6 +4973,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -4983,6 +5108,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "action",
@@ -5143,6 +5269,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -5193,6 +5332,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "score",
@@ -5238,6 +5378,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5295,6 +5448,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "id",
@@ -5342,6 +5496,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -5370,6 +5537,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "id"
@@ -5414,6 +5582,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -5445,6 +5626,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "changes"
@@ -5488,6 +5670,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5537,6 +5732,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "action",
@@ -5583,6 +5779,19 @@
           "title": "Working Start",
           "type": "number"
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "pending": {
           "anyOf": [
             {
@@ -5614,6 +5823,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "changes"
@@ -5657,6 +5867,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5791,6 +6014,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "name",
@@ -6017,6 +6241,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -6286,6 +6523,7 @@
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "type",

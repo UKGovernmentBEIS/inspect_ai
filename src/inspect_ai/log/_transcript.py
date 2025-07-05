@@ -63,6 +63,9 @@ class BaseEvent(BaseModel):
     working_start: float = Field(default_factory=sample_working_time)
     """Working time (within sample) at which the event occurred."""
 
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional event metadata."""
+
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
 
