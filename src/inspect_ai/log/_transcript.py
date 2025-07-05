@@ -242,6 +242,9 @@ class ToolEvent(BaseEvent):
     failed: bool | None = Field(default=None)
     """Did the tool call fail with a hard error?."""
 
+    message_id: str | None = Field(default=None)
+    """Id of ChatMessageTool associated with this event."""
+
     def _set_result(
         self,
         result: ToolResult,
@@ -250,6 +253,7 @@ class ToolEvent(BaseEvent):
         waiting_time: float,
         agent: str | None,
         failed: bool | None,
+        message_id: str | None,
     ) -> None:
         self.result = result
         self.truncated = truncated
@@ -260,6 +264,7 @@ class ToolEvent(BaseEvent):
         self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
         self.agent = agent
         self.failed = failed
+        self.message_id = message_id
 
     # mechanism for operator to cancel the tool call
 

@@ -6516,6 +6516,18 @@
           ],
           "default": null,
           "title": "Failed"
+        },
+        "message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message Id"
         }
       },
       "required": [
@@ -6539,7 +6551,8 @@
         "completed",
         "working_time",
         "agent",
-        "failed"
+        "failed",
+        "message_id"
       ],
       "title": "ToolEvent",
       "type": "object",
