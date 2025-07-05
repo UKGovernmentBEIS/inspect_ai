@@ -27,6 +27,7 @@ def biology_qa() -> Task:
             use_tools(
                 web_search(
                     providers={
+                        "grok": {"max_search_results": 10},
                         "openai": openai_options,
                         "anthropic": True,
                         "tavily": tavily_options,

@@ -34,7 +34,11 @@ interface MessageCitationProps {
 const MessageCitation: FC<MessageCitationProps> = ({ citation }) => {
   const innards = decodeHtmlEntities(
     citation.title ??
-      (typeof citation.cited_text === "string" ? citation.cited_text : ""),
+      (typeof citation.cited_text === "string"
+        ? citation.cited_text
+        : citation.type === "url"
+          ? citation.url
+          : ""),
   );
   return citation.type === "url" ? (
     <UrlCitation citation={citation}>{innards}</UrlCitation>
@@ -52,7 +56,11 @@ const UrlCitation: FC<PropsWithChildren<{ citation: UrlCitationType }>> = ({
     target="_blank"
     rel="noopener noreferrer"
     className={clsx(styles.citationLink)}
-    title={`${citation.cited_text || ""}\n${citation.url}`}
+    title={
+      citation.cited_text
+        ? `${citation.cited_text}\n${citation.url}`
+        : citation.url
+    }
   >
     {children}
   </a>
