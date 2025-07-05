@@ -12,6 +12,7 @@ from typing import Callable, Iterator, Literal
 
 import psutil
 from pydantic import BaseModel
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
@@ -163,7 +164,7 @@ class SampleBufferDatabase(SampleBuffer):
                 event = self._consense_event(conn, event)
                 values.extend(
                     (
-                        event.event.id_,
+                        event.event.uuid or uuid(),
                         str(event.id),
                         event.epoch,
                         to_json_str_safe(event.event),

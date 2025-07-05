@@ -85,6 +85,7 @@ export const makeTurns = (eventNodes: EventNode[]): EventNode[] => {
           timestamp: modelNode.event.timestamp,
           parent_id: null,
           span_id: modelNode.event.span_id,
+          uuid: null,
         },
         modelNode.depth,
       );
