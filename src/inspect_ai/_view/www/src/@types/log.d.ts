@@ -694,6 +694,7 @@ export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
 export type Agent = string | null;
 export type Failed = boolean | null;
+export type MessageId = string | null;
 export type Events = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -1569,6 +1570,7 @@ export interface ToolEvent {
   working_time: WorkingTime2;
   agent: Agent;
   failed: Failed;
+  message_id: MessageId;
 }
 export interface Arguments1 {
   [k: string]: JsonValue;
