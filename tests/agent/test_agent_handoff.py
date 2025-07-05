@@ -1,4 +1,4 @@
-from test_helpers.tool_call_utils import find_tool_call
+from test_helpers.tool_call_utils import find_tool_call, get_tool_event
 from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_openai
 
@@ -317,6 +317,12 @@ def check_agent_handoff_output_filter(
     )[0]
     assert log.samples
     assert len(log.samples[0].messages) == messages_len
+
+    tool_message = log.samples[0].messages[2]
+    assert tool_message.role == "tool"
+    tool_event = get_tool_event(log)
+    assert tool_event
+    assert tool_event.message_id == tool_message.id
 
 
 @skip_if_no_openai
