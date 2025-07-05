@@ -557,7 +557,7 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentReasoning):
-        return Part.from_text(text=content.reasoning or NO_CONTENT)
+        return Part(text=content.reasoning or NO_CONTENT, thought=True)
     elif isinstance(content, ContentData):
         assert False, "Google provider should never encounter ContentData"
     else:

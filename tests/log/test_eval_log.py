@@ -103,6 +103,20 @@ def test_read_sample():
         assert sample.target == " Yes"
 
 
+def test_read_sample_by_uuid():
+    log_files = [
+        os.path.join("tests", "log", "test_eval_log", file)
+        for file in ["log_read_sample.json", "log_read_sample.eval"]
+    ]
+    for log_file in log_files:
+        sampleA = read_eval_log_sample(log_file, id=1, epoch=1)
+        sampleB = read_eval_log_sample(log_file, uuid=sampleA.uuid)
+        assert sampleA.id == sampleB.id
+        assert sampleA.epoch == sampleB.epoch
+        assert sampleA.uuid == sampleB.uuid
+        assert sampleA.input == sampleB.input
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)
