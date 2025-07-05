@@ -45,6 +45,7 @@ class EventColumn(Column):
 
 
 EventInfo: list[Column] = [
+    EventColumn("event_id", path="event_id"),
     EventColumn("event", path="event"),
     EventColumn("span_id", path="span_id"),
 ]

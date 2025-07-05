@@ -333,11 +333,14 @@ def _read_samples_df_serial(
                             )
                             all_errors.extend(errors)
 
-                        # inject ids
-                        detail_id = detail_record.get(
-                            "id", auto_detail_id(sample_id, detail.name, index)
-                        )
-                        ids = {SAMPLE_ID: sample_id, f"{detail.name}_id": detail_id}
+                        # ensure ids
+                        detail_id_field = f"{detail.name}_id"
+                        detail_id = detail_record.get(detail_id_field, None)
+                        if detail_id is None:
+                            detail_record[detail_id_field] = auto_detail_id(
+                                sample_id, detail.name, index
+                            )
+                        ids = {SAMPLE_ID: sample_id}
                         detail_record = ids | detail_record
 
                         # inject order

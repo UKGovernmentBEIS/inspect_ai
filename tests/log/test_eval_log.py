@@ -13,7 +13,6 @@ from inspect_ai.log import read_eval_log
 from inspect_ai.log._file import read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import (
-    BaseEvent,
     ModelEvent,
     SandboxEvent,
     SubtaskEvent,
@@ -110,18 +109,6 @@ def test_log_location():
     check_log_location(eval_log_file)
 
 
-def resolve_deserialized_event(
-    original: BaseEvent, deserialized: BaseEvent
-) -> BaseEvent:
-    # The id_ field is not serialized, so a new id will be assigned
-    # each time we create a new event. This forces the ids to be
-    # identical since the comparison is meaningless since the value is
-    # never serialized.
-
-    deserialized.id_ = original.id_
-    return deserialized
-
-
 def test_can_round_trip_serialize_model_event():
     original = ModelEvent(
         model="model",
@@ -140,7 +127,6 @@ def test_can_round_trip_serialize_model_event():
 
     serialized = original.model_dump_json()
     deserialized = ModelEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -152,7 +138,6 @@ def test_can_round_trip_serialize_tool_event():
 
     serialized = original.model_dump_json()
     deserialized = ToolEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -162,7 +147,6 @@ def test_can_round_trip_serialize_sandbox_event():
 
     serialized = original.model_dump_json()
     deserialized = SandboxEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -172,7 +156,6 @@ def test_can_round_trip_serialize_subtask_event():
 
     serialized = original.model_dump_json()
     deserialized = SubtaskEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 

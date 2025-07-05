@@ -51,12 +51,8 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
-    model_config = {
-        "json_schema_extra": lambda schema: schema.get("properties", {}).pop(
-            "id_", None
-        )
-    }
-    id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
+    event_id: str | None = Field(default=None)
+    """Unique identifer for event."""
 
     span_id: str | None = Field(default=None)
     """Span the event occurred within."""
@@ -76,8 +72,10 @@ class BaseEvent(BaseModel):
             DESERIALIZING, False
         )
 
-        # Generate context id fields if not deserializing
+        # Generate id fields if not deserializing
         if not is_deserializing:
+            if self.event_id is None:
+                self.event_id = uuid()
             if self.span_id is None:
                 self.span_id = current_span_id()
 
