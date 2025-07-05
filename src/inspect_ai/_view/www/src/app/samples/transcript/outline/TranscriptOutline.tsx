@@ -54,6 +54,7 @@ const EventPaddingNode: EventNode = {
     pending: false,
     working_start: 0,
     span_id: null,
+    uuid: null
   },
   depth: 0,
   children: [],
@@ -135,7 +136,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
     const nodeList = flatTree(
       eventNodes,
       (collapsedEvents ? collapsedEvents[kCollapseScope] : undefined) ||
-        defaultCollapsedIds,
+      defaultCollapsedIds,
       [
         // Strip specific nodes
         removeNodeVisitor("logger"),
