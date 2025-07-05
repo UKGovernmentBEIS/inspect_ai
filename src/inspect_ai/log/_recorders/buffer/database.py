@@ -164,7 +164,7 @@ class SampleBufferDatabase(SampleBuffer):
                 event = self._consense_event(conn, event)
                 values.extend(
                     (
-                        event.event.event_id or uuid(),
+                        event.event.uuid or uuid(),
                         str(event.id),
                         event.epoch,
                         to_json_str_safe(event.event),

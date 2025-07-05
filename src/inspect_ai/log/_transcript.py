@@ -51,7 +51,7 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
-    event_id: str | None = Field(default=None)
+    uuid: str | None = Field(default=None)
     """Unique identifer for event."""
 
     span_id: str | None = Field(default=None)
@@ -74,8 +74,8 @@ class BaseEvent(BaseModel):
 
         # Generate id fields if not deserializing
         if not is_deserializing:
-            if self.event_id is None:
-                self.event_id = uuid()
+            if self.uuid is None:
+                self.uuid = uuid()
             if self.span_id is None:
                 self.span_id = current_span_id()
 
