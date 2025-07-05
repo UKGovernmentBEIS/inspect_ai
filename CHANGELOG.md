@@ -3,6 +3,7 @@
 - [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
 - Google: Set `thought=True` on content when replaying `ContentReasoning` back to the model.
 - Transcript: Add globally unique `event_id` field to events.
+- Eval log: Add option to select sample by `uuid` in `read_eval_log_sample()`.
 
 ## 0.3.112 (03 July 2025)
 
