@@ -201,11 +201,33 @@ class EvalRecorder(FileRecorder):
     @override
     @classmethod
     async def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
+        cls,
+        location: str,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
     ) -> EvalSample:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
                 try:
+                    # if a uuid was specified then read the summaries and find the matching sample
+                    if id is None:
+                        if uuid is None:
+                            raise ValueError(
+                                "You must specify an 'id' or 'uuid' to read"
+                            )
+                        summaries = _read_sample_summaries(zip)
+                        sample = next(
+                            (summary for summary in summaries if summary.uuid == uuid),
+                            None,
+                        )
+                        if sample is None:
+                            raise ValueError(
+                                f"Sample with uuid '{uuid}' not found in log."
+                            )
+                        id = sample.id
+                        epoch = sample.epoch
+
                     with zip.open(_sample_filename(id, epoch), "r") as f:
                         return EvalSample.model_validate(
                             json.load(f), context=DESERIALIZING_CONTEXT
@@ -236,6 +258,12 @@ class EvalRecorder(FileRecorder):
         await recorder.log_finish(
             log.eval, log.status, log.stats, log.results, log.reductions, log.error
         )
+
+
+def read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
+    summary_counter = _read_summary_counter(zip)
+    summaries = _read_all_summaries(zip, summary_counter)
+    return summaries
 
 
 class ZipLogFile:
@@ -396,6 +424,12 @@ def _read_start(zip: ZipFile) -> LogStart | None:
         return cast(LogStart, _read_json(zip, start_path))
     else:
         return None
+
+
+def _read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
+    summary_counter = _read_summary_counter(zip)
+    summaries = _read_all_summaries(zip, summary_counter)
+    return summaries
 
 
 def _read_summary_counter(zip: ZipFile) -> int:

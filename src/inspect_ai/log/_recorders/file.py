@@ -37,7 +37,11 @@ class FileRecorder(Recorder):
     @override
     @classmethod
     async def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
+        cls,
+        location: str,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
     ) -> EvalSample:
         # establish the log to read from (might be cached)
         eval_log = await cls._log_file_maybe_cached(location)
@@ -51,7 +55,8 @@ class FileRecorder(Recorder):
             (
                 sample
                 for sample in (eval_log.samples)
-                if sample.id == id and sample.epoch == epoch
+                if (id and sample.id == id and sample.epoch == epoch)
+                or (uuid and sample.uuid == uuid)
             ),
             None,
         )
