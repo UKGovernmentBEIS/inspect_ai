@@ -88,13 +88,20 @@ class VLLMAPI(OpenAICompatibleAPI):
                 service_base_url=base_url,
             )
             logger.info(f"Using existing vLLM server at {self.base_url}")
-        except PrerequisiteError:
+            preq_err = None
+        except PrerequisiteError as e:
             self.server_found = False
+            preq_err = e
 
         if not self.server_found:
-            logger.warning(
-                f"Existing vLLM server not found. Starting new server for {model_name}."
-            )
+            if preq_err:
+                logger.warning(
+                    f"vLLM server config has missing prerequisites {preq_err}. Starting new server for {model_name}."
+                )
+            else:
+                logger.warning(
+                    f"Existing vLLM server not found. Starting new server for {model_name}."
+                )
 
             # Extract and handle the configure_logging parameter
             configure_logging = self.server_args.pop("configure_logging", False)
