@@ -2,7 +2,7 @@
 
 - [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
 - Google: Set `thought=True` on content when replaying `ContentReasoning` back to the model.
-- React: Add remove_submit an optional argument.
+- AgentSubmit: Add keep_submit_in_messages as an optional field.
 
 ## 0.3.112 (03 July 2025)
 

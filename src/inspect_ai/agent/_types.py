@@ -118,3 +118,11 @@ class AgentSubmit(NamedTuple):
 
     answer_delimiter: str = "\n\n"
     """Delimter used when appending submit tool answer to other content the model generated along with the call to `submit()`."""
+
+    keep_submit_in_messages: bool = False
+    """Keep the submit tool call in the message history.
+
+    This overrides the default behaviour of removing the submit tool which
+    could confuse parents calling the agent. 
+
+    Defaults to `False`."""
