@@ -3,6 +3,18 @@
     "ApprovalEvent": {
       "description": "Tool approval.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -23,6 +35,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -100,9 +125,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "message",
@@ -1277,6 +1304,18 @@
     "ErrorEvent": {
       "description": "Event with sample error.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -1297,6 +1336,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -1321,9 +1373,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "error"
@@ -3449,6 +3503,18 @@
     "InfoEvent": {
       "description": "Event with custom info/data.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -3469,6 +3535,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -3505,9 +3584,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "source",
@@ -3520,6 +3601,18 @@
     "InputEvent": {
       "description": "Input screen interaction.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -3540,6 +3633,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -3569,9 +3675,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "input",
@@ -3789,6 +3897,18 @@
     "LoggerEvent": {
       "description": "Log message recorded with Python logger.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -3809,6 +3929,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -3833,9 +3966,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "message"
@@ -4022,6 +4157,18 @@
     "ModelEvent": {
       "description": "Call to a language model.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -4042,6 +4189,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -4204,9 +4364,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "model",
@@ -4558,6 +4720,18 @@
     "SampleInitEvent": {
       "description": "Beginning of processing a Sample.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -4578,6 +4752,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -4605,9 +4792,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "sample",
@@ -4620,6 +4809,18 @@
     "SampleLimitEvent": {
       "description": "The sample was unable to finish processing due to a limit",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -4640,6 +4841,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -4689,9 +4903,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "type",
@@ -4725,6 +4941,18 @@
     "SandboxEvent": {
       "description": "Sandbox execution or I/O",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -4745,6 +4973,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -4863,9 +5104,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "action",
@@ -4993,6 +5236,18 @@
     "ScoreEvent": {
       "description": "Event with score.\n\nCan be the final score for a `Sample`, or can be an intermediate score\nresulting from a call to `score`.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5013,6 +5268,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5060,9 +5328,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "score",
@@ -5076,6 +5346,18 @@
     "SpanBeginEvent": {
       "description": "Mark the beginning of a transcript span.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5096,6 +5378,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5149,9 +5444,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "id",
@@ -5166,6 +5463,18 @@
     "SpanEndEvent": {
       "description": "Mark the end of a transcript span.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5186,6 +5495,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5211,9 +5533,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "id"
@@ -5225,6 +5549,18 @@
     "StateEvent": {
       "description": "Change to the current `TaskState`",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5245,6 +5581,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5273,9 +5622,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "changes"
@@ -5287,6 +5638,18 @@
     "StepEvent": {
       "description": "Step within current sample or subtask.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5307,6 +5670,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5352,9 +5728,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "action",
@@ -5368,6 +5746,18 @@
     "StoreEvent": {
       "description": "Change to data within the current `Store`.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5388,6 +5778,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5416,9 +5819,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "changes"
@@ -5430,6 +5835,18 @@
     "SubtaskEvent": {
       "description": "Subtask spawned.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5450,6 +5867,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -5580,9 +6010,11 @@
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "name",
@@ -5777,6 +6209,18 @@
     "ToolEvent": {
       "description": "Call to a tool.",
       "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "span_id": {
           "anyOf": [
             {
@@ -5797,6 +6241,19 @@
         "working_start": {
           "title": "Working Start",
           "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
         },
         "pending": {
           "anyOf": [
@@ -6059,12 +6516,26 @@
           ],
           "default": null,
           "title": "Failed"
+        },
+        "message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message Id"
         }
       },
       "required": [
+        "uuid",
         "span_id",
         "timestamp",
         "working_start",
+        "metadata",
         "pending",
         "event",
         "type",
@@ -6080,7 +6551,8 @@
         "completed",
         "working_time",
         "agent",
-        "failed"
+        "failed",
+        "message_id"
       ],
       "title": "ToolEvent",
       "type": "object",

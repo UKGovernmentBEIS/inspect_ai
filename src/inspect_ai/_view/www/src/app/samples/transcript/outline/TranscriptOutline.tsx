@@ -54,6 +54,8 @@ const EventPaddingNode: EventNode = {
     pending: false,
     working_start: 0,
     span_id: null,
+    uuid: null,
+    metadata: null,
   },
   depth: 0,
   children: [],
