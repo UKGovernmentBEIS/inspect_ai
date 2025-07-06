@@ -123,6 +123,6 @@ class AgentSubmit(NamedTuple):
     """Keep the submit tool call in the message history.
 
     This overrides the default behaviour of removing the submit tool which
-    could confuse parents calling the agent. 
+    could confuse parents calling the agent.
 
     Defaults to `False`."""
