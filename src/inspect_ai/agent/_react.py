@@ -267,10 +267,11 @@ def react(
                         )
                     )
 
-            # once we are complete, remove submit tool calls from the history
-            # (as they will potentially confuse parent agents who also have
-            # their own submit tools that they are 'watching' for)
-            state.messages = _remove_submit_tool(state.messages, submit_tool.name)
+            if not submit.keep_in_messages:
+                # once we are complete, remove submit tool calls from the history
+                # (as they will potentially confuse parent agents who also have
+                # their own submit tools that they are 'watching' for)
+                state.messages = _remove_submit_tool(state.messages, submit_tool.name)
             return state
 
     return _resolve_agent(execute, name, description)
