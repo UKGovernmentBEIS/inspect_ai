@@ -119,10 +119,15 @@ class AgentSubmit(NamedTuple):
     answer_delimiter: str = "\n\n"
     """Delimter used when appending submit tool answer to other content the model generated along with the call to `submit()`."""
 
-    keep_submit_in_messages: bool = False
+    keep_in_messages: bool = False
     """Keep the submit tool call in the message history.
 
-    This overrides the default behaviour of removing the submit tool which
-    could confuse parents calling the agent.
+    Defaults to `False`, which results in calls to the `submit()` tool being
+    removed from message history so that the model's response looks like a
+    standard assistant message.
 
-    Defaults to `False`."""
+    This is particularly important for multi-agent systems where the presence
+    of `submit()` calls in the history can cause coordinator agents to terminate
+    early because they think they are done. You should therefore not set this to
+    `True` if you are using `handoff()` in a multi-agent system.
+    """

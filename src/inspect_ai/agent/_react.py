@@ -267,7 +267,7 @@ def react(
                         )
                     )
 
-            if not (isinstance(submit, AgentSubmit) and submit.keep_submit_in_messages):
+            if not submit.keep_in_messages:
                 # once we are complete, remove submit tool calls from the history
                 # (as they will potentially confuse parent agents who also have
                 # their own submit tools that they are 'watching' for)
