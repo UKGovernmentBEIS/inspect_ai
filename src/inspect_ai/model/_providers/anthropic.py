@@ -1096,7 +1096,13 @@ async def message_param_content(
 ):
     if isinstance(content, ContentText):
         citations = (
-            [to_anthropic_citation(citation) for citation in content.citations]
+            [
+                citation
+                for citation in (
+                    to_anthropic_citation(citation) for citation in content.citations
+                )
+                if citation is not None
+            ]
             if content.citations
             else None
         )
