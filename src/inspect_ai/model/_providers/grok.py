@@ -7,6 +7,7 @@ from typing_extensions import override
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .._generate_config import GenerateConfig
@@ -62,11 +63,10 @@ class GrokAPI(OpenAICompatibleAPI):
 
     @override
     def resolve_tools(
-        self, tools: list[ToolInfo], config: GenerateConfig
-    ) -> tuple[list[ToolInfo], GenerateConfig]:
-        tools, config = super().resolve_tools(tools, config)
+        self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
+    ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
+        tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
 
-        # We're going to need extra_body in all cases.
         new_config = config.model_copy()
         if new_config.extra_body is None:
             new_config.extra_body = {}
@@ -75,13 +75,24 @@ class GrokAPI(OpenAICompatibleAPI):
             self.model_name, tools
         )
 
+        force_web_search = (
+            not isinstance(tool_choice, str) and tool_choice.name == "web_search"
+        )
+
         new_config.extra_body["search_parameters"] = (
             {"mode": "off"}
             if grok_search_options is None
-            else {"mode": "on", **grok_search_options}
+            else {
+                "mode": "on" if force_web_search else "auto",
+                **grok_search_options,
+            }
         )
 
-        return new_tools, new_config
+        return (
+            new_tools,
+            "none" if force_web_search else tool_choice,
+            new_config,
+        )
 
 
 def _get_citations(completion: ChatCompletion) -> list[UrlCitation] | None:
