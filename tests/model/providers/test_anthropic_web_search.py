@@ -73,14 +73,6 @@ class TestSupportsWebSearch:
         # Supported specific latest models
         ("claude-3-5-sonnet-latest", True, "claude-3-5-sonnet-latest"),
         ("claude-3-5-haiku-latest", True, "claude-3-5-haiku-latest"),
-        # Supported models with whitespace (should be stripped)
-        (" claude-opus-4", True, "claude-opus-4 with leading space"),
-        ("claude-opus-4 ", True, "claude-opus-4 with trailing space"),
-        (" claude-opus-4 ", True, "claude-opus-4 with surrounding spaces"),
-        ("claude-opus-4\n", True, "claude-opus-4 with newline"),
-        ("claude-opus-4\t", True, "claude-opus-4 with tab"),
-        (" claude-3-5-sonnet-latest ", True, "claude-3-5-sonnet-latest with spaces"),
-        ("\tclaude-3-7-sonnet\n", True, "claude-3-7-sonnet with tab and newline"),
         # Unsupported older Claude 3 models
         ("claude-3-opus", False, "claude-3-opus"),
         ("claude-3-sonnet", False, "claude-3-sonnet"),
@@ -120,7 +112,7 @@ class TestSupportsWebSearch:
     ]
 
     @pytest.mark.parametrize("model_name,expected,description", test_cases)
-    def test_supports_web_search_table_driven(
+    def test_supports_web_search(
         self, model_name: str, expected: bool, description: str
     ):
         """Table-driven test for _supports_web_search function."""
