@@ -208,7 +208,9 @@ def scorer_for_metrics(
     ## unscored_samples to note the number of samples that were not scored
     sample_scores_with_values = []
     for sample_score in sample_scores:
-        if not np.isnan(sample_score.score.value):
+        if not isinstance(sample_score.score.value, float) or not np.isnan(
+            sample_score.score.value
+        ):
             sample_scores_with_values.append(sample_score)
 
     unscored_samples = len(sample_scores) - len(sample_scores_with_values)
@@ -314,7 +316,9 @@ def scorers_from_metric_dict(
                     metric_score.score.value = cast(
                         float, sample_score.score.value[metric_key]
                     )
-                    if np.isnan(metric_score.score.value):
+                    if isinstance(metric_score.score.value, float) and np.isnan(
+                        metric_score.score.value
+                    ):
                         unscored_samples += 1
                     else:
                         scored_samples += 1
