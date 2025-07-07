@@ -15,6 +15,7 @@ from openai.types import Batch as OpenAIBatch
 from openai.types import FileObject
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from tenacity import RetryCallState
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -31,9 +32,21 @@ from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers._openai_batch import CompletedBatchInfo, OpenAIBatcher
 from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.util.batch import Batch, BatchRequest
+from inspect_ai.model._retry import model_retry_config
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
+
+
+def _should_retry(ex: BaseException) -> bool:
+    return True
+
+
+def _log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+    pass
+
+
+retry_config = model_retry_config("NA", 3, 60, _should_retry, _log_model_retry)
 
 
 @pytest.mark.anyio
@@ -380,6 +393,7 @@ async def test_openai_batcher_handle_batch_result(
     batcher = OpenAIBatcher(
         client=mock_client,
         config=BatchConfig(size=10, send_delay=batch_max_send_delay, tick=batch_tick),
+        retry_config=retry_config,
     )
 
     send_stream, receive_stream = anyio.create_memory_object_stream[
@@ -469,20 +483,3 @@ async def test_openai_batcher_handle_batch_result(
     else:
         assert isinstance(result, OpenAIError), "Should return an OpenAIError object"
         mock_client._make_status_error_from_response.assert_called_once()
-
-
-def test_batcher_get_request_failed_error():
-    batcher = OpenAIBatcher(
-        client=AsyncOpenAI(api_key="test-key"),
-        config=BatchConfig(size=10, send_delay=1.0, tick=0.01),
-    )
-    send_stream, _ = anyio.create_memory_object_stream[ChatCompletion | Exception]()
-    error = batcher._get_request_failed_error(  # pyright: ignore[reportPrivateUsage]
-        BatchRequest[ChatCompletion](
-            request={"foo": "bar"},
-            result_stream=send_stream,
-            custom_id="test-id",
-        )
-    )
-
-    assert isinstance(error, Exception)

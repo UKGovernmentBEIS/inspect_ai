@@ -60,12 +60,13 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI
+from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .._providers._anthropic_citations import (
@@ -293,7 +294,19 @@ class AnthropicAPI(ModelAPI):
         batch_config = normalized_batch_config(config.batch)
         if batch_config:
             if not self._batcher:
-                self._batcher = AnthropicBatcher(self.client, batch_config)
+                self._batcher = AnthropicBatcher(
+                    self.client,
+                    batch_config,
+                    # TODO: In the future, we could pass max_retries and timeout
+                    # from batch_config falling back to config
+                    model_retry_config(
+                        self.model_name,
+                        config.max_retries,
+                        config.timeout,
+                        self.should_retry,
+                        log_model_retry,
+                    ),
+                )
             head_message = await self._batcher.generate(request, config)
         elif streaming:
             async with self.client.messages.stream(**request) as stream:
@@ -413,7 +426,7 @@ class AnthropicAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIStatusError):
             # for unknown reasons, anthropic does not always set status_code == 529
             # for "overloaded_error" so we check for it explicitly

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import anyio
 import pytest
-from anthropic import AsyncAnthropic
 from anthropic.resources.messages.batches import AsyncBatches
 from anthropic.resources.messages.messages import AsyncMessages
 from anthropic.types import Message, TextBlock, Usage
@@ -16,6 +15,7 @@ from anthropic.types.messages import (
     MessageBatchSucceededResult,
     batch_create_params,
 )
+from tenacity import RetryCallState
 from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai._util import eval_task_group
@@ -27,12 +27,22 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._generate_config import BatchConfig
-from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
 from inspect_ai.model._providers.anthropic import AnthropicAPI
-from inspect_ai.model._providers.util.batch import BatchRequest
+from inspect_ai.model._retry import model_retry_config
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
+
+
+def _should_retry(ex: BaseException) -> bool:
+    return True
+
+
+def _log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+    pass
+
+
+retry_config = model_retry_config("NA", 3, 60, _should_retry, _log_model_retry)
 
 
 @pytest.mark.anyio
@@ -218,7 +228,8 @@ async def test_anthropic_batch(mocker: MockerFixture):
                 assert model._batcher._inflight_batches == {}  # pyright: ignore[reportPrivateUsage]
                 assert model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
                 assert (
-                    model._batcher._next_batch and len(model._batcher._next_batch) == 1
+                    model._batcher._next_batch
+                    and len(model._batcher._next_batch.requests) == 1
                 )  # pyright: ignore[reportPrivateUsage]
 
                 mock_batches_create.assert_not_awaited()
@@ -263,20 +274,3 @@ async def test_anthropic_batch(mocker: MockerFixture):
     await anyio.sleep(2 * batch_tick)
 
     assert not model._batcher._is_batch_worker_running  # pyright: ignore[reportPrivateUsage]
-
-
-def test_batcher_get_request_failed_error(mocker: MockerFixture):
-    batcher = AnthropicBatcher(
-        client=AsyncAnthropic(api_key="test-key"),
-        config=BatchConfig(size=10, send_delay=1.0, tick=0.01),
-    )
-    send_stream, _ = anyio.create_memory_object_stream[Message | Exception]()
-    error = batcher._get_request_failed_error(  # pyright: ignore[reportPrivateUsage]
-        BatchRequest[Message](
-            request={"foo": "bar"},
-            result_stream=send_stream,
-            custom_id="test-id",
-        )
-    )
-
-    assert isinstance(error, Exception)

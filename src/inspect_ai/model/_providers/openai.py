@@ -20,11 +20,12 @@ from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
@@ -329,7 +330,19 @@ class OpenAIAPI(ModelAPI):
         batch_config = normalized_batch_config(config.batch)
         if batch_config:
             if not self._batcher:
-                self._batcher = OpenAIBatcher(self.client, batch_config)
+                self._batcher = OpenAIBatcher(
+                    self.client,
+                    batch_config,
+                    # TODO: In the future, we could pass max_retries and timeout
+                    # from batch_config falling back to config
+                    model_retry_config(
+                        self.model_name,
+                        config.max_retries,
+                        config.timeout,
+                        self.should_retry,
+                        log_model_retry,
+                    ),
+                )
             return await self._batcher.generate(request, config)
         else:
             return cast(
@@ -341,7 +354,7 @@ class OpenAIAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
             # The quota exceeded one is related to monthly account quotas.

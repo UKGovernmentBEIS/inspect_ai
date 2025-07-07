@@ -1,5 +1,6 @@
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, example_dataset
+from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.scorer import model_graded_qa
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import web_search
@@ -36,5 +37,7 @@ def biology_qa() -> Task:
             ),
             generate(),
         ],
+        # TODO: TESTING ONLY. DON'T MERGE
+        config=GenerateConfig(batch=BatchConfig(max_size=7)),
         scorer=model_graded_qa(),
     )
