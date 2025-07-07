@@ -2674,6 +2674,30 @@
           "default": null,
           "title": "Reducer"
         },
+        "scored_samples": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scored Samples"
+        },
+        "unscored_samples": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unscored Samples"
+        },
         "params": {
           "additionalProperties": true,
           "title": "Params",
@@ -2704,6 +2728,8 @@
         "name",
         "scorer",
         "reducer",
+        "scored_samples",
+        "unscored_samples",
         "params",
         "metrics",
         "metadata"
