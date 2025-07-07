@@ -588,13 +588,22 @@ class Transcript:
         return None
 
     def _event(self, event: Event) -> None:
+        from inspect_ai.hooks._hooks import emit_event
+
         if self._event_logger:
             self._event_logger(event)
         self._events.append(event)
+        emit_event(event)
 
     def _event_updated(self, event: Event) -> None:
+        from inspect_ai.hooks._hooks import emit_event
+
         if self._event_logger:
             self._event_logger(event)
+        # TODO: Presumably we also want to emit updated events to hooks? Do we have to
+        # convey that this was an update? Or at least document that on_event can contain
+        # event updates as well as new events?
+        emit_event(event)
 
     def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
         self._event_logger = event_logger
