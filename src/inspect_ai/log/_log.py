@@ -490,10 +490,10 @@ class EvalScore(BaseModel):
     reducer: str | None = Field(default=None)
     """Reducer name."""
 
-    scored_samples: int | None = Field(default=0)
+    scored_samples: int | None = Field(default=None)
     """Number of samples scored by this scorer."""
 
-    unscored_samples: int | None = Field(default=0)
+    unscored_samples: int | None = Field(default=None)
     """Number of samples not scored by this scorer."""
 
     params: dict[str, Any] = Field(default_factory=dict)
