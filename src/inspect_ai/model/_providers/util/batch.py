@@ -206,7 +206,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self, batch: list[BatchRequest[ResponseT]]
     ) -> str | None:
         try:
-            return await self._create_batch(batch)
+            return await self._send_batch(batch)
         except Exception as e:
             logger.error(
                 f"Error creating batch, failing all {len(batch)} requests in batch",
@@ -286,7 +286,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         return new_size if new_size < self.max_batch_size_bytes * 0.95 else None
 
     @abstractmethod
-    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _send_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         pass
 
     @abstractmethod
