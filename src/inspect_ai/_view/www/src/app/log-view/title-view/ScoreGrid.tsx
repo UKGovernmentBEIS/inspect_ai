@@ -4,6 +4,7 @@ import { formatPrettyDecimal } from "../../../utils/format";
 
 import { ScoreSummary } from "../../../scoring/types";
 import styles from "./ScoreGrid.module.css";
+import { UnscoredSamples } from "./UnscoredSamplesView";
 
 interface ScoreGridProps {
   scoreGroups: ScoreSummary[][];
@@ -77,6 +78,10 @@ export const ScoreGrid: FC<ScoreGridProps> = ({
         <tr>
           <th className={clsx(styles.scorer, "text-size-small")}>
             {g.scorer} {showReducer && g.reducer ? `(${g.reducer})` : undefined}
+            <UnscoredSamples
+              scoredSamples={g.scoredSamples || 0}
+              unscoredSamples={g.unscoredSamples || 0}
+            />
           </th>
           {cells}
         </tr>,

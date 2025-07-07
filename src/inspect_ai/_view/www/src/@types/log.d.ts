@@ -156,6 +156,8 @@ export type CompletedSamples = number;
 export type Name6 = string;
 export type Scorer = string;
 export type Reducer = string | null;
+export type ScoredSamples = number | null;
+export type UnscoredSamples = number | null;
 export type Name7 = string;
 export type Value = number;
 export type Metadata2 = {
@@ -1050,6 +1052,8 @@ export interface EvalScore {
   name: Name6;
   scorer: Scorer;
   reducer: Reducer;
+  scored_samples: ScoredSamples;
+  unscored_samples: UnscoredSamples;
   params: Params2;
   metrics: Metrics2;
   metadata: Metadata3;

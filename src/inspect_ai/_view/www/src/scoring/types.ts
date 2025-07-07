@@ -8,4 +8,6 @@ export interface ScoreSummary {
   scorer: string;
   reducer?: string;
   metrics: MetricSummary[];
+  unscoredSamples?: number;
+  scoredSamples?: number;
 }
