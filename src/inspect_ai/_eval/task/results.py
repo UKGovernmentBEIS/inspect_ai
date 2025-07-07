@@ -7,6 +7,8 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
 
+import numpy as np
+
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     registry_info,
@@ -201,6 +203,17 @@ def scorer_for_metrics(
     reducer_name: str | None = None,
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
+
+    ## filter the sample_scores to exclude Nan values, which will not be scored
+    ## unscored_samples to note the number of samples that were not scored
+    sample_scores_with_values = []
+    for sample_score in sample_scores:
+        if not np.isnan(sample_score.score.value):
+            sample_scores_with_values.append(sample_score)
+
+    unscored_samples = len(sample_scores) - len(sample_scores_with_values)
+    scored_samples = len(sample_scores_with_values)
+
     # we want to use simple names for metrics in the metrics dict
     # (i.e. without package prefixes). we do this by getting the
     # unqualified name, then appending a suffix if there are duplicates
@@ -214,8 +227,8 @@ def scorer_for_metrics(
         )
         params = registry_params(metric)
         # process metric values
-        if len(sample_scores) > 0:
-            metric_value = call_metric(metric, sample_scores)
+        if len(sample_scores_with_values) > 0:
+            metric_value = call_metric(metric, sample_scores_with_values)
         else:
             metric_value = float("Nan")
         base_metric_name = registry_log_name(metric)
@@ -261,6 +274,8 @@ def scorer_for_metrics(
             if len(scorer_info.metadata.keys()) > 0
             else None,
             metrics=list_metrics,
+            scored_samples=scored_samples,
+            unscored_samples=unscored_samples,
         )
     )
     return results
@@ -285,6 +300,12 @@ def scorers_from_metric_dict(
     for metric_key, metric_list in resolved_metrics.items():
         # filter scores to a list of scalars with the value of the metric name
         metric_scores: list[SampleScore] = []
+
+        ## filter the sample_scores to exclude Nan values, which will not be scored
+        ## unscored_samples to note the number of samples that were not scored
+        unscored_samples = 0
+        scored_samples = 0
+
         for sample_score in sample_scores:
             if isinstance(sample_score.score.value, dict):
                 if metric_key in sample_score.score.value:
@@ -293,7 +314,11 @@ def scorers_from_metric_dict(
                     metric_score.score.value = cast(
                         float, sample_score.score.value[metric_key]
                     )
-                    metric_scores.append(metric_score)
+                    if np.isnan(metric_score.score.value):
+                        unscored_samples += 1
+                    else:
+                        scored_samples += 1
+                        metric_scores.append(metric_score)
                 else:
                     raise TypeError(
                         f"key '{metric_key}' isn't present in the score value dictionary"
@@ -345,6 +370,8 @@ def scorers_from_metric_dict(
                 if len(scorer_info.metadata.keys()) > 0
                 else None,
                 metrics=result_metrics,
+                scored_samples=scored_samples,
+                unscored_samples=unscored_samples,
             )
         )
     return results
