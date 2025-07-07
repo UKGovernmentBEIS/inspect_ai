@@ -696,13 +696,9 @@ def _supports_web_search(model_name: str) -> bool:
     # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#supported-models
     # https://docs.anthropic.com/en/docs/about-claude/models/overview#model-aliases
     # https://docs.anthropic.com/en/docs/about-claude/model-deprecations
-    return (
-        model_name.startswith("claude-opus-4")
-        or model_name.startswith("claude-sonnet-4")
-        or model_name.startswith("claude-3-7-sonnet")
-        or model_name == "claude-3-5-sonnet-latest"
-        or model_name == "claude-3-5-haiku-latest"
-    )
+    return model_name.startswith(
+        ("claude-opus-4", "claude-sonnet-4", "claude-3-7-sonnet")
+    ) or model_name in ("claude-3-5-sonnet-latest", "claude-3-5-haiku-latest")
 
 
 def _web_search_tool_param(
