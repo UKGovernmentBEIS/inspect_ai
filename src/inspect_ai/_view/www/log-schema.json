@@ -2683,7 +2683,7 @@
               "type": "null"
             }
           ],
-          "default": 0,
+          "default": null,
           "title": "Scored Samples"
         },
         "unscored_samples": {
@@ -2695,7 +2695,7 @@
               "type": "null"
             }
           ],
-          "default": 0,
+          "default": null,
           "title": "Unscored Samples"
         },
         "params": {
