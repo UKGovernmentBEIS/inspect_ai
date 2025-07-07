@@ -7,7 +7,7 @@ from typing_extensions import override
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .._generate_config import GenerateConfig
@@ -76,7 +76,7 @@ class GrokAPI(OpenAICompatibleAPI):
         )
 
         force_web_search = (
-            not isinstance(tool_choice, str) and tool_choice.name == "web_search"
+            isinstance(tool_choice, ToolFunction) and tool_choice.name == "web_search"
         )
 
         new_config.extra_body["search_parameters"] = (
