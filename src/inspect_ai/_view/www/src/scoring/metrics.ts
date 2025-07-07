@@ -70,6 +70,14 @@ export const toDisplayScorers = (scores?: Scores): ScoreSummary[] => {
           params: metric.params,
         };
       }),
+      unscoredSamples:
+        score.unscored_samples !== null
+          ? (score.unscored_samples as number)
+          : undefined,
+      scoredSamples:
+        score.scored_samples !== null
+          ? (score.scored_samples as number)
+          : undefined,
     };
   });
 };
