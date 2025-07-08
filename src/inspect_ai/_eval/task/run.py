@@ -880,7 +880,7 @@ async def task_run_sample(
                 await log_sample(
                     eval_sample=eval_sample, logger=logger, log_images=log_images
                 )
-            await emit_sample_end(run_id, task_id, state.uuid, eval_sample.summary())
+            await emit_sample_end(run_id, task_id, state.uuid, eval_sample)
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back

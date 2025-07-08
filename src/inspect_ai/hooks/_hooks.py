@@ -12,7 +12,7 @@ from inspect_ai._util.registry import (
     registry_name,
 )
 from inspect_ai.hooks._legacy import override_api_key_legacy
-from inspect_ai.log._log import EvalLog, EvalSampleSummary, EvalSpec
+from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from inspect_ai.model._model_output import ModelUsage
 
 logger = getLogger(__name__)
@@ -88,8 +88,8 @@ class SampleEnd:
     """The globally unique identifier for the task execution."""
     sample_id: str
     """The globally unique identifier for the sample execution."""
-    summary: EvalSampleSummary
-    """Summary of the sample that has run."""
+    sample: EvalSample
+    """The sample that has run."""
 
 
 @dataclass(frozen=True)
@@ -295,10 +295,13 @@ async def emit_sample_start(
 
 
 async def emit_sample_end(
-    run_id: str, eval_id: str, sample_id: str, summary: EvalSampleSummary
+    run_id: str, eval_id: str, sample_id: str, sample: EvalSample
 ) -> None:
     data = SampleEnd(
-        run_id=run_id, eval_id=eval_id, sample_id=sample_id, summary=summary
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        sample=sample,
     )
     await _emit_to_all(lambda hook: hook.on_sample_end(data))
 
