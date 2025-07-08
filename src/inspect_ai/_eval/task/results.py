@@ -3,6 +3,7 @@ import inspect
 import logging
 import re
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
@@ -237,7 +238,7 @@ def scorer_for_metrics(
 
         # If the metric value is a dictionary, turn each of the entries
         # in the dictionary into a result
-        if isinstance(metric_value, dict):
+        if isinstance(metric_value, Mapping):
             for metric_key, value in metric_value.items():
                 if value is not None:
                     name = metrics_unique_key(metric_key, list(list_metrics.keys()))
@@ -247,7 +248,7 @@ def scorer_for_metrics(
 
         # If the metric value is a list, turn each element in the list
         # into a result
-        elif isinstance(metric_value, list):
+        elif isinstance(metric_value, Sequence):
             for index, value in enumerate(metric_value):
                 if value is not None:
                     count = str(index + 1)
