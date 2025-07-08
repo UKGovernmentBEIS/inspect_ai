@@ -90,8 +90,6 @@ class SampleEnd:
     """The globally unique identifier for the sample execution."""
     sample: EvalSample
     """The sample that has run."""
-    summary: EvalSampleSummary
-    """Summary of the sample that has run."""
 
 
 @dataclass(frozen=True)
@@ -304,7 +302,6 @@ async def emit_sample_end(
         eval_id=eval_id,
         sample_id=sample_id,
         sample=sample,
-        summary=sample.summary(),
     )
     await _emit_to_all(lambda hook: hook.on_sample_end(data))
 
