@@ -53834,23 +53834,26 @@ self.onmessage = function (e) {
       };
     };
     const fetchSize = async (url) => {
-      const headResponse = await fetch(`${url}`, { method: "HEAD" });
-      const contentLength = headResponse.headers.get("Content-Length");
+      const acceptResponse = await fetch(url, { method: "HEAD" });
+      const acceptsRanges = acceptResponse.headers.get("Accept-Ranges");
+      if (acceptsRanges === "bytes") {
+        const getResponse = await fetch(`${url}`, {
+          method: "GET",
+          headers: { Range: "bytes=0-0" }
+        });
+        const contentRange = getResponse.headers.get("Content-Range");
+        if (contentRange !== null) {
+          const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
+          if (rangeMatch !== null) {
+            return Number(rangeMatch[3]);
+          }
+        }
+      }
+      const contentLength = acceptResponse.headers.get("Content-Length");
       if (contentLength !== null) {
         return Number(contentLength);
       }
-      const getResponse = await fetch(`${url}`, {
-        method: "GET",
-        headers: { Range: "bytes=0-0" }
-      });
-      const contentRange = getResponse.headers.get("Content-Range");
-      if (contentRange !== null) {
-        const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
-        if (rangeMatch !== null) {
-          return Number(rangeMatch[3]);
-        }
-      }
-      throw new Error("Could not determine content length");
+      throw new Error(`Could not determine content length for ${url}`);
     };
     const fetchRange = async (url, start2, end2) => {
       const response = await fetch(`${url}`, {
@@ -56369,7 +56372,9 @@ self.onmessage = function (e) {
             timestamp: collectedScorerEvents[0].timestamp,
             working_start: collectedScorerEvents[0].working_start,
             pending: false,
-            parent_id: null
+            parent_id: null,
+            uuid: null,
+            metadata: null
           };
           const scoreEvents = collectedScorerEvents.map((event) => {
             return {
@@ -56383,7 +56388,9 @@ self.onmessage = function (e) {
             event: SPAN_END,
             pending: false,
             working_start: collectedScorerEvents[collectedScorerEvents.length - 1].working_start,
-            timestamp: collectedScorerEvents[collectedScorerEvents.length - 1].timestamp
+            timestamp: collectedScorerEvents[collectedScorerEvents.length - 1].timestamp,
+            uuid: null,
+            metadata: null
           };
           collectedScorerEvents.length = 0;
           hasCollectedScorers = true;
@@ -56693,7 +56700,9 @@ self.onmessage = function (e) {
         name: "sample_init",
         pending: false,
         working_start: 0,
-        span_id: initEvent.span_id
+        span_id: initEvent.span_id,
+        uuid: null,
+        metadata: null
       });
       fixedUp.splice(initEventIndex + 2, 0, {
         timestamp: initEvent.timestamp,
@@ -56703,7 +56712,9 @@ self.onmessage = function (e) {
         name: "sample_init",
         pending: false,
         working_start: 0,
-        span_id: initEvent.span_id
+        span_id: initEvent.span_id,
+        uuid: null,
+        metadata: null
       });
       return fixedUp;
     };
@@ -56749,7 +56760,9 @@ self.onmessage = function (e) {
       name: name2,
       pending: false,
       working_start: 0,
-      span_id: null
+      span_id: null,
+      uuid: null,
+      metadata: null
     });
     const createSpanBegin = (name2, timestamp, parent_id) => {
       return {
@@ -56761,7 +56774,9 @@ self.onmessage = function (e) {
         event: "span_begin",
         type: null,
         pending: false,
-        working_start: 0
+        working_start: 0,
+        uuid: null,
+        metadata: null
       };
     };
     const createSpanEnd = (name2, timestamp) => {
@@ -56771,7 +56786,9 @@ self.onmessage = function (e) {
         event: "span_end",
         pending: false,
         working_start: 0,
-        span_id: name2
+        span_id: name2,
+        uuid: null,
+        metadata: null
       };
     };
     var fromEntries = function fromEntries2(entries) {
@@ -58899,7 +58916,9 @@ self.onmessage = function (e) {
               working_start: modelNode.event.working_start,
               timestamp: modelNode.event.timestamp,
               parent_id: null,
-              span_id: modelNode.event.span_id
+              span_id: modelNode.event.span_id,
+              uuid: null,
+              metadata: null
             },
             modelNode.depth
           );
@@ -59002,7 +59021,9 @@ self.onmessage = function (e) {
         timestamp: "",
         pending: false,
         working_start: 0,
-        span_id: null
+        span_id: null,
+        uuid: null,
+        metadata: null
       },
       depth: 0,
       children: []
