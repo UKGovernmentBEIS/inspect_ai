@@ -7,6 +7,7 @@
 - Transcript: Add `message_id` field to `ToolEvent` for corresponding `ChatMessageTool`.
 - Eval log: Add option to select sample by `uuid` in `read_eval_log_sample()`.
 - ReAct agent: Add `keep_in_messages` option to `AgentSubmit` to preserve calls to `submit()` in message history.
+- Scoring: Nan values returned from scorers will be excluded from computation of metrics. Scorers in results include `scored_samples` and `unscored_samples` fields to indicate how many samples were scored and how many were not. The viewer will display these values if there are unscored samples.
 
 ## 0.3.112 (03 July 2025)
 

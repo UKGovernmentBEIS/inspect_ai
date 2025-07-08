@@ -10,6 +10,7 @@ import { useProperty } from "../../../state/hooks";
 import { formatPrettyDecimal } from "../../../utils/format";
 import styles from "./ResultsPanel.module.css";
 import { ScoreGrid } from "./ScoreGrid";
+import { UnscoredSamples } from "./UnscoredSamplesView";
 
 const kMaxPrimaryScoreRows = 4;
 
@@ -72,6 +73,8 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
   if (scorers.length === 1) {
     const showReducer = !!scorers[0].reducer;
     const metrics = scorers[0].metrics;
+    const unscoredSamples = scorers[0].unscoredSamples || 0;
+    const scoredSamples = scorers[0].scoredSamples || 0;
     return (
       <div className={styles.simpleMetricsRows}>
         {metrics.map((metric, i) => {
@@ -82,6 +85,8 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
               metric={metric}
               isFirst={i === 0}
               showReducer={showReducer}
+              unscoredSamples={unscoredSamples}
+              scoredSamples={scoredSamples}
             />
           );
         })}
@@ -147,6 +152,8 @@ interface VerticalMetricProps {
   reducer?: string;
   isFirst: boolean;
   showReducer: boolean;
+  unscoredSamples: number;
+  scoredSamples: number;
 }
 
 /** Renders a Vertical Metric
@@ -156,6 +163,8 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
   reducer,
   isFirst,
   showReducer,
+  scoredSamples,
+  unscoredSamples,
 }) => {
   return (
     <div style={{ paddingLeft: isFirst ? "0" : "1em" }}>
@@ -168,6 +177,10 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
         )}
       >
         {metricDisplayName(metric)}
+        <UnscoredSamples
+          scoredSamples={scoredSamples}
+          unscoredSamples={unscoredSamples}
+        />
       </div>
       {showReducer ? (
         <div
