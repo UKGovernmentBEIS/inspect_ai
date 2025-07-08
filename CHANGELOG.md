@@ -10,6 +10,7 @@
 - Scoring: Nan values returned from scorers will be excluded from computation of metrics. Scorers in results include `scored_samples` and `unscored_samples` fields to indicate how many samples were scored and how many were not. The viewer will display these values if there are unscored samples.
 - Hooks: Provide full `EvalSample` (rather than only the summary) to `on_sample_end()` hook.
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
+- Scoring: Change Value type use Mapping and Sequence
 
 ## 0.3.112 (03 July 2025)
 
