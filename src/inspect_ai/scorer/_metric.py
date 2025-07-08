@@ -1,3 +1,4 @@
+from abc.collections import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
@@ -43,8 +44,8 @@ NOANSWER = "N"
 
 Value = Union[
     str | int | float | bool,
-    list[str | int | float | bool],
-    dict[str, str | int | float | bool | None],
+    Sequence[str | int | float | bool],
+    Mapping[str, str | int | float | bool | None],
 ]
 """Value provided by a score.
 
