@@ -1,4 +1,4 @@
-from abc.collections import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
