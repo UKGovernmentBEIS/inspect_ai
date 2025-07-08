@@ -92,12 +92,18 @@ def to_inspect_citation(input: TextCitation) -> Citation:
     assert False, f"Unexpected citation type: {input.type}"
 
 
-def to_anthropic_citation(input: Citation) -> TextCitationParam:
-    cited_text = str(input.cited_text)
+def to_anthropic_citation(input: Citation) -> TextCitationParam | None:
+    # NOTE: This function cannot assume that this module was responsible for the
+    # creation of any Citation object found in the input. For example, when using
+    # Tavily as an external web search provider, the citations will be created by
+    # the Tavily code and will not have an internal.
 
+    if (internal := input.internal) is None:
+        return None
+
+    cited_text = str(input.cited_text)
     match input:
-        case UrlCitation(title=title, url=url, internal=internal):
-            assert internal, "UrlCitation must have internal field"
+        case UrlCitation(title=title, url=url):
             encrypted_index = internal.get("encrypted_index", None)
             assert isinstance(encrypted_index, str), (
                 "URL citations require encrypted_index in internal field"
@@ -111,8 +117,7 @@ def to_anthropic_citation(input: Citation) -> TextCitationParam:
                 encrypted_index=encrypted_index,
             )
 
-        case DocumentCitation(title=title, range=range, internal=internal):
-            assert internal, "DocumentCharCitation must have internal field"
+        case DocumentCitation(title=title, range=range):
             document_index = internal.get("document_index", None)
             assert isinstance(document_index, int), (
                 "DocumentCharCitation require encrypted_index in internal field"
