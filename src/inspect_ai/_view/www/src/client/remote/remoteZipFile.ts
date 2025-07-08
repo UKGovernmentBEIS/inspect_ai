@@ -188,27 +188,35 @@ export const openRemoteZipFile = async (
 };
 
 export const fetchSize = async (url: string): Promise<number> => {
-  // First try HEAD request to get Content-Length
-  const headResponse = await fetch(`${url}`, { method: "HEAD" });
-  const contentLength = headResponse.headers.get("Content-Length");
+  // Make a HEAD request to find whether the server supports range requests
+  const acceptResponse = await fetch(url, { method: "HEAD" });
+  const acceptsRanges = acceptResponse.headers.get("Accept-Ranges");
+  if (acceptsRanges === "bytes") {
+    // attempt a range request to get the content length
+    // Range requests are preferred since they bypass compression.
+    // HEAD requests may return compressed content-length which doesn't
+    // match the actual file size needed for downstream operations.
+    const getResponse = await fetch(`${url}`, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+    });
 
+    const contentRange = getResponse.headers.get("Content-Range");
+    if (contentRange !== null) {
+      const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
+      if (rangeMatch !== null) {
+        return Number(rangeMatch[3]);
+      }
+    }
+  }
+
+  //  use the HEAD request to get Content-Length
+  const contentLength = acceptResponse.headers.get("Content-Length");
   if (contentLength !== null) {
     return Number(contentLength);
   }
 
-  // If Content-Length is not present, use a GET with an 1 byte range request:
-  const getResponse = await fetch(`${url}`, {
-    method: "GET",
-    headers: { Range: "bytes=0-0" },
-  });
-  const contentRange = getResponse.headers.get("Content-Range");
-  if (contentRange !== null) {
-    const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
-    if (rangeMatch !== null) {
-      return Number(rangeMatch[3]);
-    }
-  }
-  throw new Error("Could not determine content length");
+  throw new Error(`Could not determine content length for ${url}`);
 };
 
 /**
