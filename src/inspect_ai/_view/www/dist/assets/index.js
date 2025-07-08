@@ -53836,23 +53836,26 @@ self.onmessage = function (e) {
       };
     };
     const fetchSize = async (url) => {
-      const headResponse = await fetch(`${url}`, { method: "HEAD" });
-      const contentLength = headResponse.headers.get("Content-Length");
+      const acceptResponse = await fetch(url, { method: "HEAD" });
+      const acceptsRanges = acceptResponse.headers.get("Accept-Ranges");
+      if (acceptsRanges === "bytes") {
+        const getResponse = await fetch(`${url}`, {
+          method: "GET",
+          headers: { Range: "bytes=0-0" }
+        });
+        const contentRange = getResponse.headers.get("Content-Range");
+        if (contentRange !== null) {
+          const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
+          if (rangeMatch !== null) {
+            return Number(rangeMatch[3]);
+          }
+        }
+      }
+      const contentLength = acceptResponse.headers.get("Content-Length");
       if (contentLength !== null) {
         return Number(contentLength);
       }
-      const getResponse = await fetch(`${url}`, {
-        method: "GET",
-        headers: { Range: "bytes=0-0" }
-      });
-      const contentRange = getResponse.headers.get("Content-Range");
-      if (contentRange !== null) {
-        const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
-        if (rangeMatch !== null) {
-          return Number(rangeMatch[3]);
-        }
-      }
-      throw new Error("Could not determine content length");
+      throw new Error(`Could not determine content length for ${url}`);
     };
     const fetchRange = async (url, start2, end2) => {
       const response = await fetch(`${url}`, {
