@@ -196,16 +196,34 @@ export const fetchSize = async (url: string): Promise<number> => {
     // Range requests are preferred since they bypass compression.
     // HEAD requests may return compressed content-length which doesn't
     // match the actual file size needed for downstream operations.
-    const getResponse = await fetch(`${url}`, {
-      method: "GET",
-      headers: { Range: "bytes=0-0" },
-    });
 
-    const contentRange = getResponse.headers.get("Content-Range");
-    if (contentRange !== null) {
-      const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
-      if (rangeMatch !== null) {
-        return Number(rangeMatch[3]);
+    let retryCount = 0;
+    const maxRangeRequestRetries = 5;
+    let rangeRequestHeaders: Headers | undefined = undefined;
+    while (!rangeRequestHeaders && retryCount < maxRangeRequestRetries) {
+      // We're sometimes seeing some providers returning intermittent 502
+      // error when making range requests, so retry this request a few
+      // times before giving up
+      const getResponse = await fetch(`${url}`, {
+        method: "GET",
+        headers: { Range: "bytes=0-0" },
+      });
+      if (getResponse.ok) {
+        rangeRequestHeaders = getResponse.headers;
+        break;
+      } else {
+        retryCount++;
+        await new Promise((resolve) => setTimeout(resolve, 200 * retryCount));
+      }
+    }
+
+    if (rangeRequestHeaders) {
+      const contentRange = rangeRequestHeaders.get("Content-Range");
+      if (contentRange !== null) {
+        const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
+        if (rangeMatch !== null) {
+          return Number(rangeMatch[3]);
+        }
       }
     }
   }
