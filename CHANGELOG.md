@@ -13,6 +13,7 @@
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
 - Bugfix: Fix failure to allow Anthropic native web search for some model names such as `claude-3-7-sonnet-latest`.
 - Bugfix: Fix Anthropic citation support code when it encounters citations created by external search providers such as Tavily.
+- Bugfix: Break after finding final assistant message when implementing fallback for `AgentState` `output` field.
 
 ## 0.3.112 (03 July 2025)
 
