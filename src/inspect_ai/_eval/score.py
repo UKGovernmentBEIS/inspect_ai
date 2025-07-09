@@ -28,6 +28,11 @@ from inspect_ai.scorer._reducer import (
 )
 from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
 from inspect_ai.solver import TaskState
+from inspect_ai.util._display import (
+    DisplayType,
+    display_type_initialized,
+    init_display_type,
+)
 
 from .task.results import eval_results
 
@@ -39,6 +44,7 @@ def score(
     scorers: Scorer | list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
+    display: DisplayType | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -49,12 +55,16 @@ def score(
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
        action: Whether to append or overwrite this score
+       display: Progress/status display
 
     Returns:
        Log with scores yielded by scorer.
     """
     # standard platform init for top level entry points
     platform_init()
+
+    # initialize display type
+    init_display_type(display)
 
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
@@ -88,11 +98,13 @@ async def score_async(
          Defaults to previously used reducer(s).
        action: Whether to append or overwrite this score
 
-
-
     Returns:
        Log with scores yielded by scorer.
     """
+    # if we are called outside of score() then set display type to "plain"
+    if not display_type_initialized():
+        init_display_type("plain")
+
     # deepcopy so we don't mutate the passed log
     log = deepcopy(log)
 
