@@ -5,7 +5,7 @@ from typing import Any, Callable, Literal
 
 import anyio
 
-from inspect_ai._display import display
+from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import scorer_from_spec
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
@@ -28,6 +28,11 @@ from inspect_ai.scorer._reducer import (
 )
 from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
 from inspect_ai.solver import TaskState
+from inspect_ai.util._display import (
+    DisplayType,
+    display_type_initialized,
+    init_display_type,
+)
 
 from .task.results import eval_results
 
@@ -39,6 +44,7 @@ def score(
     scorers: Scorer | list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
+    display: DisplayType | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -49,12 +55,16 @@ def score(
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
        action: Whether to append or overwrite this score
+       display: Progress/status display
 
     Returns:
        Log with scores yielded by scorer.
     """
     # standard platform init for top level entry points
     platform_init()
+
+    # initialize display type
+    init_display_type(display)
 
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
@@ -77,6 +87,7 @@ async def score_async(
     scorers: list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
+    display: DisplayType | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -87,12 +98,15 @@ async def score_async(
          Reducer function(s) for aggregating scores in each sample.
          Defaults to previously used reducer(s).
        action: Whether to append or overwrite this score
-
-
+       display: Progress/status display
 
     Returns:
        Log with scores yielded by scorer.
     """
+    # init display if necessary
+    if not display_type_initialized():
+        init_display_type(display or "plain")
+
     # deepcopy so we don't mutate the passed log
     log = deepcopy(log)
 
@@ -116,7 +130,7 @@ async def score_async(
         )
         for sample in log.samples
     ]
-    with display().progress(total=len(states)) as p:
+    with display_manager().progress(total=len(states)) as p:
 
         def progress() -> None:
             p.update(1)
@@ -187,7 +201,7 @@ async def task_score(
         raise ValueError("There are no samples to score in the log.")
 
     task_name = log.eval.task
-    display().print(f"\nScoring {task_name} ({len(log.samples)} samples)")
+    display_manager().print(f"\nScoring {task_name} ({len(log.samples)} samples)")
 
     # perform scoring
     log = await score_async(log=log, scorers=scorers, action=action)

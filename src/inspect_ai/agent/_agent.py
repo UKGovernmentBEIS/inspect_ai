@@ -63,6 +63,7 @@ class AgentState:
                             )
                         ],
                     )
+                    break
 
             # no assistant message, so generate an empty model output
             if self._output is None:
