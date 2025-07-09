@@ -54016,6 +54016,20 @@ self.onmessage = function (e) {
     }
     function simpleHttpAPI(logInfo) {
       const log_dir = logInfo.log_dir;
+      let manifest = void 0;
+      let manifestPromise = void 0;
+      const getManifest = async () => {
+        if (!manifest && log_dir) {
+          if (!manifestPromise) {
+            manifestPromise = fetchManifest(log_dir).then((manifestRaw) => {
+              manifest = (manifestRaw == null ? void 0 : manifestRaw.parsed) || {};
+              return manifest;
+            });
+          }
+          await manifestPromise;
+        }
+        return manifest || {};
+      };
       async function open_log_file2() {
       }
       return {
@@ -54024,14 +54038,13 @@ self.onmessage = function (e) {
         },
         eval_logs: async () => {
           if (log_dir) {
-            const headers = await fetchLogHeaders(log_dir);
-            if (headers) {
-              const logRecord = headers.parsed;
-              const logs = Object.keys(logRecord).map((key2) => {
+            const manifest2 = await getManifest();
+            if (manifest2) {
+              const logs = Object.keys(manifest2).map((key2) => {
                 return {
                   name: joinURI(log_dir, key2),
-                  task: logRecord[key2].eval.task,
-                  task_id: logRecord[key2].eval.task_id
+                  task: manifest2[key2].eval.task,
+                  task_id: manifest2[key2].eval.task_id
                 };
               });
               return Promise.resolve({
@@ -54059,21 +54072,35 @@ self.onmessage = function (e) {
         eval_log_bytes: async (log_file, start2, end2) => {
           return await fetchRange(log_file, start2, end2);
         },
+        eval_log_header: async (log_file) => {
+          const manifest2 = await getManifest();
+          if (manifest2) {
+            const manifestAbs = {};
+            Object.keys(manifest2).forEach((key2) => {
+              manifestAbs[joinURI(log_dir || "", key2)] = manifest2[key2];
+            });
+            const header2 = manifestAbs[log_file];
+            if (header2) {
+              return header2;
+            }
+          }
+          throw new Error(`Unable to load eval log header for ${log_file}`);
+        },
         eval_log_headers: async (files) => {
           if (files.length === 0) {
             return [];
           }
           if (log_dir) {
-            const headers = await fetchLogHeaders(log_dir);
-            if (headers) {
-              const keys = Object.keys(headers.parsed);
+            const manifest2 = await getManifest();
+            if (manifest2) {
+              const keys = Object.keys(manifest2);
               const result2 = [];
               files.forEach((file) => {
                 const fileKey = keys.find((key2) => {
                   return file.endsWith(key2);
                 });
                 if (fileKey) {
-                  result2.push(headers.parsed[fileKey]);
+                  result2.push(manifest2[fileKey]);
                 }
               });
               return result2;
@@ -54131,7 +54158,7 @@ self.onmessage = function (e) {
         };
       });
     };
-    const fetchLogHeaders = async (log_dir) => {
+    const fetchManifest = async (log_dir) => {
       const logs = await fetchFile(
         log_dir + "/logs.json",
         async (text2) => {
@@ -54705,12 +54732,16 @@ self.onmessage = function (e) {
         return void 0;
       };
       const get_eval_log_header = async (log_file2) => {
-        const remoteLogFile = await openRemoteLogFile(
-          api2,
-          encodePathParts(log_file2),
-          5
-        );
-        return remoteLogFile.readHeader();
+        if (api2.eval_log_header) {
+          return api2.eval_log_header(log_file2);
+        } else {
+          const remoteLogFile = await openRemoteLogFile(
+            api2,
+            encodePathParts(log_file2),
+            5
+          );
+          return remoteLogFile.readHeader();
+        }
       };
       const get_log_headers = async (log_files) => {
         const eval_files = {};
