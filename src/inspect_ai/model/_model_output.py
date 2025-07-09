@@ -32,13 +32,9 @@ class ModelUsage(BaseModel):
 
     def __add__(self, other: "ModelUsage") -> "ModelUsage":
         def optional_sum(a: int | None, b: int | None) -> int | None:
-            if a is not None and b is not None:
-                return a + b
-            if a is not None:
-                return a
-            if b is not None:
-                return b
-            return None
+            if a is None and b is None:
+                return None
+            return (a or 0) + (b or 0)
 
         return ModelUsage(
             input_tokens=self.input_tokens + other.input_tokens,
