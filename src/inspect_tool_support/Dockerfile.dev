@@ -1,0 +1,8 @@
+FROM aisiuk/inspect-tool-support
+
+COPY . /app
+
+RUN pip install --no-cache-dir /app \
+    && inspect-tool-support post-install
+
+CMD ["tail", "-f", "/dev/null"]

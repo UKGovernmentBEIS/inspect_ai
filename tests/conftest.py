@@ -20,6 +20,17 @@ def pytest_addoption(parser):
     parser.addoption(
         "--runapi", action="store_true", default=False, help="run API tests"
     )
+    parser.addoption(
+        "--local-inspect-tools",
+        action="store_true",
+        default=False,
+        help="If set, run inspect tools from local source instead of pulling from Docker Hub",
+    )
+
+
+@pytest.fixture(scope="session")
+def local_inspect_tools(request):
+    return request.config.getoption("--local-inspect-tools")
 
 
 def pytest_configure(config):
