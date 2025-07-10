@@ -16,6 +16,9 @@
 - Bugfix: Fix failure to allow Anthropic native web search for some model names such as `claude-3-7-sonnet-latest`.
 - Bugfix: Fix Anthropic citation support code when it encounters citations created by external search providers such as Tavily.
 - Bugfix: Break after finding final assistant message when implementing fallback for `AgentState` `output` field.
+- Bugfix: Fix `run_in_background` allowing it to properly function outside the context of a task.
+- Bugfix: `None` out `TaskLogger`'s `SampleBufferDatabase` after cleaning it up to avoid crashing on subsequent logging attempts.
+- Bugfix: Disassociate the logger used by batch processing's background task from any particular sample.
 
 ## 0.3.112 (03 July 2025)
 
