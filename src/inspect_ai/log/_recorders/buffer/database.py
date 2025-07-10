@@ -255,7 +255,7 @@ class SampleBufferDatabase(SampleBuffer):
         db_dir = resolve_db_dir() / log_subdir
 
         if db_dir.exists():
-            logs = [log.name.rsplit(".", 2)[0] for log in db_dir.glob("*.*.db")]
+            logs = [log.name.rsplit(".", 2)[0] for log in db_dir.rglob("*.*.db")]
             return logs
         else:
             return None
@@ -702,7 +702,7 @@ def maximum_ids(
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
     try:
         db_dir = resolve_db_dir(db_dir)
-        for db in db_dir.glob("*.*.db"):
+        for db in db_dir.rglob("*.*.db"):
             # this is a failsafe cleanup method for buffer db's leaked during
             # abnormal terminations. therefore, it's not critical that we clean
             # it up immediately. it's also possible that users are _sharing_
@@ -722,6 +722,12 @@ def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
 def cleanup_sample_buffer_db(path: Path) -> None:
     try:
         path.unlink(missing_ok=True)
+        try:
+            # Remove the directory if it's empty
+            path.parent.rmdir()
+        except OSError:
+            # Not empty or other error, which is fine
+            pass
     except Exception as ex:
         logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
 
