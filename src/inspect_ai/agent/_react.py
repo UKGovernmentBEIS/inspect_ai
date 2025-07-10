@@ -195,6 +195,7 @@ def react(
                     answer = submission(messages)
                     if answer is not None:
                         # set the output to the answer for scoring
+                        state.output = state.output.model_copy(deep=True)
                         if submit.answer_only:
                             state.output.completion = answer
                         else:
@@ -441,7 +442,7 @@ async def _agent_generate(
 def _model_generate(model: str | Model | None) -> Agent:
     async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
         state.output = await get_model(model).generate(state.messages, tools)
-        state.messages.append(state.output.message.model_copy())
+        state.messages.append(state.output.message)
         return state
 
     return generate
