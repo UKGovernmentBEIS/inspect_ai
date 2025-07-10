@@ -53,7 +53,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         )
         self.client = client
 
-    async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
+    async def _send_batch(self, batch: list[BatchRequest[Message]]) -> str:
         requests: list[AnthropicBatchRequest] = []
         extra_headers: dict[str, str] = {}
         for request in batch:

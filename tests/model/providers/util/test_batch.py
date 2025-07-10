@@ -53,7 +53,7 @@ class FakeBatcher(Batcher[str, CompletedBatchInfo]):
         self._num_sent_batches += 1
         return batch_id
 
-    async def _create_batch(self, batch: list[BatchRequest[str]]) -> str:
+    async def _send_batch(self, batch: list[BatchRequest[str]]) -> str:
         return await self.mock_create_batch(batch)
 
     def _stub_check_batch(self, batch: Batch[str]) -> CompletedBatchInfo | None:

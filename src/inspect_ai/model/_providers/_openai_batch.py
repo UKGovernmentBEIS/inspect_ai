@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import json
 import tempfile
@@ -38,7 +40,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         )
         self.client = client
 
-    async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
+    async def _send_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
         # TODO: support other endpoints
         endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
         extra_headers: dict[str, str] = {}
@@ -68,25 +70,48 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             temp_file.flush()
             temp_file.seek(0)
 
-            batch_file = await self.client.files.create(
-                file=temp_file.file,
-                purpose="batch",
-                extra_headers=extra_headers or None,
-            )
-        batch_info = await self.client.batches.create(
-            input_file_id=batch_file.id,
+            file_id = await self._upload_batch_file(temp_file, extra_headers)
+
+        batch_id = await self._create_batch(file_id, endpoint, extra_headers)
+        return batch_id
+
+    async def _upload_batch_file(
+        self,
+        temp_file: tempfile._TemporaryFileWrapper[bytes],  # pyright: ignore[reportPrivateUsage]
+        extra_headers: dict[str, str],
+    ) -> str:
+        file_object = await self.client.files.create(
+            file=temp_file.file,
+            purpose="batch",
+            extra_headers=extra_headers or None,
+        )
+        return file_object.id
+
+    async def _create_batch(
+        self,
+        file_id: str,
+        endpoint: Literal["/v1/chat/completions"],
+        extra_headers: dict[str, str],
+    ) -> str:
+        batch = await self.client.batches.create(
+            input_file_id=file_id,
             completion_window="24h",
             endpoint=endpoint,
             extra_headers=extra_headers or None,
         )
-        return batch_info.id
+        return batch.id
 
     async def _check_batch(
         self, batch: Batch[ChatCompletion]
     ) -> CompletedBatchInfo | None:
         batch_info = await self.client.batches.retrieve(batch.id)
 
-        if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
+        if batch_info.status.lower() not in {
+            "cancelled",
+            "completed",
+            "expired",
+            "failed",
+        }:
             return None
 
         # The doc suggests that `output_file_id` will only be populated if the batch
@@ -138,7 +163,10 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
                 ChatCompletion.model_validate(result["response"]["body"])
                 if (error := result.get("error")) is None
                 else self.client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx.Response(status_code=error["code"], text=error["message"])
+                    httpx.Response(
+                        status_code=int(error["code"]),
+                        text=error["message"],
+                    )
                 )
             )
 
