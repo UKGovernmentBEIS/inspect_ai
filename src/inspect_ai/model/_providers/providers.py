@@ -289,7 +289,7 @@ def transformer_lens() -> type[ModelAPI]:
 
     # verify we have the package
     try:
-        import transformer_lens  # noqa: F401
+        import transformer_lens  # type: ignore # noqa: F401
     except ImportError:
         raise pip_dependency_error(FEATURE, [PACKAGE])
 

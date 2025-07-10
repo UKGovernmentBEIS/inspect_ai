@@ -33,15 +33,18 @@ class TransformerLensAPI(ModelAPI):
             config=config,
         )
 
-        # Get the model from extenral code that initialized it
-        assert "model" in model_args, "model is required in model_args"
-        assert isinstance(model_args["model"], HookedTransformer), (
-            "model must be a transformer_lens.HookedTransformer"
+        # Get the model from external code that initialized it
+        # Using 'tl_model' to avoid conflict with get_model's 'model' parameter
+        assert "tl_model" in model_args, "tl_model is required in model_args"
+        assert isinstance(model_args["tl_model"], HookedTransformer), (
+            "tl_model must be a transformer_lens.HookedTransformer"
         )
 
-        self.model = model_args["model"]
+        self.model = model_args["tl_model"]
 
-        assert "tl_generate_args" in model_args, "tl_generate_args is required in model_args"
+        assert "tl_generate_args" in model_args, (
+            "tl_generate_args is required in model_args"
+        )
         self.tl_generate_args = model_args["tl_generate_args"]
 
     async def generate(
@@ -58,10 +61,12 @@ class TransformerLensAPI(ModelAPI):
             input=input_str,
             **self.tl_generate_args,
         )
-        assert isinstance(input_and_response, str), "List[str] and Tensor are not supported yet"
+        assert isinstance(input_and_response, str), (
+            "List[str] and Tensor are not supported yet"
+        )
 
         # crop off the input
-        response = input_and_response[len(input_str):]
+        response = input_and_response[len(input_str) :]
 
         choice = ChatCompletionChoice(
             message=ChatMessageAssistant(
@@ -71,10 +76,7 @@ class TransformerLensAPI(ModelAPI):
             ),
         )
 
-        return ModelOutput(
-            model=self.model_name,
-            choices=[choice]
-        )
+        return ModelOutput(model=self.model_name, choices=[choice])
 
 
 def message_content_to_string(messages: list[ChatMessage]) -> str:
