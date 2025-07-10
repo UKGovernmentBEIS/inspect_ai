@@ -583,6 +583,51 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
 
+## TransformerLens {#transformer-lens}
+
+The [TransformerLens](https://github.com/neelnanda-io/TransformerLens) provider allows you to use `HookedTransformer` models with Inspect.
+
+To use the TransformerLens provider, install the `transformer_lens` package:
+
+``` bash
+pip install transformer_lens
+```
+
+### Usage with Pre-loaded Models
+
+Unlike other providers, TransformerLens requires you to first load a `HookedTransformer` model instance and then pass it to Inspect. This is because TransformerLens models expose special hooks for accessing and manipulating internal activations that need to be set up before use in the inspect framework.
+
+You will need to specify the `tl_model` and `tl_generate_args` in the model arguments. The `tl_model` is the `HookedTransformer` instance and the `tl_generate_args` is a dictionary of transformer-lens generation arguments. You can specify the model name as anything, it will not affect the model you are using.
+
+Here's an example:
+
+``` python
+# Create a HookedTransformer model and set up all the hooks
+tl_model = HookedTransformer(...)
+...
+
+# Create model args with the TransformerLens model and generation parameters
+model_args = {
+    "tl_model": tl_model,
+    "tl_generate_args": {
+        "max_new_tokens": 50,
+        "temperature": 0.7,
+        "do_sample": True,
+    }
+}
+
+# Use with get_model()
+model = get_model("your-model-name", **model_args)
+
+# Or use directly in eval()
+eval("arc.py", model="your-model-name", model_args=model_args)
+```
+
+### Limitations
+
+1. Please note that tool calling is not yet supported for TransformerLens models.
+2. Since the model is loaded dynamically, it is not possible to use cli arguments to specify the model.
+
 ## Ollama {#ollama}
 
 To use the [Ollama](https://ollama.com/) provider, install the `openai` package (which Ollama provides a compatible backend for) and specify a model using the `--model` option:
