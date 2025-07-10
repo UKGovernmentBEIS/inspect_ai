@@ -10,11 +10,15 @@
 - Scoring: Change `Value` type to use covariant types (`Mapping` and `Sequence`).
 - Scoring: Add `display` parameter to `score()` to control display type.
 - Scoring: Nan values returned from scorers will be excluded from computation of metrics. Scorers in results include `scored_samples` and `unscored_samples` fields to indicate how many samples were scored and how many were not. The viewer will display these values if there are unscored samples.
+- Eval Log: Protect against removing excessive numbers of samples at once from realtime database.
 - Hooks: Provide full `EvalSample` (rather than only the summary) to `on_sample_end()` hook.
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
 - Bugfix: Fix failure to allow Anthropic native web search for some model names such as `claude-3-7-sonnet-latest`.
 - Bugfix: Fix Anthropic citation support code when it encounters citations created by external search providers such as Tavily.
 - Bugfix: Break after finding final assistant message when implementing fallback for `AgentState` `output` field.
+- Bugfix: Fix `run_in_background` allowing it to properly function outside the context of a task.
+- Bugfix: `None` out `TaskLogger`'s `SampleBufferDatabase` after cleaning it up to avoid crashing on subsequent logging attempts.
+- Bugfix: Disassociate the logger used by batch processing's background task from any particular sample.
 
 ## 0.3.112 (03 July 2025)
 

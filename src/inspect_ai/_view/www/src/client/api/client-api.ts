@@ -205,13 +205,18 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   };
 
   const get_eval_log_header = async (log_file: string) => {
-    // Don't re-use the eval log file since we know these are all different log files
-    const remoteLogFile = await openRemoteLogFile(
-      api,
-      encodePathParts(log_file),
-      5,
-    );
-    return remoteLogFile.readHeader();
+    // If the API supports this, delegate to it
+    if (api.eval_log_header) {
+      return api.eval_log_header(log_file);
+    } else {
+      // Don't re-use the eval log file since we know these are all different log files
+      const remoteLogFile = await openRemoteLogFile(
+        api,
+        encodePathParts(log_file),
+        5,
+      );
+      return remoteLogFile.readHeader();
+    }
   };
 
   /**

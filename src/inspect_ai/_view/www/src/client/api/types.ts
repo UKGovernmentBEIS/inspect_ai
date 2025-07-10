@@ -149,6 +149,7 @@ export interface LogViewAPI {
     start: number,
     end: number,
   ) => Promise<Uint8Array>;
+  eval_log_header?: (log_file: string) => Promise<EvalHeader>;
   eval_log_headers: (log_files: string[]) => Promise<EvalLog[]>;
   log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (

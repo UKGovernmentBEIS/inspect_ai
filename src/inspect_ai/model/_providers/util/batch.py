@@ -91,6 +91,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         return result
 
     async def _batch_worker(self) -> None:
+        from inspect_ai.log._transcript import Transcript, init_transcript
+
+        init_transcript(Transcript())
+
         while self._inflight_batches or self._intake_queue or self._next_batch:
             await self._check_inflight_batches()
 

@@ -75,3 +75,11 @@ When it's time to make a release:
    - Tags the commit with the new version number `inspect-tool-support-1.1.0`
 
 All changelog items are consumed during the release process and converted into entries in the `CHANGELOG.md` file. After the release, the `unreleased_changes/` directory will be empty, ready to collect changes for the next release cycle.
+
+
+## Testing
+When running `pytest` with inspect to test interactions with this package, you may wish to test your _local_ version of the `inspect_tool_support` code instead of the latest published package. Passing the flag `--local-inspect-tools` to pytest when running tests from `test_inspect_tool_support.py` will build and install the package from source, for example:
+
+```sh
+pytest tests/tools/test_inspect_tool_support.py --runslow --local-inspect-tools
+```
