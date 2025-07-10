@@ -5,6 +5,7 @@ import { fetchRange, fetchSize } from "../remote/remoteZipFile";
 import { download_file } from "./api-shared";
 import {
   Capabilities,
+  EvalHeader,
   LogContents,
   LogFiles,
   LogFilesFetchResponse,
@@ -39,6 +40,22 @@ export default function simpleHttpApi(
  */
 function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
   const log_dir = logInfo.log_dir;
+  let manifest: Record<string, EvalHeader> | undefined = undefined;
+  let manifestPromise: Promise<Record<string, EvalHeader>> | undefined =
+    undefined;
+
+  const getManifest = async (): Promise<Record<string, EvalHeader>> => {
+    if (!manifest && log_dir) {
+      if (!manifestPromise) {
+        manifestPromise = fetchManifest(log_dir).then((manifestRaw) => {
+          manifest = manifestRaw?.parsed || {};
+          return manifest;
+        });
+      }
+      await manifestPromise;
+    }
+    return manifest || {};
+  };
 
   async function open_log_file() {
     // No op
@@ -52,14 +69,13 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     eval_logs: async (): Promise<LogFiles | undefined> => {
       // First check based upon the log dir
       if (log_dir) {
-        const headers = await fetchLogHeaders(log_dir);
-        if (headers) {
-          const logRecord = headers.parsed;
-          const logs = Object.keys(logRecord).map((key) => {
+        const manifest = await getManifest();
+        if (manifest) {
+          const logs = Object.keys(manifest).map((key) => {
             return {
               name: joinURI(log_dir, key),
-              task: logRecord[key].eval.task,
-              task_id: logRecord[key].eval.task_id,
+              task: manifest[key].eval.task,
+              task_id: manifest[key].eval.task_id,
             };
           });
           return Promise.resolve({
@@ -92,22 +108,36 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     eval_log_bytes: async (log_file: string, start: number, end: number) => {
       return await fetchRange(log_file, start, end);
     },
+    eval_log_header: async (log_file: string) => {
+      const manifest = await getManifest();
+      if (manifest) {
+        const manifestAbs: Record<string, EvalHeader> = {};
+        Object.keys(manifest).forEach((key) => {
+          manifestAbs[joinURI(log_dir || "", key)] = manifest[key];
+        });
+        const header = manifestAbs[log_file];
+        if (header) {
+          return header;
+        }
+      }
+      throw new Error(`Unable to load eval log header for ${log_file}`);
+    },
     eval_log_headers: async (files: string[]) => {
       if (files.length === 0) {
         return [];
       }
 
       if (log_dir) {
-        const headers = await fetchLogHeaders(log_dir);
-        if (headers) {
-          const keys = Object.keys(headers.parsed);
+        const manifest = await getManifest();
+        if (manifest) {
+          const keys = Object.keys(manifest);
           const result: EvalLog[] = [];
           files.forEach((file) => {
             const fileKey = keys.find((key) => {
               return file.endsWith(key);
             });
             if (fileKey) {
-              result.push(headers.parsed[fileKey]);
+              result.push(manifest[fileKey]);
             }
           });
           return result;
@@ -184,7 +214,7 @@ const fetchLogFile = async (file: string): Promise<LogContents | undefined> => {
 /**
  * Fetches a log file and parses its content, updating the log structure if necessary.
  */
-const fetchLogHeaders = async (
+const fetchManifest = async (
   log_dir: string,
 ): Promise<LogFilesFetchResponse | undefined> => {
   const logs = await fetchFile<LogFilesFetchResponse>(
