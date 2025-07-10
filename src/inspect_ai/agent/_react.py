@@ -441,7 +441,7 @@ async def _agent_generate(
 def _model_generate(model: str | Model | None) -> Agent:
     async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
         state.output = await get_model(model).generate(state.messages, tools)
-        state.messages.append(state.output.message)
+        state.messages.append(state.output.message.model_copy())
         return state
 
     return generate
