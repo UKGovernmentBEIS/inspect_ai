@@ -12,12 +12,9 @@ from inspect_ai.model import (
 @skip_if_no_grok
 async def test_grok_api() -> None:
     model = get_model(
-        "grok/grok-beta",
+        "grok/grok-3-mini",
         config=GenerateConfig(
-            frequency_penalty=0.0,
             stop_seqs=None,
-            max_tokens=50,
-            presence_penalty=0.0,
             seed=None,
             temperature=0.0,
             top_p=1.0,

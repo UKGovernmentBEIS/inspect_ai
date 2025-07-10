@@ -10,7 +10,7 @@ def test_grok_reasoning_effort_and_output():
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
     log = eval(
         task,
-        model="grok/grok-3-mini-beta",
+        model="grok/grok-3-mini",
         reasoning_effort="low",
     )[0]
     assert log.status == "success"
