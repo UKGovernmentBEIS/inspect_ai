@@ -248,6 +248,7 @@ class TaskLogger:
         # cleanup the events db
         if self._buffer_db is not None:
             self._buffer_db.cleanup()
+            self._buffer_db = None
 
         # return log
         return log

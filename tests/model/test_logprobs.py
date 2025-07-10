@@ -38,7 +38,7 @@ async def test_openai_logprobs() -> None:
 @pytest.mark.anyio
 @skip_if_no_grok
 async def test_grok_logprobs() -> None:
-    response = await generate_with_logprobs("grok/grok-beta")
+    response = await generate_with_logprobs("grok/grok-3")
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
 

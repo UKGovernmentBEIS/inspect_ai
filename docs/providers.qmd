@@ -263,7 +263,7 @@ To use the [Grok](https://x.ai/) provider, install the `openai` package (which t
 ``` bash
 pip install openai
 export GROK_API_KEY=your-grok-api-key
-inspect eval arc.py --model grok/grok-beta
+inspect eval arc.py --model grok/grok-3-mini
 ```
 
 For the `grok` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
