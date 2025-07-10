@@ -7,7 +7,7 @@ import time
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
-from sqlite3 import Connection
+from sqlite3 import Connection, OperationalError
 from typing import Callable, Iterator, Literal
 
 import psutil
@@ -210,29 +210,36 @@ class SampleBufferDatabase(SampleBuffer):
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
             try:
-                # Build a query using individual column comparisons instead of row values
-                placeholders = " OR ".join(
-                    ["(sample_id=? AND sample_epoch=?)" for _ in samples]
-                )
+                BATCH_SIZE = 100
+                for i in range(0, len(samples), BATCH_SIZE):
+                    # Slice out the batch
+                    batch = samples[i : i + BATCH_SIZE]
 
-                # Flatten parameters for binding
-                parameters = [item for tup in samples for item in tup]
+                    # Build a query using individual column comparisons instead of row values
+                    placeholders = " OR ".join(
+                        ["(sample_id=? AND sample_epoch=?)" for _ in batch]
+                    )
 
-                # Delete associated events first
-                events_query = f"""
-                    DELETE FROM events
-                    WHERE {placeholders}
-                """
-                cursor.execute(events_query, parameters)
+                    # Flatten parameters for binding
+                    parameters = [item for tup in batch for item in tup]
 
-                # Then delete the samples using the same approach
-                placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in samples])
+                    # Delete associated events first
+                    events_query = f"""
+                        DELETE FROM events
+                        WHERE {placeholders}
+                    """
+                    cursor.execute(events_query, parameters)
 
-                samples_query = f"""
-                    DELETE FROM samples
-                    WHERE {placeholders}
-                """
-                cursor.execute(samples_query, parameters)
+                    # Then delete the samples using the same approach
+                    placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in batch])
+
+                    samples_query = f"""
+                        DELETE FROM samples
+                        WHERE {placeholders}
+                    """
+                    cursor.execute(samples_query, parameters)
+            except OperationalError as ex:
+                logger.warning(f"Unexpcted error cleaning up samples: {ex}")
             finally:
                 cursor.close()
 
