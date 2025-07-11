@@ -168,6 +168,7 @@ dev = [
   "pytest-xdist",
   "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
   "textual-dev>=0.86.2",
+  "transformer-lens",
   "trio",
   "pandas-stubs",
   "pyarrow-stubs",

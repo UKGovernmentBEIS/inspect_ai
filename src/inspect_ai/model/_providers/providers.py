@@ -282,6 +282,23 @@ def sglang() -> type[ModelAPI]:
     return SGLangAPI
 
 
+@modelapi(name="transformer_lens")
+def transformer_lens() -> type[ModelAPI]:
+    FEATURE = "TransformerLens API"
+    PACKAGE = "transformer_lens"
+
+    # verify we have the package
+    try:
+        import transformer_lens  # type: ignore # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # in the clear
+    from .transformer_lens import TransformerLensAPI
+
+    return TransformerLensAPI
+
+
 @modelapi(name="none")
 def none() -> type[ModelAPI]:
     from .none import NoModel
