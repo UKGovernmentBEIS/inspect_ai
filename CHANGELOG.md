@@ -20,6 +20,7 @@
 - Bugfix: Fix `run_in_background` allowing it to properly function outside the context of a task.
 - Bugfix: `None` out `TaskLogger`'s `SampleBufferDatabase` after cleaning it up to avoid crashing on subsequent logging attempts.
 - Bugfix: Disassociate the logger used by batch processing's background task from any particular sample.
+- Bugfix: Improve the compactness and efficiency of eval files with extremely large text user inputs. 
 
 ## 0.3.112 (03 July 2025)
 
