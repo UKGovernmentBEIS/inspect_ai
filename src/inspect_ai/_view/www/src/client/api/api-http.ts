@@ -218,7 +218,7 @@ const fetchManifest = async (
   log_dir: string,
 ): Promise<LogFilesFetchResponse | undefined> => {
   const logs = await fetchFile<LogFilesFetchResponse>(
-    log_dir + "/logs.json",
+    log_dir + "/overview.json",
     async (text) => {
       const parsed = await asyncJsonParse(text);
       return {

@@ -54113,7 +54113,7 @@ self.onmessage = function (e) {
     };
     const fetchManifest = async (log_dir) => {
       const logs = await fetchFile(
-        log_dir + "/logs.json",
+        log_dir + "/overview.json",
         async (text2) => {
           const parsed = await asyncJsonParse(text2);
           return {
