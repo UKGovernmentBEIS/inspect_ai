@@ -10,7 +10,7 @@ from typing import Any, Callable, Iterator
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 
-from ._file import log_files_from_ls, write_log_dir_manifest, write_log_listing
+from ._file import log_files_from_ls, write_log_listing
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 

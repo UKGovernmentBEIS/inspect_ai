@@ -40,7 +40,7 @@ def test_s3_bundle(mock_s3) -> None:
         "assets/index.js",
         "assets/index.css",
         "logs",
-        "logs/logs.json",
+        "logs/listing.json",
     ]
 
     for exp in expected:
@@ -74,13 +74,13 @@ def test_bundle() -> None:
             "assets/index.js",
             "assets/index.css",
             "logs",
-            "logs/logs.json",
+            "logs/listing.json",
         ]
         for exp in expected:
             abs = os.path.join(output_dir, exp)
             assert os.path.exists(abs)
 
-        # ensure there is a non-logs.json log file present in logs
+        # ensure there is a non-listing.json log file present in logs
         non_manifest_logs = [
             f
             for f in os.listdir(os.path.join(output_dir, "logs"))

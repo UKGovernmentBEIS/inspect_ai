@@ -122,6 +122,7 @@
 - Task display: Wrap scorers and scores in the task detail display.
 - Inspect View: Add support for displaying citations for web searches in the transcript.
 - Inspect View: Correctly update browser URL when navigation between samples.
+- Inspect View Bundle: The bundle produced for deployment now includes a much more compact manifest, improving support for bundling large numbers of files.
 - Bugfix: Properly honor `responses_api=False` when pass as an OpenAI model config arg.
 - Bugfix: Limits passed to handoffs can be used multiple times (if agent is handed off to multiple times).
 - Bugfix: Replace invalid surrogate characters when serializing strings to JSON.
