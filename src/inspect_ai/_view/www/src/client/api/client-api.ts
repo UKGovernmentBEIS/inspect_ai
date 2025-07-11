@@ -1,4 +1,4 @@
-import { EvalLog, EvalSample } from "../../@types/log";
+import { EvalSample } from "../../@types/log";
 import { encodePathParts } from "../../utils/uri";
 import {
   openRemoteLogFile,
@@ -11,6 +11,7 @@ import {
   EvalSummary,
   LogContents,
   LogFiles,
+  LogOverview,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -206,8 +207,8 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
   const get_eval_log_header = async (log_file: string) => {
     // If the API supports this, delegate to it
-    if (api.eval_log_header) {
-      return api.eval_log_header(log_file);
+    if (api.eval_log_overview) {
+      return api.eval_log_overview(log_file);
     } else {
       // Don't re-use the eval log file since we know these are all different log files
       const remoteLogFile = await openRemoteLogFile(
@@ -215,14 +216,16 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
         encodePathParts(log_file),
         5,
       );
-      return remoteLogFile.readHeader();
+      return remoteLogFile.readEvalBasicInfo();
     }
   };
 
   /**
    * Gets log headers
    */
-  const get_log_headers = async (log_files: string[]): Promise<EvalLog[]> => {
+  const get_log_headers = async (
+    log_files: string[],
+  ): Promise<LogOverview[]> => {
     const eval_files: Record<string, number> = {};
     const json_files: Record<string, number> = {};
     let index = 0;
@@ -247,7 +250,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
     // Get the promise for json log headers
     const jsonLogHeadersPromise = api
-      .eval_log_headers(Object.keys(json_files))
+      .eval_log_overviews(Object.keys(json_files))
       .then((headers) =>
         headers.map((header, i) => ({
           index: json_files[Object.keys(json_files)[i]], // Store original index
@@ -326,7 +329,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     get_log_paths: () => {
       return get_log_paths();
     },
-    get_log_headers: (log_files) => {
+    get_log_overviews: (log_files) => {
       return get_log_headers(log_files);
     },
     get_log_summary,

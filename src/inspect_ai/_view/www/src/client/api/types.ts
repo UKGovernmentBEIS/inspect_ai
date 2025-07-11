@@ -1,7 +1,10 @@
 import {
   ApprovalEvent,
+  CompletedAt,
   EvalError,
+  EvalId,
   EvalLog,
+  EvalMetric,
   EvalPlan,
   EvalResults,
   EvalSample,
@@ -10,18 +13,24 @@ import {
   InfoEvent,
   Input,
   LoggerEvent,
+  Model,
   ModelEvent,
+  RunId,
   SampleInitEvent,
   SampleLimitEvent,
   SandboxEvent,
   ScoreEvent,
   Scores1,
+  StartedAt,
   StateEvent,
   Status,
   StepEvent,
   StoreEvent,
   SubtaskEvent,
   Target,
+  Task,
+  TaskId,
+  TaskVersion,
   ToolEvent,
   Version,
 } from "../../@types/log";
@@ -149,8 +158,8 @@ export interface LogViewAPI {
     start: number,
     end: number,
   ) => Promise<Uint8Array>;
-  eval_log_header?: (log_file: string) => Promise<EvalHeader>;
-  eval_log_headers: (log_files: string[]) => Promise<EvalLog[]>;
+  eval_log_overview?: (log_file: string) => Promise<LogOverview>;
+  eval_log_overviews: (log_files: string[]) => Promise<LogOverview[]>;
   log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (
     filename: string,
@@ -173,7 +182,7 @@ export interface LogViewAPI {
 export interface ClientAPI {
   client_events: () => Promise<string[]>;
   get_log_paths: () => Promise<LogFiles>;
-  get_log_headers: (log_files: string[]) => Promise<EvalLog[]>;
+  get_log_overviews: (log_files: string[]) => Promise<LogOverview[]>;
   get_log_summary: (log_file: string) => Promise<EvalSummary>;
   get_log_sample: (
     log_file: string,
@@ -221,6 +230,26 @@ export interface EvalHeader {
   error?: EvalError | null;
 }
 
+export interface LogOverview {
+  eval_id: EvalId;
+  run_id: RunId;
+
+  task: Task;
+  task_id: TaskId;
+  task_version: TaskVersion;
+
+  version?: Version;
+  status?: Status;
+  error?: EvalError | null;
+
+  model: Model;
+
+  started_at?: StartedAt;
+  completed_at?: CompletedAt;
+
+  primary_metric?: EvalMetric;
+}
+
 export interface LogFiles {
   files: LogFile[];
   log_dir?: string;
@@ -239,7 +268,7 @@ export interface LogContents {
 
 export interface LogFilesFetchResponse {
   raw: string;
-  parsed: Record<string, EvalHeader>;
+  parsed: Record<string, LogOverview>;
 }
 
 export interface UpdateStateMessage {

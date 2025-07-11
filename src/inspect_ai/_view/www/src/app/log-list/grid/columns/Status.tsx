@@ -73,7 +73,7 @@ const itemStatus = (item: FileLogItem | FolderLogItem) => {
   if (item.type !== "file") {
     return undefined;
   }
-  const header = item.header;
+  const header = item.logOverview;
   return header?.status;
 };
 

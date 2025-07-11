@@ -4,9 +4,11 @@ import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
   EvalSummary,
+  LogOverview,
   LogViewAPI,
   SampleSummary,
 } from "../api/types";
+import { toBasicInfo } from "../utils/type-utils";
 import {
   CentralDirectoryEntry,
   FileSizeLimitError,
@@ -31,7 +33,7 @@ export class SampleNotFoundError extends Error {
   }
 }
 export interface RemoteLogFile {
-  readHeader: () => Promise<EvalHeader>;
+  readEvalBasicInfo: () => Promise<LogOverview>;
   readLogSummary: () => Promise<EvalSummary>;
   readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
@@ -163,6 +165,11 @@ export const openRemoteLogFile = async (
     }
   };
 
+  const readEvalBasicInfo = async (): Promise<LogOverview> => {
+    const header = await readHeader();
+    return toBasicInfo(header);
+  };
+
   /**
    * Reads individual summary files when summaries.json is not available.
    */
@@ -215,7 +222,7 @@ export const openRemoteLogFile = async (
   };
 
   return {
-    readHeader,
+    readEvalBasicInfo,
     readLogSummary: async () => {
       const [header, sampleSummaries] = await Promise.all([
         readHeader(),

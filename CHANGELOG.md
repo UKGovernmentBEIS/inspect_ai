@@ -14,8 +14,7 @@
 - Eval Log: Protect against removing excessive numbers of samples at once from realtime database.
 - Hooks: Provide full `EvalSample` (rather than only the summary) to `on_sample_end()` hook.
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
-- Batching: Add robust retry logic using existing retry configuration specified for the model.
-- Batching: Added insight into batch processing progress via the console.
+- Inspect View: The bundle produced for deployment now includes a much more compact manifest, improving support for bundling large numbers of files.
 - Bugfix: Fix failure to allow Anthropic native web search for some model names such as `claude-3-7-sonnet-latest`.
 - Bugfix: Fix Anthropic citation support code when it encounters citations created by external search providers such as Tavily.
 - Bugfix: Break after finding final assistant message when implementing fallback for `AgentState` `output` field.

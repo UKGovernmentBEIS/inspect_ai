@@ -9,7 +9,7 @@ const log = createLogger("Client-Events");
 
 export function useClientEvents() {
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-  const logHeaders = useStore((state) => state.logs.logHeaders);
+  const logHeaders = useStore((state) => state.logs.logOverviews);
   const api = useStore((state) => state.api);
   const { loadHeaders } = useLogs();
 

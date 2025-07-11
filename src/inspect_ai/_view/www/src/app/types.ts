@@ -29,6 +29,7 @@ import {
   EventData,
   LogFile,
   LogFiles,
+  LogOverview,
   PendingSamples,
   SampleSummary,
 } from "../client/api/types";
@@ -62,8 +63,8 @@ export interface AppState {
 
 export interface LogsState {
   logs: LogFiles;
-  logHeaders: Record<string, EvalLogHeader>;
-  headersLoading: boolean;
+  logOverviews: Record<string, LogOverview>;
+  logOverviewsLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
   listing: LogsListing;
