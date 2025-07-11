@@ -54060,7 +54060,7 @@ self.onmessage = function (e) {
             }
           }
           throw new Error(
-            `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`
+            `Failed to load a listing file using the directory: ${log_dir}. Please be sure you have deployed a manifest file (listing.json).`
           );
         },
         download_file: download_file$1,
@@ -54113,7 +54113,7 @@ self.onmessage = function (e) {
     };
     const fetchManifest = async (log_dir) => {
       const logs = await fetchFile(
-        log_dir + "/overview.json",
+        log_dir + "/listing.json",
         async (text2) => {
           const parsed = await asyncJsonParse(text2);
           return {

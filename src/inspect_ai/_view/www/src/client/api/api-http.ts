@@ -146,7 +146,7 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
 
       // No log.json could be found, and there isn't a log file,
       throw new Error(
-        `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`,
+        `Failed to load a listing file using the directory: ${log_dir}. Please be sure you have deployed a manifest file (listing.json).`,
       );
     },
     download_file,
@@ -218,7 +218,7 @@ const fetchManifest = async (
   log_dir: string,
 ): Promise<LogFilesFetchResponse | undefined> => {
   const logs = await fetchFile<LogFilesFetchResponse>(
-    log_dir + "/overview.json",
+    log_dir + "/listing.json",
     async (text) => {
       const parsed = await asyncJsonParse(text);
       return {

@@ -10,7 +10,7 @@ from typing import Any, Callable, Iterator
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 
-from ._file import log_files_from_ls, write_log_dir_manifest, write_log_overviews
+from ._file import log_files_from_ls, write_log_dir_manifest, write_log_listing
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -73,7 +73,7 @@ def bundle_log_dir(
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
 
             # Always write the log overviews
-            write_log_overviews(view_logs_dir)
+            write_log_listing(view_logs_dir)
             p.update(25)
 
             # update the index html to embed the log_dir

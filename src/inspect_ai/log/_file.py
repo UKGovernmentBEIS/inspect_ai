@@ -651,16 +651,16 @@ def eval_log_json_str(log: EvalLog) -> str:
     return eval_log_json(log).decode()
 
 
-def write_log_overviews(
+def write_log_listing(
     log_dir: str,
     *,
-    filename: str = "overview.json",
+    filename: str = "listing.json",
     output_dir: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
-    """Write a an overview file for a log directory.
+    """Write a listing file for a log directory.
 
-    A log directory overview is a thinned manifest summarizing the logs in the directory (but with much less information than the full manifest).
+    A listing file is a thinned manifest summarizing the logs in the directory (but with much less information than a full manifest of headers).
 
     Args:
       log_dir (str): Log directory to write overview for.
