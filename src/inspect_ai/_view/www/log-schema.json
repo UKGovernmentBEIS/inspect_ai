@@ -212,6 +212,18 @@
           "default": null,
           "title": "Size"
         },
+        "max_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Size"
+        },
         "send_delay": {
           "anyOf": [
             {
@@ -253,6 +265,7 @@
       "type": "object",
       "required": [
         "size",
+        "max_size",
         "send_delay",
         "tick",
         "max_batches"

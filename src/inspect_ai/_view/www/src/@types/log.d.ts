@@ -74,6 +74,7 @@ export type ExtraBody = {
 } | null;
 export type Batch = boolean | number | BatchConfig | null;
 export type Size = number | null;
+export type MaxSize = number | null;
 export type SendDelay = number | null;
 export type Tick = number | null;
 export type MaxBatches = number | null;
@@ -890,6 +891,7 @@ export interface Default {
  */
 export interface BatchConfig {
   size: Size;
+  max_size: MaxSize;
   send_delay: SendDelay;
   tick: Tick;
   max_batches: MaxBatches;
