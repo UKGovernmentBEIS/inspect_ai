@@ -27,7 +27,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         self,
         *,
         config: BatchConfig | None = None,
-        batch_completion_delay: float = 0.1,
+        batch_completion_delay: float = 0.01,
         fail_batch_ids: set[str] | None = None,
         fail_request_ids: set[str] | None = None,
         handle_batch_error: Exception | None = None,
@@ -42,7 +42,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
             handle_batch_error: Error to raise when handling batch results
         """
         super().__init__(
-            config or BatchConfig(size=3, send_delay=0.1, tick=0.01),
+            config or BatchConfig(size=3, send_delay=0.01, tick=0.001),
             max_batch_request_count=10,
             max_batch_size_mb=1,
         )
@@ -62,7 +62,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         self._next_batch_id += 1
 
         # Simulate some creation delay
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.001)
 
         # Store batch info for later completion simulation
         self._created_batches[batch_id] = [req.custom_id for req in batch_requests]
@@ -77,7 +77,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         batch_id = batch.id
 
         # Simulate check delay
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.001)
 
         # Check if batch should fail
         if batch_id in self._fail_batch_ids:
@@ -110,7 +110,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
             raise self._handle_batch_error
 
         # Simulate processing delay
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.001)
 
         results: dict[str, str | Exception] = {}
         for request_id in self._created_batches[batch.id]:
@@ -140,7 +140,7 @@ class TestBatcher:
 
     async def test_successful_batch_processing(self):
         """Test that multiple requests get batched and processed together."""
-        batcher = FakeBatcher(config=BatchConfig(size=3, send_delay=0.1, tick=0.01))
+        batcher = FakeBatcher(config=BatchConfig(size=3, send_delay=0.01, tick=0.001))
 
         # Make multiple requests concurrently
         tasks = [
@@ -160,7 +160,7 @@ class TestBatcher:
         batcher = FakeBatcher()
 
         # Override _create_batch to always fail
-        async def failing_create_batch(batch_requests):
+        async def failing_create_batch(_batch_requests):
             raise Exception("Batch creation failed")
 
         batcher._create_batch = failing_create_batch
@@ -180,7 +180,7 @@ class TestBatcher:
         )
 
         # Let it fail a few times
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.01)
 
         # Remove the failure condition
         batcher._fail_batch_ids.clear()
@@ -202,7 +202,7 @@ class TestBatcher:
         """Test that batch minimum size controls when batches are sent."""
         # Test with minimum batch size of 3 and a longer delay
         # This should send a batch when it reaches 3 requests, not wait for the delay
-        batcher = FakeBatcher(config=BatchConfig(size=3, send_delay=1.0, tick=0.01))
+        batcher = FakeBatcher(config=BatchConfig(size=3, send_delay=0.1, tick=0.001))
 
         # Send exactly 3 requests - should trigger batch send due to minimum size being reached
         tasks = [
@@ -223,7 +223,7 @@ class TestBatcher:
         """Test that batches are sent after timeout even if not full."""
         batcher = FakeBatcher(
             config=BatchConfig(
-                size=10, send_delay=0.1, tick=0.01
+                size=10, send_delay=0.01, tick=0.001
             )  # Large size, short timeout
         )
 
@@ -242,9 +242,9 @@ class TestBatcher:
         """Test that multiple batches can be processed concurrently."""
         batcher = FakeBatcher(
             config=BatchConfig(
-                size=1, max_size=2, send_delay=0.01, tick=0.01, max_batches=3
+                size=1, max_size=2, send_delay=0.01, tick=0.001, max_batches=3
             ),
-            batch_completion_delay=0.2,  # Longer delay to ensure overlap
+            batch_completion_delay=0.02,  # Longer delay to ensure overlap
         )
 
         # Send many requests to force multiple concurrent batches
@@ -263,18 +263,18 @@ class TestBatcher:
         )  # 8 requests / 2 max per batch = 4 batches
 
         # Verify that no batch exceeds the max_size limit
-        for batch_id, request_ids in batcher._created_batches.items():
+        for _, request_ids in batcher._created_batches.items():
             assert len(request_ids) <= 2
 
     async def test_high_concurrency_stress(self):
         """Stress test with many concurrent requests."""
         batcher = FakeBatcher(
-            config=BatchConfig(size=5, send_delay=0.05, tick=0.01),
-            batch_completion_delay=0.1,
+            config=BatchConfig(size=5, send_delay=0.01, tick=0.001),
+            batch_completion_delay=0.02,
         )
 
         # Create many concurrent requests
-        num_requests = 50
+        num_requests = 20
         tasks = [
             batcher.generate({"prompt": f"stress-test-{i}"}, GenerateConfig())
             for i in range(num_requests)
@@ -290,7 +290,7 @@ class TestBatcher:
             assert result.startswith("result-for-")
 
         # Should be reasonably fast due to batching
-        assert elapsed < 5.0  # Generous upper bound
+        assert elapsed < 2.0  # Generous upper bound
 
         # Should have created fewer batches than requests for efficiency
         # With size=5 (min) and max_batch_request_count=10, 50 requests should create at most 10 batches
@@ -308,8 +308,8 @@ class TestBatcher:
         """
         # Test 1: Successful batch result handling
         batcher = FakeBatcher(
-            config=BatchConfig(size=2, send_delay=0.01, tick=0.01),
-            batch_completion_delay=0.05,
+            config=BatchConfig(size=2, send_delay=0.01, tick=0.001),
+            batch_completion_delay=0.01,
         )
 
         # Make requests that should succeed
@@ -327,7 +327,7 @@ class TestBatcher:
 
         # Test 2: Batch result handling failure should fail all requests in that batch
         batcher_fail = FakeBatcher(
-            config=BatchConfig(size=3, send_delay=0.01, tick=0.01),
+            config=BatchConfig(size=3, send_delay=0.01, tick=0.001),
             handle_batch_error=Exception("Batch result handling failed"),
         )
 
@@ -337,7 +337,7 @@ class TestBatcher:
 
         # Test 3: Individual request failures within a successful batch
         batcher_mixed = FakeBatcher(
-            config=BatchConfig(size=3, send_delay=0.01, tick=0.01),
+            config=BatchConfig(size=3, send_delay=0.01, tick=0.001),
             fail_request_ids={"fail-me"},  # One specific request will fail
         )
 
@@ -385,7 +385,7 @@ class TestBatcher:
         """Test that maximum batch size limits force multiple batches."""
         # Use BatchConfig.max_size to limit batches to 2 requests each
         batcher = FakeBatcher(
-            config=BatchConfig(size=1, max_size=2, send_delay=0.1, tick=0.01)
+            config=BatchConfig(size=1, max_size=2, send_delay=0.01, tick=0.001)
         )
 
         # Send more requests than the maximum batch size
@@ -404,14 +404,14 @@ class TestBatcher:
         )  # 5 requests / 2 max per batch = 3 batches
 
         # Verify that no batch has more than 2 requests
-        for batch_id, request_ids in batcher._created_batches.items():
+        for _, request_ids in batcher._created_batches.items():
             assert len(request_ids) <= 2
 
     async def test_batch_timeout_with_insufficient_requests(self):
         """Test that batches are sent after timeout even when below minimum size."""
         # Set a high minimum size (5) but send fewer requests (2)
         # The batch should be sent after the send_delay timeout
-        batcher = FakeBatcher(config=BatchConfig(size=5, send_delay=0.1, tick=0.01))
+        batcher = FakeBatcher(config=BatchConfig(size=5, send_delay=0.02, tick=0.001))
 
         # Send fewer requests than minimum batch size
         tasks = [
@@ -430,10 +430,10 @@ class TestBatcher:
 
     async def test_batch_config_interaction(self):
         """Test the interaction between size (min), max_size (max), and send_delay."""
-        # Test scenario: min_size=3, max_size=5, send_delay=0.1
+        # Test scenario: min_size=3, max_size=5, send_delay=0.02
         # Send 4 requests: should send immediately since 4 >= 3 (min_size)
         batcher = FakeBatcher(
-            config=BatchConfig(size=3, max_size=5, send_delay=0.1, tick=0.01)
+            config=BatchConfig(size=3, max_size=5, send_delay=0.02, tick=0.001)
         )
 
         # Send 4 requests (between min and max)
@@ -453,7 +453,7 @@ class TestBatcher:
 
         # Now test max_size enforcement - send 6 requests to exceed max_size=5
         batcher2 = FakeBatcher(
-            config=BatchConfig(size=2, max_size=5, send_delay=1.0, tick=0.01)
+            config=BatchConfig(size=2, max_size=5, send_delay=0.02, tick=0.001)
         )
 
         tasks2 = [
@@ -478,7 +478,7 @@ class TestBatcher:
             config=BatchConfig(
                 size=1,
                 send_delay=0.01,
-                tick=0.01,
+                tick=0.001,
                 max_consecutive_check_failures=3,
             ),
             fail_batch_ids={"batch-0"},  # First batch will always fail
@@ -499,7 +499,7 @@ class TestBatcher:
     async def test_max_consecutive_check_failures_with_default_value(self):
         """Test that default max consecutive check failures value is used when not specified."""
         # Create batcher without specifying max_consecutive_check_failures
-        batcher = FakeBatcher(config=BatchConfig(size=1, send_delay=0.01, tick=0.01))
+        batcher = FakeBatcher(config=BatchConfig(size=1, send_delay=0.01, tick=0.001))
 
         # Verify that the default value is used
         assert batcher._max_consecutive_check_failures == 1000
@@ -511,7 +511,7 @@ class TestBatcher:
             config=BatchConfig(
                 size=1,
                 send_delay=0.01,
-                tick=0.01,
+                tick=0.001,
                 max_consecutive_check_failures=custom_max_failures,
             )
         )
@@ -526,7 +526,7 @@ class TestBatcher:
             config=BatchConfig(
                 size=1,
                 send_delay=0.01,
-                tick=0.01,
+                tick=0.001,
                 max_consecutive_check_failures=5,
             ),
             fail_batch_ids={"batch-0"},
@@ -538,7 +538,7 @@ class TestBatcher:
         )
 
         # Let it fail a few times
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.01)
 
         # Get the batch and verify it has some failures
         batch = next(iter(batcher._inflight_batches.values()))
@@ -554,7 +554,7 @@ class TestBatcher:
     async def test_boundary_extremely_large_requests(self):
         """Test handling of requests that are close to byte size limits."""
         # Set a small byte limit to test boundary conditions
-        batcher = FakeBatcher(config=BatchConfig(size=1, send_delay=0.01, tick=0.01))
+        batcher = FakeBatcher(config=BatchConfig(size=1, send_delay=0.01, tick=0.001))
         # Override the max batch size to be small for testing
         batcher._max_batch_size_bytes = 1000  # 1KB limit
 
@@ -570,7 +570,7 @@ class TestBatcher:
         """Test when constructor max_batch_request_count is smaller than config.max_size."""
         # Constructor param should take precedence and limit the effective max_size
         batcher = FakeBatcher(
-            config=BatchConfig(size=1, max_size=10, send_delay=0.01, tick=0.01),
+            config=BatchConfig(size=1, max_size=10, send_delay=0.01, tick=0.001),
             # This should override the config.max_size
         )
         batcher._max_batch_request_count = (
@@ -587,7 +587,7 @@ class TestBatcher:
         assert len(results) == 8
 
         # Should have created batches with at most 3 requests each
-        for batch_id, request_ids in batcher._created_batches.items():
+        for _, request_ids in batcher._created_batches.items():
             assert len(request_ids) <= 3
 
     async def test_config_max_size_smaller_than_size(self):
@@ -598,7 +598,7 @@ class TestBatcher:
                 size=5,  # Minimum size
                 max_size=3,  # Maximum size smaller than minimum - invalid!
                 send_delay=0.01,
-                tick=0.01,
+                tick=0.001,
             )
         )
 
@@ -612,7 +612,7 @@ class TestBatcher:
         assert len(results) == 4
 
         # Should respect the smaller max_size limit
-        for batch_id, request_ids in batcher._created_batches.items():
+        for _, request_ids in batcher._created_batches.items():
             assert len(request_ids) <= 3
 
     async def test_config_byte_limit_vs_count_limit_interaction(self):
@@ -622,7 +622,7 @@ class TestBatcher:
                 size=2,  # Min 2 requests
                 max_size=10,  # Max 10 requests
                 send_delay=0.01,
-                tick=0.01,
+                tick=0.001,
             )
         )
 
@@ -644,7 +644,7 @@ class TestBatcher:
         assert len(batcher._created_batches) > 1
 
         # Each batch should have fewer than max_size requests due to byte constraints
-        for batch_id, request_ids in batcher._created_batches.items():
+        for _, request_ids in batcher._created_batches.items():
             assert len(request_ids) < 10  # Hit byte limit before count limit
 
     async def test_config_tick_faster_than_send_delay(self):
@@ -652,8 +652,8 @@ class TestBatcher:
         batcher = FakeBatcher(
             config=BatchConfig(
                 size=5,  # High minimum size
-                send_delay=0.1,  # 100ms delay
-                tick=0.01,  # 10ms tick - much faster than send_delay
+                send_delay=0.02,  # 20ms delay
+                tick=0.001,  # 1ms tick - much faster than send_delay
             )
         )
 
@@ -670,8 +670,8 @@ class TestBatcher:
         assert len(results) == 3
 
         # Should complete after send_delay timeout, not wait for minimum size
-        # Should be close to send_delay time (0.1s), not much longer
-        assert 0.08 < elapsed < 0.5  # Some tolerance for timing
+        # Should be close to send_delay time (0.02s), not much longer
+        assert 0.01 < elapsed < 0.1  # Some tolerance for timing
 
     async def test_config_tick_slower_than_batch_completion(self):
         """Test when tick interval is slower than batch completion time."""
@@ -679,9 +679,9 @@ class TestBatcher:
             config=BatchConfig(
                 size=1,
                 send_delay=0.01,
-                tick=0.2,  # 200ms tick - slower than batch completion
+                tick=0.02,  # 20ms tick - slower than batch completion
             ),
-            batch_completion_delay=0.05,  # Batches complete in 50ms
+            batch_completion_delay=0.005,  # Batches complete in 5ms
         )
 
         # Send requests that should complete between ticks
@@ -707,10 +707,10 @@ class TestBatcher:
                 size=1,
                 max_size=2,  # Small batches
                 send_delay=0.01,
-                tick=0.01,
+                tick=0.001,
                 max_batches=2,  # Only 2 concurrent batches allowed
             ),
-            batch_completion_delay=0.1,  # Longer completion time
+            batch_completion_delay=0.02,  # Longer completion time
         )
 
         # Send many requests that would normally create more batches
@@ -757,7 +757,7 @@ class TestBatcher:
             config=BatchConfig(
                 size=1,
                 max_size=1000,  # Very large max size
-                send_delay=10.0,  # Very long delay
+                send_delay=1.0,  # Moderate delay
                 tick=0.001,  # Very fast tick
                 max_batches=100,  # Many concurrent batches
             )
@@ -777,15 +777,15 @@ class TestBatcher:
         assert len(results) == 5
 
         # Should complete much faster than send_delay since we meet minimum size
-        assert elapsed < 5.0  # Much less than the 10s send_delay
+        assert elapsed < 0.5  # Much less than the 1s send_delay
 
     async def test_config_send_delay_vs_tick_precision(self):
         """Test precision issues when send_delay and tick are very close."""
         batcher = FakeBatcher(
             config=BatchConfig(
                 size=10,  # High minimum size
-                send_delay=0.05,  # 50ms delay
-                tick=0.049,  # 49ms tick - very close to send_delay
+                send_delay=0.01,  # 10ms delay
+                tick=0.009,  # 9ms tick - very close to send_delay
             )
         )
 
@@ -802,7 +802,7 @@ class TestBatcher:
         assert len(results) == 3
 
         # Should timeout properly despite close timing values
-        assert 0.04 < elapsed < 0.2  # Should be close to send_delay timing
+        assert 0.005 < elapsed < 0.05  # Should be close to send_delay timing
 
     async def test_config_max_consecutive_failures_with_timing(self):
         """Test max_consecutive_check_failures interaction with tick timing."""
@@ -810,7 +810,7 @@ class TestBatcher:
             config=BatchConfig(
                 size=1,
                 send_delay=0.01,
-                tick=0.02,  # 20ms tick
+                tick=0.005,  # 5ms tick
                 max_consecutive_check_failures=2,  # Low failure tolerance
             ),
             fail_batch_ids={"batch-0"},
