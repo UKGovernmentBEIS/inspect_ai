@@ -72,13 +72,9 @@ def bundle_log_dir(
             # Copy the logs to the log dir
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
 
-            # Always regenerate the manifest
-            write_log_dir_manifest(view_logs_dir)
-            p.update(15)
-
-            # Write the log overviews
+            # Always write the log overviews
             write_log_overviews(view_logs_dir)
-            p.update(10)
+            p.update(25)
 
             # update the index html to embed the log_dir
             inject_configuration(
