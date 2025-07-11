@@ -30,7 +30,10 @@ class BatchConfig(BaseModel):
     """Batch processing configuration."""
 
     size: int | None = Field(default=None)
-    """Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits."""
+    """Target minimum number of requests to include in each batch. If not specified, uses default of 100. Batches may be smaller if the timeout is reached or if requests don’t fit within size limits."""
+
+    max_size: int | None = Field(default=None)
+    """Maximum number of requests to include in each batch. If not specified, falls back to the provider-specific maximum batch size."""
 
     send_delay: float | None = Field(default=None)
     """Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low.
@@ -42,6 +45,9 @@ class BatchConfig(BaseModel):
 
     max_batches: int | None = Field(default=None)
     """Maximum number of batches to have in flight at once for a provider (defaults to 100)."""
+
+    max_consecutive_check_failures: int | None = Field(default=None)
+    """Maximum number of consecutive check failures before failing a batch (defaults to 1000)."""
 
 
 class GenerateConfigArgs(TypedDict, total=False):

@@ -606,7 +606,7 @@ def chat_choices_from_openai(
     ]
 
 
-def openai_should_retry(ex: Exception) -> bool:
+def openai_should_retry(ex: BaseException) -> bool:
     if isinstance(ex, RateLimitError):
         return True
     elif isinstance(ex, APIStatusError):
