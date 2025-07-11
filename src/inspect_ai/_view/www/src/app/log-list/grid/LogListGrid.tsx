@@ -44,11 +44,11 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     kLogsPaginationId,
     kDefaultPageSize,
   );
-  const headersLoading = useStore((state) => state.logs.headersLoading);
+  const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const loading = useStore((state) => state.app.status.loading);
   const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
 
-  const logHeaders = useStore((state) => state.logs.logHeaders);
+  const logHeaders = useStore((state) => state.logs.logOverviews);
   const sortingRef = useRef(sorting);
 
   // Load all headers when needed (store handles deduplication)

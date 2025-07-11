@@ -44,7 +44,7 @@ export const taskColumn = () => {
 const itemName = (item: FileLogItem | FolderLogItem) => {
   let value = item.name;
   if (item.type === "file") {
-    return item.header?.eval?.task || parseLogFileName(item.name).name;
+    return item.logOverview?.task || parseLogFileName(item.name).name;
   }
   return value;
 };

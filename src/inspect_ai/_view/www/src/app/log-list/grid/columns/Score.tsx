@@ -1,4 +1,3 @@
-import { firstMetric } from "../../../../scoring/metrics";
 import { formatPrettyDecimal } from "../../../../utils/format";
 import { FileLogItem, FolderLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
@@ -56,6 +55,5 @@ const itemMetric = (item: FileLogItem | FolderLogItem) => {
     return undefined;
   }
 
-  const header = item.header;
-  return header?.results ? firstMetric(header.results) : undefined;
+  return item.logOverview?.primary_metric;
 };

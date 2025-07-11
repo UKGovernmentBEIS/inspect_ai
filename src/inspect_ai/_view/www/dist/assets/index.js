@@ -23263,6 +23263,33 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
+    const toBasicInfo = (header2) => {
+      var _a2, _b2;
+      return {
+        eval_id: header2.eval.eval_id,
+        run_id: header2.eval.run_id,
+        task: header2.eval.task,
+        task_id: header2.eval.task_id,
+        task_version: header2.eval.task_version,
+        version: header2.version,
+        status: header2.status,
+        error: header2.error,
+        model: header2.eval.model,
+        started_at: (_a2 = header2.stats) == null ? void 0 : _a2.started_at,
+        completed_at: (_b2 = header2.stats) == null ? void 0 : _b2.completed_at,
+        primary_metric: primaryMetric(header2.results)
+      };
+    };
+    const primaryMetric = (evalResults) => {
+      if ((evalResults == null ? void 0 : evalResults.scores) && (evalResults == null ? void 0 : evalResults.scores.length) > 0) {
+        const evalMetrics = evalResults.scores[0].metrics;
+        const metrics2 = Object.values(evalMetrics);
+        if (metrics2.length > 0) {
+          return metrics2[0];
+        }
+      }
+      return void 0;
+    };
     const createPolling = (name2, callback, options2) => {
       const log2 = createLogger(`Polling ${name2}`);
       const { maxRetries, interval } = options2;
@@ -23545,17 +23572,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
               const header2 = {
-                [logFileName]: {
-                  version: logContents.version,
-                  status: logContents.status,
-                  eval: logContents.eval,
-                  plan: logContents.plan,
-                  results: logContents.results !== null ? logContents.results : void 0,
-                  stats: logContents.stats,
-                  error: logContents.error !== null ? logContents.error : void 0
-                }
+                [logFileName]: toBasicInfo(logContents)
               };
-              state.logsActions.updateLogHeaders(header2);
+              state.logsActions.updateLogOverviews(header2);
               set2((state2) => {
                 state2.log.loadedLog = logFileName;
               });
@@ -23613,8 +23632,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const initialState$1 = {
       logs: kEmptyLogs,
-      logHeaders: {},
-      headersLoading: false,
+      logOverviews: {},
+      logOverviewsLoading: false,
       selectedLogIndex: -1,
       selectedLogFile: void 0,
       listing: {},
@@ -23634,10 +23653,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.logs.selectedLogFile = state.logs.selectedLogIndex > -1 ? (_a2 = logs.files[state.logs.selectedLogIndex]) == null ? void 0 : _a2.name : void 0;
             });
           },
-          setLogHeaders: (headers) => set2((state) => {
-            state.logs.logHeaders = headers;
+          setLogOverviews: (overviews) => set2((state) => {
+            state.logs.logOverviews = overviews;
           }),
-          loadHeaders: async (logs) => {
+          loadLogOverviews: async (logs) => {
             const state = get2();
             const api2 = state.api;
             if (!api2) {
@@ -23645,7 +23664,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               return [];
             }
             const filesToLoad = logs.filter((logFile) => {
-              const existing = state.logs.logHeaders[logFile.name];
+              const existing = state.logs.logOverviews[logFile.name];
               const isLoading = state.logs.loadingFiles.has(logFile.name);
               if (!existing) {
                 return !isLoading;
@@ -23663,15 +23682,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 state2.logs.loadingFiles.add(logFile.name);
               });
             });
-            const wasLoading = get2().logs.headersLoading;
+            const wasLoading = get2().logs.logOverviewsLoading;
             if (!wasLoading) {
               set2((state2) => {
-                state2.logs.headersLoading = true;
+                state2.logs.logOverviewsLoading = true;
               });
             }
             try {
-              log$7.debug(`LOADING LOG HEADERS for ${filesToLoad.length} files`);
-              const headers = await api2.get_log_headers(
+              log$7.debug(`LOADING LOG OVERVIEWS for ${filesToLoad.length} files`);
+              const headers = await api2.get_log_overviews(
                 filesToLoad.map((log2) => log2.name)
               );
               const headerMap = {};
@@ -23683,12 +23702,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 }
               }
               set2((state2) => {
-                state2.logs.logHeaders = { ...state2.logs.logHeaders, ...headerMap };
+                state2.logs.logOverviews = {
+                  ...state2.logs.logOverviews,
+                  ...headerMap
+                };
                 filesToLoad.forEach((logFile) => {
                   state2.logs.loadingFiles.delete(logFile.name);
                 });
                 if (state2.logs.loadingFiles.size === 0) {
-                  state2.logs.headersLoading = false;
+                  state2.logs.logOverviewsLoading = false;
                 }
               });
               return headers;
@@ -23699,14 +23721,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   state2.logs.loadingFiles.delete(logFile.name);
                 });
                 if (state2.logs.loadingFiles.size === 0) {
-                  state2.logs.headersLoading = false;
+                  state2.logs.logOverviewsLoading = false;
                 }
               });
               return [];
             }
           },
-          setHeadersLoading: (loading) => set2((state) => {
-            state.logs.headersLoading = loading;
+          setLogOverviewsLoading: (loading) => set2((state) => {
+            state.logs.logOverviewsLoading = loading;
           }),
           setSelectedLogIndex: (selectedLogIndex) => {
             set2((state) => {
@@ -23715,8 +23737,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.logs.selectedLogFile = file ? file.name : void 0;
             });
           },
-          updateLogHeaders: (headers) => set2((state) => {
-            state.logs.logHeaders = { ...get2().logs.logHeaders, ...headers };
+          updateLogOverviews: (overviews) => set2((state) => {
+            state.logs.logOverviews = {
+              ...get2().logs.logOverviews,
+              ...overviews
+            };
           }),
           setSelectedLogFile: (logUrl2) => {
             var _a2;
@@ -47819,8 +47844,10 @@ categories: ${categories.join(" ")}`;
           setStatus({ loading: false, error: e });
         });
       }, [load, setLogs, setStatus]);
-      const storeLoadHeaders = useStore((state) => state.logsActions.loadHeaders);
-      const existingHeaders = useStore((state) => state.logs.logHeaders);
+      const storeLoadHeaders = useStore(
+        (state) => state.logsActions.loadLogOverviews
+      );
+      const existingHeaders = useStore((state) => state.logs.logOverviews);
       const allLogFiles = useStore((state) => state.logs.logs.files);
       const loadHeaders = reactExports.useCallback(
         async (logFiles = allLogFiles) => {
@@ -47909,7 +47936,7 @@ categories: ${categories.join(" ")}`;
     const log = createLogger("Client-Events");
     function useClientEvents() {
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const logHeaders = useStore((state) => state.logs.logOverviews);
       const api2 = useStore((state) => state.api);
       const { loadHeaders } = useLogs();
       const refreshCallback = reactExports.useCallback(
@@ -51262,9 +51289,9 @@ categories: ${categories.join(" ")}`;
       );
     };
     const itemCompletedAt = (item2) => {
-      var _a2, _b2;
+      var _a2;
       if (item2.type !== "file") return void 0;
-      return (_b2 = (_a2 = item2.header) == null ? void 0 : _a2.stats) == null ? void 0 : _b2.completed_at;
+      return (_a2 = item2.logOverview) == null ? void 0 : _a2.completed_at;
     };
     const nameCell$1 = "_nameCell_arm8o_1";
     const fileLink = "_fileLink_arm8o_8";
@@ -51337,20 +51364,20 @@ categories: ${categories.join(" ")}`;
     const modelColumn = () => {
       return columnHelper.accessor(
         (row2) => {
-          var _a2, _b2;
+          var _a2;
           if (row2.type !== "file") return "";
-          return ((_b2 = (_a2 = row2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.model) || "";
+          return ((_a2 = row2.logOverview) == null ? void 0 : _a2.model) || "";
         },
         {
           id: "model",
           header: "Model",
           cell: (info) => {
-            var _a2, _b2;
+            var _a2;
             const item2 = info.row.original;
-            if (item2.type !== "file" || ((_a2 = item2.header) == null ? void 0 : _a2.eval.model) === void 0) {
+            if (item2.type !== "file" || ((_a2 = item2.logOverview) == null ? void 0 : _a2.model) === void 0) {
               return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyCell, {});
             }
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.modelCell, children: ((_b2 = item2.header) == null ? void 0 : _b2.eval.model) || "" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.modelCell, children: item2.logOverview.model || "" });
           },
           enableSorting: true,
           enableGlobalFilter: true,
@@ -51360,66 +51387,6 @@ categories: ${categories.join(" ")}`;
           enableResizing: true
         }
       );
-    };
-    const metricDisplayName = (metric) => {
-      let modifier = void 0;
-      for (const metricModifier of metricModifiers) {
-        modifier = metricModifier(metric);
-        if (modifier) {
-          break;
-        }
-      }
-      const metricName = !modifier ? metric.name : `${metric.name}[${modifier}]`;
-      return metricName;
-    };
-    const firstMetric = (results) => {
-      var _a2;
-      const scores2 = results.scores || [];
-      const firstScore = scores2.length > 0 ? (_a2 = results.scores) == null ? void 0 : _a2[0] : void 0;
-      if (firstScore === void 0 || firstScore.metrics === void 0) {
-        return void 0;
-      }
-      const metrics2 = firstScore.metrics;
-      if (Object.keys(metrics2).length === 0) {
-        return void 0;
-      }
-      const metric = metrics2[Object.keys(metrics2)[0]];
-      if (metric === void 0) {
-        return void 0;
-      }
-      return metric;
-    };
-    const clusterMetricModifier = (metric) => {
-      if (metric.name !== "stderr") {
-        return void 0;
-      }
-      const clusterValue = (metric.params || {})["cluster"];
-      if (clusterValue === void 0 || typeof clusterValue !== "string") {
-        return void 0;
-      }
-      return clusterValue;
-    };
-    const metricModifiers = [clusterMetricModifier];
-    const toDisplayScorers = (scores2) => {
-      if (!scores2) {
-        return [];
-      }
-      return scores2.map((score2) => {
-        return {
-          scorer: score2.name,
-          reducer: score2.reducer === null ? void 0 : score2.reducer,
-          metrics: Object.keys(score2.metrics).map((key2) => {
-            const metric = score2.metrics[key2];
-            return {
-              name: metric.name,
-              value: metric.value,
-              params: metric.params
-            };
-          }),
-          unscoredSamples: score2.unscored_samples !== null ? score2.unscored_samples : void 0,
-          scoredSamples: score2.scored_samples !== null ? score2.scored_samples : void 0
-        };
-      });
     };
     const scoreCell = "_scoreCell_1xqe0_1";
     const styles$1a = {
@@ -51461,11 +51428,11 @@ categories: ${categories.join(" ")}`;
       );
     };
     const itemMetric = (item2) => {
+      var _a2;
       if (item2.type !== "file") {
         return void 0;
       }
-      const header2 = item2.header;
-      return (header2 == null ? void 0 : header2.results) ? firstMetric(header2.results) : void 0;
+      return (_a2 = item2.logOverview) == null ? void 0 : _a2.primary_metric;
     };
     const error$1 = "_error_14ftq_1";
     const started = "_started_14ftq_5";
@@ -51516,7 +51483,7 @@ categories: ${categories.join(" ")}`;
       if (item2.type !== "file") {
         return void 0;
       }
-      const header2 = item2.header;
+      const header2 = item2.logOverview;
       return header2 == null ? void 0 : header2.status;
     };
     const itemStatusLabel = (item2) => {
@@ -51581,10 +51548,10 @@ categories: ${categories.join(" ")}`;
       });
     };
     const itemName = (item2) => {
-      var _a2, _b2;
+      var _a2;
       let value2 = item2.name;
       if (item2.type === "file") {
-        return ((_b2 = (_a2 = item2.header) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task) || parseLogFileName(item2.name).name;
+        return ((_a2 = item2.logOverview) == null ? void 0 : _a2.task) || parseLogFileName(item2.name).name;
       }
       return value2;
     };
@@ -51620,10 +51587,10 @@ categories: ${categories.join(" ")}`;
         kLogsPaginationId,
         kDefaultPageSize
       );
-      const headersLoading = useStore((state) => state.logs.headersLoading);
+      const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
       const loading = useStore((state) => state.app.status.loading);
       const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
-      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const logHeaders = useStore((state) => state.logs.logOverviews);
       const sortingRef = reactExports.useRef(sorting);
       const loadAllHeadersForItems = reactExports.useCallback(async () => {
         const logFiles = items.filter((item2) => item2.type === "file").map((item2) => item2.logFile).filter((file) => file !== void 0);
@@ -52086,8 +52053,8 @@ categories: ${categories.join(" ")}`;
       const loading = useStore((state) => state.app.status.loading);
       const { loadLogs } = useLogs();
       const logs = useStore((state) => state.logs.logs);
-      const logHeaders = useStore((state) => state.logs.logHeaders);
-      const headersLoading = useStore((state) => state.logs.headersLoading);
+      const logHeaders = useStore((state) => state.logs.logOverviews);
+      const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
       const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
       const { unloadLog } = useUnloadLog();
       reactExports.useEffect(() => {
@@ -52129,7 +52096,7 @@ categories: ${categories.join(" ")}`;
               type: "file",
               url: logUrl(path, logs.log_dir),
               logFile,
-              header: logHeaders[logFile.name]
+              logOverview: logHeaders[logFile.name]
             });
           } else if (name2.startsWith(currentDir)) {
             const relativePath = directoryRelativeUrl(name2, currentDir);
@@ -53006,7 +52973,7 @@ self.onmessage = function (e) {
         `/api/log-bytes/${encodeURIComponent(file)}?start=${start2}&end=${end2}`
       );
     }
-    async function eval_log_headers$1(files) {
+    async function eval_log_headers(files) {
       const params = new URLSearchParams();
       for (const file of files) {
         params.append("file", file);
@@ -53200,7 +53167,7 @@ self.onmessage = function (e) {
       eval_log: eval_log$1,
       eval_log_size: eval_log_size$1,
       eval_log_bytes: eval_log_bytes$1,
-      eval_log_headers: eval_log_headers$1,
+      eval_log_overviews: eval_log_headers,
       log_message: log_message$1,
       download_file: download_file$1,
       open_log_file: open_log_file$1,
@@ -54029,8 +53996,8 @@ self.onmessage = function (e) {
               const logs = Object.keys(manifest2).map((key2) => {
                 return {
                   name: joinURI(log_dir, key2),
-                  task: manifest2[key2].eval.task,
-                  task_id: manifest2[key2].eval.task_id
+                  task: manifest2[key2].task,
+                  task_id: manifest2[key2].task_id
                 };
               });
               return Promise.resolve({
@@ -54058,7 +54025,7 @@ self.onmessage = function (e) {
         eval_log_bytes: async (log_file, start2, end2) => {
           return await fetchRange(log_file, start2, end2);
         },
-        eval_log_header: async (log_file) => {
+        eval_log_overview: async (log_file) => {
           const manifest2 = await getManifest();
           if (manifest2) {
             const manifestAbs = {};
@@ -54072,7 +54039,7 @@ self.onmessage = function (e) {
           }
           throw new Error(`Unable to load eval log header for ${log_file}`);
         },
-        eval_log_headers: async (files) => {
+        eval_log_overviews: async (files) => {
           if (files.length === 0) {
             return [];
           }
@@ -54287,7 +54254,7 @@ self.onmessage = function (e) {
     async function eval_log_bytes(log_file, start2, end2) {
       return await vscodeClient(kMethodEvalLogBytes, [log_file, start2, end2]);
     }
-    async function eval_log_headers(files) {
+    async function eval_log_overviews(files) {
       const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
       if (response) {
         return lib$1.parse(response);
@@ -54364,7 +54331,7 @@ self.onmessage = function (e) {
       eval_log,
       eval_log_size,
       eval_log_bytes,
-      eval_log_headers,
+      eval_log_overviews,
       log_message,
       download_file,
       open_log_file,
@@ -54501,6 +54468,10 @@ self.onmessage = function (e) {
           };
         }
       };
+      const readEvalBasicInfo = async () => {
+        const header2 = await readHeader();
+        return toBasicInfo(header2);
+      };
       const readFallbackSummaries = async () => {
         const summaryFiles = Array.from(
           remoteZipFile.centralDirectory.keys()
@@ -54539,7 +54510,7 @@ self.onmessage = function (e) {
         }
       };
       return {
-        readHeader,
+        readEvalBasicInfo,
         readLogSummary: async () => {
           const [header2, sampleSummaries] = await Promise.all([
             readHeader(),
@@ -54718,15 +54689,15 @@ self.onmessage = function (e) {
         return void 0;
       };
       const get_eval_log_header = async (log_file2) => {
-        if (api2.eval_log_header) {
-          return api2.eval_log_header(log_file2);
+        if (api2.eval_log_overview) {
+          return api2.eval_log_overview(log_file2);
         } else {
           const remoteLogFile = await openRemoteLogFile(
             api2,
             encodePathParts(log_file2),
             5
           );
-          return remoteLogFile.readHeader();
+          return remoteLogFile.readEvalBasicInfo();
         }
       };
       const get_log_headers = async (log_files) => {
@@ -54748,7 +54719,7 @@ self.onmessage = function (e) {
             header: header2
           }))
         );
-        const jsonLogHeadersPromise = api2.eval_log_headers(Object.keys(json_files)).then(
+        const jsonLogHeadersPromise = api2.eval_log_overviews(Object.keys(json_files)).then(
           (headers2) => headers2.map((header2, i2) => ({
             index: json_files[Object.keys(json_files)[i2]],
             // Store original index
@@ -54807,7 +54778,7 @@ self.onmessage = function (e) {
         get_log_paths: () => {
           return get_log_paths();
         },
-        get_log_headers: (log_files) => {
+        get_log_overviews: (log_files) => {
           return get_log_headers(log_files);
         },
         get_log_summary,
@@ -91080,6 +91051,49 @@ Supported expressions:
           ) })
         ] })
       ] }) });
+    };
+    const metricDisplayName = (metric) => {
+      let modifier = void 0;
+      for (const metricModifier of metricModifiers) {
+        modifier = metricModifier(metric);
+        if (modifier) {
+          break;
+        }
+      }
+      const metricName = !modifier ? metric.name : `${metric.name}[${modifier}]`;
+      return metricName;
+    };
+    const clusterMetricModifier = (metric) => {
+      if (metric.name !== "stderr") {
+        return void 0;
+      }
+      const clusterValue = (metric.params || {})["cluster"];
+      if (clusterValue === void 0 || typeof clusterValue !== "string") {
+        return void 0;
+      }
+      return clusterValue;
+    };
+    const metricModifiers = [clusterMetricModifier];
+    const toDisplayScorers = (scores2) => {
+      if (!scores2) {
+        return [];
+      }
+      return scores2.map((score2) => {
+        return {
+          scorer: score2.name,
+          reducer: score2.reducer === null ? void 0 : score2.reducer,
+          metrics: Object.keys(score2.metrics).map((key2) => {
+            const metric = score2.metrics[key2];
+            return {
+              name: metric.name,
+              value: metric.value,
+              params: metric.params
+            };
+          }),
+          unscoredSamples: score2.unscored_samples !== null ? score2.unscored_samples : void 0,
+          scoredSamples: score2.scored_samples !== null ? score2.scored_samples : void 0
+        };
+      });
     };
     const container$3 = "_container_q17yq_1";
     const grid = "_grid_q17yq_10";
