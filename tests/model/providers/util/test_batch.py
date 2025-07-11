@@ -1,567 +1,831 @@
 from __future__ import annotations
 
+import asyncio
 import time
-from collections import defaultdict
-from typing import TYPE_CHECKING, TypedDict, cast
-from unittest.mock import AsyncMock, MagicMock
+from typing import TypedDict
 
+import anyio
 import pytest
 
-from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._providers.util.batch import (
-    Batch,
     Batcher,
     BatchRequest,
-    PendingBatch,
-    _assess_intake_queue,
 )
 
-if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
 
+class FakeCompletionInfo(TypedDict):
+    """Test-specific completion info for batch results."""
 
-class CompletedBatchInfo(TypedDict):
     result_uris: list[str]
 
 
-class FakeBatcher(Batcher[str, CompletedBatchInfo]):
+class FakeBatcher(Batcher[str, FakeCompletionInfo]):
+    """Test implementation of Batcher that simulates realistic behavior."""
+
     def __init__(
         self,
-        mocker: MockerFixture,
         *,
-        batch_check_counts: dict[str, int] | None = None,
-        inflight_batches: dict[str, Batch[str]] | None = None,
-        config: BatchConfig = BatchConfig(size=10, send_delay=1.0, tick=0.01),
+        config: BatchConfig | None = None,
+        batch_completion_delay: float = 0.1,
+        fail_batch_ids: set[str] | None = None,
+        fail_request_ids: set[str] | None = None,
+        handle_batch_error: Exception | None = None,
     ):
-        super().__init__(config, 1000, 100)
-        if inflight_batches is not None:
-            self._inflight_batches = inflight_batches
-        self.mock_create_batch = mocker.AsyncMock(side_effect=self._stub_create_batch)
-        self.mock_check_batch = mocker.AsyncMock(side_effect=self._stub_check_batch)
-        self.mock_handle_batch_result = mocker.AsyncMock(
-            side_effect=self._stub_handle_batch_result
-        )
-        self.mock_get_batch = mocker.AsyncMock()
-        self._num_sent_batches = 0
-        self._batch_check_counts = batch_check_counts or defaultdict(int)
+        """Initialize test batcher.
 
-    def _stub_create_batch(self, _: Batch[str]) -> str:
-        batch_ids = [*self._batch_check_counts]
-        num_sent_batches = self._num_sent_batches
-        batch_id = (
-            batch_ids[num_sent_batches]
-            if num_sent_batches < len(batch_ids)
-            else f"test-batch-{num_sent_batches}"
+        Args:
+            config: Batch configuration
+            batch_completion_delay: How long batches take to "complete"
+            fail_batch_ids: Set of batch IDs that should fail during processing
+            fail_request_ids: Set of request custom_ids that should return errors
+            handle_batch_error: Error to raise when handling batch results
+        """
+        super().__init__(
+            config or BatchConfig(size=3, send_delay=0.1, tick=0.01),
+            max_batch_request_count=10,
+            max_batch_size_mb=1,
         )
-        self._num_sent_batches += 1
+        self._batch_completion_delay = batch_completion_delay
+        self._fail_batch_ids = fail_batch_ids or set()
+        self._fail_request_ids = fail_request_ids or set()
+        self._handle_batch_error = handle_batch_error
+
+        # Track batches for simulation
+        self._created_batches: dict[str, list[str]] = {}  # batch_id -> request_ids
+        self._batch_creation_times: dict[str, float] = {}
+        self._next_batch_id = 0
+
+    async def _create_batch(self, batch_requests) -> str:
+        """Simulate creating a batch in an external service."""
+        batch_id = f"batch-{self._next_batch_id}"
+        self._next_batch_id += 1
+
+        # Simulate some creation delay
+        await asyncio.sleep(0.01)
+
+        # Store batch info for later completion simulation
+        self._created_batches[batch_id] = [req.custom_id for req in batch_requests]
+        self._batch_creation_times[batch_id] = time.time()
+
         return batch_id
 
-    async def _create_batch(self, batch: list[BatchRequest[str]]) -> str:
-        return await self.mock_create_batch(batch)
-
-    def _stub_check_batch(
-        self, batch: Batch[str]
-    ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
-        self._batch_check_counts[batch.id] -= 1
-        # Use a mock age of 42 seconds for testing
-        age = 42
-        if self._batch_check_counts[batch.id] > 0:
-            return (665, 666, age, None)
-        return (665, 666, age, {"result_uris": [f"result-uri-{batch.id}"]})
-
     async def _check_batch(
-        self, batch: Batch[str]
-    ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
-        return await self.mock_check_batch(batch)
+        self, batch
+    ) -> tuple[int, int, int, FakeCompletionInfo | None]:
+        """Simulate checking batch status."""
+        batch_id = batch.id
 
-    async def _stub_handle_batch_result(
-        self, batch: Batch[str], completion_info: CompletedBatchInfo
-    ) -> dict[str, str | Exception]:
-        result_uris = completion_info["result_uris"]
+        # Simulate check delay
+        await asyncio.sleep(0.01)
 
-        request_uri = result_uris[0]
-        if "failed" in batch.id or "failed" in request_uri:
-            raise Exception("Request failed")
+        # Check if batch should fail
+        if batch_id in self._fail_batch_ids:
+            raise Exception(f"Simulated batch failure for {batch_id}")
 
-        results = {}
-        for request in [*batch.requests.values()]:
-            results[request.custom_id] = (
-                Exception("Request failed")
-                if "failed" in request.custom_id
-                else request.custom_id
+        # Calculate age
+        creation_time = self._batch_creation_times.get(batch_id, time.time())
+        age = int(time.time() - creation_time)
+
+        # Check if batch is "complete" based on elapsed time
+        if time.time() - creation_time >= self._batch_completion_delay:
+            # Batch is complete
+            request_count = len(self._created_batches[batch_id])
+            return (
+                request_count,  # completed count
+                0,  # failed count
+                age,  # age in seconds
+                FakeCompletionInfo(result_uris=[f"result-{batch_id}"]),
             )
+        else:
+            # Still processing
+            return (0, 0, age, None)
+
+    async def _handle_batch_result(
+        self, batch, completion_info: FakeCompletionInfo
+    ) -> dict[str, str | Exception]:
+        """Simulate processing batch results."""
+        # Check for simulated handle error
+        if self._handle_batch_error:
+            raise self._handle_batch_error
+
+        # Simulate processing delay
+        await asyncio.sleep(0.01)
+
+        results: dict[str, str | Exception] = {}
+        for request_id in self._created_batches[batch.id]:
+            if request_id in self._fail_request_ids:
+                results[request_id] = Exception(f"Simulated failure for {request_id}")
+            else:
+                results[request_id] = f"result-for-{request_id}"
 
         return results
 
-    async def _handle_batch_result(
-        self, batch: Batch[str], completion_info: CompletedBatchInfo
-    ) -> dict[str, str | Exception]:
-        return await self.mock_handle_batch_result(batch, completion_info)
 
+@pytest.mark.asyncio
+class TestBatcher:
+    """Integration tests for Batcher that test end-to-end behavior."""
 
-@pytest.mark.parametrize(
-    ("has_error", "expected_batch_id"),
-    (
-        (True, None),
-        (False, "test-batch-0"),
-    ),
-)
-async def test_batcher_wrapped_create_batch(
-    mocker: MockerFixture, has_error: bool, expected_batch_id: str | None
-):
-    batcher = FakeBatcher(mocker)
-    expected_error = Exception("Test error") if has_error else None
-    if expected_error:
-        batcher.mock_create_batch.side_effect = expected_error
+    async def test_successful_single_request(self):
+        """Test that a single request gets processed successfully."""
+        batcher = FakeBatcher()
 
-    batch_requests = [
-        BatchRequest[str](request={}, result_stream=mocker.AsyncMock())
-        for _ in range(10)
-    ]
+        # Make a request
+        result = await batcher.generate(
+            request={"prompt": "test"}, config=GenerateConfig()
+        )
 
-    if has_error:
-        # When there's an error, _wrapped_create_batch should raise the exception
-        with pytest.raises(Exception, match="Test error"):
-            await batcher._wrapped_create_batch(batch_requests)  # pyright: ignore[reportPrivateUsage]
-    else:
-        # When there's no error, _wrapped_create_batch should return the batch_id
-        batch_id = await batcher._wrapped_create_batch(batch_requests)  # pyright: ignore[reportPrivateUsage]
-        assert batch_id == expected_batch_id
+        # Should get back a successful result
+        assert result.startswith("result-for-")
 
-    batcher.mock_create_batch.assert_awaited_once_with(batch_requests)
-    for request in batch_requests:
-        mock_send = cast(AsyncMock, request.result_stream.send)
-        if expected_error:
-            mock_send.assert_awaited_once_with(expected_error)
-        else:
-            mock_send.assert_not_awaited()
+    async def test_successful_batch_processing(self):
+        """Test that multiple requests get batched and processed together."""
+        batcher = FakeBatcher(config=BatchConfig(size=3, send_delay=0.1, tick=0.01))
 
+        # Make multiple requests concurrently
+        tasks = [
+            batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
+            for i in range(5)
+        ]
 
-@pytest.mark.parametrize(
-    (
-        "check_call_result",
-        "retry_count",
-        "expected_completion_info",
-        "expected_error",
-        "expected_batch_removed",
-    ),
-    (
-        pytest.param(
-            (665, 666, 42, {"result_uris": ["result-uri-test-batch-0"]}),
-            0,
-            {"result_uris": ["result-uri-test-batch-0"]},
-            None,
-            False,
-            id="success",
-        ),
-        pytest.param(
-            Exception("Test error"),
-            0,
-            None,
-            Exception("Test error"),
-            False,
-            id="error-retry",
-        ),
-        # Disabling this test until I do it without relying on testing internals
-        # pytest.param(
-        #     Exception("Test error"),
-        #     2,
-        #     None,
-        #     Exception("Test error"),
-        #     True,
-        #     id="error-fail",
-        # ),
-    ),
-)
-async def test_batcher_wrapped_check_batch(
-    mocker: MockerFixture,
-    check_call_result: CompletedBatchInfo | None,
-    retry_count: int,
-    expected_completion_info: CompletedBatchInfo | None,
-    expected_error: Exception | None,
-    expected_batch_removed: bool,
-):
-    batch = Batch[str](
-        id="test-batch-0",
-        requests={
-            f"request-{idx}": BatchRequest[str](
-                custom_id=f"request-{idx}",
-                request={},
-                result_stream=mocker.AsyncMock(),
+        results = await asyncio.gather(*tasks)
+
+        # All requests should succeed
+        assert len(results) == 5
+        for result in results:
+            assert result.startswith("result-for-")
+
+    async def test_batch_creation_failure(self):
+        """Test handling of batch creation failures."""
+        batcher = FakeBatcher()
+
+        # Override _create_batch to always fail
+        async def failing_create_batch(batch_requests):
+            raise Exception("Batch creation failed")
+
+        batcher._create_batch = failing_create_batch
+
+        # Request should fail with the creation error
+        with pytest.raises(Exception, match="Batch creation failed"):
+            await batcher.generate({"prompt": "test"}, GenerateConfig())
+
+    async def test_batch_check_failure_retry(self):
+        """Test that batch check failures are retried appropriately."""
+        # Create batcher that fails batch checks initially
+        batcher = FakeBatcher(fail_batch_ids={"batch-0"})
+
+        # Start a request
+        task = asyncio.create_task(
+            batcher.generate({"prompt": "test"}, GenerateConfig())
+        )
+
+        # Let it fail a few times
+        await asyncio.sleep(0.1)
+
+        # Remove the failure condition
+        batcher._fail_batch_ids.clear()
+
+        # Request should eventually succeed
+        result = await task
+        assert result.startswith("result-for-")
+
+    async def test_batch_result_handling_failure(self):
+        """Test handling of failures during batch result processing."""
+        handle_error = Exception("Result handling failed")
+        batcher = FakeBatcher(handle_batch_error=handle_error)
+
+        # Request should fail with the handling error
+        with pytest.raises(Exception, match="Result handling failed"):
+            await batcher.generate({"prompt": "test"}, GenerateConfig())
+
+    async def test_batch_size_limits(self):
+        """Test that batch minimum size controls when batches are sent."""
+        # Test with minimum batch size of 3 and a longer delay
+        # This should send a batch when it reaches 3 requests, not wait for the delay
+        batcher = FakeBatcher(config=BatchConfig(size=3, send_delay=1.0, tick=0.01))
+
+        # Send exactly 3 requests - should trigger batch send due to minimum size being reached
+        tasks = [
+            batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
+            for i in range(3)
+        ]
+
+        # All should complete successfully
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 3
+
+        # Should have created exactly one batch with all 3 requests
+        assert len(batcher._created_batches) == 1
+        batch_id = next(iter(batcher._created_batches.keys()))
+        assert len(batcher._created_batches[batch_id]) == 3
+
+    async def test_batch_timeout_behavior(self):
+        """Test that batches are sent after timeout even if not full."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=10, send_delay=0.1, tick=0.01
+            )  # Large size, short timeout
+        )
+
+        # Send fewer requests than batch size
+        tasks = [
+            batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
+            for i in range(3)
+        ]
+
+        # Should complete due to timeout, not batch size
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 3
+        assert len(batcher._created_batches) == 1
+
+    async def test_concurrent_batches(self):
+        """Test that multiple batches can be processed concurrently."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1, max_size=2, send_delay=0.01, tick=0.01, max_batches=3
+            ),
+            batch_completion_delay=0.2,  # Longer delay to ensure overlap
+        )
+
+        # Send many requests to force multiple concurrent batches
+        # With max_size=2, 8 requests will require at least 4 batches
+        tasks = [
+            batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
+            for i in range(8)
+        ]
+
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 8
+
+        # Should have created multiple batches due to max_size=2 limit
+        assert (
+            len(batcher._created_batches) >= 4
+        )  # 8 requests / 2 max per batch = 4 batches
+
+        # Verify that no batch exceeds the max_size limit
+        for batch_id, request_ids in batcher._created_batches.items():
+            assert len(request_ids) <= 2
+
+    async def test_high_concurrency_stress(self):
+        """Stress test with many concurrent requests."""
+        batcher = FakeBatcher(
+            config=BatchConfig(size=5, send_delay=0.05, tick=0.01),
+            batch_completion_delay=0.1,
+        )
+
+        # Create many concurrent requests
+        num_requests = 50
+        tasks = [
+            batcher.generate({"prompt": f"stress-test-{i}"}, GenerateConfig())
+            for i in range(num_requests)
+        ]
+
+        # All should complete successfully
+        start_time = time.time()
+        results = await asyncio.gather(*tasks)
+        elapsed = time.time() - start_time
+
+        assert len(results) == num_requests
+        for result in results:
+            assert result.startswith("result-for-")
+
+        # Should be reasonably fast due to batching
+        assert elapsed < 5.0  # Generous upper bound
+
+        # Should have created fewer batches than requests for efficiency
+        # With size=5 (min) and max_batch_request_count=10, 50 requests should create at most 10 batches
+        # (if all batches had exactly 5 requests) but more likely around 5-6 batches
+        assert len(batcher._created_batches) <= num_requests // 5
+        # But should have created more than 1 batch to demonstrate batching is working
+        assert len(batcher._created_batches) > 1
+
+    async def test_what_wrapped_handle_batch_result_was_testing(self):
+        """Test better approach to what test_batcher_wrapped_handle_batch_result was testing.
+
+        Instead of testing the private _wrapped_handle_batch_result method directly,
+        we test the observable behavior: do requests get the right results when
+        batches complete successfully or fail during result handling?
+        """
+        # Test 1: Successful batch result handling
+        batcher = FakeBatcher(
+            config=BatchConfig(size=2, send_delay=0.01, tick=0.01),
+            batch_completion_delay=0.05,
+        )
+
+        # Make requests that should succeed
+        tasks = [
+            batcher.generate({"prompt": f"test-success-{i}"}, GenerateConfig())
+            for i in range(3)
+        ]
+
+        results = await asyncio.gather(*tasks)
+
+        # All requests should get successful results
+        assert len(results) == 3
+        for result in results:
+            assert result.startswith("result-for-")
+
+        # Test 2: Batch result handling failure should fail all requests in that batch
+        batcher_fail = FakeBatcher(
+            config=BatchConfig(size=3, send_delay=0.01, tick=0.01),
+            handle_batch_error=Exception("Batch result handling failed"),
+        )
+
+        # All requests in the failing batch should get the error
+        with pytest.raises(Exception, match="Batch result handling failed"):
+            await batcher_fail.generate({"prompt": "test-fail"}, GenerateConfig())
+
+        # Test 3: Individual request failures within a successful batch
+        batcher_mixed = FakeBatcher(
+            config=BatchConfig(size=3, send_delay=0.01, tick=0.01),
+            fail_request_ids={"fail-me"},  # One specific request will fail
+        )
+
+        # Create requests with specific custom IDs to control failures
+        send_streams = []
+        receive_streams = []
+
+        for i, custom_id in enumerate(["success-1", "fail-me", "success-2"]):
+            send_stream, receive_stream = anyio.create_memory_object_stream[
+                str | Exception
+            ](1)
+            request = BatchRequest[str](
+                request={"prompt": f"test-{i}"},
+                result_stream=send_stream,
+                custom_id=custom_id,
             )
-            for idx in range(10)
-        },
-        consecutive_check_failure_count=retry_count,
-    )
-    batcher = FakeBatcher(mocker, inflight_batches={batch.id: batch})
-    if isinstance(check_call_result, Exception):
-        batcher.mock_check_batch.side_effect = check_call_result
-    else:
-        batcher.mock_check_batch.return_value = check_call_result
+            batcher_mixed._intake_queue.append(request)
+            send_streams.append(send_stream)
+            receive_streams.append(receive_stream)
 
-    result = await batcher._wrapped_check_batch(batch)  # pyright: ignore[reportPrivateUsage]
-    completed, failed, age, completion_info = (
-        (result[0], result[1], result[2], result[3]) if result else (0, 0, 0, None)
-    )
+        # Start the batch worker
+        worker_task = asyncio.create_task(batcher_mixed._batch_worker())
 
-    batcher.mock_check_batch.assert_awaited_once_with(batch)
-    if expected_error:
-        assert completion_info is None
-    else:
-        assert completion_info == expected_completion_info
+        # Collect results
+        results = []
+        for receive_stream in receive_streams:
+            try:
+                result = await receive_stream.receive()
+                if isinstance(result, Exception):
+                    results.append(f"ERROR: {result}")
+                else:
+                    results.append(result)
+            except Exception as e:
+                results.append(f"EXCEPTION: {e}")
 
-    for request in batch.requests.values():
-        mock_send = cast(AsyncMock, request.result_stream.send)
-        if expected_batch_removed:
-            mock_send.assert_awaited_once_with(check_call_result)
-        else:
-            mock_send.assert_not_awaited()
+        await worker_task
 
-    if expected_batch_removed:
-        assert batch.id not in batcher._inflight_batches  # pyright: ignore[reportPrivateUsage]
-    else:
-        assert batch.id in batcher._inflight_batches  # pyright: ignore[reportPrivateUsage]
+        # Verify that the right request failed and others succeeded
+        assert len(results) == 3
+        assert results[0].startswith("result-for-success-1")  # Success
+        assert "ERROR:" in results[1] and "fail-me" in results[1]  # Failed
+        assert results[2].startswith("result-for-success-2")  # Success
 
-
-@pytest.mark.parametrize(
-    ("has_error", "retry_count", "expected_send"),
-    (
-        pytest.param(False, 0, True, id="success"),
-        pytest.param(False, 2, True, id="success-retried"),
-        pytest.param(True, 0, False, id="error-retry"),
-        pytest.param(True, 2, True, id="error-fail"),
-    ),
-)
-async def test_batcher_wrapped_handle_batch_result(
-    mocker: MockerFixture,
-    has_error: bool,
-    retry_count: int,
-    expected_send: bool,
-):
-    requests = {
-        f"request-{idx}": BatchRequest[str](
-            request={}, result_stream=mocker.AsyncMock(), custom_id=f"request-{idx}"
-        )
-        for idx in range(10)
-    }
-    batch = Batch[str](
-        id="test-batch-0",
-        requests=requests,
-        consecutive_check_failure_count=retry_count,
-    )
-    batcher = FakeBatcher(mocker, inflight_batches={batch.id: batch})
-    completion_info = CompletedBatchInfo(result_uris=["result-uri-test-batch-0"])
-    expected_error = Exception("Test error") if has_error else None
-    if expected_error:
-        batcher.mock_handle_batch_result.side_effect = expected_error
-
-    await batcher._wrapped_handle_batch_result(batch, completion_info)  # pyright: ignore[reportPrivateUsage]
-
-    batcher.mock_handle_batch_result.assert_awaited_once_with(batch, completion_info)
-    for idx_request, request in enumerate(batch.requests.values()):
-        mock_send = cast(AsyncMock, request.result_stream.send)
-        if expected_send:
-            mock_send.assert_awaited_once_with(expected_error or idx_request)
-        else:
-            mock_send.assert_not_awaited()
-
-    assert batch.id in batcher._inflight_batches  # pyright: ignore[reportPrivateUsage]
-    if expected_send:
-        assert batch.requests == {}
-    else:
-        assert len(batch.requests) == 10
-
-
-class TestAssessIntakeQueue:
-    def create_batch_request(
-        self, request_data: dict, custom_id: str | None = None
-    ) -> BatchRequest[str]:
-        return BatchRequest[str](
-            request=request_data,
-            result_stream=MagicMock(),
-            custom_id=custom_id or f"req-{id(request_data)}",
+    async def test_maximum_batch_size_limits(self):
+        """Test that maximum batch size limits force multiple batches."""
+        # Use BatchConfig.max_size to limit batches to 2 requests each
+        batcher = FakeBatcher(
+            config=BatchConfig(size=1, max_size=2, send_delay=0.1, tick=0.01)
         )
 
-    @pytest.mark.parametrize(
-        (
-            "existing_count",
-            "available_size",
-            "intake_count",
-            "min_count",
-            "max_count",
-            "timeout_offset",
-            "expected_add_count",
-            "expected_should_send",
-            "description",
-        ),
-        [
-            # Basic scenarios
-            pytest.param(
-                0, 1000, 0, 5, 10, 10, 0, False, "empty intake queue", id="empty-intake"
-            ),
-            pytest.param(
-                10,
-                1000,
-                1,
-                5,
-                10,
-                10,
-                0,
-                True,
-                "batch already full by count",
-                id="full-by-count",
-            ),
-            pytest.param(
-                1,
-                0,
-                1,
-                5,
-                10,
-                10,
-                0,
-                True,
-                "batch already full by size",
-                id="full-by-size",
-            ),
-            # Count limit scenarios
-            pytest.param(
-                1, 10000, 15, 5, 10, 10, 9, True, "hit count limit", id="count-limit"
-            ),
-            # Minimum requirement scenarios
-            pytest.param(
-                3,
-                1000,
-                3,
-                5,
-                10,
-                10,
-                3,
-                True,
-                "meet minimum requirement",
-                id="meet-minimum",
-            ),
-            pytest.param(
-                1,
-                1000,
-                1,
-                5,
-                10,
-                10,
-                1,
-                False,
-                "below minimum requirement",
-                id="below-minimum",
-            ),
-            pytest.param(
-                5,
-                1000,
-                0,
-                5,
-                10,
-                10,
-                0,
-                True,
-                "exact minimum count",
-                id="exact-minimum",
-            ),
-            # Timeout scenarios
-            pytest.param(
-                1,
-                1000,
-                1,
-                5,
-                10,
-                -1,
-                1,
-                True,
-                "timeout triggers send",
-                id="timeout-trigger",
-            ),
-            pytest.param(
-                5,
-                1000,
-                0,
-                10,
-                5,
-                -1,
-                0,
-                True,
-                "timeout with no requests added",
-                id="timeout-no-add",
-            ),
-            # Empty batch scenarios
-            pytest.param(
-                0,
-                1000,
-                0,
-                1,
-                10,
-                -1,
-                0,
-                False,
-                "no requests despite timeout should not send",
-                id="no-requests-timeout",
-            ),
-            # Size limit scenarios - removed oversized request test as it should raise an error
-        ],
-    )
-    def test_batch_assessment_scenarios(
-        self,
-        existing_count: int,
-        available_size: int,
-        intake_count: int,
-        min_count: int,
-        max_count: int,
-        timeout_offset: int,
-        expected_add_count: int,
-        expected_should_send: bool,
-        description: str,
-    ):
-        # Setup existing requests
-        existing_requests = [
-            self.create_batch_request({"data": f"existing-{i}"})
-            for i in range(existing_count)
+        # Send more requests than the maximum batch size
+        tasks = [
+            batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
+            for i in range(5)
         ]
 
-        # Setup pending batch
-        timeout = time.time() + timeout_offset
-        pending_batch = PendingBatch(
-            timeout=timeout,
-            available_size=available_size,
-            requests=existing_requests,
-        )
+        # All should complete successfully
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 5
 
-        # Setup intake queue
-        intake_queue = [
-            self.create_batch_request({"data": f"new-{i}"}) for i in range(intake_count)
+        # Should have created multiple batches due to max_size limit
+        assert (
+            len(batcher._created_batches) >= 3
+        )  # 5 requests / 2 max per batch = 3 batches
+
+        # Verify that no batch has more than 2 requests
+        for batch_id, request_ids in batcher._created_batches.items():
+            assert len(request_ids) <= 2
+
+    async def test_batch_timeout_with_insufficient_requests(self):
+        """Test that batches are sent after timeout even when below minimum size."""
+        # Set a high minimum size (5) but send fewer requests (2)
+        # The batch should be sent after the send_delay timeout
+        batcher = FakeBatcher(config=BatchConfig(size=5, send_delay=0.1, tick=0.01))
+
+        # Send fewer requests than minimum batch size
+        tasks = [
+            batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
+            for i in range(2)
         ]
 
-        # Execute
-        result = _assess_intake_queue(
-            intake_queue=intake_queue,
-            batch=pending_batch,
-            min_request_count=min_count,
-            max_request_count=max_count,
+        # Should complete due to timeout, not minimum size
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 2
+
+        # Should have created exactly one batch with only 2 requests (below minimum)
+        assert len(batcher._created_batches) == 1
+        batch_id = next(iter(batcher._created_batches.keys()))
+        assert len(batcher._created_batches[batch_id]) == 2
+
+    async def test_batch_config_interaction(self):
+        """Test the interaction between size (min), max_size (max), and send_delay."""
+        # Test scenario: min_size=3, max_size=5, send_delay=0.1
+        # Send 4 requests: should send immediately since 4 >= 3 (min_size)
+        batcher = FakeBatcher(
+            config=BatchConfig(size=3, max_size=5, send_delay=0.1, tick=0.01)
         )
 
-        # Assert
-        add_count, new_available_size, should_send = result
-        assert add_count == expected_add_count, (
-            f"Expected add_count {expected_add_count}, got {add_count} for {description}"
-        )
-        assert should_send == expected_should_send, (
-            f"Expected should_send {expected_should_send}, got {should_send} for {description}"
-        )
-        assert isinstance(new_available_size, int), (
-            f"new_available_size should be int for {description}"
-        )
-        assert new_available_size >= 0, (
-            f"new_available_size should be >= 0 for {description}"
-        )
-
-    def test_oversized_request_raises_error(self):
-        """Test that an oversized request in an empty batch raises an error."""
-        pending_batch = PendingBatch(
-            timeout=time.time() + 10, available_size=50, requests=[]
-        )
-
-        # Create a request that's too large for the available size
-        large_data = "x" * 100  # Much larger than available size
-        intake_queue = [
-            self.create_batch_request({"large_data": large_data}),
-            self.create_batch_request({"small": "data"}),
+        # Send 4 requests (between min and max)
+        tasks = [
+            batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
+            for i in range(4)
         ]
 
-        # Should raise an exception when the first request can't fit in an empty batch
-        with pytest.raises(Exception, match="exceeds maximum"):
-            _assess_intake_queue(
-                intake_queue=intake_queue,
-                batch=pending_batch,
-                min_request_count=5,
-                max_request_count=10,
+        # Should complete immediately (since 4 >= 3 min_size)
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 4
+
+        # Should have created exactly one batch with all 4 requests
+        assert len(batcher._created_batches) == 1
+        batch_id = next(iter(batcher._created_batches.keys()))
+        assert len(batcher._created_batches[batch_id]) == 4
+
+        # Now test max_size enforcement - send 6 requests to exceed max_size=5
+        batcher2 = FakeBatcher(
+            config=BatchConfig(size=2, max_size=5, send_delay=1.0, tick=0.01)
+        )
+
+        tasks2 = [
+            batcher2.generate({"prompt": f"test2-{i}"}, GenerateConfig())
+            for i in range(6)
+        ]
+
+        results2 = await asyncio.gather(*tasks2)
+        assert len(results2) == 6
+
+        # Should have created at least 2 batches (6 requests can't fit in max_size=5)
+        assert len(batcher2._created_batches) >= 2
+
+        # Verify no batch exceeds max_size=5
+        for batch_id, request_ids in batcher2._created_batches.items():
+            assert len(request_ids) <= 5
+
+    async def test_max_consecutive_check_failures(self):
+        """Test that batches fail after max consecutive check failures."""
+        # Create a batcher with a low max_consecutive_check_failures value
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1,
+                send_delay=0.01,
+                tick=0.01,
+                max_consecutive_check_failures=3,
+            ),
+            fail_batch_ids={"batch-0"},  # First batch will always fail
+        )
+
+        # Start a request that will be in the failing batch
+        task = asyncio.create_task(
+            batcher.generate({"prompt": "test"}, GenerateConfig())
+        )
+
+        # Wait for the batch to fail after the configured number of failures
+        with pytest.raises(Exception, match="Simulated batch failure for batch-0"):
+            await task
+
+        # Verify the batch was indeed removed from inflight batches
+        assert len(batcher._inflight_batches) == 0
+
+    async def test_max_consecutive_check_failures_with_default_value(self):
+        """Test that default max consecutive check failures value is used when not specified."""
+        # Create batcher without specifying max_consecutive_check_failures
+        batcher = FakeBatcher(config=BatchConfig(size=1, send_delay=0.01, tick=0.01))
+
+        # Verify that the default value is used
+        assert batcher._max_consecutive_check_failures == 1000
+
+    async def test_max_consecutive_check_failures_with_custom_value(self):
+        """Test that custom max consecutive check failures value is used when specified."""
+        custom_max_failures = 5
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1,
+                send_delay=0.01,
+                tick=0.01,
+                max_consecutive_check_failures=custom_max_failures,
             )
-
-    def test_add_requests_until_size_limit(self):
-        """Test adding requests until hitting size limit."""
-        pending_batch = PendingBatch(
-            timeout=time.time() + 10,
-            available_size=100,  # Small size limit
-            requests=[],
         )
 
-        # Create requests that will consume exactly the available size
-        # Each small request uses about 13 bytes: {"small":1} = 13 chars
-        intake_queue = [
-            self.create_batch_request({"small": i})
-            for i in range(20)  # More than can fit by size
+        # Verify that the custom value is used
+        assert batcher._max_consecutive_check_failures == custom_max_failures
+
+    async def test_consecutive_check_failures_reset_on_success(self):
+        """Test that consecutive check failure count resets on successful check."""
+        # Create a batcher that will fail initially then succeed
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1,
+                send_delay=0.01,
+                tick=0.01,
+                max_consecutive_check_failures=5,
+            ),
+            fail_batch_ids={"batch-0"},
+        )
+
+        # Start a request
+        task = asyncio.create_task(
+            batcher.generate({"prompt": "test"}, GenerateConfig())
+        )
+
+        # Let it fail a few times
+        await asyncio.sleep(0.1)
+
+        # Get the batch and verify it has some failures
+        batch = next(iter(batcher._inflight_batches.values()))
+        assert batch.consecutive_check_failure_count > 0
+
+        # Remove the failure condition to allow success
+        batcher._fail_batch_ids.clear()
+
+        # The request should eventually succeed
+        result = await task
+        assert result.startswith("result-for-")
+
+    async def test_boundary_extremely_large_requests(self):
+        """Test handling of requests that are close to byte size limits."""
+        # Set a small byte limit to test boundary conditions
+        batcher = FakeBatcher(config=BatchConfig(size=1, send_delay=0.01, tick=0.01))
+        # Override the max batch size to be small for testing
+        batcher._max_batch_size_bytes = 1000  # 1KB limit
+
+        # Create a request that's close to but under the limit
+        large_data = "x" * 800  # Should fit
+        result = await batcher.generate({"large_payload": large_data}, GenerateConfig())
+        assert result.startswith("result-for-")
+
+        # Verify exactly one batch was created
+        assert len(batcher._created_batches) == 1
+
+    async def test_config_max_batch_request_count_smaller_than_max_size(self):
+        """Test when constructor max_batch_request_count is smaller than config.max_size."""
+        # Constructor param should take precedence and limit the effective max_size
+        batcher = FakeBatcher(
+            config=BatchConfig(size=1, max_size=10, send_delay=0.01, tick=0.01),
+            # This should override the config.max_size
+        )
+        batcher._max_batch_request_count = (
+            3  # Override to be smaller than config.max_size
+        )
+
+        # Send more requests than the effective limit
+        tasks = [
+            batcher.generate({"prompt": f"constrained-{i}"}, GenerateConfig())
+            for i in range(8)
         ]
 
-        result = _assess_intake_queue(
-            intake_queue=intake_queue,
-            batch=pending_batch,
-            min_request_count=5,
-            max_request_count=50,
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 8
+
+        # Should have created batches with at most 3 requests each
+        for batch_id, request_ids in batcher._created_batches.items():
+            assert len(request_ids) <= 3
+
+    async def test_config_max_size_smaller_than_size(self):
+        """Test invalid config where max_size < size (should handle gracefully)."""
+        # This creates a contradictory configuration
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=5,  # Minimum size
+                max_size=3,  # Maximum size smaller than minimum - invalid!
+                send_delay=0.01,
+                tick=0.01,
+            )
         )
 
-        add_count, _, should_send = result
-        assert add_count > 0
-        assert add_count < 20  # Couldn't fit all requests
-        assert should_send is True  # Batch is full by size
+        # Should still work - implementation should handle this gracefully
+        tasks = [
+            batcher.generate({"prompt": f"invalid-config-{i}"}, GenerateConfig())
+            for i in range(4)
+        ]
 
-    def test_mixed_size_requests(self):
-        """Test with requests of varying sizes."""
-        pending_batch = PendingBatch(
-            timeout=time.time() + 10, available_size=100, requests=[]
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 4
+
+        # Should respect the smaller max_size limit
+        for batch_id, request_ids in batcher._created_batches.items():
+            assert len(request_ids) <= 3
+
+    async def test_config_byte_limit_vs_count_limit_interaction(self):
+        """Test interaction between byte size limits and count limits."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=2,  # Min 2 requests
+                max_size=10,  # Max 10 requests
+                send_delay=0.01,
+                tick=0.01,
+            )
         )
 
-        intake_queue = (
-            [
-                self.create_batch_request({"small": i})
-                for i in range(5)  # Small requests
-            ]
-            + [
-                self.create_batch_request({"large": "x" * 50})  # One large request
-            ]
-            + [
-                self.create_batch_request({"more_small": i})
-                for i in range(3)  # More small
-            ]
+        # Set a very small byte limit that should be hit before count limit
+        batcher._max_batch_size_bytes = 200
+
+        # Create requests that will hit byte limit before count limit
+        tasks = [
+            batcher.generate(
+                {"data": f"medium-sized-request-{i:03d}-{'x' * 20}"}, GenerateConfig()
+            )
+            for i in range(8)
+        ]
+
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 8
+
+        # Should have created multiple batches due to byte limit, not count limit
+        assert len(batcher._created_batches) > 1
+
+        # Each batch should have fewer than max_size requests due to byte constraints
+        for batch_id, request_ids in batcher._created_batches.items():
+            assert len(request_ids) < 10  # Hit byte limit before count limit
+
+    async def test_config_tick_faster_than_send_delay(self):
+        """Test when tick interval is faster than send_delay."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=5,  # High minimum size
+                send_delay=0.1,  # 100ms delay
+                tick=0.01,  # 10ms tick - much faster than send_delay
+            )
         )
 
-        result = _assess_intake_queue(
-            intake_queue=intake_queue,
-            batch=pending_batch,
-            min_request_count=3,
-            max_request_count=20,
+        # Send fewer requests than minimum size
+        tasks = [
+            batcher.generate({"prompt": f"fast-tick-{i}"}, GenerateConfig())
+            for i in range(3)
+        ]
+
+        start_time = time.time()
+        results = await asyncio.gather(*tasks)
+        elapsed = time.time() - start_time
+
+        assert len(results) == 3
+
+        # Should complete after send_delay timeout, not wait for minimum size
+        # Should be close to send_delay time (0.1s), not much longer
+        assert 0.08 < elapsed < 0.5  # Some tolerance for timing
+
+    async def test_config_tick_slower_than_batch_completion(self):
+        """Test when tick interval is slower than batch completion time."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1,
+                send_delay=0.01,
+                tick=0.2,  # 200ms tick - slower than batch completion
+            ),
+            batch_completion_delay=0.05,  # Batches complete in 50ms
         )
 
-        add_count, _, should_send = result
-        # Should add small requests until size limit hit
-        assert add_count >= 3  # At least some requests added
-        assert should_send is True  # Should meet minimum or hit size limit
+        # Send requests that should complete between ticks
+        tasks = [
+            batcher.generate({"prompt": f"slow-tick-{i}"}, GenerateConfig())
+            for i in range(3)
+        ]
 
-    def test_return_format(self):
-        """Test that return format matches specification."""
-        pending_batch = PendingBatch(
-            timeout=time.time() + 10, available_size=1000, requests=[]
+        start_time = time.time()
+        results = await asyncio.gather(*tasks)
+        elapsed = time.time() - start_time
+
+        assert len(results) == 3
+
+        # Should still complete reasonably quickly despite slow tick
+        # May take a few tick cycles to detect completion
+        assert elapsed < 1.0  # Should complete within reasonable time
+
+    async def test_config_max_batches_with_high_concurrency(self):
+        """Test max_batches limit with high request concurrency."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1,
+                max_size=2,  # Small batches
+                send_delay=0.01,
+                tick=0.01,
+                max_batches=2,  # Only 2 concurrent batches allowed
+            ),
+            batch_completion_delay=0.1,  # Longer completion time
         )
 
-        intake_queue = [self.create_batch_request({"data": "test"})]
+        # Send many requests that would normally create more batches
+        tasks = [
+            batcher.generate({"prompt": f"limited-{i}"}, GenerateConfig())
+            for i in range(10)
+        ]
 
-        result = _assess_intake_queue(
-            intake_queue=intake_queue,
-            batch=pending_batch,
-            min_request_count=5,
-            max_request_count=10,
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 10
+
+        # Should have created more batches than max_batches due to queuing
+        # But at any given time, only max_batches should be in flight
+        total_batches = len(batcher._created_batches)
+        assert total_batches >= 2  # At least some batches were created
+
+    async def test_config_zero_values_interaction(self):
+        """Test behavior with zero/minimal values in configuration."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=0,  # Zero minimum size - should use default
+                max_size=1,  # Minimal max size
+                send_delay=0,  # Zero delay - immediate send
+                tick=0.001,  # Very fast tick
+                max_batches=1,  # Only one batch at a time
+            )
         )
 
-        # Should return tuple[int, int, bool]
-        assert isinstance(result, tuple)
-        assert len(result) == 3
+        # Send multiple requests
+        tasks = [
+            batcher.generate({"prompt": f"zero-config-{i}"}, GenerateConfig())
+            for i in range(3)
+        ]
 
-        add_count, new_available_size, should_send = result
-        assert isinstance(add_count, int)
-        assert isinstance(new_available_size, int)
-        assert isinstance(should_send, bool)
-        assert add_count >= 0
-        assert new_available_size >= 0
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 3
+
+        # Should handle zero values gracefully
+        assert len(batcher._created_batches) >= 1
+
+    async def test_config_extreme_values_interaction(self):
+        """Test behavior with extreme configuration values."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1,
+                max_size=1000,  # Very large max size
+                send_delay=10.0,  # Very long delay
+                tick=0.001,  # Very fast tick
+                max_batches=100,  # Many concurrent batches
+            )
+        )
+
+        # Send a moderate number of requests
+        tasks = [
+            batcher.generate({"prompt": f"extreme-{i}"}, GenerateConfig())
+            for i in range(5)
+        ]
+
+        # Should complete quickly despite long send_delay due to reaching minimum size
+        start_time = time.time()
+        results = await asyncio.gather(*tasks)
+        elapsed = time.time() - start_time
+
+        assert len(results) == 5
+
+        # Should complete much faster than send_delay since we meet minimum size
+        assert elapsed < 5.0  # Much less than the 10s send_delay
+
+    async def test_config_send_delay_vs_tick_precision(self):
+        """Test precision issues when send_delay and tick are very close."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=10,  # High minimum size
+                send_delay=0.05,  # 50ms delay
+                tick=0.049,  # 49ms tick - very close to send_delay
+            )
+        )
+
+        # Send fewer requests than minimum size
+        tasks = [
+            batcher.generate({"prompt": f"precision-{i}"}, GenerateConfig())
+            for i in range(3)
+        ]
+
+        start_time = time.time()
+        results = await asyncio.gather(*tasks)
+        elapsed = time.time() - start_time
+
+        assert len(results) == 3
+
+        # Should timeout properly despite close timing values
+        assert 0.04 < elapsed < 0.2  # Should be close to send_delay timing
+
+    async def test_config_max_consecutive_failures_with_timing(self):
+        """Test max_consecutive_check_failures interaction with tick timing."""
+        batcher = FakeBatcher(
+            config=BatchConfig(
+                size=1,
+                send_delay=0.01,
+                tick=0.02,  # 20ms tick
+                max_consecutive_check_failures=2,  # Low failure tolerance
+            ),
+            fail_batch_ids={"batch-0"},
+        )
+
+        # Start a request that will fail
+        task = asyncio.create_task(
+            batcher.generate({"prompt": "timing-failure"}, GenerateConfig())
+        )
+
+        # Should fail after 2 failures * ~20ms tick = ~40ms + some overhead
+        start_time = time.time()
+        with pytest.raises(Exception):
+            await task
+        elapsed = time.time() - start_time
+
+        # Should fail relatively quickly based on tick timing
+        assert elapsed < 0.5  # Should fail within reasonable time

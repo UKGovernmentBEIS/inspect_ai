@@ -46,6 +46,9 @@ class BatchConfig(BaseModel):
     max_batches: int | None = Field(default=None)
     """Maximum number of batches to have in flight at once for a provider (defaults to 100)."""
 
+    max_consecutive_check_failures: int | None = Field(default=None)
+    """Maximum number of consecutive check failures before failing a batch (defaults to 1000)."""
+
 
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""

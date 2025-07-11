@@ -78,6 +78,7 @@ export type MaxSize = number | null;
 export type SendDelay = number | null;
 export type Tick = number | null;
 export type MaxBatches = number | null;
+export type MaxConsecutiveCheckFailures = number | null;
 export type ModelBaseUrl = string | null;
 export type ModelRoles = {
   [k: string]: EvalModelConfig;
@@ -895,6 +896,7 @@ export interface BatchConfig {
   send_delay: SendDelay;
   tick: Tick;
   max_batches: MaxBatches;
+  max_consecutive_check_failures: MaxConsecutiveCheckFailures;
 }
 export interface ModelArgs {
   [k: string]: unknown;

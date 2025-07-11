@@ -19,7 +19,7 @@ from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 DEFAULT_BATCH_TICK = 15
 DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
 DEFAULT_MAX_BATCHES = 50
-MAX_CONSECUTIVE_CHECK_FAILURES = 1000
+DEFAULT_MAX_CONSECUTIVE_CHECK_FAILURES = 1000
 
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
@@ -73,6 +73,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._send_delay = config.send_delay or DEFAULT_SEND_DELAY
         self._tick = config.tick or DEFAULT_BATCH_TICK
         self._max_batches = config.max_batches or DEFAULT_MAX_BATCHES
+        self._max_consecutive_check_failures = (
+            config.max_consecutive_check_failures
+            or DEFAULT_MAX_CONSECUTIVE_CHECK_FAILURES
+        )
         self._intake_queue: list[BatchRequest[ResponseT]] = []
         self._next_batch: PendingBatch[ResponseT] | None = None
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
@@ -253,9 +257,12 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             print(
                 f"Error {batch.consecutive_check_failure_count} checking batch {batch.id}. Error: {e}"
             )
-            if batch.consecutive_check_failure_count >= MAX_CONSECUTIVE_CHECK_FAILURES:
+            if (
+                batch.consecutive_check_failure_count
+                >= self._max_consecutive_check_failures
+            ):
                 await self._fail_and_cleanup_inflight_batch(
-                    f"{MAX_CONSECUTIVE_CHECK_FAILURES} consecutive check failures",
+                    f"{self._max_consecutive_check_failures} consecutive check failures",
                     batch,
                     e,
                 )
@@ -283,13 +290,45 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+        """Create a new batch.
+
+        This method should submit the batch requests to the model and return a
+        unique identifier for the created batch.
+
+        Args:
+            batch: List of batch requests to be processed together.
+
+        Returns:
+            A unique string identifier for the created batch.
+
+        Raises:
+            Exception: If batch creation fails for any reason.
+        """
         pass
 
     @abstractmethod
     async def _check_batch(
         self, batch: Batch[ResponseT]
     ) -> tuple[int, int, int, (CompletedBatchInfoT | None)]:
-        """Returns the number of completed requests, failed requests, age in seconds, and completed batch info if completed"""
+        """Check the status of a batch.
+
+        This method should query the model to determine the current status of the
+        batch and return information about its progress.
+
+        Args:
+            batch: The batch to check status for.
+
+        Returns:
+            A tuple containing:
+            - Number of completed requests (int)
+            - Number of failed requests (int)
+            - Age of the batch in seconds (int)
+            - Completion info if batch is complete, None otherwise (CompletedBatchInfoT | None)
+
+        Raises:
+            Exception: If checking batch status fails. The caller will handle
+                consecutive failures and may eventually fail the batch.
+        """
         pass
 
     @abstractmethod
@@ -298,6 +337,25 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         batch: Batch[ResponseT],
         completion_info: CompletedBatchInfoT,
     ) -> dict[str, ResponseT | Exception]:
+        """Process the results of a completed batch.
+
+        This method should retrieve and process the results from a completed batch,
+        mapping each request to its corresponding response or error.
+
+        Args:
+            batch: The completed batch to process.
+            completion_info: Provider-specific completion information returned
+                by _check_batch when the batch completed.
+
+        Returns:
+            A dictionary mapping request custom_ids to their responses or exceptions.
+            Each value is either a successful response (ResponseT) or an Exception
+            if that specific request failed.
+
+        Raises:
+            Exception: If processing the batch results fails. This will cause
+                all requests in the batch to fail with this exception.
+        """
         pass
 
 

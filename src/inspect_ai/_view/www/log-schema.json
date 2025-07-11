@@ -259,6 +259,18 @@
           ],
           "default": null,
           "title": "Max Batches"
+        },
+        "max_consecutive_check_failures": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Consecutive Check Failures"
         }
       },
       "title": "BatchConfig",
@@ -268,7 +280,8 @@
         "max_size",
         "send_delay",
         "tick",
-        "max_batches"
+        "max_batches",
+        "max_consecutive_check_failures"
       ],
       "additionalProperties": false
     },
