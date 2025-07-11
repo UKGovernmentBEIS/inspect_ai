@@ -10,7 +10,7 @@ from typing import Any, Callable, Iterator
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 
-from ._file import log_files_from_ls, write_log_dir_manifest
+from ._file import log_files_from_ls, write_log_dir_manifest, write_log_overviews
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -74,7 +74,11 @@ def bundle_log_dir(
 
             # Always regenerate the manifest
             write_log_dir_manifest(view_logs_dir)
-            p.update(25)
+            p.update(15)
+
+            # Write the log overviews
+            write_log_overviews(view_logs_dir)
+            p.update(10)
 
             # update the index html to embed the log_dir
             inject_configuration(
