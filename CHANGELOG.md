@@ -14,6 +14,8 @@
 - Eval Log: Protect against removing excessive numbers of samples at once from realtime database.
 - Hooks: Provide full `EvalSample` (rather than only the summary) to `on_sample_end()` hook.
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
+- Batching: Add robust retry logic using existing retry configuration specified for the model.
+- Batching: Added insight into batch processing progress via the console.
 - Bugfix: Fix failure to allow Anthropic native web search for some model names such as `claude-3-7-sonnet-latest`.
 - Bugfix: Fix Anthropic citation support code when it encounters citations created by external search providers such as Tavily.
 - Bugfix: Break after finding final assistant message when implementing fallback for `AgentState` `output` field.
@@ -21,6 +23,7 @@
 - Bugfix: `None` out `TaskLogger`'s `SampleBufferDatabase` after cleaning it up to avoid crashing on subsequent logging attempts.
 - Bugfix: Disassociate the logger used by batch processing's background task from any particular sample.
 - Bugfix: Improve the compactness and efficiency of eval files with extremely large text user inputs. 
+- Bugfix: Fixed bugs in batch process as the size of a batch approached the model provider's maximum batch size of 256MB.
 
 ## 0.3.112 (03 July 2025)
 
