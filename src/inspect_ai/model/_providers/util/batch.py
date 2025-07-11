@@ -103,7 +103,11 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
         init_transcript(Transcript())
 
-        while self._is_there_work_to_do():
+        while (
+            self._inflight_batches
+            or self._intake_queue
+            or (self._next_batch.requests if self._next_batch else False)
+        ):
             await self._check_inflight_batches()
 
             while await self._process_intake_queue():
@@ -112,18 +116,6 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             await anyio.sleep(self._tick)
 
         self._is_batch_worker_running = False
-
-    # TODO: Delete self._next_batch if it's empty
-    def _is_there_work_to_do(self) -> bool:
-        result = bool(
-            self._inflight_batches
-            or self._intake_queue
-            or (self._next_batch.requests if self._next_batch else False)
-        )
-        # print(
-        #     f"_is_there_work_to_do: {result} inflight batches: {len(self._inflight_batches)} intake queue: {len(self._intake_queue)} _next_batch.requests: {len(self._next_batch.requests) if self._next_batch else 0}"
-        # )
-        return result
 
     async def _check_inflight_batches(self) -> None:
         if self._inflight_batches:
@@ -150,8 +142,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             )
             print(
                 f"Current batches: {len(self._inflight_batches)}, "
-                f"pending/completed/failed requests: {total - completed - failed}/{completed}/{failed}, "
-                f"batch age avg/max: {format_progress_time(avg_age, False)}/{format_progress_time(max_age, False)}"
+                f"requests (pending/completed/failed requests): {total - completed - failed}/{completed}/{failed}, "
+                f"batch age (avg/max): {format_progress_time(avg_age, False)}/{format_progress_time(max_age, False)}"
             )
 
     async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
