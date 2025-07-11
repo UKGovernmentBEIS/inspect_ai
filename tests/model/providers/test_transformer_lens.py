@@ -77,7 +77,7 @@ async def test_transformer_lens_missing_tl_generate_args() -> None:
     with pytest.raises(
         AssertionError, match="tl_generate_args is required in model_args"
     ):
-        get_model("transformer_lens/test-model", **model_args)  # type: ignore
+        get_model("transformer_lens/test-model", **model_args)
 
 
 @pytest.mark.anyio

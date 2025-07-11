@@ -585,6 +585,15 @@ SGLang supports tool use and reasoning; however, the usage is often model depend
 
 ## TransformerLens {#transformer-lens}
 
+::: callout-note
+The Transformer Lens provider is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+
 The [TransformerLens](https://github.com/neelnanda-io/TransformerLens) provider allows you to use `HookedTransformer` models with Inspect.
 
 To use the TransformerLens provider, install the `transformer_lens` package:
@@ -617,7 +626,7 @@ model_args = {
 }
 
 # Use with get_model()
-model = get_model("your-model-name", **model_args)
+model = get_model("transformer_lens/your-model-name", **model_args)
 
 # Or use directly in eval()
 eval("arc.py", model="transformer_lens/your-model-name", model_args=model_args)
