@@ -1,13 +1,12 @@
 import functools
 import json
-import random
 import tempfile
 import time
 from itertools import chain
 from typing import Any, Literal, TypedDict
 
 import httpx
-from openai import AsyncOpenAI, RateLimitError
+from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from tenacity import retry
@@ -79,20 +78,6 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
                     file=temp_file.file,
                     purpose="batch",
                     extra_headers=extra_headers or None,
-                )
-
-            # TODO: DON'T MERGE
-            if random.randint(1, 4) == 1:
-                raise RateLimitError(
-                    "whoops",
-                    body=None,
-                    response=httpx.Response(
-                        status_code=429,
-                        request=httpx.Request(
-                            method="POST",
-                            url="https://api.anthropic.com/v1/messages/batches",
-                        ),
-                    ),
                 )
 
             batch_info = await self._client.batches.create(
