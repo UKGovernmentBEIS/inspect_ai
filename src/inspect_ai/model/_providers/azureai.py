@@ -108,14 +108,31 @@ class AzureAIAPI(ModelAPI):
             not not emulate_tools if emulate_tools is not None else None
         )
 
-        # resolve api_key
+         # resolve api_key or managed identity
+        self.token_provider = None
         if not self.api_key:
             self.api_key = os.environ.get(
                 AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
             )
             if not self.api_key:
-                raise environment_prerequisite_error("AzureAI", AZURE_API_KEY)
-
+                # Try managed identity (Microsoft Entra ID)
+                try:
+                    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+                    self.token_provider = get_bearer_token_provider(
+                        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+                    )
+                except ImportError:
+                    raise environment_prerequisite_error(
+                        "AzureAI", "azure-identity (pip install azure-identity)"
+                    )
+                except Exception as ex:
+                    raise environment_prerequisite_error(
+                        "AzureAI (Managed Identity)", f"Managed identity authentication failed: {ex}"
+                    )
+                if not self.token_provider:
+                    raise environment_prerequisite_error(
+                        "AzureAI", AZURE_API_KEY + " or managed identity (Entra ID)"
+                    )
         # resolve base url
         endpoint_url = model_base_url(
             base_url,
