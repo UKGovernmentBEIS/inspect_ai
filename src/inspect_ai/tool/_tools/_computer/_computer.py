@@ -189,7 +189,7 @@ def _computer_model_input(max_screenshots: int) -> ToolCallModelInput:
         content: str | list[Content],
         hints: ToolCallModelInputHints,
     ) -> str | list[Content]:
-        if hints.get("forbids_computer_screenshot_truncation", False):
+        if hints.get("disable_computer_screenshot_truncation", False):
             return content
 
         # nothing to do for scalars
