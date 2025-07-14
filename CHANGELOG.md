@@ -23,6 +23,7 @@
 - Bugfix: Disassociate the logger used by batch processing's background task from any particular sample.
 - Bugfix: Improve the compactness and efficiency of eval files with extremely large text user inputs. 
 - Bugfix: Fixed bugs in batch process as the size of a batch approached the model provider's maximum batch size of 256MB.
+- Bugfix: Fix regression that allowed computer tool screenshot truncation to occur despite not being valid for OpenAI.
 
 ## 0.3.112 (03 July 2025)
 
