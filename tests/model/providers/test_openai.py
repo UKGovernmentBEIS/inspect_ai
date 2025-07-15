@@ -150,14 +150,15 @@ def test_parse_content_with_internal_valid(s, exp_content, exp_internal):
     assert internal == exp_internal
 
 
+invalid_utf8_bytes = b"\xff\xfe\xfd"
+invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
+
+
 @pytest.mark.parametrize(
     "s,expected_exception",
     [
         # Valid base64 that decodes to invalid UTF-8 (e.g., bytes that are not valid UTF-8)
-        (
-            f"<internal>{base64.b64encode(b'\xff\xfe\xfd').decode('utf-8')}</internal>content",
-            UnicodeDecodeError,
-        ),
+        ("<internal>" + invalid_utf8_b64 + "</internal>content", UnicodeDecodeError),
         # Invalid JSON after base64 decoding
         (
             f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
