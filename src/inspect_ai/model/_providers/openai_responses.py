@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError
 from openai._types import NOT_GIVEN
@@ -14,9 +14,6 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
-    is_computer_use_preview,
-    is_o1_early,
-    is_o_series,
     openai_handle_bad_request,
     openai_media_filter,
 )
@@ -27,6 +24,9 @@ from .._openai_responses import (
     openai_responses_tools,
 )
 from .util.hooks import HttpxHooks
+
+if TYPE_CHECKING:
+    from .openai import OpenAIAPI
 
 logger = getLogger(__name__)
 
@@ -40,6 +40,7 @@ async def generate_responses(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     service_tier: str | None,
+    openai_api: "OpenAIAPI",
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -64,15 +65,15 @@ async def generate_responses(
         else NOT_GIVEN
     )
     request = dict(
-        input=await openai_responses_inputs(input, model_name),
+        input=await openai_responses_inputs(input, openai_api),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
         else NOT_GIVEN,
-        truncation="auto" if is_computer_use_preview(model_name) else NOT_GIVEN,
+        truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(
-            model_name,
+            openai_api,
             config=config,
             service_tier=service_tier,
             tools=len(tools) > 0,
@@ -114,11 +115,11 @@ async def generate_responses(
             ),
         ), model_call()
     except BadRequestError as e:
-        return openai_handle_bad_request(model_name, e), model_call()
+        return openai_handle_bad_request(openai_api.service_model_name(), e), model_call()
 
 
 def completion_params_responses(
-    model_name: str,
+    openai_api: "OpenAIAPI",
     *,
     config: GenerateConfig,
     service_tier: str | None,
@@ -132,7 +133,7 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(model=model_name)
+    params: dict[str, Any] = dict(model=openai_api.service_model_name())
     if service_tier is not None:
         params["service_tier"] = service_tier
     if config.max_tokens is not None:
@@ -148,7 +149,7 @@ def completion_params_responses(
     if config.seed is not None:
         unsupported_warning("seed")
     if config.temperature is not None:
-        if is_o_series(model_name):
+        if openai_api.is_o_series():
             warn_once(
                 logger,
                 "o series models do not support the 'temperature' parameter (temperature is always 1).",
@@ -163,9 +164,9 @@ def completion_params_responses(
         unsupported_warning("logprobs")
     if config.top_logprobs is not None:
         unsupported_warning("top_logprobs")
-    if tools and config.parallel_tool_calls is not None and not is_o_series(model_name):
+    if tools and config.parallel_tool_calls is not None and not openai_api.is_o_series():
         params["parallel_tool_calls"] = config.parallel_tool_calls
-    if is_o_series(model_name) and not is_o1_early(model_name):
+    if openai_api.is_o_series() and not openai_api.is_o1_early():
         reasoning: dict[str, str] = {}
         if config.reasoning_effort is not None:
             reasoning["effort"] = config.reasoning_effort
