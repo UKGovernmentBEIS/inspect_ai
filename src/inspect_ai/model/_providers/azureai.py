@@ -33,6 +33,7 @@ from azure.core.exceptions import (
     HttpResponseError,
     ServiceResponseError,
 )
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
@@ -108,14 +109,32 @@ class AzureAIAPI(ModelAPI):
             not not emulate_tools if emulate_tools is not None else None
         )
 
-        # resolve api_key
+        # resolve api_key or managed identity (for Azure)
+        self.token_provider = None
+        self.api_key = os.environ.get(
+            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
+        )
         if not self.api_key:
-            self.api_key = os.environ.get(
-                AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
+            # try managed identity (Microsoft Entra ID)
+            try:
+                self.token_provider = get_bearer_token_provider(
+                    DefaultAzureCredential(),
+                    "https://cognitiveservices.azure.com/.default",
+                )
+            except Exception as ex:
+                raise environment_prerequisite_error(
+                    "AzureAI (Managed Identity)",
+                    f"Managed identity authentication failed: {ex}",
+                )
+        if not self.api_key and not self.token_provider:
+            raise environment_prerequisite_error(
+                "AzureAI",
+                [
+                    AZURE_API_KEY,
+                    AZUREAI_API_KEY,
+                    "or managed identity (Entra ID)",
+                ],
             )
-            if not self.api_key:
-                raise environment_prerequisite_error("AzureAI", AZURE_API_KEY)
-
         # resolve base url
         endpoint_url = model_base_url(
             base_url,
