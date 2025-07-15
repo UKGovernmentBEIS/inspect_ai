@@ -129,7 +129,7 @@ class OpenAIAPI(ModelAPI):
                     try:
                         self.token_provider = get_bearer_token_provider(
                             DefaultAzureCredential(),
-                            "https://cognitiveservices.azure.com/default",
+                            "https://cognitiveservices.azure.com/.default",
                         )
                     except Exception as ex:
                         raise environment_prerequisite_error(
