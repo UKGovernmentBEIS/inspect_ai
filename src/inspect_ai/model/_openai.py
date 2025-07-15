@@ -283,11 +283,11 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
                 content = f"{content}\n{c.text}"
 
     if message.internal:
-        content = f"{content}\n<internal>{
-            base64.b64encode(json.dumps(message.internal).encode('utf-8')).decode(
-                'utf-8'
+        content = f"""{content}\n<internal>{
+            base64.b64encode(json.dumps(message.internal).encode("utf-8")).decode(
+                "utf-8"
             )
-        }</internal>\n"
+        }</internal>\n"""
     return content
 
 
@@ -415,7 +415,7 @@ def chat_messages_from_openai(
                 # we could be transforming from OpenAI choices to Inspect for agent
                 # bridge scenarios where a different model (that does use .internal)
                 # is the actual model being used.
-                asst_content, internal = parse_content_with_internal(asst_content)
+                asst_content, internal = _parse_content_with_internal(asst_content)
                 result = parse_content_with_reasoning(asst_content)
                 if result is not None:
                     content = [
@@ -714,7 +714,7 @@ class OpenAIAsyncHttpxClient(httpx.AsyncClient):
         super().__init__(**kwargs)
 
 
-def parse_content_with_internal(
+def _parse_content_with_internal(
     content: str,
 ) -> tuple[str, JsonValue | None]:
     """
@@ -732,16 +732,18 @@ def parse_content_with_internal(
     Returns:
         tuple[str, JsonValue | None]:
             - The content string with the <internal>...</internal> tag removed (if present), otherwise the original string.
-            - The decoded and parsed internal value (if present and valid), otherwise None.
-    """
-    content_text = content
+            - The decoded and parsed internal value (if present), otherwise None.
 
+    Raises:
+        json.JSONDecodeError: If the content of the <internal> tag is not valid JSON after decoding.
+        UnicodeDecodeError: If the content of the <internal> tag is not valid UTF-8 after base64 decoding.
+    """
     internal_pattern = r"<internal>(.*?)</internal>"
-    internal_match = re.search(r"<internal>(.*?)</internal>", content_text, re.DOTALL)
+    internal_match = re.search(r"<internal>(.*?)</internal>", content, re.DOTALL)
 
     return (
         (
-            re.sub(internal_pattern, "", content_text, flags=re.DOTALL).strip(),
+            re.sub(internal_pattern, "", content, flags=re.DOTALL).strip(),
             json.loads(base64.b64decode(internal_match.group(1)).decode("utf-8")),
         )
         if internal_match

@@ -25,6 +25,7 @@
 - Bugfix: Fixed bugs in batch process as the size of a batch approached the model provider's maximum batch size of 256MB.
 - Bugfix: Fix regression that allowed computer tool screenshot truncation to occur despite not being valid for OpenAI.
 - Bugfix: Fix agent bridge scenarios that failed when used with reasoning models.
+- Bugfix: Fix cases where <think> blocks are dropped in OpenAI choices because they are not at the front of text content. 
 
 ## 0.3.112 (03 July 2025)
 
