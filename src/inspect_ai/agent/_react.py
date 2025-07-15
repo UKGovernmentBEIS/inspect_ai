@@ -22,8 +22,8 @@ from ._agent import Agent, AgentState, agent, agent_with
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
-    DEFAULT_CONTINUE_PROMOT_NO_SUBMIT,
     DEFAULT_CONTINUE_PROMPT,
+    DEFAULT_CONTINUE_PROMPT_NO_SUBMIT,
     AgentAttempts,
     AgentContinue,
     AgentPrompt,
@@ -267,10 +267,11 @@ def react(
                         )
                     )
 
-            # once we are complete, remove submit tool calls from the history
-            # (as they will potentially confuse parent agents who also have
-            # their own submit tools that they are 'watching' for)
-            state.messages = _remove_submit_tool(state.messages, submit_tool.name)
+            if not submit.keep_in_messages:
+                # once we are complete, remove submit tool calls from the history
+                # (as they will potentially confuse parent agents who also have
+                # their own submit tools that they are 'watching' for)
+                state.messages = _remove_submit_tool(state.messages, submit_tool.name)
             return state
 
     return _resolve_agent(execute, name, description)
@@ -329,7 +330,7 @@ def react_no_submit(
                         if not state.output.message.tool_calls:
                             state.messages.append(
                                 ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMOT_NO_SUBMIT
+                                    content=DEFAULT_CONTINUE_PROMPT_NO_SUBMIT
                                 )
                             )
                     elif isinstance(do_continue, str):

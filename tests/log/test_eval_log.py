@@ -13,7 +13,6 @@ from inspect_ai.log import read_eval_log
 from inspect_ai.log._file import read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import (
-    BaseEvent,
     ModelEvent,
     SandboxEvent,
     SubtaskEvent,
@@ -103,23 +102,25 @@ def test_read_sample():
         assert sample.target == " Yes"
 
 
+def test_read_sample_by_uuid():
+    log_files = [
+        os.path.join("tests", "log", "test_eval_log", file)
+        for file in ["log_read_sample.json", "log_read_sample.eval"]
+    ]
+    for log_file in log_files:
+        sampleA = read_eval_log_sample(log_file, id=1, epoch=1)
+        sampleB = read_eval_log_sample(log_file, uuid=sampleA.uuid)
+        assert sampleA.id == sampleB.id
+        assert sampleA.epoch == sampleB.epoch
+        assert sampleA.uuid == sampleB.uuid
+        assert sampleA.input == sampleB.input
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)
     eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
     check_log_location(eval_log_file)
-
-
-def resolve_deserialized_event(
-    original: BaseEvent, deserialized: BaseEvent
-) -> BaseEvent:
-    # The id_ field is not serialized, so a new id will be assigned
-    # each time we create a new event. This forces the ids to be
-    # identical since the comparison is meaningless since the value is
-    # never serialized.
-
-    deserialized.id_ = original.id_
-    return deserialized
 
 
 def test_can_round_trip_serialize_model_event():
@@ -140,7 +141,6 @@ def test_can_round_trip_serialize_model_event():
 
     serialized = original.model_dump_json()
     deserialized = ModelEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -152,7 +152,6 @@ def test_can_round_trip_serialize_tool_event():
 
     serialized = original.model_dump_json()
     deserialized = ToolEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -162,7 +161,6 @@ def test_can_round_trip_serialize_sandbox_event():
 
     serialized = original.model_dump_json()
     deserialized = SandboxEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -172,7 +170,6 @@ def test_can_round_trip_serialize_subtask_event():
 
     serialized = original.model_dump_json()
     deserialized = SubtaskEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 

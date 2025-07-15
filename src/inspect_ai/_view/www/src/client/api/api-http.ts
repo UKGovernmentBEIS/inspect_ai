@@ -8,6 +8,7 @@ import {
   LogContents,
   LogFiles,
   LogFilesFetchResponse,
+  LogOverview,
   LogViewAPI,
 } from "./types";
 
@@ -39,6 +40,22 @@ export default function simpleHttpApi(
  */
 function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
   const log_dir = logInfo.log_dir;
+  let manifest: Record<string, LogOverview> | undefined = undefined;
+  let manifestPromise: Promise<Record<string, LogOverview>> | undefined =
+    undefined;
+
+  const getManifest = async (): Promise<Record<string, LogOverview>> => {
+    if (!manifest && log_dir) {
+      if (!manifestPromise) {
+        manifestPromise = fetchManifest(log_dir).then((manifestRaw) => {
+          manifest = manifestRaw?.parsed || {};
+          return manifest;
+        });
+      }
+      await manifestPromise;
+    }
+    return manifest || {};
+  };
 
   async function open_log_file() {
     // No op
@@ -52,14 +69,13 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     eval_logs: async (): Promise<LogFiles | undefined> => {
       // First check based upon the log dir
       if (log_dir) {
-        const headers = await fetchLogHeaders(log_dir);
-        if (headers) {
-          const logRecord = headers.parsed;
-          const logs = Object.keys(logRecord).map((key) => {
+        const manifest = await getManifest();
+        if (manifest) {
+          const logs = Object.keys(manifest).map((key) => {
             return {
               name: joinURI(log_dir, key),
-              task: logRecord[key].eval.task,
-              task_id: logRecord[key].eval.task_id,
+              task: manifest[key].task,
+              task_id: manifest[key].task_id,
             };
           });
           return Promise.resolve({
@@ -92,22 +108,36 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     eval_log_bytes: async (log_file: string, start: number, end: number) => {
       return await fetchRange(log_file, start, end);
     },
-    eval_log_headers: async (files: string[]) => {
+    eval_log_overview: async (log_file: string) => {
+      const manifest = await getManifest();
+      if (manifest) {
+        const manifestAbs: Record<string, LogOverview> = {};
+        Object.keys(manifest).forEach((key) => {
+          manifestAbs[joinURI(log_dir || "", key)] = manifest[key];
+        });
+        const header = manifestAbs[log_file];
+        if (header) {
+          return header;
+        }
+      }
+      throw new Error(`Unable to load eval log header for ${log_file}`);
+    },
+    eval_log_overviews: async (files: string[]) => {
       if (files.length === 0) {
         return [];
       }
 
       if (log_dir) {
-        const headers = await fetchLogHeaders(log_dir);
-        if (headers) {
-          const keys = Object.keys(headers.parsed);
-          const result: EvalLog[] = [];
+        const manifest = await getManifest();
+        if (manifest) {
+          const keys = Object.keys(manifest);
+          const result: LogOverview[] = [];
           files.forEach((file) => {
             const fileKey = keys.find((key) => {
               return file.endsWith(key);
             });
             if (fileKey) {
-              result.push(headers.parsed[fileKey]);
+              result.push(manifest[fileKey]);
             }
           });
           return result;
@@ -116,7 +146,7 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
 
       // No log.json could be found, and there isn't a log file,
       throw new Error(
-        `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`,
+        `Failed to load a listing file using the directory: ${log_dir}. Please be sure you have deployed a manifest file (listing.json).`,
       );
     },
     download_file,
@@ -184,11 +214,11 @@ const fetchLogFile = async (file: string): Promise<LogContents | undefined> => {
 /**
  * Fetches a log file and parses its content, updating the log structure if necessary.
  */
-const fetchLogHeaders = async (
+const fetchManifest = async (
   log_dir: string,
 ): Promise<LogFilesFetchResponse | undefined> => {
   const logs = await fetchFile<LogFilesFetchResponse>(
-    log_dir + "/logs.json",
+    log_dir + "/listing.json",
     async (text) => {
       const parsed = await asyncJsonParse(text);
       return {

@@ -310,7 +310,7 @@ const browserApi: LogViewAPI = {
   eval_log,
   eval_log_size,
   eval_log_bytes,
-  eval_log_headers,
+  eval_log_overviews: eval_log_headers,
   log_message,
   download_file,
 

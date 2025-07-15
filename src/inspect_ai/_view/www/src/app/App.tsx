@@ -52,25 +52,39 @@ export const App: FC<AppProps> = ({ api }) => {
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
-      if (selectedLogFile && selectedLogFile !== loadedLogFile) {
-        try {
-          // Set loading first and wait for it to update
-          setAppStatus({ loading: true, error: undefined });
+      // Ignore if there is no log file.
+      if (!selectedLogFile) {
+        return;
+      }
 
-          // Then load the log
-          await loadLog(selectedLogFile);
+      if (selectedLogFile === loadedLogFile && selectedLogSummary) {
+        // The load is already loaded and we have the data
+        return;
+      }
 
-          // Finally set loading to false
-          setAppStatus({ loading: false, error: undefined });
-        } catch (e) {
-          console.log(e);
-          setAppStatus({ loading: false, error: e as Error });
-        }
+      try {
+        // Set loading first and wait for it to update
+        setAppStatus({ loading: true, error: undefined });
+
+        // Then load the log
+        await loadLog(selectedLogFile);
+
+        // Finally set loading to false
+        setAppStatus({ loading: false, error: undefined });
+      } catch (e) {
+        console.log(e);
+        setAppStatus({ loading: false, error: e as Error });
       }
     };
 
     loadSpecificLog();
-  }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus]);
+  }, [
+    selectedLogFile,
+    loadedLogFile,
+    selectedLogSummary,
+    loadLog,
+    setAppStatus,
+  ]);
 
   useEffect(() => {
     // If the component re-mounts and there is a running load loaded

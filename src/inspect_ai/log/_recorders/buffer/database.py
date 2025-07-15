@@ -7,11 +7,12 @@ import time
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
-from sqlite3 import Connection
+from sqlite3 import Connection, OperationalError
 from typing import Callable, Iterator, Literal
 
 import psutil
 from pydantic import BaseModel
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
@@ -163,7 +164,7 @@ class SampleBufferDatabase(SampleBuffer):
                 event = self._consense_event(conn, event)
                 values.extend(
                     (
-                        event.event.id_,
+                        event.event.uuid or uuid(),
                         str(event.id),
                         event.epoch,
                         to_json_str_safe(event.event),
@@ -209,29 +210,36 @@ class SampleBufferDatabase(SampleBuffer):
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
             try:
-                # Build a query using individual column comparisons instead of row values
-                placeholders = " OR ".join(
-                    ["(sample_id=? AND sample_epoch=?)" for _ in samples]
-                )
+                BATCH_SIZE = 100
+                for i in range(0, len(samples), BATCH_SIZE):
+                    # Slice out the batch
+                    batch = samples[i : i + BATCH_SIZE]
 
-                # Flatten parameters for binding
-                parameters = [item for tup in samples for item in tup]
+                    # Build a query using individual column comparisons instead of row values
+                    placeholders = " OR ".join(
+                        ["(sample_id=? AND sample_epoch=?)" for _ in batch]
+                    )
 
-                # Delete associated events first
-                events_query = f"""
-                    DELETE FROM events
-                    WHERE {placeholders}
-                """
-                cursor.execute(events_query, parameters)
+                    # Flatten parameters for binding
+                    parameters = [item for tup in batch for item in tup]
 
-                # Then delete the samples using the same approach
-                placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in samples])
+                    # Delete associated events first
+                    events_query = f"""
+                        DELETE FROM events
+                        WHERE {placeholders}
+                    """
+                    cursor.execute(events_query, parameters)
 
-                samples_query = f"""
-                    DELETE FROM samples
-                    WHERE {placeholders}
-                """
-                cursor.execute(samples_query, parameters)
+                    # Then delete the samples using the same approach
+                    placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in batch])
+
+                    samples_query = f"""
+                        DELETE FROM samples
+                        WHERE {placeholders}
+                    """
+                    cursor.execute(samples_query, parameters)
+            except OperationalError as ex:
+                logger.warning(f"Unexpcted error cleaning up samples: {ex}")
             finally:
                 cursor.close()
 
@@ -247,7 +255,7 @@ class SampleBufferDatabase(SampleBuffer):
         db_dir = resolve_db_dir() / log_subdir
 
         if db_dir.exists():
-            logs = [log.name.rsplit(".", 2)[0] for log in db_dir.glob("*.*.db")]
+            logs = [log.name.rsplit(".", 2)[0] for log in db_dir.rglob("*.*.db")]
             return logs
         else:
             return None
@@ -694,7 +702,7 @@ def maximum_ids(
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
     try:
         db_dir = resolve_db_dir(db_dir)
-        for db in db_dir.glob("*.*.db"):
+        for db in db_dir.rglob("*.*.db"):
             # this is a failsafe cleanup method for buffer db's leaked during
             # abnormal terminations. therefore, it's not critical that we clean
             # it up immediately. it's also possible that users are _sharing_
@@ -714,6 +722,12 @@ def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
 def cleanup_sample_buffer_db(path: Path) -> None:
     try:
         path.unlink(missing_ok=True)
+        try:
+            # Remove the directory if it's empty
+            path.parent.rmdir()
+        except OSError:
+            # Not empty or other error, which is fine
+            pass
     except Exception as ex:
         logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
 

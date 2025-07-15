@@ -301,7 +301,7 @@ def test_mistral_tool_types() -> None:
 
 # @skip_if_no_grok
 # def test_grok_tool_types() -> None:
-#     check_tool_types("grok/grok-beta")
+#     check_tool_types("grok/grok-3-mini")
 
 
 # @skip_if_no_groq

@@ -118,14 +118,14 @@ class HuggingFaceAPI(ModelAPI):
 
         # tokenizer
         if tokenizer:
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)  # type: ignore[no-untyped-call]
         elif model_path:
             if tokenizer_path:
-                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)  # type: ignore[no-untyped-call]
             else:
-                self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path)  # type: ignore[no-untyped-call]
         else:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)  # type: ignore[no-untyped-call]
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"

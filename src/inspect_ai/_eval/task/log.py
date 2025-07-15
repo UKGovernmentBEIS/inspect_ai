@@ -234,7 +234,7 @@ class TaskLogger:
 
     async def log_finish(
         self,
-        status: Literal["success", "cancelled", "error"],
+        status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None = None,
         reductions: list[EvalSampleReductions] | None = None,
@@ -248,6 +248,7 @@ class TaskLogger:
         # cleanup the events db
         if self._buffer_db is not None:
             self._buffer_db.cleanup()
+            self._buffer_db = None
 
         # return log
         return log

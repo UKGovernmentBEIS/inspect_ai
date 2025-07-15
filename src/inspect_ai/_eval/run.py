@@ -70,6 +70,7 @@ async def eval_run(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     debug_errors: bool = False,
+    run_samples: bool = True,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -95,7 +96,7 @@ async def eval_run(
 
     # run startup pass for the sandbox environments
     shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
-    if has_sandbox:
+    if has_sandbox and run_samples:
         cleanup = eval_config.sandbox_cleanup is not False
         shutdown_sandbox_environments = await startup_sandbox_environments(
             resolve_sandbox_environment(eval_sandbox), tasks, eval_config, cleanup
@@ -233,6 +234,7 @@ async def eval_run(
                         config=task_eval_config,
                         solver=eval_solver,
                         tags=tags,
+                        run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,

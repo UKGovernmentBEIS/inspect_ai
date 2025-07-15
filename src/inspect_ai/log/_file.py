@@ -4,11 +4,15 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Callable, Generator, Literal
 
-from pydantic import BaseModel
+from pydantic import (
+    BaseModel,
+    Field,
+)
 from pydantic_core import to_json
 
 from inspect_ai._util._async import current_async_backend, run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
     file,
@@ -18,7 +22,7 @@ from inspect_ai._util.json import jsonable_python
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 
-from ._log import EvalLog, EvalSample
+from ._log import EvalLog, EvalMetric, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
 
 logger = getLogger(__name__)
@@ -47,6 +51,28 @@ class EvalLogInfo(BaseModel):
 
     suffix: str | None
     """Log file suffix (e.g. "-scored")"""
+
+
+class LogOverview(BaseModel):
+    """The log overview is a thinned manifest summarizing an evaluation log"""
+
+    eval_id: str
+    run_id: str
+
+    task: str
+    task_id: str
+    task_version: int | str
+
+    version: int
+    status: Literal["started", "success", "cancelled", "error"]
+    error: EvalError | None = Field(default=None)
+
+    model: str
+
+    started_at: str
+    completed_at: str
+
+    primary_metric: EvalMetric | None = Field(default=None)
 
 
 def list_eval_logs(
@@ -191,6 +217,8 @@ def write_log_dir_manifest(
     # resolve to manifest (make filenames relative to the log dir)
     names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
     headers = read_eval_log_headers(logs)
+
+    headers[0].reductions = None
     manifest_logs = dict(zip(names, headers))
 
     # form target path and write
@@ -317,8 +345,9 @@ async def read_eval_log_headers_async(
 
 def read_eval_log_sample(
     log_file: str | Path | EvalLogInfo,
-    id: int | str,
+    id: int | str | None = None,
     epoch: int = 1,
+    uuid: str | None = None,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
@@ -326,8 +355,11 @@ def read_eval_log_sample(
 
     Args:
        log_file (str | FileInfo): Log file to read.
-       id (int | str): Sample id to read.
+       id (int | str): Sample id to read. Optional, alternatively
+         specify `uuid` (you must specify `id` or `uuid`)
        epoch (int): Epoch for sample id (defaults to 1)
+       uuid: Sample uuid to read. Optional, alternatively specify
+         `id` and `epoch` (you must specify either `uuid` or `id`)
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -348,14 +380,17 @@ def read_eval_log_sample(
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
     return run_coroutine(
-        read_eval_log_sample_async(log_file, id, epoch, resolve_attachments, format)
+        read_eval_log_sample_async(
+            log_file, id, epoch, uuid, resolve_attachments, format
+        )
     )
 
 
 async def read_eval_log_sample_async(
     log_file: str | Path | EvalLogInfo,
-    id: int | str,
+    id: int | str | None = None,
     epoch: int = 1,
+    uuid: str | None = None,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
@@ -365,6 +400,7 @@ async def read_eval_log_sample_async(
        log_file (str | FileInfo): Log file to read.
        id (int | str): Sample id to read.
        epoch (int): Epoch for sample id (defaults to 1)
+       uuid: Sample uuid to read.
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -385,11 +421,17 @@ async def read_eval_log_sample_async(
         else log_file.name
     )
 
+    # validate that either id or uuid is passed
+    if id is None and uuid is None:
+        raise ValueError(
+            "You must specify either a sample 'id' and 'epoch' or a sample 'uuid'"
+        )
+
     if format == "auto":
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    sample = await recorder_type.read_log_sample(log_file, id, epoch)
+    sample = await recorder_type.read_log_sample(log_file, id, epoch, uuid)
 
     if resolve_attachments:
         sample = resolve_sample_attachments(sample)
@@ -607,3 +649,76 @@ def eval_log_json(log: EvalLog) -> bytes:
 
 def eval_log_json_str(log: EvalLog) -> str:
     return eval_log_json(log).decode()
+
+
+def write_log_listing(
+    log_dir: str,
+    *,
+    filename: str = "listing.json",
+    output_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    """Write a listing file for a log directory.
+
+    A listing file is a thinned manifest summarizing the logs in the directory (but with much less information than a full manifest of headers).
+
+    Args:
+      log_dir (str): Log directory to write overview for.
+      filename (str): Manifest filename (defaults to "overview.json")
+      output_dir (str | None): Output directory for manifest (defaults to log_dir)
+      fs_options (dict[str,Any]): Optional. Additional arguments to pass through
+        to the filesystem provider (e.g. `S3FileSystem`).
+    """
+    # resolve log dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
+
+    # list eval logs
+    logs = list_eval_logs(log_dir)
+
+    # resolve to overview (make filenames relative to the log dir)
+    names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
+    headers = read_eval_log_headers(logs)
+    overviews = [to_overview(header) for header in headers]
+
+    file_overviews = dict(zip(names, overviews))
+
+    # form target path and write
+    output_dir = output_dir or log_dir
+    fs = filesystem(output_dir)
+    manifest = f"{output_dir}{fs.sep}{filename}"
+    manifest_json = to_json(
+        value=jsonable_python(file_overviews),
+        indent=2,
+        exclude_none=True,
+        fallback=lambda _x: None,
+    )
+    with file(manifest, mode="wb", fs_options=fs_options) as f:
+        f.write(manifest_json)
+
+
+def to_overview(header: EvalLog) -> LogOverview:
+    """Convert an EvalLog header to a thinned overview."""
+    # Get the primary metric if it exists
+    primary_metric: EvalMetric | None = None
+    if (
+        header.results is not None
+        and header.results.scores
+        and (first_scorer := header.results.scores[0]).metrics
+    ):
+        primary_metric = next(iter(first_scorer.metrics.values()))
+
+    return LogOverview(
+        eval_id=header.eval.eval_id,
+        run_id=header.eval.run_id,
+        task=header.eval.task,
+        task_id=header.eval.task_id,
+        task_version=header.eval.task_version,
+        version=header.version,
+        status=header.status,
+        error=header.error,
+        model=header.eval.model,
+        started_at=header.stats.started_at,
+        completed_at=header.stats.completed_at,
+        primary_metric=primary_metric,
+    )

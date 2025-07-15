@@ -97,6 +97,8 @@ const collapseSampleInit = (events: Events): Events => {
     pending: false,
     working_start: 0,
     span_id: initEvent.span_id,
+    uuid: null,
+    metadata: null,
   });
 
   fixedUp.splice(initEventIndex + 2, 0, {
@@ -108,6 +110,8 @@ const collapseSampleInit = (events: Events): Events => {
     pending: false,
     working_start: 0,
     span_id: initEvent.span_id,
+    uuid: null,
+    metadata: null,
   });
   return fixedUp;
 };
@@ -172,6 +176,8 @@ const createStepEvent = (
   pending: false,
   working_start: 0,
   span_id: null,
+  uuid: null,
+  metadata: null,
 });
 
 const createSpanBegin = (
@@ -189,6 +195,8 @@ const createSpanBegin = (
     type: null,
     pending: false,
     working_start: 0,
+    uuid: null,
+    metadata: null,
   };
 };
 
@@ -200,5 +208,7 @@ const createSpanEnd = (name: string, timestamp: string): SpanEndEvent => {
     pending: false,
     working_start: 0,
     span_id: name,
+    uuid: null,
+    metadata: null,
   };
 };

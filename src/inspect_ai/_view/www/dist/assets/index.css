@@ -20710,6 +20710,11 @@ thead th {
 ._tableSeparator_12koy_45 th {
   border: none !important;
 }
+._unscoredSamples_1h85z_1 {
+  margin-left: 0.2rem;
+  margin-right: 0.2rem;
+  cursor: pointer;
+}
 ._statusContainer_1sckj_1 {
   display: inline-block;
   margin-top: 0.3em;

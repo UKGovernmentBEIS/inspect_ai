@@ -35,8 +35,8 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
 
   const { loadLogs } = useLogs();
   const logs = useStore((state) => state.logs.logs);
-  const logHeaders = useStore((state) => state.logs.logHeaders);
-  const headersLoading = useStore((state) => state.logs.headersLoading);
+  const logHeaders = useStore((state) => state.logs.logOverviews);
+  const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
 
   // Unload the load when this is mounted. This prevents the old log
@@ -117,7 +117,7 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
           type: "file",
           url: logUrl(path, logs.log_dir),
           logFile: logFile,
-          header: logHeaders[logFile.name],
+          logOverview: logHeaders[logFile.name],
         });
       } else if (name.startsWith(currentDir)) {
         // This is file that is next level (or deeper) child

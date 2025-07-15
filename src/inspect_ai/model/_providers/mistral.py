@@ -6,6 +6,7 @@ from typing import Any, Literal
 from mistralai import (
     ContentChunk,
     DocumentURLChunk,
+    FileChunk,
     FunctionCall,
     FunctionName,
     ImageURL,
@@ -504,6 +505,8 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
             return [ContentText(text=content.text)]
     elif isinstance(content, DocumentURLChunk):
         return [ContentText(text=content.document_url)]
+    elif isinstance(content, FileChunk):
+        return [ContentText(text=f"file: {content.file_id}")]
     else:
         if isinstance(content.image_url, str):
             return [ContentImage(image=content.image_url)]

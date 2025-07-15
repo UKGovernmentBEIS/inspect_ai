@@ -31,7 +31,7 @@ async def test_openai_num_choices() -> None:
 
 @skip_if_no_grok
 async def test_grok_num_choices() -> None:
-    await check_num_choices("grok/grok-beta")
+    await check_num_choices("grok/grok-3-mini")
 
 
 @pytest.mark.anyio

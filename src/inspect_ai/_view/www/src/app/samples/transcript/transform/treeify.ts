@@ -113,6 +113,8 @@ const injectScorersSpan = (events: Events): Events => {
         working_start: collectedScorerEvents[0].working_start,
         pending: false,
         parent_id: null,
+        uuid: null,
+        metadata: null,
       };
 
       const scoreEvents: Events = collectedScorerEvents.map((event) => {
@@ -134,6 +136,8 @@ const injectScorersSpan = (events: Events): Events => {
           collectedScorerEvents[collectedScorerEvents.length - 1].working_start,
         timestamp:
           collectedScorerEvents[collectedScorerEvents.length - 1].timestamp,
+        uuid: null,
+        metadata: null,
       };
 
       collectedScorerEvents.length = 0;

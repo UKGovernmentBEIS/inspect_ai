@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from openai import (
     AsyncAzureOpenAI,
@@ -16,14 +16,16 @@ from typing_extensions import override
 from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
+from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
@@ -45,6 +47,7 @@ from .._openai import (
     openai_should_retry,
 )
 from .._openai_responses import is_native_tool_configured
+from ._openai_batch import OpenAIBatcher
 from .openai_o1 import generate_o1
 from .util import environment_prerequisite_error, model_base_url
 
@@ -53,6 +56,7 @@ logger = getLogger(__name__)
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
+
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
 
@@ -210,6 +214,8 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
+        self._batcher: OpenAIBatcher | None = None
+
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
 
@@ -247,16 +253,9 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        # o1-pro, o1, and computer_use_preview support image inputs
+        # computer_use_preview supports tool calls returning images
         if self.is_computer_use_preview():
             return True
-        elif self.is_o_series():
-            if self.is_o1_early():
-                return False
-            elif self.is_o3_mini():
-                return False
-            else:
-                return True
         else:
             return False
 
@@ -345,10 +344,7 @@ class OpenAIAPI(ModelAPI):
         )
 
         try:
-            # generate completion
-            completion: ChatCompletion = await self.client.chat.completions.create(
-                **request
-            )
+            completion: ChatCompletion = await self._get_completion(request, config)
 
             # save response for model_call
             response = completion.model_dump()
@@ -359,12 +355,39 @@ class OpenAIAPI(ModelAPI):
         except (BadRequestError, UnprocessableEntityError) as e:
             return openai_handle_bad_request(self.service_model_name(), e), model_call()
 
+    async def _get_completion(
+        self, request: dict[str, Any], config: GenerateConfig
+    ) -> ChatCompletion:
+        # TODO: Bogus that we have to do this on each call. Ideally, it would be
+        # done only once and ideally by non-provider specific code.
+        batch_config = normalized_batch_config(config.batch)
+        if batch_config:
+            if not self._batcher:
+                self._batcher = OpenAIBatcher(
+                    self.client,
+                    batch_config,
+                    # TODO: In the future, we could pass max_retries and timeout
+                    # from batch_config falling back to config
+                    model_retry_config(
+                        self.model_name,
+                        config.max_retries,
+                        config.timeout,
+                        self.should_retry,
+                        log_model_retry,
+                    ),
+                )
+            return await self._batcher.generate(request, config)
+        else:
+            return cast(
+                ChatCompletion, await self.client.chat.completions.create(**request)
+            )
+
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
             # The quota exceeded one is related to monthly account quotas.

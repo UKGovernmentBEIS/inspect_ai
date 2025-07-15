@@ -129,6 +129,8 @@ class OpenAICompatibleAPI(ModelAPI):
                 time=self._http_hooks.end_request(request_id),
             )
 
+        tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
+
         # get completion params (slice off service from model name)
         completion_params = self.completion_params(
             config=config,
@@ -160,6 +162,12 @@ class OpenAICompatibleAPI(ModelAPI):
 
         except (BadRequestError, UnprocessableEntityError, PermissionDeniedError) as ex:
             return self.handle_bad_request(ex), model_call()
+
+    def resolve_tools(
+        self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
+    ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
+        """Provides an opportunity for concrete classes to customize tool resolution."""
+        return tools, tool_choice, config
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""

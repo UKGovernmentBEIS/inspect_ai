@@ -51,12 +51,8 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
-    model_config = {
-        "json_schema_extra": lambda schema: schema.get("properties", {}).pop(
-            "id_", None
-        )
-    }
-    id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
+    uuid: str | None = Field(default=None)
+    """Unique identifer for event."""
 
     span_id: str | None = Field(default=None)
     """Span the event occurred within."""
@@ -67,6 +63,9 @@ class BaseEvent(BaseModel):
     working_start: float = Field(default_factory=sample_working_time)
     """Working time (within sample) at which the event occurred."""
 
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional event metadata."""
+
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
 
@@ -76,8 +75,10 @@ class BaseEvent(BaseModel):
             DESERIALIZING, False
         )
 
-        # Generate context id fields if not deserializing
+        # Generate id fields if not deserializing
         if not is_deserializing:
+            if self.uuid is None:
+                self.uuid = uuid()
             if self.span_id is None:
                 self.span_id = current_span_id()
 
@@ -241,6 +242,9 @@ class ToolEvent(BaseEvent):
     failed: bool | None = Field(default=None)
     """Did the tool call fail with a hard error?."""
 
+    message_id: str | None = Field(default=None)
+    """Id of ChatMessageTool associated with this event."""
+
     def _set_result(
         self,
         result: ToolResult,
@@ -249,6 +253,7 @@ class ToolEvent(BaseEvent):
         waiting_time: float,
         agent: str | None,
         failed: bool | None,
+        message_id: str | None,
     ) -> None:
         self.result = result
         self.truncated = truncated
@@ -259,6 +264,7 @@ class ToolEvent(BaseEvent):
         self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
         self.agent = agent
         self.failed = failed
+        self.message_id = message_id
 
     # mechanism for operator to cancel the tool call
 

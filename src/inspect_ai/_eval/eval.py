@@ -110,6 +110,7 @@ def eval(
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
+    run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -188,6 +189,8 @@ def eval(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         log_header_only: If `True`, the function should return only log headers rather
             than full logs with samples (defaults to `False`).
+        run_samples: Run samples. If `False`, a log with `status=="started"` and an
+            empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -200,7 +203,7 @@ def eval(
 
     # resolve eval trace
     max_tasks, max_samples = init_eval_display(
-        display, trace, max_tasks, max_samples, model
+        display, trace, max_tasks, max_samples, model, run_samples
     )
 
     async def run_task_app() -> list[EvalLog]:
@@ -242,6 +245,7 @@ def eval(
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
+                run_samples=run_samples,
                 score=score,
                 score_display=score_display,
                 **kwargs,
@@ -297,6 +301,7 @@ async def eval_async(
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
+    run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -356,6 +361,8 @@ async def eval_async(
         log_shared: Indicate that the log directory is shared, which results in additional
         syncing of realtime log data for Inspect View.
         log_header_only: If `True`, the function should return only log headers rather than full logs with samples (defaults to `False`).
+        run_samples: Run samples. If `False`, a log with `status=="started"` and an
+           empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -406,6 +413,7 @@ async def eval_async(
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
+                run_samples=run_samples,
                 score=score,
                 score_display=score_display,
                 **kwargs,
@@ -465,10 +473,13 @@ async def _eval_async_inner(
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
+    run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
+    from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
+
     # only a single call to eval_async can be active at a time, this used
     # to be due to running tasks switching to the task's directory, however
     # that feature no longer exists so we may be able to revisit this
@@ -487,6 +498,8 @@ async def _eval_async_inner(
     # resolve model and task args
     model_args = resolve_args(model_args)
     task_args = resolve_args(task_args)
+
+    run_id = uuid()
 
     try:
         # intialise eval
@@ -609,9 +622,10 @@ async def _eval_async_inner(
         # run tasks - 2 codepaths, one for the traditional task at a time
         # (w/ optional multiple models) and the other for true multi-task
         # (which requires different scheduling and UI)
-        run_id = uuid()
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
+
+        await emit_run_start(run_id, resolved_tasks)
 
         # single task definition (could be multi-model) or max_tasks capped to 1
         if parallel == 1:
@@ -633,6 +647,7 @@ async def _eval_async_inner(
                         solver=solver,
                         tags=tags,
                         metadata=metadata,
+                        run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
                         **kwargs,
@@ -659,6 +674,7 @@ async def _eval_async_inner(
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
+                run_samples=run_samples,
                 score=score,
                 **kwargs,
             )
@@ -668,6 +684,10 @@ async def _eval_async_inner(
         cleanup_sample_buffers(log_dir)
 
     finally:
+        try:
+            await emit_run_end(run_id, logs)
+        except UnboundLocalError:
+            await emit_run_end(run_id, EvalLogs([]))
         _eval_async_running = False
 
     # return logs
@@ -1100,6 +1120,7 @@ def init_eval_display(
     max_tasks: int | None,
     max_samples: int | None,
     model: Any = None,
+    run_samples: bool = True,
 ) -> tuple[int | None, int | None]:
     # propagate any trace value to display_type
     if trace:
@@ -1110,7 +1131,10 @@ def init_eval_display(
         display = "conversation"
 
     # apply default and init
-    display = display or display_type()
+    if not run_samples:
+        display = "none"
+    else:
+        display = display or display_type()
     init_display_type(display)
 
     # adapt task/samples as required if we are in conversation mode

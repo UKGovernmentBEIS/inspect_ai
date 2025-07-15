@@ -60,18 +60,20 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
-from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._generate_config import GenerateConfig, normalized_batch_config
+from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
+from ._anthropic_batch import AnthropicBatcher
 from .util import environment_prerequisite_error, model_base_url
 from .util.hooks import HttpxHooks
 
@@ -80,14 +82,6 @@ logger = getLogger(__name__)
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
-
-WEB_SEARCH_COMPATIBLE_MODELS = [
-    "claude-opus-4-20250514",
-    "claude-sonnet-4-20250514",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-5-sonnet-latest",
-    "claude-3-5-haiku-latest",
-]
 
 
 class AnthropicAPI(ModelAPI):
@@ -172,6 +166,8 @@ class AnthropicAPI(ModelAPI):
                 api_key=self.api_key,
                 **model_args,
             )
+
+        self._batcher: AnthropicBatcher | None = None
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -259,7 +255,7 @@ class AnthropicAPI(ModelAPI):
             )
 
             message, output = await self._perform_request_and_continuations(
-                request, streaming, tools
+                request, streaming, tools, config
             )
 
             response = message.model_dump()
@@ -285,6 +281,7 @@ class AnthropicAPI(ModelAPI):
         request: dict[str, Any],
         streaming: bool,
         tools: list[ToolInfo],
+        config: GenerateConfig,
     ) -> tuple[Message, ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -292,7 +289,26 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
-        if streaming:
+        # TODO: Bogus that we have to do this on each call. Ideally, it would be
+        # done only once and ideally by non-provider specific code.
+        batch_config = normalized_batch_config(config.batch)
+        if batch_config:
+            if not self._batcher:
+                self._batcher = AnthropicBatcher(
+                    self.client,
+                    batch_config,
+                    # TODO: In the future, we could pass max_retries and timeout
+                    # from batch_config falling back to config
+                    model_retry_config(
+                        self.model_name,
+                        config.max_retries,
+                        config.timeout,
+                        self.should_retry,
+                        log_model_retry,
+                    ),
+                )
+            head_message = await self._batcher.generate(request, config)
+        elif streaming:
             async with self.client.messages.stream(**request) as stream:
                 head_message = await stream.get_final_message()
         else:
@@ -308,7 +324,7 @@ class AnthropicAPI(ModelAPI):
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
             _, tail_model_output = await self._perform_request_and_continuations(
-                tail_request, streaming, tools
+                tail_request, streaming, tools, config
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -410,7 +426,7 @@ class AnthropicAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIStatusError):
             # for unknown reasons, anthropic does not always set status_code == 529
             # for "overloaded_error" so we check for it explicitly
@@ -681,11 +697,21 @@ class AnthropicAPI(ModelAPI):
             tool.name == "web_search"
             and tool.options
             and "anthropic" in tool.options
-            and self.model_name in WEB_SEARCH_COMPATIBLE_MODELS
+            and _supports_web_search(self.model_name)
         ):
             return _web_search_tool_param(tool.options["anthropic"])
         else:
             return None
+
+
+def _supports_web_search(model_name: str) -> bool:
+    """Check if the model supports Anthropic's native web search tool."""
+    # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#supported-models
+    # https://docs.anthropic.com/en/docs/about-claude/models/overview#model-aliases
+    # https://docs.anthropic.com/en/docs/about-claude/model-deprecations
+    return model_name.startswith(
+        ("claude-opus-4", "claude-sonnet-4", "claude-3-7-sonnet")
+    ) or model_name in ("claude-3-5-sonnet-latest", "claude-3-5-haiku-latest")
 
 
 def _web_search_tool_param(
@@ -1079,7 +1105,13 @@ async def message_param_content(
 ):
     if isinstance(content, ContentText):
         citations = (
-            [to_anthropic_citation(citation) for citation in content.citations]
+            [
+                citation
+                for citation in (
+                    to_anthropic_citation(citation) for citation in content.citations
+                )
+                if citation is not None
+            ]
             if content.citations
             else None
         )

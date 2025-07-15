@@ -41,7 +41,7 @@ class Recorder(abc.ABC):
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["success", "cancelled", "error"],
+        status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
@@ -56,7 +56,11 @@ class Recorder(abc.ABC):
     @classmethod
     @abc.abstractmethod
     async def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
+        cls,
+        location: str,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
     ) -> EvalSample: ...
 
     @classmethod

@@ -27,7 +27,7 @@ GPT_4O_MINI_AZURE = "openai/azure/gpt-4o-mini"
 CLAUDE_3_5_HAIKU = "anthropic/claude-3-5-haiku-latest"
 GEMINI_1_5_FLASH = "google/gemini-1.5-flash"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
-GROK_BETA = "grok/grok-beta"
+GROK_3_MINI = "grok/grok-3-mini"
 GROQ_LLAMA_3_70B = "groq/llama3-70b-8192"
 CLOUDFLARE_LLAMA_3_1_8B = "cf/meta/llama-3.1-8b-instruct-awq"
 TOGETHER_LLAMA_3_3_70B = "together/meta-llama/Llama-3.3-70B-Instruct-Turbo"
@@ -39,7 +39,7 @@ MODELS = {
     CLAUDE_3_5_HAIKU: 200000,
     GEMINI_1_5_FLASH: 1000000,
     MISTRAL_LARGE_2411: 131000,
-    GROK_BETA: 131072,
+    GROK_3_MINI: 131072,
     GROQ_LLAMA_3_70B: 8192,
     CLOUDFLARE_LLAMA_3_1_8B: 128000,
     TOGETHER_LLAMA_3_3_70B: 128000,
@@ -120,7 +120,7 @@ async def test_model_length_mistral():
 @pytest.mark.asyncio
 @skip_if_no_grok
 async def test_model_length_grok():
-    await check_model_length(GROK_BETA)
+    await check_model_length(GROK_3_MINI)
 
 
 @pytest.mark.asyncio

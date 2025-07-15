@@ -117,6 +117,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             params=params,
             result_type=TextEditorResult,
             timeout=timeout,
+            user=user,
         )
 
     return execute

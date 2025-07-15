@@ -49,6 +49,62 @@ def int_or_bool_flag_callback(
     return callback
 
 
+def int_bool_or_str_flag_callback(
+    true_value: int, false_value: int | None = None
+) -> Callable[[click.Context, click.Parameter, Any], int | str | None]:
+    """Callback to parse an option that can be a boolean flag, integer, or string.
+
+    This is an extended version of int_or_bool_flag_callback that also supports
+    string values when the input cannot be parsed as a boolean or integer.
+
+    Args:
+        true_value: Value to return when flag is specified without argument or with "true"
+        false_value: Value to return when flag is not specified or with "false"
+
+    Returns:
+        A click callback function that returns int, str, or None
+    """
+
+    def callback(
+        ctx: click.Context, param: click.Parameter, value: Any
+    ) -> int | str | None:
+        """Callback to parse an option that can be a boolean flag, integer, or string.
+
+        Desired behavior:
+        - Not specified at all -> false_value
+        - Specified with no value -> true_value
+        - Specified with "true"/"false" -> true_value or false_value respectively
+        - Specified with an integer -> that integer
+        - Specified with any other string -> that string
+        """
+        # 1. If this parameter was never given on the command line,
+        #    then we return false_value.
+        source = ctx.get_parameter_source(param.name) if param.name else ""
+        if source == click.core.ParameterSource.DEFAULT:
+            # Means the user did NOT specify the flag at all
+            return false_value
+
+        # 2. The user did specify the flag. If value is None,
+        #    that means they used the flag with no argument, e.g. --my-flag
+        if value is None:
+            return true_value
+
+        # 3. If there is a value, try to parse booleans first.
+        lower_val = value.lower()
+        if lower_val in ("true", "yes", "1"):
+            return true_value
+        elif lower_val in ("false", "no", "0"):
+            return false_value
+        else:
+            # 4. Try to parse as an integer
+            try:
+                return int(value)
+            except ValueError:
+                return str(value)
+
+    return callback
+
+
 def parse_cli_config(
     args: tuple[str] | list[str] | None, config: str | None
 ) -> dict[str, Any]:

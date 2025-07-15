@@ -3,6 +3,7 @@ import pytest
 from inspect_ai import Task, eval
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
+from inspect_ai.log._log import EvalLog
 
 
 def test_sample_id():
@@ -28,11 +29,21 @@ def test_sample_id():
     assert len(log.samples) == 1
     assert log.samples[0].id == "sample-5"
 
+    def check_multiple_samples(log: EvalLog) -> None:
+        assert log.samples
+        assert len(log.samples) == 2
+        assert log.samples[0].id == "sample-5"
+        assert log.samples[1].id == "sample-6"
+
     log = eval(task, sample_id=["sample-5", "sample-6"], model="mockllm/model")[0]
+    check_multiple_samples(log)
+
+    log = eval(task, sample_id=["sample-[56]"], model="mockllm/model")[0]
+    check_multiple_samples(log)
+
+    log = eval(task, sample_id=["sample-*"], model="mockllm/model")[0]
     assert log.samples
-    assert len(log.samples) == 2
-    assert log.samples[0].id == "sample-5"
-    assert log.samples[1].id == "sample-6"
+    assert len(log.samples) == 10
 
 
 def test_sample_id_task_preface():

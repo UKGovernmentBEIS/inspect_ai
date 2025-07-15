@@ -1,5 +1,6 @@
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { EvalSummary, PendingSamples } from "../client/api/types";
+import { toBasicInfo } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
@@ -175,19 +176,10 @@ export const createLogSlice = (
 
           // Push the updated header information up
           const header = {
-            [logFileName]: {
-              version: logContents.version,
-              status: logContents.status,
-              eval: logContents.eval,
-              plan: logContents.plan,
-              results:
-                logContents.results !== null ? logContents.results : undefined,
-              stats: logContents.stats,
-              error: logContents.error !== null ? logContents.error : undefined,
-            },
+            [logFileName]: toBasicInfo(logContents),
           };
 
-          state.logsActions.updateLogHeaders(header);
+          state.logsActions.updateLogOverviews(header);
           set((state) => {
             state.log.loadedLog = logFileName;
           });

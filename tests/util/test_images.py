@@ -67,4 +67,4 @@ def test_mistral_images():
 
 @skip_if_no_grok
 def test_grok_images():
-    check_images("grok/grok-vision-beta")
+    check_images("grok/grok-2-vision")

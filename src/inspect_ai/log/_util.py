@@ -12,8 +12,11 @@ from inspect_ai._util.content import (
 )
 from inspect_ai.model._chat_message import ChatMessage
 
+# the maximum length of summary inputs
+MAX_TEXT_LENGTH = 5120
 
-def text_input_only(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
+
+def thin_input(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
     # Clean the input of any images
     if isinstance(inputs, list):
         input: list[ChatMessage] = []
@@ -29,7 +32,16 @@ def text_input_only(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
                 ] = []
                 for content in message.content:
                     if content.type == "text":
-                        filtered_content.append(content)
+                        truncated_input = truncate_text(content.text)
+                        if content.text != truncated_input:
+                            truncated_content = ContentText(
+                                text=truncated_input,
+                                citations=content.citations,
+                                refusal=content.refusal,
+                            )
+                            filtered_content.append(truncated_content)
+                        else:
+                            filtered_content.append(content)
                     else:
                         filtered_content.append(
                             ContentText(text=f"({content.type.capitalize()})")
@@ -37,11 +49,18 @@ def text_input_only(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
                 message.content = filtered_content
                 input.append(message)
             else:
+                message.content = truncate_text(message.content)
                 input.append(message)
-
         return input
     else:
-        return inputs
+        return truncate_text(inputs)
+
+
+def truncate_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
+    """Truncate text to a maximum length, appending as ellipsis if truncated."""
+    if len(text) > max_length:
+        return text[:max_length] + "...\n(content truncated)"
+    return text
 
 
 def thin_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
