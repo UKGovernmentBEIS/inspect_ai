@@ -1,3 +1,4 @@
+import base64
 import json
 import re
 import socket
@@ -52,6 +53,7 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -280,6 +282,13 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
                 content = f"{content}\n<think{attribs}>\n{c.reasoning}\n</think>\n"
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
+
+    if message.internal:
+        content = f"{content}\n<internal>{
+            base64.b64encode(json.dumps(message.internal).encode('utf-8')).decode(
+                'utf-8'
+            )
+        }</internal>\n"
     return content
 
 
@@ -400,8 +409,10 @@ def chat_messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
+            internal: JsonValue | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
+                asst_content, internal = parse_content_with_internal(asst_content)
                 result = parse_content_with_reasoning(asst_content)
                 if result is not None:
                     content = [
@@ -452,6 +463,7 @@ def chat_messages_from_openai(
                     tool_calls=tool_calls or None,
                     model=model,
                     source="generate",
+                    internal=internal,
                 )
             )
         elif message["role"] == "tool":
