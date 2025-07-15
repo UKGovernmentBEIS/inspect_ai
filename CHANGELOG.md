@@ -24,6 +24,7 @@
 - Bugfix: Improve the compactness and efficiency of eval files with extremely large text user inputs. 
 - Bugfix: Fixed bugs in batch process as the size of a batch approached the model provider's maximum batch size of 256MB.
 - Bugfix: Fix regression that allowed computer tool screenshot truncation to occur despite not being valid for OpenAI.
+- Bugfix: Fix agent bridge scenarios that failed when used with reasoning models.
 
 ## 0.3.112 (03 July 2025)
 

@@ -411,9 +411,9 @@ def chat_messages_from_openai(
             internal: JsonValue | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
-                # Even though the choices API doesn't take advantage of `.internal`,
+                # Even though the choices API doesn't take advantage of .internal,
                 # we could be transforming from OpenAI choices to Inspect for agent
-                # bridge scenarios where a different model (that does use ``.internal`)
+                # bridge scenarios where a different model (that does use .internal)
                 # is the actual model being used.
                 asst_content, internal = parse_content_with_internal(asst_content)
                 result = parse_content_with_reasoning(asst_content)
