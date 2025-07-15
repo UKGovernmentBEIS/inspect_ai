@@ -717,7 +717,23 @@ class OpenAIAsyncHttpxClient(httpx.AsyncClient):
 def parse_content_with_internal(
     content: str,
 ) -> tuple[str, JsonValue | None]:
-    """Another model's `.internal` may have been smuggled into the content text. This function extracts that smuggled internal data."""
+    """
+    Extracts and removes a smuggled <internal>...</internal> tag from the content string, if present.
+
+    Note:
+        This OpenAI model does not natively use `.internal`. However, in bridge
+        scenarios—where output from a model that does use `.internal` is routed
+        through this code—such a tag may be present and should be handled.
+
+    Args:
+        content: The input string, possibly containing an <internal> tag with
+        base64-encoded JSON.
+
+    Returns:
+        tuple[str, JsonValue | None]:
+            - The content string with the <internal>...</internal> tag removed (if present), otherwise the original string.
+            - The decoded and parsed internal value (if present and valid), otherwise None.
+    """
     content_text = content
 
     internal_pattern = r"<internal>(.*?)</internal>"
