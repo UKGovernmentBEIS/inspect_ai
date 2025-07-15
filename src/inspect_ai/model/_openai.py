@@ -53,7 +53,6 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -412,6 +411,10 @@ def chat_messages_from_openai(
             internal: JsonValue | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
+                # Even though the choices API doesn't take advantage of `.internal`,
+                # we could be transforming from OpenAI choices to Inspect for agent
+                # bridge scenarios where a different model (that does use ``.internal`)
+                # is the actual model being used.
                 asst_content, internal = parse_content_with_internal(asst_content)
                 result = parse_content_with_reasoning(asst_content)
                 if result is not None:
@@ -709,3 +712,22 @@ class OpenAIAsyncHttpxClient(httpx.AsyncClient):
         )
 
         super().__init__(**kwargs)
+
+
+def parse_content_with_internal(
+    content: str,
+) -> tuple[str, JsonValue | None]:
+    """Another model's `.internal` may have been smuggled into the content text. This function extracts that smuggled internal data."""
+    content_text = content
+
+    internal_pattern = r"<internal>(.*?)</internal>"
+    internal_match = re.search(r"<internal>(.*?)</internal>", content_text, re.DOTALL)
+
+    return (
+        (
+            re.sub(internal_pattern, "", content_text, flags=re.DOTALL).strip(),
+            json.loads(base64.b64decode(internal_match.group(1)).decode("utf-8")),
+        )
+        if internal_match
+        else (content, None)
+    )
