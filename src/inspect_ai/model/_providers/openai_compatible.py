@@ -179,7 +179,7 @@ class OpenAICompatibleAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         return openai_should_retry(ex)
 
     @override
