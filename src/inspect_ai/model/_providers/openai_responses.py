@@ -115,7 +115,9 @@ async def generate_responses(
             ),
         ), model_call()
     except BadRequestError as e:
-        return openai_handle_bad_request(openai_api.service_model_name(), e), model_call()
+        return openai_handle_bad_request(
+            openai_api.service_model_name(), e
+        ), model_call()
 
 
 def completion_params_responses(
@@ -164,7 +166,11 @@ def completion_params_responses(
         unsupported_warning("logprobs")
     if config.top_logprobs is not None:
         unsupported_warning("top_logprobs")
-    if tools and config.parallel_tool_calls is not None and not openai_api.is_o_series():
+    if (
+        tools
+        and config.parallel_tool_calls is not None
+        and not openai_api.is_o_series()
+    ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
     if openai_api.is_o_series() and not openai_api.is_o1_early():
         reasoning: dict[str, str] = {}
