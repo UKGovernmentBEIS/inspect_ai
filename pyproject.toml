@@ -150,7 +150,7 @@ dev = [
   "mcp>=1.10.0",
   "mistralai",
   "moto[server]",
-  "mypy>=1.16.0",
+  "mypy>=1.17.0",
   "nbformat",
   "openai",
   "pandas>=2.0.0",
