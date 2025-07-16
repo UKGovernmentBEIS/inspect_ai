@@ -976,6 +976,7 @@ def get_model(
 
     # split model into api name and model name if necessary
     api_name = None
+    original_model = model
     parts = model.split("/")
     if len(parts) > 1:
         api_name = parts[0]
@@ -1011,8 +1012,14 @@ def get_model(
             _models[model_cache_key] = m
         return m
     else:
-        from_api = f" from {api_name}" if api_name else ""
-        raise ValueError(f"Model name {model}{from_api} not recognized.")
+        if api_name is None:
+            raise ValueError(
+                f"Model name {original_model!r} should be in the format of <api_name>/<model_name>."
+            )
+        else:
+            raise ValueError(
+                f"Model API {api_name} of model {original_model!r} not recognized."
+            )
 
 
 # cache for memoization of get_model
