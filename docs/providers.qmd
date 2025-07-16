@@ -585,15 +585,6 @@ SGLang supports tool use and reasoning; however, the usage is often model depend
 
 ## TransformerLens {#transformer-lens}
 
-::: callout-note
-The Transformer Lens provider is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-
 The [TransformerLens](https://github.com/neelnanda-io/TransformerLens) provider allows you to use `HookedTransformer` models with Inspect.
 
 To use the TransformerLens provider, install the `transformer_lens` package:
