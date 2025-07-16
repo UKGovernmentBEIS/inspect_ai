@@ -42759,10 +42759,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     };
     const supportsLinking = () => {
-      return (
-        //location.hostname !== "localhost" &&
-        location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
-      );
+      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:";
     };
     const toFullUrl = (path) => {
       return `${window.location.origin}${window.location.pathname}#${path}`;
@@ -56327,11 +56324,8 @@ self.onmessage = function (e) {
           pathIndices.length = currentDepth + 1;
         }
         const idPath = pathIndices.slice(0, currentDepth + 1).join(".");
-        const node2 = new EventNode(
-          `event_node_${idPath}`,
-          event,
-          currentDepth + depth
-        );
+        const event_id = event.uuid || `event_node_${idPath}`;
+        const node2 = new EventNode(event_id, event, currentDepth + depth);
         if (stack2.length > 0) {
           const parentNode = stack2[stack2.length - 1];
           parentNode.children.push(node2);
