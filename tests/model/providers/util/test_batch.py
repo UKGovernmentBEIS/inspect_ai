@@ -220,7 +220,7 @@ class TestBatcher:
             # Start a request
             task = asyncio.create_task(
                 batcher.generate({"prompt": "test"}, GenerateConfig())
-        )
+            )
 
             # Let it fail a few times
             await asyncio.sleep(0.01)
@@ -255,7 +255,7 @@ class TestBatcher:
             # This should send a batch when it reaches 3 requests, not wait for the delay
             batcher = FakeBatcher(
                 config=BatchConfig(size=3, send_delay=0.1, tick=0.001)
-        )
+            )
 
             # Send exactly 3 requests - should trigger batch send due to minimum size being reached
             tasks = [
@@ -304,7 +304,7 @@ class TestBatcher:
             batcher = FakeBatcher(
                 config=BatchConfig(
                     size=1, max_size=2, send_delay=0.01, tick=0.001, max_batches=3
-    ),
+                ),
                 batch_completion_delay=0.02,  # Longer delay to ensure overlap
             )
 
@@ -379,13 +379,13 @@ class TestBatcher:
             batcher = FakeBatcher(
                 config=BatchConfig(size=2, send_delay=0.01, tick=0.001),
                 batch_completion_delay=0.01,
-)
+            )
 
             # Make requests that should succeed
             tasks = [
                 batcher.generate({"prompt": f"test-success-{i}"}, GenerateConfig())
                 for i in range(3)
-    ]
+            ]
 
             results = await asyncio.gather(*tasks)
 
@@ -437,7 +437,7 @@ class TestBatcher:
                     result = await receive_stream.receive()
                     if isinstance(result, Exception):
                         results.append(f"ERROR: {result}")
-        else:
+                    else:
                         results.append(result)
                 except Exception as e:
                     results.append(f"EXCEPTION: {e}")
@@ -567,7 +567,7 @@ class TestBatcher:
                     send_delay=0.01,
                     tick=0.001,
                     max_consecutive_check_failures=3,
-    ),
+                ),
                 fail_batch_ids={"batch-0"},  # First batch will always fail
             )
 
@@ -629,7 +629,7 @@ class TestBatcher:
                     send_delay=0.01,
                     tick=0.001,
                     max_consecutive_check_failures=5,
-        ),
+                ),
                 fail_batch_ids={"batch-0"},
             )
 
@@ -810,7 +810,7 @@ class TestBatcher:
                     size=1,
                     send_delay=0.01,
                     tick=0.02,  # 20ms tick - slower than batch completion
-        ),
+                ),
                 batch_completion_delay=0.005,  # Batches complete in 5ms
             )
 
@@ -843,7 +843,7 @@ class TestBatcher:
                     send_delay=0.01,
                     tick=0.001,
                     max_batches=2,  # Only 2 concurrent batches allowed
-    ),
+                ),
                 batch_completion_delay=0.02,  # Longer completion time
             )
 
@@ -903,7 +903,7 @@ class TestBatcher:
                     tick=0.001,  # Very fast tick
                     max_batches=100,  # Many concurrent batches
                 )
-)
+            )
 
             # Send a moderate number of requests
             tasks = [
@@ -932,8 +932,8 @@ class TestBatcher:
                     size=10,  # High minimum size
                     send_delay=0.01,  # 10ms delay
                     tick=0.009,  # 9ms tick - very close to send_delay
+                )
             )
-    )
 
             # Send fewer requests than minimum size
             tasks = [
@@ -962,14 +962,14 @@ class TestBatcher:
                     send_delay=0.01,
                     tick=0.005,  # 5ms tick
                     max_consecutive_check_failures=2,  # Low failure tolerance
-    ),
+                ),
                 fail_batch_ids={"batch-0"},
-)
+            )
 
             # Start a request that will fail
             task = asyncio.create_task(
                 batcher.generate({"prompt": "timing-failure"}, GenerateConfig())
-        )
+            )
 
             # Should fail after 2 failures * ~20ms tick = ~40ms + some overhead
             start_time = time.time()
