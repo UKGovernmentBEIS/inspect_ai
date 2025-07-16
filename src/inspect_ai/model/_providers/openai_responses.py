@@ -73,7 +73,8 @@ async def generate_responses(
         truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(
-            openai_api,
+            model_name,
+            openai_api=openai_api,
             config=config,
             service_tier=service_tier,
             tools=len(tools) > 0,
@@ -121,8 +122,9 @@ async def generate_responses(
 
 
 def completion_params_responses(
-    openai_api: "OpenAIAPI",
+    model_name: str,
     *,
+    openai_api: "OpenAIAPI",
     config: GenerateConfig,
     service_tier: str | None,
     tools: bool,
@@ -135,7 +137,7 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(model=openai_api.service_model_name())
+    params: dict[str, Any] = dict(model=model_name)
     if service_tier is not None:
         params["service_tier"] = service_tier
     if config.max_tokens is not None:
