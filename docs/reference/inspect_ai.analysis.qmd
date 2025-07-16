@@ -6,7 +6,6 @@ title: "inspect_ai.analysis.beta"
 Analysis functions are currently in beta and are exported from the **inspect_ai.analysis.beta** module. The beta module will be preserved after final release so that code written against it now will continue to work after the beta.
 :::
 
-
 ## Evals
 
 ### evals_df
@@ -43,6 +42,20 @@ Analysis functions are currently in beta and are exported from the **inspect_ai.
 ### EventTiming
 ### ModelEventColumns
 ### ToolEventColumns
+
+## Prepare
+
+::: callout-note
+Data preparation functions are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+### prepare
+### log_viewer
+### Operation
 
 ## Columns
 

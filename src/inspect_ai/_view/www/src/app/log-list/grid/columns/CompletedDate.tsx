@@ -60,5 +60,5 @@ export const completedDateColumn = () => {
 
 const itemCompletedAt = (item: FileLogItem | FolderLogItem) => {
   if (item.type !== "file") return undefined;
-  return item.header?.stats?.completed_at;
+  return item.logOverview?.completed_at;
 };

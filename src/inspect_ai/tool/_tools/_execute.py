@@ -30,7 +30,7 @@ def bash(
     Args:
       timeout: Timeout (in seconds) for command.
       user: User to execute commands as.
-      sandbox: Optional sandbox environmnent name.
+      sandbox: Optional sandbox environment name.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -70,7 +70,7 @@ def python(
     Args:
       timeout: Timeout (in seconds) for command.
       user: User to execute commands as.
-      sandbox: Optional sandbox environmnent name.
+      sandbox: Optional sandbox environment name.
 
     Returns:
       String with command output (stdout) or command error (stderr).

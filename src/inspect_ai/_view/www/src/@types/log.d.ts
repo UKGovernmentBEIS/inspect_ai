@@ -74,9 +74,11 @@ export type ExtraBody = {
 } | null;
 export type Batch = boolean | number | BatchConfig | null;
 export type Size = number | null;
+export type MaxSize = number | null;
 export type SendDelay = number | null;
 export type Tick = number | null;
 export type MaxBatches = number | null;
+export type MaxConsecutiveCheckFailures = number | null;
 export type ModelBaseUrl = string | null;
 export type ModelRoles = {
   [k: string]: EvalModelConfig;
@@ -890,9 +892,11 @@ export interface Default {
  */
 export interface BatchConfig {
   size: Size;
+  max_size: MaxSize;
   send_delay: SendDelay;
   tick: Tick;
   max_batches: MaxBatches;
+  max_consecutive_check_failures: MaxConsecutiveCheckFailures;
 }
 export interface ModelArgs {
   [k: string]: unknown;

@@ -78,7 +78,7 @@ async function eval_log_bytes(log_file: string, start: number, end: number) {
   return await vscodeClient(kMethodEvalLogBytes, [log_file, start, end]);
 }
 
-async function eval_log_headers(files: string[]) {
+async function eval_log_overviews(files: string[]) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
   if (response) {
     return JSON5.parse(response);
@@ -171,7 +171,7 @@ const api: LogViewAPI = {
   eval_log,
   eval_log_size,
   eval_log_bytes,
-  eval_log_headers,
+  eval_log_overviews,
   log_message,
   download_file,
   open_log_file,

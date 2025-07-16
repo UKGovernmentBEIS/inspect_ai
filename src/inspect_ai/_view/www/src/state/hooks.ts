@@ -577,8 +577,10 @@ export const useLogs = () => {
   }, [load, setLogs, setStatus]);
 
   // Loading headers
-  const storeLoadHeaders = useStore((state) => state.logsActions.loadHeaders);
-  const existingHeaders = useStore((state) => state.logs.logHeaders);
+  const storeLoadHeaders = useStore(
+    (state) => state.logsActions.loadLogOverviews,
+  );
+  const existingHeaders = useStore((state) => state.logs.logOverviews);
   const allLogFiles = useStore((state) => state.logs.logs.files);
 
   const loadHeaders = useCallback(

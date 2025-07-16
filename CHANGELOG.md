@@ -1,6 +1,13 @@
 ## Unreleased
 
+- OpenAI: Move model classification functions into `ModelAPI` class so that subclasses can override them.
+- Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames).
+- Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
+
+## 0.3.113 (16 July 2025)
+
 - [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
+- [TransformerLens](https://inspect.aisi.org.uk/providers.html#transformer-lens) model provider enabling use of `HookedTransformer` models with Inspect.
 - Web search: Added support for Grok as an internal search provider.
 - Google: Set `thought=True` on content when replaying `ContentReasoning` back to the model.
 - Transcript: Add globally unique `uuid` field and `metadata` field to `Event`.
@@ -13,12 +20,18 @@
 - Eval Log: Protect against removing excessive numbers of samples at once from realtime database.
 - Hooks: Provide full `EvalSample` (rather than only the summary) to `on_sample_end()` hook.
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
+- Inspect View: The bundle produced for deployment now includes a much more compact manifest, improving support for bundling large numbers of files.
 - Bugfix: Fix failure to allow Anthropic native web search for some model names such as `claude-3-7-sonnet-latest`.
 - Bugfix: Fix Anthropic citation support code when it encounters citations created by external search providers such as Tavily.
 - Bugfix: Break after finding final assistant message when implementing fallback for `AgentState` `output` field.
 - Bugfix: Fix `run_in_background` allowing it to properly function outside the context of a task.
 - Bugfix: `None` out `TaskLogger`'s `SampleBufferDatabase` after cleaning it up to avoid crashing on subsequent logging attempts.
 - Bugfix: Disassociate the logger used by batch processing's background task from any particular sample.
+- Bugfix: Improve the compactness and efficiency of eval files with extremely large text user inputs. 
+- Bugfix: Fixed bugs in batch process as the size of a batch approached the model provider's maximum batch size of 256MB.
+- Bugfix: Fix regression that allowed computer tool screenshot truncation to occur despite not being valid for OpenAI.
+- Bugfix: Fix agent bridge scenarios that failed when used with reasoning models.
+- Bugfix: Fix cases where <think> blocks are dropped in OpenAI choices because they are not at the front of text content. 
 
 ## 0.3.112 (03 July 2025)
 

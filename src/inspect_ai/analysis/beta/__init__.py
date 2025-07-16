@@ -32,6 +32,9 @@ from ._dataframe.messages.columns import (
 from ._dataframe.messages.table import MessageFilter, messages_df
 from ._dataframe.samples.columns import SampleColumn, SampleMessages, SampleSummary
 from ._dataframe.samples.table import samples_df
+from ._prepare.log_viewer import log_viewer
+from ._prepare.operation import Operation
+from ._prepare.prepare import prepare
 
 __all__ = [
     "evals_df",
@@ -64,4 +67,7 @@ __all__ = [
     "Column",
     "ColumnType",
     "ColumnError",
+    "prepare",
+    "log_viewer",
+    "Operation",
 ]

@@ -1,19 +1,16 @@
 from __future__ import annotations
 
 import functools
-from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
+from typing import IO, Any, Literal, TypedDict, cast, override
 
 from anyio import to_thread
 from openai import AsyncOpenAI
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
-
-from .._generate_config import BatchConfig
-from ._openai_batch import OpenAIBatcher
-
-if TYPE_CHECKING:
-    from tempfile import _TemporaryFileWrapper  # pyright: ignore[reportPrivateUsage]
+from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._providers._openai_batch import OpenAIBatcher
+from inspect_ai.model._retry import ModelRetryConfig
 
 
 class CompletedBatchInfo(TypedDict):
@@ -21,7 +18,12 @@ class CompletedBatchInfo(TypedDict):
 
 
 class TogetherBatcher(OpenAIBatcher):
-    def __init__(self, client: AsyncOpenAI, config: BatchConfig):
+    def __init__(
+        self,
+        client: AsyncOpenAI,
+        config: BatchConfig,
+        retry_config: ModelRetryConfig,
+    ):
         FEATURE = "Together Batch API"
         PACKAGE = "together"
         MIN_VERSION = "1.5.13"
@@ -33,15 +35,16 @@ class TogetherBatcher(OpenAIBatcher):
         except ImportError:
             raise pip_dependency_error(FEATURE, [PACKAGE])
 
-        super().__init__(client, config)
+        super().__init__(client, config, retry_config)
         # together uses different file upload method than openai
         # async client doesn't have .upload method implemented
         self._together_client = Together(
             api_key=client.api_key, base_url=str(client.base_url)
         )
 
+    @override
     async def _upload_batch_file(
-        self, temp_file: _TemporaryFileWrapper[bytes], extra_headers: dict[str, str]
+        self, temp_file: IO[bytes], extra_headers: dict[str, str]
     ) -> str:
         response = await to_thread.run_sync(
             functools.partial(self._together_client.files.upload, purpose="batch-api"),
@@ -49,13 +52,14 @@ class TogetherBatcher(OpenAIBatcher):
         )
         return str(response.id)
 
+    @override
     async def _create_batch(
         self,
         file_id: str,
         endpoint: Literal["/v1/chat/completions"],
         extra_headers: dict[str, str],
     ) -> str:
-        response = await self.client.batches.create(
+        response = await self._client.batches.create(
             input_file_id=file_id,
             completion_window="24h",
             endpoint=endpoint,

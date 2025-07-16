@@ -1,21 +1,19 @@
-from __future__ import annotations
-
 import functools
 import json
 import tempfile
-from logging import getLogger
-from typing import Any, Literal, TypedDict
+import time
+from itertools import chain
+from typing import IO, Any, Literal, TypedDict, override
 
 import httpx
-from openai import (
-    AsyncOpenAI,
-    InternalServerError,
-)
+from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
+from tenacity import retry
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._retry import ModelRetryConfig
 
 from .util.batch import (
     Batch,
@@ -24,95 +22,82 @@ from .util.batch import (
 )
 from .util.hooks import HttpxHooks
 
-logger = getLogger(__name__)
-
 
 class CompletedBatchInfo(TypedDict):
     result_uris: list[str]
 
 
 class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
-    def __init__(self, client: AsyncOpenAI, config: BatchConfig):
+    def __init__(
+        self,
+        client: AsyncOpenAI,
+        config: BatchConfig,
+        retry_config: ModelRetryConfig,
+    ):
         super().__init__(
             config=config,
             max_batch_request_count=50000,
             max_batch_size_mb=200,
         )
-        self.client = client
+        self._client = client
+        self._retry_config = retry_config
 
+    @override
     async def _send_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
-        # TODO: support other endpoints
-        endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
-        extra_headers: dict[str, str] = {}
-        with tempfile.NamedTemporaryFile(
-            delete=True, suffix=".jsonl", mode="w+b"
-        ) as temp_file:
-            for request in batch:
-                extra_headers = request.request.pop("extra_headers", {})
-                request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-                if request_id is not None:
-                    request.custom_id = request_id
-                temp_file.write(
-                    json.dumps(
-                        {
-                            "custom_id": request.custom_id,
-                            "method": "POST",
-                            "url": endpoint,
-                            "body": {
-                                k: v
-                                for k, v in request.request.items()
-                                if v is not NOT_GIVEN
+        @retry(**self._retry_config)
+        async def _create() -> str:
+            # TODO: support other endpoints
+            endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
+            extra_headers: dict[str, str] = {}
+            with tempfile.NamedTemporaryFile(
+                delete=True, suffix=".jsonl", mode="w+b"
+            ) as temp_file:
+                for request in batch:
+                    extra_headers = request.request.pop("extra_headers", {})
+                    request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+                    if request_id is not None:
+                        request.custom_id = request_id
+                    temp_file.write(
+                        json.dumps(
+                            {
+                                "custom_id": request.custom_id,
+                                "method": "POST",
+                                "url": endpoint,
+                                "body": {
+                                    k: v
+                                    for k, v in request.request.items()
+                                    if v is not NOT_GIVEN
+                                },
                             },
-                        },
-                    ).encode()
-                    + b"\n"
-                )
-            temp_file.flush()
-            temp_file.seek(0)
+                        ).encode()
+                        + b"\n"
+                    )
+                temp_file.flush()
+                temp_file.seek(0)
 
-            file_id = await self._upload_batch_file(temp_file, extra_headers)
+                file_id = await self._upload_batch_file(temp_file.file, extra_headers)
 
-        batch_id = await self._create_batch(file_id, endpoint, extra_headers)
-        return batch_id
+            return await self._create_batch(file_id, endpoint, extra_headers)
 
-    async def _upload_batch_file(
-        self,
-        temp_file: tempfile._TemporaryFileWrapper[bytes],  # pyright: ignore[reportPrivateUsage]
-        extra_headers: dict[str, str],
-    ) -> str:
-        file_object = await self.client.files.create(
-            file=temp_file.file,
-            purpose="batch",
-            extra_headers=extra_headers or None,
-        )
-        return file_object.id
+        return await _create()
 
-    async def _create_batch(
-        self,
-        file_id: str,
-        endpoint: Literal["/v1/chat/completions"],
-        extra_headers: dict[str, str],
-    ) -> str:
-        batch = await self.client.batches.create(
-            input_file_id=file_id,
-            completion_window="24h",
-            endpoint=endpoint,
-            extra_headers=extra_headers or None,
-        )
-        return batch.id
-
+    @override
     async def _check_batch(
         self, batch: Batch[ChatCompletion]
-    ) -> CompletedBatchInfo | None:
-        batch_info = await self.client.batches.retrieve(batch.id)
+    ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
+        batch_info = await self._client.batches.retrieve(batch.id)
 
-        if batch_info.status.lower() not in {
-            "cancelled",
-            "completed",
-            "expired",
-            "failed",
-        }:
-            return None
+        # TODO: Is it bogus to return 0, 0 when request_counts isn't available
+        completed, failed = (
+            (batch_info.request_counts.completed, batch_info.request_counts.failed)
+            if batch_info.request_counts
+            else (0, 0)
+        )
+
+        age = int(time.time() - batch_info.created_at) if batch_info.created_at else 0
+
+        if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
+            return (completed, failed, age, None)
 
         # The doc suggests that `output_file_id` will only be populated if the batch
         # as a whole reached the `completed` state. This means that if all but
@@ -125,65 +110,82 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             if file_id is not None
         ]
 
-        return {"result_uris": batch_file_ids} if batch_file_ids else None
+        return (
+            completed,
+            failed,
+            age,
+            {"result_uris": batch_file_ids} if batch_file_ids else None,
+        )
 
+    @override
     async def _handle_batch_result(
         self,
         batch: Batch[ChatCompletion],
         completion_info: CompletedBatchInfo,
-    ) -> None:
+    ) -> dict[str, ChatCompletion | Exception]:
         result_uris = completion_info["result_uris"]
 
-        await tg_collect(
-            [
-                functools.partial(self._handle_batch_result_file, batch, file_id)
-                for file_id in result_uris
-            ]
+        @retry(**self._retry_config)
+        async def _results() -> list[dict[str, ChatCompletion | Exception]]:
+            return await tg_collect(
+                [
+                    functools.partial(self._handle_batch_result_file, file_id)
+                    for file_id in result_uris
+                ]
+            )
+
+        return dict(
+            chain.from_iterable(file_result.items() for file_result in await _results())
         )
 
-    async def _handle_batch_result_file(
+    async def _upload_batch_file(
         self,
-        batch: Batch[ChatCompletion],
+        temp_file: IO[bytes],
+        extra_headers: dict[str, str],
+    ) -> str:
+        file_object = await self._client.files.create(
+            file=temp_file,
+            purpose="batch",
+            extra_headers=extra_headers or None,
+        )
+        return file_object.id
+
+    async def _create_batch(
+        self,
         file_id: str,
-    ) -> None:
+        endpoint: Literal["/v1/chat/completions"],
+        extra_headers: dict[str, str],
+    ) -> str:
+        return (
+            await self._client.batches.create(
+                input_file_id=file_id,
+                completion_window="24h",
+                endpoint=endpoint,
+                extra_headers=extra_headers or None,
+            )
+        ).id
+
+    async def _handle_batch_result_file(
+        self, file_id: str
+    ) -> dict[str, ChatCompletion | Exception]:
         # TODO: Add error handling so that if one uri fails, the others can
         # still succeed
-        batch_file = await self.client.files.content(file_id)
+        results: dict[str, ChatCompletion | Exception] = {}
+        batch_file = await self._client.files.content(file_id)
         for line in (await batch_file.aread()).decode().splitlines():
             result: dict[str, Any] = json.loads(line)
             request_id = result.pop("custom_id")
             if not request_id:
-                logger.error(
+                raise ValueError(
                     f"Unable to find custom_id in batched request result. {result}"
                 )
-                continue
 
-            batch_request = batch.requests.pop(request_id)
-            await batch_request.result_stream.send(
+            # Store the result in the dictionary instead of sending to result_stream
+            results[request_id] = (
                 ChatCompletion.model_validate(result["response"]["body"])
                 if (error := result.get("error")) is None
-                else self.client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx.Response(
-                        status_code=int(error["code"]),
-                        text=error["message"],
-                    )
+                else self._client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                    httpx.Response(status_code=error["code"], text=error["message"])
                 )
             )
-
-    def _get_request_failed_error(
-        self, request: BatchRequest[ChatCompletion]
-    ) -> Exception:
-        return InternalServerError(
-            message="Request failed",
-            response=httpx.Response(
-                status_code=500,
-                text="Request failed",
-                request=httpx.Request(
-                    method=request.request.get("method", "POST"),
-                    url=request.request.get(
-                        "url", "https://api.openai.com/v1/chat/completions"
-                    ),
-                ),
-            ),
-            body=None,
-        )
+        return results

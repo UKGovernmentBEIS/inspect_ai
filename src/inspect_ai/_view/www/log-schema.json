@@ -212,6 +212,18 @@
           "default": null,
           "title": "Size"
         },
+        "max_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Size"
+        },
         "send_delay": {
           "anyOf": [
             {
@@ -247,15 +259,29 @@
           ],
           "default": null,
           "title": "Max Batches"
+        },
+        "max_consecutive_check_failures": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Consecutive Check Failures"
         }
       },
       "title": "BatchConfig",
       "type": "object",
       "required": [
         "size",
+        "max_size",
         "send_delay",
         "tick",
-        "max_batches"
+        "max_batches",
+        "max_consecutive_check_failures"
       ],
       "additionalProperties": false
     },

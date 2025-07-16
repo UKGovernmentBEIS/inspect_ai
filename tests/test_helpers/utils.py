@@ -69,6 +69,10 @@ def skip_if_no_accelerate(func):
     return skip_if_no_package("accelerate")(func)
 
 
+def skip_if_no_transformer_lens(func):
+    return skip_if_no_package("transformer_lens")(func)
+
+
 def skip_if_no_openai(func):
     return pytest.mark.api(
         pytest.mark.skipif(

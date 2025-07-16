@@ -24,13 +24,7 @@ from pydantic_core import to_jsonable_python
 from tenacity import (
     RetryCallState,
     retry,
-    retry_if_exception,
-    stop_after_attempt,
-    stop_after_delay,
-    stop_never,
-    wait_exponential_jitter,
 )
-from tenacity.stop import StopBaseT
 
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -56,6 +50,7 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
@@ -565,27 +560,14 @@ class Model:
         if self.api.collapse_assistant_messages():
             input = collapse_consecutive_assistant_messages(input)
 
-        # retry for transient http errors:
-        # - use config.max_retries and config.timeout if specified, otherwise retry forever
-        # - exponential backoff starting at 3 seconds (will wait 25 minutes
-        #   on the 10th retry,then will wait no longer than 30 minutes on
-        #   subsequent retries)
-        if config.max_retries is not None and config.timeout is not None:
-            stop: StopBaseT = stop_after_attempt(config.max_retries) | stop_after_delay(
-                config.timeout
-            )
-        elif config.max_retries is not None:
-            stop = stop_after_attempt(config.max_retries)
-        elif config.timeout is not None:
-            stop = stop_after_delay(config.timeout)
-        else:
-            stop = stop_never
-
         @retry(
-            wait=wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3),
-            retry=retry_if_exception(self.should_retry),
-            stop=stop,
-            before_sleep=functools.partial(log_model_retry, self.api.model_name),
+            **model_retry_config(
+                self.api.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                log_model_retry,
+            )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
@@ -994,6 +976,7 @@ def get_model(
 
     # split model into api name and model name if necessary
     api_name = None
+    original_model = model
     parts = model.split("/")
     if len(parts) > 1:
         api_name = parts[0]
@@ -1029,8 +1012,14 @@ def get_model(
             _models[model_cache_key] = m
         return m
     else:
-        from_api = f" from {api_name}" if api_name else ""
-        raise ValueError(f"Model name {model}{from_api} not recognized.")
+        if api_name is None:
+            raise ValueError(
+                f"Model name {original_model!r} should be in the format of <api_name>/<model_name>."
+            )
+        else:
+            raise ValueError(
+                f"Model API {api_name} of model {original_model!r} not recognized."
+            )
 
 
 # cache for memoization of get_model

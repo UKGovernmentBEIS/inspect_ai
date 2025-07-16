@@ -1,3 +1,4 @@
+import base64
 import json
 import re
 import socket
@@ -75,35 +76,8 @@ class OpenAIResponseError(OpenAIError):
         return f"{self.code}: {self.message}"
 
 
-def is_o_series(name: str) -> bool:
-    if bool(re.match(r"^o\d+", name)):
-        return True
-    else:
-        return not is_gpt(name) and bool(re.search(r"o\d+", name))
-
-
-def is_o1(name: str) -> bool:
-    return "o1" in name and not is_o1_early(name)
-
-
-def is_o1_early(name: str) -> bool:
-    return "o1-mini" in name or "o1-preview" in name
-
-
-def is_o3_mini(name: str) -> bool:
-    return "o3-mini" in name
-
-
-def is_computer_use_preview(name: str) -> bool:
-    return "computer-use-preview" in name
-
-
-def is_codex(name: str) -> bool:
-    return "codex" in name
-
-
-def is_gpt(name: str) -> bool:
-    return "gpt" in name
+# is_o_series etc. have been moved to the OpenAIAPI class
+# in _providers/openai.py to enable proper overriding by subclasses
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
@@ -280,6 +254,13 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
                 content = f"{content}\n<think{attribs}>\n{c.reasoning}\n</think>\n"
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
+
+    if message.internal:
+        content = f"""{content}\n<internal>{
+            base64.b64encode(json.dumps(message.internal).encode("utf-8")).decode(
+                "utf-8"
+            )
+        }</internal>\n"""
     return content
 
 
@@ -400,8 +381,14 @@ def chat_messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
+            internal: JsonValue | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
+                # Even though the choices API doesn't take advantage of .internal,
+                # we could be transforming from OpenAI choices to Inspect for agent
+                # bridge scenarios where a different model (that does use .internal)
+                # is the actual model being used.
+                asst_content, internal = _parse_content_with_internal(asst_content)
                 result = parse_content_with_reasoning(asst_content)
                 if result is not None:
                     content = [
@@ -452,6 +439,7 @@ def chat_messages_from_openai(
                     tool_calls=tool_calls or None,
                     model=model,
                     source="generate",
+                    internal=internal,
                 )
             )
         elif message["role"] == "tool":
@@ -606,7 +594,7 @@ def chat_choices_from_openai(
     ]
 
 
-def openai_should_retry(ex: Exception) -> bool:
+def openai_should_retry(ex: BaseException) -> bool:
     if isinstance(ex, RateLimitError):
         return True
     elif isinstance(ex, APIStatusError):
@@ -697,3 +685,40 @@ class OpenAIAsyncHttpxClient(httpx.AsyncClient):
         )
 
         super().__init__(**kwargs)
+
+
+def _parse_content_with_internal(
+    content: str,
+) -> tuple[str, JsonValue | None]:
+    """
+    Extracts and removes a smuggled <internal>...</internal> tag from the content string, if present.
+
+    Note:
+        This OpenAI model does not natively use `.internal`. However, in bridge
+        scenarios—where output from a model that does use `.internal` is routed
+        through this code—such a tag may be present and should be handled.
+
+    Args:
+        content: The input string, possibly containing an <internal> tag with
+        base64-encoded JSON.
+
+    Returns:
+        tuple[str, JsonValue | None]:
+            - The content string with the <internal>...</internal> tag removed (if present), otherwise the original string.
+            - The decoded and parsed internal value (if present), otherwise None.
+
+    Raises:
+        json.JSONDecodeError: If the content of the <internal> tag is not valid JSON after decoding.
+        UnicodeDecodeError: If the content of the <internal> tag is not valid UTF-8 after base64 decoding.
+    """
+    internal_pattern = r"<internal>(.*?)</internal>"
+    internal_match = re.search(r"<internal>(.*?)</internal>", content, re.DOTALL)
+
+    return (
+        (
+            re.sub(internal_pattern, "", content, flags=re.DOTALL).strip(),
+            json.loads(base64.b64decode(internal_match.group(1)).decode("utf-8")),
+        )
+        if internal_match
+        else (content, None)
+    )

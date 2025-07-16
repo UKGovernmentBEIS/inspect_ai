@@ -1,4 +1,5 @@
 import os
+import re
 from logging import getLogger
 from typing import Any, Literal, cast
 
@@ -20,22 +21,16 @@ from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
-    is_codex,
-    is_computer_use_preview,
-    is_gpt,
-    is_o1,
-    is_o1_early,
-    is_o3_mini,
-    is_o_series,
     model_output_from_openai,
     openai_chat_messages,
     openai_chat_tool_choice,
@@ -189,25 +184,35 @@ class OpenAIAPI(ModelAPI):
         return self.service == "azure"
 
     def is_o_series(self) -> bool:
-        return is_o_series(self.service_model_name())
+        name = self.service_model_name()
+        if bool(re.match(r"^o\d+", name)):
+            return True
+        else:
+            return not self.is_gpt() and bool(re.search(r"o\d+", name))
 
     def is_o1(self) -> bool:
-        return is_o1(self.service_model_name())
+        name = self.service_model_name()
+        return "o1" in name and not self.is_o1_early()
 
     def is_o1_early(self) -> bool:
-        return is_o1_early(self.service_model_name())
+        name = self.service_model_name()
+        return "o1-mini" in name or "o1-preview" in name
 
     def is_o3_mini(self) -> bool:
-        return is_o3_mini(self.service_model_name())
+        name = self.service_model_name()
+        return "o3-mini" in name
 
     def is_computer_use_preview(self) -> bool:
-        return is_computer_use_preview(self.service_model_name())
+        name = self.service_model_name()
+        return "computer-use-preview" in name
 
     def is_codex(self) -> bool:
-        return is_codex(self.service_model_name())
+        name = self.service_model_name()
+        return "codex" in name
 
     def is_gpt(self) -> bool:
-        return is_gpt(self.service_model_name())
+        name = self.service_model_name()
+        return "gpt" in name
 
     @override
     async def aclose(self) -> None:
@@ -260,6 +265,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
+                openai_api=self,
             )
 
         # allocate request_id (so we can see it from ModelCall)
@@ -329,7 +335,19 @@ class OpenAIAPI(ModelAPI):
         batch_config = normalized_batch_config(config.batch)
         if batch_config:
             if not self._batcher:
-                self._batcher = OpenAIBatcher(self.client, batch_config)
+                self._batcher = OpenAIBatcher(
+                    self.client,
+                    batch_config,
+                    # TODO: In the future, we could pass max_retries and timeout
+                    # from batch_config falling back to config
+                    model_retry_config(
+                        self.model_name,
+                        config.max_retries,
+                        config.timeout,
+                        self.should_retry,
+                        log_model_retry,
+                    ),
+                )
             return await self._batcher.generate(request, config)
         else:
             return cast(
@@ -341,7 +359,7 @@ class OpenAIAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
             # The quota exceeded one is related to monthly account quotas.
