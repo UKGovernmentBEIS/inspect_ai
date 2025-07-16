@@ -1,5 +1,5 @@
 import time
-from typing import AsyncIterator, TypeAlias, cast, override
+from typing import AsyncIterator, TypeAlias, cast
 
 import httpx
 from anthropic import (
@@ -29,6 +29,7 @@ from anthropic.types.messages.batch_create_params import (
     Request as AnthropicBatchRequest,
 )
 from tenacity import retry
+from typing_extensions import override
 
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig

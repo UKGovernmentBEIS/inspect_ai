@@ -3,13 +3,14 @@ import json
 import tempfile
 import time
 from itertools import chain
-from typing import IO, Any, Literal, TypedDict, override
+from typing import IO, Any, Literal, TypedDict
 
 import httpx
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from tenacity import retry
+from typing_extensions import override
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai.model._generate_config import BatchConfig

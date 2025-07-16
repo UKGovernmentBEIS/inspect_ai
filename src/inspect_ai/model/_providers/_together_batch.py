@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import functools
-from typing import IO, Any, Literal, TypedDict, cast, override
+from typing import IO, Any, Literal, TypedDict, cast
 
 from anyio import to_thread
 from openai import AsyncOpenAI
+from typing_extensions import override
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
