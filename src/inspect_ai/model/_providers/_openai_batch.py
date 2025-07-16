@@ -39,6 +39,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             max_batch_request_count=50000,
             max_batch_size_mb=200,
         )
+        # Members below are considered protected and fair game for derived classes
         self._client = client
         self._retry_config = retry_config
 
@@ -143,6 +144,19 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         temp_file: IO[bytes],
         extra_headers: dict[str, str],
     ) -> str:
+        """
+        Uploads a batch file to the Together API.
+
+        This method is can be overridden in derived classes to provide provider-specific
+        file upload logic for batch processing.
+
+        Args:
+            temp_file: A file-like object containing the batch data to upload.
+            extra_headers: Additional headers to include in the upload request.
+
+        Returns:
+            The ID of the uploaded file as a string.
+        """
         file_object = await self._client.files.create(
             file=temp_file,
             purpose="batch",
@@ -156,6 +170,23 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         endpoint: Literal["/v1/chat/completions"],
         extra_headers: dict[str, str],
     ) -> str:
+        """
+        Creates a batch job using the Together API.
+
+        This method can be overridden in derived classes to provide provider-specific
+        batch creation logic.
+
+        Args:
+            file_id: The ID of the uploaded batch file.
+            endpoint: The API endpoint for batch processing.
+            extra_headers: Additional headers to include in the batch creation request.
+
+        Returns:
+            The ID of the created batch job as a string.
+
+        Raises:
+            ValueError: If batch creation fails or the response is invalid.
+        """
         return (
             await self._client.batches.create(
                 input_file_id=file_id,
