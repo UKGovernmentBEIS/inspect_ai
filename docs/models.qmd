@@ -208,14 +208,6 @@ inspect eval math.py \
 
 ## Batch Processing
 
-::: callout-note
-Batch processing is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Inspect supports calling the batch processing APIs for OpenAI and [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing) models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times (batched generations typically complete within an hour but can take longer).
 
 When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider's batch API rather than making individual API calls.

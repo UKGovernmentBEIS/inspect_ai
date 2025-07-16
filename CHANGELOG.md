@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.113 (16 July 2025)
 
 - [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
 - [TransformerLens](https://inspect.aisi.org.uk/providers.html#transformer-lens) model provider enabling use of `HookedTransformer` models with Inspect.
