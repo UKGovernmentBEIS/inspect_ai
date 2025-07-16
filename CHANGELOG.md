@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
+
 ## 0.3.113 (16 July 2025)
 
 - [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
