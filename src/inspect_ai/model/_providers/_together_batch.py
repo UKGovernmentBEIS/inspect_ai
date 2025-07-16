@@ -30,7 +30,7 @@ class TogetherBatcher(OpenAIBatcher):
         MIN_VERSION = "1.5.13"
 
         try:
-            from together import Together
+            from together import Together  # type: ignore
 
             verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
         except ImportError:
