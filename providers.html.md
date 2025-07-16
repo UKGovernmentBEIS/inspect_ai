@@ -12,7 +12,7 @@ providers is built in to Inspect:
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare) |
-| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), |
+| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
 If the provider you are using is not listed above, you may still be able
 to use it if:
@@ -351,7 +351,7 @@ credentials, and specify a model using the `--model` option:
 ``` bash
 pip install openai
 export GROK_API_KEY=your-grok-api-key
-inspect eval arc.py --model grok/grok-beta
+inspect eval arc.py --model grok/grok-3-mini
 ```
 
 For the `grok` provider, custom model args (`-M`) are forwarded to the
@@ -782,6 +782,63 @@ model dependant and requires additional configuration. See the [Tool
 Use](https://docs.sglang.ai/backend/function_calling.html) and
 [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html)
 sections of the SGLang documentation for details.
+
+## TransformerLens
+
+The [TransformerLens](https://github.com/neelnanda-io/TransformerLens)
+provider allows you to use `HookedTransformer` models with Inspect.
+
+To use the TransformerLens provider, install the `transformer_lens`
+package:
+
+``` bash
+pip install transformer_lens
+```
+
+### Usage with Pre-loaded Models
+
+Unlike other providers, TransformerLens requires you to first load a
+`HookedTransformer` model instance and then pass it to Inspect. This is
+because TransformerLens models expose special hooks for accessing and
+manipulating internal activations that need to be set up before use in
+the inspect framework.
+
+You will need to specify the `tl_model` and `tl_generate_args` in the
+model arguments. The `tl_model` is the `HookedTransformer` instance and
+the `tl_generate_args` is a dictionary of transformer-lens generation
+arguments. You can specify the model name as anything, it will not
+affect the model you are using.
+
+Here’s an example:
+
+``` python
+# Create a HookedTransformer model and set up all the hooks
+tl_model = HookedTransformer(...)
+...
+
+# Create model args with the TransformerLens model and generation parameters
+model_args = {
+    "tl_model": tl_model,
+    "tl_generate_args": {
+        "max_new_tokens": 50,
+        "temperature": 0.7,
+        "do_sample": True,
+    }
+}
+
+# Use with get_model()
+model = get_model("transformer_lens/your-model-name", **model_args)
+
+# Or use directly in eval()
+eval("arc.py", model="transformer_lens/your-model-name", model_args=model_args)
+```
+
+### Limitations
+
+1.  Please note that tool calling is not yet supported for
+    TransformerLens models.
+2.  Since the model is loaded dynamically, it is not possible to use cli
+    arguments to specify the model.
 
 ## Ollama
 

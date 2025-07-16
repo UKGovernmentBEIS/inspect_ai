@@ -260,8 +260,8 @@ details of scoring when viewing the eval log file.
 ``` python
 Value = Union[
     str | int | float | bool,
-    list[str | int | float | bool],
-    dict[str, str | int | float | bool],
+    Sequence[str | int | float | bool],
+    Mapping[str, str | int | float | bool],
 ]
 ```
 

@@ -37,11 +37,11 @@ The `web_search()` tool provides models the ability to enhance their
 context window by performing a search. Web searches are executed using a
 provider. Providers are split into two categories:
 
-- Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, and
-  `"perplexity"` - these use the model’s built-in search capability and
-  do not require separate API keys. These work only for their respective
-  model provider (e.g. the “openai” search provider works only for
-  `openai/*` models).
+- Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`,
+  and `"perplexity"` - these use the model’s built-in search capability
+  and do not require separate API keys. These work only for their
+  respective model provider (e.g. the “openai” search provider works
+  only for `openai/*` models).
 
 - External providers: `"tavily"`, `"exa"`, and `"google"`. These are
   external services that work with any model and require separate
@@ -136,6 +136,19 @@ are also running the evaluation with non-Gemini models.
 > Google’s search grounding does not currently support use with other
 > tools. Attempting to use `web_search("gemini")` alongside other tools
 > will result in an error.
+
+### Grok Options
+
+The `web_search()` tool can use Grok’s built-in live search capability
+when running on Grok 3.0 models and later. This provider does not
+require any API keys beyond what’s needed for the model itself.
+
+For more details, see [Live
+Search](https://docs.x.ai/docs/guides/live-search).
+
+Note that when using the “grok” provider, you should also specify a
+fallback external provider (like “tavily”, “exa”, or “google”) if you
+are also running the evaluation with non-Grok models.
 
 ### Perplexity Options
 
@@ -427,7 +440,7 @@ commands).
 
 The schema for the `text_editor()` tool is based on the standard
 Anthropic [text editor tool
-type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool).
+type](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool).
 The `text_editor()` works with all models that support tool calling, but
 when using Claude, the text editor tool will automatically bind to the
 native Claude tool definition.

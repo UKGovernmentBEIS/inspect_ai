@@ -80,7 +80,7 @@ inspect eval arc.py --model google/gemini-1.5-pro
 ``` bash
 pip install openai
 export GROK_API_KEY=your-grok-api-key
-inspect eval arc.py --model grok/grok-beta
+inspect eval arc.py --model grok/grok-3-mini
 ```
 
 #### Mistral
@@ -101,8 +101,8 @@ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 
 In addition to the model providers shown above, Inspect also supports
 models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq,
-Cloudflare, and Goodfire as well as local models with vLLM, Ollama or
-llama-cpp-python. See the documentation on [Model
+Cloudflare, and Goodfire as well as local models with vLLM, Ollama,
+llama-cpp-python, or TransformerLens. See the documentation on [Model
 Providers](providers.qmd) for additional details.
 
 ## Hello, Inspect

@@ -500,6 +500,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#openai-options" id="toc-openai-options" class="nav-link" data-scroll-target="#openai-options">OpenAI Options</a></li>
   <li><a href="#anthropic-options" id="toc-anthropic-options" class="nav-link" data-scroll-target="#anthropic-options">Anthropic Options</a></li>
   <li><a href="#gemini-options" id="toc-gemini-options" class="nav-link" data-scroll-target="#gemini-options">Gemini Options</a></li>
+  <li><a href="#grok-options" id="toc-grok-options" class="nav-link" data-scroll-target="#grok-options">Grok Options</a></li>
   <li><a href="#perplexity-options" id="toc-perplexity-options" class="nav-link" data-scroll-target="#perplexity-options">Perplexity Options</a></li>
   <li><a href="#tavily-options" id="toc-tavily-options" class="nav-link" data-scroll-target="#tavily-options">Tavily Options</a></li>
   <li><a href="#exa-options" id="toc-exa-options" class="nav-link" data-scroll-target="#exa-options">Exa Options</a></li>
@@ -580,7 +581,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="sec-web-search">Web Search</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:</p>
 <ul>
-<li><p>Internal providers: <code>"openai"</code>, <code>"anthropic"</code>, <code>"gemini"</code>, and <code>"perplexity"</code> - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
+<li><p>Internal providers: <code>"openai"</code>, <code>"anthropic"</code>, <code>"gemini"</code>, <code>"grok"</code>, and <code>"perplexity"</code> - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
 <li><p>External providers: <code>"tavily"</code>, <code>"exa"</code>, and <code>"google"</code>. These are external services that work with any model and require separate accounts and API keys. Note that “google” is different from “gemini” - “google” refers to Google’s Programmable Search Engine service, while “gemini” refers to Google’s built-in search capability for Gemini models.</p></li>
 </ul>
 <p>Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on <code>openai</code> models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.</p>
@@ -636,6 +637,12 @@ Warning
 <p>Google’s search grounding does not currently support use with other tools. Attempting to use <code>web_search("gemini")</code> alongside other tools will result in an error.</p>
 </div>
 </div>
+</section>
+<section id="grok-options" class="level3">
+<h3 class="anchored" data-anchor-id="grok-options">Grok Options</h3>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use Grok’s built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what’s needed for the model itself.</p>
+<p>For more details, see <a href="https://docs.x.ai/docs/guides/live-search">Live Search</a>.</p>
+<p>Note that when using the “grok” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Grok models.</p>
 </section>
 <section id="perplexity-options" class="level3">
 <h3 class="anchored" data-anchor-id="perplexity-options">Perplexity Options</h3>
@@ -923,7 +930,7 @@ Sandbox Dependencies
 </section>
 <section id="tool-binding" class="level3">
 <h3 class="anchored" data-anchor-id="tool-binding">Tool Binding</h3>
-<p>The schema for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool is based on the standard Anthropic <a href="https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool">text editor tool type</a>. The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.</p>
+<p>The schema for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool is based on the standard Anthropic <a href="https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool">text editor tool type</a>. The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.</p>
 </section>
 </section>
 <section id="sec-web-browser" class="level2">
@@ -1857,7 +1864,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","loop":false,"closeEffect":"zoom","selector":".lightbox","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","descPosition":"bottom","openEffect":"zoom","loop":false});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

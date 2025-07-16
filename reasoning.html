@@ -664,11 +664,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="grok">Grok</h2>
 <p>Grok currently makes available two reasoning models:</p>
 <ul>
-<li><p><code>grok/grok-3-mini-beta</code></p></li>
-<li><p><code>grok/grok-3-fast-beta</code></p></li>
+<li><p><code>grok/grok-3-mini</code></p></li>
+<li><p><code>grok/grok-3-fast</code></p></li>
 </ul>
 <p>You can condition the amount of reasoning done by Grok using the [<code>reasoning_effort</code>]https://docs.x.ai/docs/guides/reasoning) option, which can be set to <code>low</code> or <code>high</code>.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini-beta <span class="at">--reasoning-effort</span> high</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini <span class="at">--reasoning-effort</span> high</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that Grok 4 does not yet support the <code>--reasoning-effort</code> parameter but is expected to soon.</p>
 </section>
 <section id="deepseek-r1" class="level2">
 <h2 class="anchored" data-anchor-id="deepseek-r1">DeepSeek-R1</h2>

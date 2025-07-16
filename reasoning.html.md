@@ -207,17 +207,20 @@ reasoning summary in model output.
 
 Grok currently makes available two reasoning models:
 
-- `grok/grok-3-mini-beta`
+- `grok/grok-3-mini`
 
-- `grok/grok-3-fast-beta`
+- `grok/grok-3-fast`
 
 You can condition the amount of reasoning done by Grok using the
 \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option,
 which can be set to `low` or `high`.
 
 ``` bash
-inspect eval math.py --model grok/grok-3-mini-beta --reasoning-effort high
+inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
 ```
+
+Note that Grok 4 does not yet support the `--reasoning-effort` parameter
+but is expected to soon.
 
 ## DeepSeek-R1
 
