@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Move model classification functions into `ModelAPI` class so that subclasses can override them.
+- Azure: Support for authenticating with Microsoft Entra ID managed identities.
 - Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames).
 - Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
 - Bugfix: Use the output filesystem when creating directories in `inspect log convert`
