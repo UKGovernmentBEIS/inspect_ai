@@ -338,8 +338,9 @@ export const logUrlRaw = (log_segment: string, tabId?: string) => {
 
 export const supportsLinking = () => {
   return (
-    //location.hostname !== "localhost" &&
-    location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
+    location.hostname !== "localhost" &&
+    location.hostname !== "127.0.0.1" &&
+    location.protocol !== "vscode-webview:"
   );
 };
 

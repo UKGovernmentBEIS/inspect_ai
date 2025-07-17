@@ -1,3 +1,9 @@
+## Unreleased
+
+- OpenAI: Move model classification functions into `ModelAPI` class so that subclasses can override them.
+- Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames).
+- Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
+
 ## 0.3.113 (16 July 2025)
 
 - [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.

@@ -532,6 +532,12 @@ website:
           href: reference/inspect_ai.analysis.qmd#modeleventcolumns
         - text: ToolEventColumns
           href: reference/inspect_ai.analysis.qmd#tooleventcolumns
+        - text: prepare
+          href: reference/inspect_ai.analysis.qmd#prepare
+        - text: log_viewer
+          href: reference/inspect_ai.analysis.qmd#log_viewer
+        - text: Operation
+          href: reference/inspect_ai.analysis.qmd#operation
         - text: Column
           href: reference/inspect_ai.analysis.qmd#column
         - text: ColumnType

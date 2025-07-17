@@ -1,5 +1,5 @@
 import json
-from typing import Sequence, TypedDict, cast
+from typing import TYPE_CHECKING, Sequence, TypedDict, cast
 
 from openai.types.responses import (
     FunctionToolParam,
@@ -53,7 +53,6 @@ from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
-from inspect_ai.model._openai import is_o_series
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -65,25 +64,28 @@ from ._providers._openai_computer_use import (
 )
 from ._providers._openai_web_search import maybe_web_search_tool
 
+if TYPE_CHECKING:
+    from ._providers.openai import OpenAIAPI
+
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model: str
+    messages: list[ChatMessage], openai_api: "OpenAIAPI"
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model)
+        for item in await _openai_input_item_from_chat_message(message, openai_api)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model: str
+    message: ChatMessage, openai_api: "OpenAIAPI"
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
         return (
             [Message(type="message", role="developer", content=content)]
-            if is_o_series(model)
+            if openai_api.is_o_series()
             else [Message(type="message", role="system", content=content)]
         )
     elif message.role == "user":

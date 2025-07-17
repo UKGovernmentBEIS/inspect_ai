@@ -76,35 +76,8 @@ class OpenAIResponseError(OpenAIError):
         return f"{self.code}: {self.message}"
 
 
-def is_o_series(name: str) -> bool:
-    if bool(re.match(r"^o\d+", name)):
-        return True
-    else:
-        return not is_gpt(name) and bool(re.search(r"o\d+", name))
-
-
-def is_o1(name: str) -> bool:
-    return "o1" in name and not is_o1_early(name)
-
-
-def is_o1_early(name: str) -> bool:
-    return "o1-mini" in name or "o1-preview" in name
-
-
-def is_o3_mini(name: str) -> bool:
-    return "o3-mini" in name
-
-
-def is_computer_use_preview(name: str) -> bool:
-    return "computer-use-preview" in name
-
-
-def is_codex(name: str) -> bool:
-    return "codex" in name
-
-
-def is_gpt(name: str) -> bool:
-    return "gpt" in name
+# is_o_series etc. have been moved to the OpenAIAPI class
+# in _providers/openai.py to enable proper overriding by subclasses
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
