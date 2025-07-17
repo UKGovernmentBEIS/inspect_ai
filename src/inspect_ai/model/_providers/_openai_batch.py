@@ -3,13 +3,14 @@ import json
 import tempfile
 import time
 from itertools import chain
-from typing import Any, Literal, TypedDict
+from typing import IO, Any, Literal, TypedDict
 
 import httpx
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from tenacity import retry
+from typing_extensions import override
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai.model._generate_config import BatchConfig
@@ -39,10 +40,12 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             max_batch_request_count=50000,
             max_batch_size_mb=200,
         )
+        # Members below are considered protected and fair game for derived classes
         self._client = client
         self._retry_config = retry_config
 
-    async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
+    @override
+    async def _send_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
         @retry(**self._retry_config)
         async def _create() -> str:
             # TODO: support other endpoints
@@ -74,22 +77,13 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
                 temp_file.flush()
                 temp_file.seek(0)
 
-                batch_file = await self._client.files.create(
-                    file=temp_file.file,
-                    purpose="batch",
-                    extra_headers=extra_headers or None,
-                )
+                file_id = await self._upload_batch_file(temp_file.file, extra_headers)
 
-            batch_info = await self._client.batches.create(
-                input_file_id=batch_file.id,
-                completion_window="24h",
-                endpoint=endpoint,
-                extra_headers=extra_headers or None,
-            )
-            return batch_info.id
+            return await self._create_batch(file_id, endpoint, extra_headers)
 
         return await _create()
 
+    @override
     async def _check_batch(
         self, batch: Batch[ChatCompletion]
     ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
@@ -125,6 +119,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             {"result_uris": batch_file_ids} if batch_file_ids else None,
         )
 
+    @override
     async def _handle_batch_result(
         self,
         batch: Batch[ChatCompletion],
@@ -144,6 +139,63 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         return dict(
             chain.from_iterable(file_result.items() for file_result in await _results())
         )
+
+    async def _upload_batch_file(
+        self,
+        temp_file: IO[bytes],
+        extra_headers: dict[str, str],
+    ) -> str:
+        """
+        Uploads a batch file to the Together API.
+
+        This method is can be overridden in derived classes to provide provider-specific
+        file upload logic for batch processing.
+
+        Args:
+            temp_file: A file-like object containing the batch data to upload.
+            extra_headers: Additional headers to include in the upload request.
+
+        Returns:
+            The ID of the uploaded file as a string.
+        """
+        file_object = await self._client.files.create(
+            file=temp_file,
+            purpose="batch",
+            extra_headers=extra_headers or None,
+        )
+        return file_object.id
+
+    async def _create_batch(
+        self,
+        file_id: str,
+        endpoint: Literal["/v1/chat/completions"],
+        extra_headers: dict[str, str],
+    ) -> str:
+        """
+        Creates a batch job using the Together API.
+
+        This method can be overridden in derived classes to provide provider-specific
+        batch creation logic.
+
+        Args:
+            file_id: The ID of the uploaded batch file.
+            endpoint: The API endpoint for batch processing.
+            extra_headers: Additional headers to include in the batch creation request.
+
+        Returns:
+            The ID of the created batch job as a string.
+
+        Raises:
+            ValueError: If batch creation fails or the response is invalid.
+        """
+        return (
+            await self._client.batches.create(
+                input_file_id=file_id,
+                completion_window="24h",
+                endpoint=endpoint,
+                extra_headers=extra_headers or None,
+            )
+        ).id
 
     async def _handle_batch_result_file(
         self, file_id: str

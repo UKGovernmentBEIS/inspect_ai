@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any
+from typing import Any, cast
 
 from openai import (
     APIStatusError,
@@ -150,9 +150,7 @@ class OpenAICompatibleAPI(ModelAPI):
 
         try:
             # generate completion and save response for model call
-            completion: ChatCompletion = await self.client.chat.completions.create(
-                **request
-            )
+            completion = await self._generate_completion(request, config)
             response = completion.model_dump()
             self.on_response(response)
 
@@ -169,12 +167,19 @@ class OpenAICompatibleAPI(ModelAPI):
         """Provides an opportunity for concrete classes to customize tool resolution."""
         return tools, tool_choice, config
 
+    async def _generate_completion(
+        self, request: dict[str, Any], config: GenerateConfig
+    ) -> ChatCompletion:
+        return cast(
+            ChatCompletion, await self.client.chat.completions.create(**request)
+        )
+
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         return openai_should_retry(ex)
 
     @override
