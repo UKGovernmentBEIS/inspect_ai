@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.114 (17 July 2025)
 
 - OpenAI: Move model classification functions into `ModelAPI` class so that subclasses can override them.
 - Azure: Support for authenticating with Microsoft Entra ID managed identities.
