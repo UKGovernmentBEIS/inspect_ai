@@ -258,7 +258,7 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
                 type="hooks", name=hook_name, metadata={"description": description}
             ),
         )
-        return hook_type
+        return cast(Type[T], hook_type)
 
     return wrapper
 

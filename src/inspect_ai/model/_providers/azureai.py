@@ -33,11 +33,11 @@ from azure.core.exceptions import (
     HttpResponseError,
     ServiceResponseError,
 )
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -117,14 +117,18 @@ class AzureAIAPI(ModelAPI):
         if not self.api_key:
             # try managed identity (Microsoft Entra ID)
             try:
+                from azure.identity import (
+                    DefaultAzureCredential,
+                    get_bearer_token_provider,
+                )
+
                 self.token_provider = get_bearer_token_provider(
                     DefaultAzureCredential(),
                     "https://cognitiveservices.azure.com/.default",
                 )
-            except Exception as ex:
-                raise environment_prerequisite_error(
-                    "AzureAI (Managed Identity)",
-                    f"Managed identity authentication failed: {ex}",
+            except ImportError:
+                raise PrerequisiteError(
+                    "ERROR: The AzureAI provider requires the `azure-identity` package for managed identity support."
                 )
         if not self.api_key and not self.token_provider:
             raise environment_prerequisite_error(

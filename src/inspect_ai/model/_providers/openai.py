@@ -2,7 +2,6 @@ import os
 from logging import getLogger
 from typing import Any, Literal, cast
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import (
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -127,23 +126,18 @@ class OpenAIAPI(ModelAPI):
                 if not self.api_key:
                     # try managed identity (Microsoft Entra ID)
                     try:
+                        from azure.identity import (
+                            DefaultAzureCredential,
+                            get_bearer_token_provider,
+                        )
+
                         self.token_provider = get_bearer_token_provider(
                             DefaultAzureCredential(),
                             "https://cognitiveservices.azure.com/.default",
                         )
-                    except Exception as ex:
-                        raise environment_prerequisite_error(
-                            "OpenAI (Managed Identity)",
-                            f"Managed identity authentication failed: {ex}",
-                        )
-                    if not self.token_provider:
-                        raise environment_prerequisite_error(
-                            "OpenAI",
-                            [
-                                OPENAI_API_KEY,
-                                AZUREAI_OPENAI_API_KEY,
-                                "or managed identity (Entra ID)",
-                            ],
+                    except ImportError:
+                        raise PrerequisiteError(
+                            "ERROR: The OpenAI provider requires the `azure-identity` package for managed identity support."
                         )
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
