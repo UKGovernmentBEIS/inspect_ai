@@ -1,4 +1,5 @@
 import os
+import re
 from logging import getLogger
 from typing import Any, Literal, cast
 
@@ -30,13 +31,6 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
-    is_codex,
-    is_computer_use_preview,
-    is_gpt,
-    is_o1,
-    is_o1_early,
-    is_o3_mini,
-    is_o_series,
     model_output_from_openai,
     openai_chat_messages,
     openai_chat_tool_choice,
@@ -210,25 +204,35 @@ class OpenAIAPI(ModelAPI):
         return self.service == "azure"
 
     def is_o_series(self) -> bool:
-        return is_o_series(self.service_model_name())
+        name = self.service_model_name()
+        if bool(re.match(r"^o\d+", name)):
+            return True
+        else:
+            return not self.is_gpt() and bool(re.search(r"o\d+", name))
 
     def is_o1(self) -> bool:
-        return is_o1(self.service_model_name())
+        name = self.service_model_name()
+        return "o1" in name and not self.is_o1_early()
 
     def is_o1_early(self) -> bool:
-        return is_o1_early(self.service_model_name())
+        name = self.service_model_name()
+        return "o1-mini" in name or "o1-preview" in name
 
     def is_o3_mini(self) -> bool:
-        return is_o3_mini(self.service_model_name())
+        name = self.service_model_name()
+        return "o3-mini" in name
 
     def is_computer_use_preview(self) -> bool:
-        return is_computer_use_preview(self.service_model_name())
+        name = self.service_model_name()
+        return "computer-use-preview" in name
 
     def is_codex(self) -> bool:
-        return is_codex(self.service_model_name())
+        name = self.service_model_name()
+        return "codex" in name
 
     def is_gpt(self) -> bool:
-        return is_gpt(self.service_model_name())
+        name = self.service_model_name()
+        return "gpt" in name
 
     @override
     async def aclose(self) -> None:
@@ -281,6 +285,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
+                openai_api=self,
             )
 
         # allocate request_id (so we can see it from ModelCall)
