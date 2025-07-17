@@ -73,6 +73,7 @@ AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
+AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 
 # legacy vars for migration
 AZURE_API_KEY = "AZURE_API_KEY"
@@ -124,7 +125,10 @@ class AzureAIAPI(ModelAPI):
 
                 self.token_provider = get_bearer_token_provider(
                     DefaultAzureCredential(),
-                    "https://cognitiveservices.azure.com/.default",
+                    os.environ.get(
+                        AZUREAI_AUDIENCE,
+                        "https://cognitiveservices.azure.com/.default",
+                    ),
                 )
             except ImportError:
                 raise PrerequisiteError(

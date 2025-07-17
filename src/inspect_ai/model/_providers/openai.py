@@ -56,6 +56,7 @@ logger = getLogger(__name__)
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
+AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
@@ -133,7 +134,10 @@ class OpenAIAPI(ModelAPI):
 
                         self.token_provider = get_bearer_token_provider(
                             DefaultAzureCredential(),
-                            "https://cognitiveservices.azure.com/.default",
+                            os.environ.get(
+                                AZUREAI_AUDIENCE,
+                                "https://cognitiveservices.azure.com/.default",
+                            ),
                         )
                     except ImportError:
                         raise PrerequisiteError(
