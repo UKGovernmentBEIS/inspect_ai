@@ -242,8 +242,8 @@ def openai_completion_params(
 def openai_assistant_content(message: ChatMessageAssistant) -> str:
     # In agent bridge scenarios, we could encounter concepts such as reasoning and
     # .internal use in the ChatMessageAssistant that are not supported by the OpenAI
-    # choices API. This code smuggles that data plain text so that it survives
-    # multi-turn round trips.
+    # choices API. This code smuggles that data into the plain text so that it
+    # survives multi-turn round trips.
 
     if isinstance(message.content, str):
         content = message.content
