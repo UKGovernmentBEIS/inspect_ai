@@ -202,12 +202,12 @@ def resolve_schema_references(schema: dict[str, Any]) -> dict[str, Any]:
     def _resolve_refs(obj: Any) -> Any:
         if isinstance(obj, dict):
             if "$ref" in obj and obj["$ref"].startswith("#/$defs/"):
-                ref_key = obj["$ref"].split("/")[-1]
+                ref_key = obj.pop("$ref").split("/")[-1]
                 if ref_key in definitions:
                     # Replace with a deep copy of the definition
                     resolved = deepcopy(definitions[ref_key])
                     # Process any nested references in the definition
-                    return _resolve_refs(resolved)
+                    return _resolve_refs(resolved) | obj
 
             # Process all entries in the dictionary
             return {k: _resolve_refs(v) for k, v in obj.items()}
