@@ -4,14 +4,4 @@ RUN apt-get update && \
     apt-get install -y scons gcc build-essential patchelf && \
     pip install pyinstaller staticx psutil jsonrpcserver pydantic setuptools
 
-WORKDIR /app
-
-# Copy your Python script into the container
-# COPY main.py .
-
-# # Build with PyInstaller
-# RUN pyinstaller --onefile main.py
-
-# # Final binary will be in /app/dist/main
-
 CMD ["tail", "-f", "/dev/null"]
