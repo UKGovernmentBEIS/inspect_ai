@@ -240,6 +240,11 @@ def openai_completion_params(
 
 
 def openai_assistant_content(message: ChatMessageAssistant) -> str:
+    # In agent bridge scenarios, we could encounter concepts such as reasoning and
+    # .internal use in the ChatMessageAssistant that are not supported by the OpenAI
+    # choices API. This code smuggles that data into the plain text so that it
+    # survives multi-turn round trips.
+
     if isinstance(message.content, str):
         content = message.content
     else:
@@ -389,15 +394,17 @@ def chat_messages_from_openai(
                 # bridge scenarios where a different model (that does use .internal)
                 # is the actual model being used.
                 asst_content, internal = _parse_content_with_internal(asst_content)
-                result = parse_content_with_reasoning(asst_content)
-                if result is not None:
+                asst_content, smuggled_reasoning = parse_content_with_reasoning(
+                    asst_content
+                )
+                if smuggled_reasoning:
                     content = [
                         ContentReasoning(
-                            reasoning=result.reasoning,
-                            signature=result.signature,
-                            redacted=result.redacted,
+                            reasoning=smuggled_reasoning.reasoning,
+                            signature=smuggled_reasoning.signature,
+                            redacted=smuggled_reasoning.redacted,
                         ),
-                        ContentText(text=result.content),
+                        ContentText(text=asst_content),
                     ]
                 else:
                     content = asst_content
@@ -445,7 +452,13 @@ def chat_messages_from_openai(
         elif message["role"] == "tool":
             tool_content = message.get("content", None) or ""
             if isinstance(tool_content, str):
-                content = tool_content
+                # If tool_content is a simple str, it could be the result of some
+                # sub-agent tool call that has <think> or <internal> smuggled inside
+                # of it to support agent bridge scenarios. We have to strip that
+                # data. To be clear, if it's <think>, we'll strip the <think> tag,
+                # but the reasoning summary itself will remain in the content.
+                content, _ = _parse_content_with_internal(tool_content)
+                content, _ = parse_content_with_reasoning(content)
             else:
                 content = []
                 for tc in tool_content:
@@ -481,15 +494,15 @@ def content_from_openai(
     if content["type"] == "text":
         text = content["text"]
         if parse_reasoning:
-            result = parse_content_with_reasoning(text)
-            if result:
+            content_text, reasoning = parse_content_with_reasoning(text)
+            if reasoning:
                 return [
                     ContentReasoning(
-                        reasoning=result.reasoning,
-                        signature=result.signature,
-                        redacted=result.redacted,
+                        reasoning=reasoning.reasoning,
+                        signature=reasoning.signature,
+                        redacted=reasoning.redacted,
                     ),
-                    ContentText(text=result.content),
+                    ContentText(text=content_text),
                 ]
             else:
                 return [ContentText(text=text)]

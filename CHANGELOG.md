@@ -5,6 +5,7 @@
 - Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames).
 - Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
 - Bugfix: Use the output filesystem when creating directories in `inspect log convert`
+- Bugfix: Strip smuggled `<think>` and `<internal>` tags from tool messages to prevent leakage in multi-agent scenarios where an _inner_ assistant message can be coerced into a tool message.
 
 ## 0.3.113 (16 July 2025)
 

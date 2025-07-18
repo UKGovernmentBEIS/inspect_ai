@@ -78,12 +78,12 @@ from inspect_ai.model._reasoning import parse_content_with_reasoning
 def test_parse_content_with_reasoning(
     s, exp_sig, exp_red, exp_reason, exp_content, should_match
 ):
-    result = parse_content_with_reasoning(s)
+    content, reasoning = parse_content_with_reasoning(s)
     if should_match:
-        assert result is not None
-        assert result.signature == exp_sig
-        assert result.redacted == exp_red
-        assert result.reasoning == exp_reason
-        assert result.content == exp_content
+        assert reasoning is not None
+        assert reasoning.signature == exp_sig
+        assert reasoning.redacted == exp_red
+        assert reasoning.reasoning == exp_reason
+        assert content == exp_content
     else:
-        assert result is None
+        assert reasoning is None
