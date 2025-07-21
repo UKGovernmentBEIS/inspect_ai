@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Dict
 
 import pandas as pd

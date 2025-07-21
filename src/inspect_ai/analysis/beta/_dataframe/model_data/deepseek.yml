@@ -14,7 +14,7 @@ DeepSeek:
       display_name: "R1"
       release_date: 2025-02-17
       context_length: 65536
-      thinking: True
+      reasoning: True
       versions:
         DeepSeek-R1-0528:
           rlease_date: 2025-05-28
