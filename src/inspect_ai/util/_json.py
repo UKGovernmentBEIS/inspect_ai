@@ -210,9 +210,9 @@ def resolve_schema_references(schema: dict[str, Any]) -> dict[str, Any]:
                     resolved = _resolve_refs(resolved)
 
                     # Merge in the current object fields, which should take priority
-                    # This means that if you have e.g. 
+                    # This means that if you have e.g.
                     # {"$ref": "#/$defs/SubType", "description": "subtype of type SubType"},
-                    # and SubType resolves to 
+                    # and SubType resolves to
                     # {"description": "The SubType Class", "parameters": {"param1": {"type": "string"}}},
                     # the final result will be:
                     # {"description": "subtype of type SubType", "parameters": {"param1": {"type": "string"}}}
