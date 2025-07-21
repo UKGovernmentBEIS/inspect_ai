@@ -50,6 +50,7 @@ logger = getLogger(__name__)
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
+AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
@@ -110,21 +111,42 @@ class OpenAIAPI(ModelAPI):
             900.0 if self.service_tier == "flex" else None
         )
 
-        # resolve api_key
+        # resolve api_key or managed identity (for Azure)
+        self.token_provider = None
         if not self.api_key:
             if self.service == "azure":
                 self.api_key = os.environ.get(
                     AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
                 )
+                if not self.api_key:
+                    # try managed identity (Microsoft Entra ID)
+                    try:
+                        from azure.identity import (
+                            DefaultAzureCredential,
+                            get_bearer_token_provider,
+                        )
+
+                        self.token_provider = get_bearer_token_provider(
+                            DefaultAzureCredential(),
+                            os.environ.get(
+                                AZUREAI_AUDIENCE,
+                                "https://cognitiveservices.azure.com/.default",
+                            ),
+                        )
+                    except ImportError:
+                        raise PrerequisiteError(
+                            "ERROR: The OpenAI provider requires the `azure-identity` package for managed identity support."
+                        )
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
 
-            if not self.api_key:
+            if not self.api_key and not self.token_provider:
                 raise environment_prerequisite_error(
                     "OpenAI",
                     [
                         OPENAI_API_KEY,
                         AZUREAI_OPENAI_API_KEY,
+                        "or managed identity (Entra ID)",
                     ],
                 )
 
@@ -158,8 +180,10 @@ class OpenAIAPI(ModelAPI):
                     os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
                 )
 
+            # use managed identity if available, otherwise API key
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
                 api_key=self.api_key,
+                azure_ad_token_provider=self.token_provider,
                 api_version=api_version,
                 azure_endpoint=base_url,
                 http_client=http_client,

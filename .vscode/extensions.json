@@ -3,6 +3,7 @@
     "charliermarsh.ruff",
     "ms-python.python",
     "ms-python.mypy-type-checker",
-    "quarto.quarto"
+    "quarto.quarto",
+    "ukaisi.inspect-ai"
   ]
 }

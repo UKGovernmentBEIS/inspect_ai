@@ -37,6 +37,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -72,6 +73,7 @@ AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
+AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 
 # legacy vars for migration
 AZURE_API_KEY = "AZURE_API_KEY"
@@ -108,14 +110,39 @@ class AzureAIAPI(ModelAPI):
             not not emulate_tools if emulate_tools is not None else None
         )
 
-        # resolve api_key
+        # resolve api_key or managed identity (for Azure)
+        self.token_provider = None
+        self.api_key = os.environ.get(
+            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
+        )
         if not self.api_key:
-            self.api_key = os.environ.get(
-                AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
-            )
-            if not self.api_key:
-                raise environment_prerequisite_error("AzureAI", AZURE_API_KEY)
+            # try managed identity (Microsoft Entra ID)
+            try:
+                from azure.identity import (
+                    DefaultAzureCredential,
+                    get_bearer_token_provider,
+                )
 
+                self.token_provider = get_bearer_token_provider(
+                    DefaultAzureCredential(),
+                    os.environ.get(
+                        AZUREAI_AUDIENCE,
+                        "https://cognitiveservices.azure.com/.default",
+                    ),
+                )
+            except ImportError:
+                raise PrerequisiteError(
+                    "ERROR: The AzureAI provider requires the `azure-identity` package for managed identity support."
+                )
+        if not self.api_key and not self.token_provider:
+            raise environment_prerequisite_error(
+                "AzureAI",
+                [
+                    AZURE_API_KEY,
+                    AZUREAI_API_KEY,
+                    "or managed identity (Entra ID)",
+                ],
+            )
         # resolve base url
         endpoint_url = model_base_url(
             base_url,
