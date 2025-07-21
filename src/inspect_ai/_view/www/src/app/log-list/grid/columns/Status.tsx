@@ -62,9 +62,9 @@ export const statusColumn = () => {
     },
     enableSorting: true,
     enableGlobalFilter: true,
-    size: 80,
-    minSize: 60,
-    maxSize: 120,
+    size: 60,
+    minSize: 40,
+    maxSize: 80,
     enableResizing: true,
   });
 };

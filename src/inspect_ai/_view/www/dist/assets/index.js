@@ -51470,9 +51470,9 @@ categories: ${categories.join(" ")}`;
         },
         enableSorting: true,
         enableGlobalFilter: true,
-        size: 80,
-        minSize: 60,
-        maxSize: 120,
+        size: 60,
+        minSize: 40,
+        maxSize: 80,
         enableResizing: true
       });
     };
@@ -51528,7 +51528,7 @@ categories: ${categories.join(" ")}`;
         cell: (info) => {
           const item2 = info.row.original;
           let value2 = itemName(item2);
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$18.logLink, children: value2 }) : value2 });
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$18.logLink, title: item2.name, children: value2 }) : value2 });
         },
         enableSorting: true,
         enableGlobalFilter: true,
@@ -51558,10 +51558,10 @@ categories: ${categories.join(" ")}`;
         iconColumn(),
         taskColumn(),
         modelColumn(),
-        fileNameColumn(),
-        completedDateColumn(),
         scoreColumn(),
-        statusColumn()
+        statusColumn(),
+        completedDateColumn(),
+        fileNameColumn()
       ];
       return allColumns;
     };

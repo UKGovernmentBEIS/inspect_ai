@@ -15,7 +15,7 @@ export const taskColumn = () => {
       return (
         <div className={styles.nameCell}>
           {item.url ? (
-            <Link to={item.url} className={styles.logLink}>
+            <Link to={item.url} className={styles.logLink} title={item.name}>
               {value}
             </Link>
           ) : (
