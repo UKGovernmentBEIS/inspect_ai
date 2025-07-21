@@ -6,6 +6,7 @@
 - Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
 - Bugfix: Use the output filesystem when creating directories in `inspect log convert`
 - Bugfix: Strip smuggled `<think>` and `<internal>` tags from tool messages to prevent leakage in multi-agent scenarios where an _inner_ assistant message can be coerced into a tool message.
+- React: Require submit tool to have no errors before you exit the react loop.
 
 ## 0.3.113 (16 July 2025)
 
