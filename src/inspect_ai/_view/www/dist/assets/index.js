@@ -91259,13 +91259,13 @@ Supported expressions:
       const metricKey = metrics2.map((m) => m.name).join("");
       return metricKey;
     };
-    const simpleMetricsRows = "_simpleMetricsRows_yha6g_1";
-    const verticalMetricReducer = "_verticalMetricReducer_yha6g_26";
-    const verticalMetricName = "_verticalMetricName_yha6g_33";
-    const verticalMetricValue = "_verticalMetricValue_yha6g_41";
-    const moreButton = "_moreButton_yha6g_91";
-    const metricsSummary = "_metricsSummary_yha6g_97";
-    const modalScores = "_modalScores_yha6g_103";
+    const simpleMetricsRows = "_simpleMetricsRows_1itqo_1";
+    const verticalMetricReducer = "_verticalMetricReducer_1itqo_26";
+    const verticalMetricName = "_verticalMetricName_1itqo_33";
+    const verticalMetricValue = "_verticalMetricValue_1itqo_41";
+    const moreButton = "_moreButton_1itqo_91";
+    const metricsSummary = "_metricsSummary_1itqo_97";
+    const modalScores = "_modalScores_1itqo_104";
     const styles$6 = {
       simpleMetricsRows,
       verticalMetricReducer,

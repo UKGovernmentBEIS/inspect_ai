@@ -20555,7 +20555,7 @@ span.ap-marker-container:hover span.ap-marker {
 
   z-index: 1040;
 }
-._simpleMetricsRows_yha6g_1 {
+._simpleMetricsRows_1itqo_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -20566,7 +20566,7 @@ span.ap-marker-container:hover span.ap-marker {
   overflow: scroll;
 }
 
-._multiMetricsRows_yha6g_12 {
+._multiMetricsRows_1itqo_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -20580,14 +20580,14 @@ span.ap-marker-container:hover span.ap-marker {
   align-items: baseline;
 }
 
-._verticalMetricReducer_yha6g_26 {
+._verticalMetricReducer_1itqo_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_yha6g_33 {
+._verticalMetricName_1itqo_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -20595,35 +20595,35 @@ span.ap-marker-container:hover span.ap-marker {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_yha6g_41 {
+._verticalMetricValue_1itqo_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_yha6g_46 {
+._multiScorer_1itqo_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_yha6g_53 {
+._multiScorerIndent_1itqo_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_yha6g_57 {
+._multiScorerReducer_1itqo_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_yha6g_63 {
+._multiScorerLabel_1itqo_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_yha6g_69 {
+._multiScorerValue_1itqo_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -20632,12 +20632,12 @@ span.ap-marker-container:hover span.ap-marker {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_yha6g_78 {
+._multiScorerValueContent_1itqo_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_yha6g_83 {
+._multiScoreMetricGrid_1itqo_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -20645,19 +20645,20 @@ span.ap-marker-container:hover span.ap-marker {
   justify-content: center;
 }
 
-._moreButton_yha6g_91 {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+._moreButton_1itqo_91 {
+  margin-top: 0.25em;
   padding-right: 0;
+  padding-bottom: 0;
 }
 
-._metricsSummary_yha6g_97 {
+._metricsSummary_1itqo_97 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  margin-bottom: 0.35em;
 }
 
-._modalScores_yha6g_103 {
+._modalScores_1itqo_104 {
   padding-bottom: 4em;
 }
 ._table_12koy_1 {
