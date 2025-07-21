@@ -495,11 +495,11 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
     if isinstance(content, ReferenceChunk):
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
-        parsed = parse_content_with_reasoning(content.text)
-        if parsed:
+        content_text, reasoning = parse_content_with_reasoning(content.text)
+        if reasoning:
             return [
-                ContentReasoning(reasoning=parsed.reasoning),
-                ContentText(text=parsed.content),
+                ContentReasoning(reasoning=reasoning.reasoning),
+                ContentText(text=content_text),
             ]
         else:
             return [ContentText(text=content.text)]

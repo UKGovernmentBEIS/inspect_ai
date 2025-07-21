@@ -131,11 +131,11 @@ class ChatMessageAssistant(ChatMessageBase):
             # cleave apart <think> blocks
             content = data.get("content", None)
             if isinstance(content, str):
-                parsed = parse_content_with_reasoning(content)
-                if parsed:
+                content_text, reasoning = parse_content_with_reasoning(content)
+                if reasoning:
                     data["content"] = [
-                        ContentReasoning(reasoning=parsed.reasoning),
-                        ContentText(text=parsed.content),
+                        ContentReasoning(reasoning=reasoning.reasoning),
+                        ContentText(text=content_text),
                     ]
             # migrate messages that has explicit 'reasoning' field
             # (which was our original representation of reasoning)
