@@ -1,8 +1,8 @@
 google:
-  short_name: Google
+  display_name: Google
   models:
     gemini-2.5-pro:
-      short_name: "Gemini 2.5 Pro"
+      display_name: "Gemini 2.5 Pro"
       release_date: 2025-03-25
       knowledge_cutoff_date: 2025-01-01
       context_length: 1048576
@@ -16,7 +16,7 @@ google:
         gemini-2.5-pro-preview-06-05:
           snapshot: "2025-06-05"
     gemini-2.5-flash:
-      short_name: "Gemini 2.5 Flash"
+      display_name: "Gemini 2.5 Flash"
       release_date: 2025-06-17
       knowledge_cutoff_date: 2025-01-01
       context_length: 1048576
@@ -26,7 +26,7 @@ google:
         gemini-2.5-flash-preview-05-20:
           snapshot: "2025-05-20"
     gemini-2.0-flash:
-      short_name: "Gemini 2.0 Flash"
+      display_name: "Gemini 2.0 Flash"
       release_date: 2025-02-05
       knowledge_cutoff_date: 2024-08-01
       context_length: 1048576
@@ -38,7 +38,7 @@ google:
         gemini-2.0-flash-preview-11-14:
           snapshot: "2024-11-14"
     gemini-1.5-flash:
-      short_name: "Gemini 1.5 Flash"
+      display_name: "Gemini 1.5 Flash"
       release_date: 2024-09-24
       knowledge_cutoff_date: 2024-05-01
       context_length: 1048576
@@ -52,7 +52,7 @@ google:
         gemini-1.5-flash-latest:
           snapshot: "latest"
     gemini-1.5-pro:
-      short_name: "Gemini 1.5 Pro"
+      display_name: "Gemini 1.5 Pro"
       release_date: 2024-09-24
       knowledge_cutoff_date: 2024-05-01
       context_length: 1048576

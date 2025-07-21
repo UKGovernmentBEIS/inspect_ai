@@ -1,6 +1,5 @@
 from datetime import date
 from pathlib import Path
-import pprint
 from typing import Dict, List, Optional
 
 import yaml
@@ -10,7 +9,7 @@ from pydantic import BaseModel, ValidationError
 class BaseModelDefinition(BaseModel):
     """Base model definition with common fields"""
 
-    short_name: Optional[str] = None
+    display_name: Optional[str] = None
     release_date: Optional[date] = None
     knowledge_cutoff_date: Optional[date] = None
     context_length: Optional[float] = None
@@ -29,7 +28,7 @@ class ModelDefinition(BaseModelDefinition):
 class FamilyData(BaseModel):
     """Family data from YAML"""
 
-    short_name: str
+    display_name: str
     models: Dict[str, ModelDefinition]
 
 
@@ -64,8 +63,8 @@ def create_model_info(
         family=family_name,
         model=model_name,
         snapshot=data_source.snapshot,
-        family_short_name=family_short_name,
-        model_short_name=data_source.short_name or model_def.short_name,
+        family_display_name=family_short_name,
+        model_display_name=data_source.display_name or model_def.display_name,
         knowledge_cutoff_date=data_source.knowledge_cutoff_date
         or model_def.knowledge_cutoff_date,
         release_date=data_source.release_date or model_def.release_date,
@@ -82,8 +81,8 @@ class ModelInfo(BaseModel):
     model: str
     snapshot: str | None = None
 
-    family_short_name: str | None = None
-    model_short_name: str | None = None
+    family_display_name: str | None = None
+    model_display_name: str | None = None
 
     knowledge_cutoff_date: date | None = None
     release_date: date | None = None
@@ -97,6 +96,7 @@ class ModelInfo(BaseModel):
 def read_model_info() -> dict[str, ModelInfo]:
     """Load model information from YAML files in the current directory."""
     current_dir = Path(__file__).parent
+    print(current_dir)
     model_infos: dict[str, ModelInfo] = {}
 
     # YAML data files
@@ -109,7 +109,7 @@ def read_model_info() -> dict[str, ModelInfo]:
             families = load_families_from_yaml(info_file)
 
             for family_name, family_data in families.items():
-                family_short_name = family_data.short_name
+                family_short_name = family_data.display_name
 
                 for model_name, model_def in family_data.models.items():
                     # Create the base model

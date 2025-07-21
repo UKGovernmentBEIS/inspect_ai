@@ -1,8 +1,8 @@
 openai:
-  short_name: OpenAI
+  display_name: OpenAI
   models:
     gpt-3.5-turbo:
-      short_name: GPT-3.5 Turbo
+      display_name: GPT-3.5 Turbo
       release_date: 2023-03-01
       knowledge_cutoff_date: 2021-08-31
       context_length: 4096
@@ -23,7 +23,7 @@ openai:
         gpt-3.5-turbo-latest:
           snapshot: latest
     gpt-4:
-      short_name: GPT-4
+      display_name: GPT-4
       release_date: 2023-03-14
       knowledge_cutoff_date: 2023-11-30
       context_length: 8192
@@ -38,7 +38,7 @@ openai:
         gpt-4-latest:
           snapshot: latest
     gpt-4o:
-      short_name: GPT-4o
+      display_name: GPT-4o
       release_date: 2024-05-13
       knowledge_cutoff_date: 2023-11-30
       context_length: 128000
@@ -56,7 +56,7 @@ openai:
         gpt-4o-latest:
           snapshot: latest
     gpt-4o-mini:
-      short_name: GPT-4o Mini
+      display_name: GPT-4o Mini
       release_date: 2024-07-18
       knowledge_cutoff_date: 2023-11-30
       context_length: 128000
@@ -67,7 +67,7 @@ openai:
         gpt-4o-mini-latest:
           snapshot: latest
     gpt-4.1:
-      short_name: GPT-4.1
+      display_name: GPT-4.1
       release_date: 2025-04-14
       knowledge_cutoff_date: 2024-05-31
       context_length: 1047576
@@ -78,7 +78,7 @@ openai:
         latest:
           snapshot: "latest"
     gpt-4.1-mini:
-      short_name: GPT-4.1 Mini
+      display_name: GPT-4.1 Mini
       release_date: 2025-04-14
       knowledge_cutoff_date: 2024-05-31
       context_length: 1047576
@@ -89,7 +89,7 @@ openai:
         latest:
           snapshot: latest
     gpt-4.1-nano:
-      short_name: GPT-4.1 Nano
+      display_name: GPT-4.1 Nano
       release_date: 2025-04-14
       knowledge_cutoff_date: 2024-05-31
       context_length: 1047576
@@ -100,7 +100,7 @@ openai:
         latest:
           snapshot: latest
     gpt-4.5-preview:
-      short_name: GPT-4.5 Preview
+      display_name: GPT-4.5 Preview
       release_date: 2025-02-27
       knowledge_cutoff_date: 2023-09-30
       context_length: 128000
@@ -111,7 +111,7 @@ openai:
         latest:
           snapshot: latest
     o1:
-      short_name: o1
+      display_name: o1
       release_date: 2024-12-17
       knowledge_cutoff_date: 2023-09-30
       context_length: 200000
@@ -123,7 +123,7 @@ openai:
         latest:
           snapshot: latest
     o1-preview:
-      short_name: o1 Preview
+      display_name: o1 Preview
       release_date: 2024-09-12
       knowledge_cutoff_date: 2023-09-30
       context_length: 128000
@@ -135,7 +135,7 @@ openai:
         latest:
           snapshot: latest
     o1-mini:
-      short_name: o1 Mini
+      display_name: o1 Mini
       release_date: 2024-09-12
       knowledge_cutoff_date: 2023-09-30
       context_length: 128000
@@ -147,7 +147,7 @@ openai:
         latest:
           snapshot: latest
     o1-pro:
-      short_name: o1 Pro
+      display_name: o1 Pro
       release_date: 2025-03-19
       knowledge_cutoff_date: 2024-05-31
       context_length: 200000
@@ -159,7 +159,7 @@ openai:
         latest:
           snapshot: latest
     o3:
-      short_name: o3
+      display_name: o3
       release_date: 2025-04-16
       knowledge_cutoff_date: 2024-05-31
       context_length: 200000
@@ -171,7 +171,7 @@ openai:
         latest:
           snapshot: latest
     o3-mini:
-      short_name: o3-mini
+      display_name: o3-mini
       release_date: 2025-01-31
       knowledge_cutoff_date: 2024-05-31
       context_length: 200000
@@ -183,7 +183,7 @@ openai:
         latest:
           snapshot: latest
     o3-pro:
-      short_name: o3 Pro
+      display_name: o3 Pro
       release_date: 2025-06-10
       knowledge_cutoff_date: 2024-05-31
       context_length: 200000
@@ -195,7 +195,7 @@ openai:
         latest:
           snapshot: latest
     o4-mini:
-      short_name: o4 Mini
+      display_name: o4 Mini
       release_date: 2025-04-16
       knowledge_cutoff_date: 2024-05-31
       context_length: 200000

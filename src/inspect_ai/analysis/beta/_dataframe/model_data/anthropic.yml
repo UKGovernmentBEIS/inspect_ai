@@ -1,8 +1,8 @@
 anthropic:
-  short_name: Anthropic
+  display_name: Anthropic
   models:
     claude-opus-4:
-      short_name: Claude Opus 4
+      display_name: Claude Opus 4
       release_date: 2024-05-14
       knowledge_cutoff_date: 2025-03-01
       context_length: 200000
@@ -15,7 +15,7 @@ anthropic:
             - anthropic.claude-opus-4-20250514-v1:0
             - claude-opus-4@20250514
     claude-sonnet-4:
-      short_name: Claude Sonnet 4
+      display_name: Claude Sonnet 4
       release_date: 2024-05-14
       knowledge_cutoff_date: 2025-03-01
       context_length: 200000
@@ -28,7 +28,7 @@ anthropic:
             - anthropic.claude-sonnet-4-20250514-v1:0
             - claude-sonnet-4@20250514
     claude-3-7-sonnet:
-      short_name: Claude 3.7 Sonnet
+      display_name: Claude 3.7 Sonnet
       release_date: 2025-02-19
       knowledge_cutoff_date: 2024-11-01
       context_length: 200000
@@ -42,7 +42,7 @@ anthropic:
         claude-3-7-sonnet-latest:
           snapshot: "latest"
     claude-3-5-sonnet:
-      short_name: Claude 3.5 Sonnet
+      display_name: Claude 3.5 Sonnet
       release_date: 2024-10-22
       knowledge_cutoff_date: 2024-07-01
       context_length: 200000
@@ -61,7 +61,7 @@ anthropic:
         claude-3-5-sonnet-latest:
           snapshot: "latest"
     claude-3-5-haiku:
-      short_name: Claude 3.5 Haiku
+      display_name: Claude 3.5 Haiku
       release_date: 2024-10-22
       knowledge_cutoff_date: 2024-07-01
       context_length: 200000
@@ -75,7 +75,7 @@ anthropic:
         claude-3-5-haiku-latest:
           snapshot: "latest"
     claude-3-opus:
-      short_name: Claude 3 Opus
+      display_name: Claude 3 Opus
       release_date: 2024-02-29
       knowledge_cutoff_date: 2023-08-01
       context_length: 200000
@@ -86,7 +86,7 @@ anthropic:
         claude-3-opus-latest:
           snapshot: "latest"
     claude-3-haiku:
-      short_name: Claude 3 Haiku
+      display_name: Claude 3 Haiku
       release_date: 2024-03-07
       knowledge_cutoff_date: 2023-08-01
       context_length: 200000

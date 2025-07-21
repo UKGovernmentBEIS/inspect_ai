@@ -5,7 +5,7 @@ data = {
     "mockllm/model": ModelInfo(
         family="gpt-4",
         model="gpt-4",
-        model_short_name="GPT-4",
+        model_display_name="GPT-4",
         version="2023-03-14",
         release_date="2023-03-14",
     )

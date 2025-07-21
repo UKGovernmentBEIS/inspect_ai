@@ -13,7 +13,8 @@ class ModelInfo(BaseModel):
 
     family: str
     model: str
-    model_short_name: str | None = None
+    model_display_name: str | None = None
+    family_display_name: str | None = None
     version: str | None = None
     release_date: str | None = None
 
@@ -27,10 +28,8 @@ def model_info(
     def transform(df: pd.DataFrame) -> pd.DataFrame:
         # Add columns from ModelInfo for each row based on the 'model' column
         fields = [
-            "family_name",
-            "model_name",
-            "family_short_name",
-            "model_short_name",
+            "family_display_name",
+            "model_display_name",
             "snapshot",
             "release_date",
             "knowledge_cutoff_date",
