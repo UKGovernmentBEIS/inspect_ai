@@ -1,27 +1,21 @@
 from typing import Dict
 
 import pandas as pd
-from pydantic import BaseModel
 
-from inspect_ai.analysis.beta._dataframe.model_data.model_data import read_model_info
+from inspect_ai.analysis.beta._prepare.model_data.model_data import (
+    ModelInfo,
+    read_model_info,
+)
 from inspect_ai.analysis.beta._prepare.operation import Operation
-
-
-class ModelInfo(BaseModel):
-    """Model information and metadata"""
-
-    family: str
-    model: str
-    model_display_name: str | None = None
-    family_display_name: str | None = None
-    version: str | None = None
-    release_date: str | None = None
 
 
 def model_info(
     model_info: Dict[str, ModelInfo] | None = None,
 ) -> Operation:
+    # Read built in model info
     builtin_model_info = read_model_info()
+
+    # Merge with user provided model info
     resolved_model_info = builtin_model_info | (model_info or {})
 
     def transform(df: pd.DataFrame) -> pd.DataFrame:

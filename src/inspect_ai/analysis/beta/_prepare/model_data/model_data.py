@@ -96,7 +96,6 @@ class ModelInfo(BaseModel):
 def read_model_info() -> dict[str, ModelInfo]:
     """Load model information from YAML files in the current directory."""
     current_dir = Path(__file__).parent
-    print(current_dir)
     model_infos: dict[str, ModelInfo] = {}
 
     # YAML data files
