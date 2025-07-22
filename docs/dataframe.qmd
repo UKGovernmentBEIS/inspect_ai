@@ -227,8 +227,9 @@ df = prepare(df, [
 Available data preparation operations include:
 
 | Function | Description |
-|----|----|
+|------------------------------------|------------------------------------|
 | `log_viewer()` | Add a "log_viewer" column to an eval data frame by mapping log file paths to remote URLs. |
+| `model_info()` | Add additional model metadata (e.g. `model_display_name`, `release_date`, etc)  to an eval data frame. |
 
 ## Column Definitions {#column-definitions}
 
