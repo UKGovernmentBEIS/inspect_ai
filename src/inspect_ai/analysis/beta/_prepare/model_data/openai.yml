@@ -37,6 +37,17 @@ openai:
           release_date: 2023-06-13
         gpt-4-latest:
           snapshot: latest
+    gpt-4-turbo:
+      display_name: GPT-4 Turbo
+      release_date: 2024-04-09
+      knowledge_cutoff_date: 2023-11-30
+      context_length: 128000
+      output_tokens: 4096
+      versions:
+        gpt-4-turbo-preview:
+          snapshot: "preview"
+        gpt-4-turbo-2024-04-09:
+          snapshot: "2024-04-09"
     gpt-4o:
       display_name: GPT-4o
       release_date: 2024-05-13
