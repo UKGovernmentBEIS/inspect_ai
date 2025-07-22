@@ -19,17 +19,17 @@ def model_info(
     resolved_model_info = builtin_model_info | (model_info or {})
 
     def transform(df: pd.DataFrame) -> pd.DataFrame:
-        # Add columns from ModelInfo for each row based on the 'model' column
-        fields = [
-            "model_family",
-            "model_display_name",
-            "model_snapshot",
-            "model_release_date",
-            "model_knowledge_cutoff_date",
-        ]
+        # Column mapping from DataFrame to ModelInfo field to read
+        fields = {
+            "model_organization": "organization_name",
+            "model_display_name": "model_name",
+            "model_snapshot": "snapshot",
+            "model_release_date": "release_date",
+            "model_knowledge_cutoff_date": "knowledge_cutoff_date",
+        }
 
-        # Ensure all fields are present in the DataFrame
-        for field in fields:
+        # Set default values for all fields
+        for field in fields.keys():
             if field == "model_display_name":
                 df[field] = df["model"].astype(str)
             else:
@@ -39,10 +39,10 @@ def model_info(
             model = df.loc[idx, "model"]
             model_data = resolved_model_info.get(str(model))
             if model_data is not None:
-                for field in fields:
-                    value = getattr(model_data, field, None)
+                for df_field, model_field in fields.items():
+                    value = getattr(model_data, model_field, None)
                     if value is not None:
-                        df.loc[idx, field] = value
+                        df.loc[idx, df_field] = value
 
         return df
 

@@ -49,6 +49,7 @@ anthropic:
       output_tokens: 8192
       versions:
         claude-3-5-sonnet-20241022:
+          display_name: Claude 3.6 Sonnet
           snapshot: "20241022"
           aliases:
             - anthropic.claude-3-5-sonnet-20241022-v2:0

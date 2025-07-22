@@ -25,33 +25,33 @@ class ModelDefinition(BaseModelDefinition):
     versions: Optional[Dict[str, BaseModelDefinition]] = None
 
 
-class FamilyData(BaseModel):
-    """Family data from YAML"""
+class OrganizationData(BaseModel):
+    """Organization data from YAML"""
 
     display_name: str
     models: Dict[str, ModelDefinition]
 
 
-def load_families_from_yaml(file_path: Path) -> Dict[str, FamilyData]:
-    """Load and validate family data from a YAML file"""
+def load_organizations_from_yaml(file_path: Path) -> Dict[str, OrganizationData]:
+    """Load and validate organization data from a YAML file"""
     with open(file_path, "r") as f:
         data = yaml.safe_load(f)
 
     if not data:
         return {}
 
-    # Validate each family in the YAML file
+    # Validate each organization in the YAML file
     result = {}
-    for family_name, family_data_dict in data.items():
-        result[family_name] = FamilyData.model_validate(family_data_dict)
+    for organization, organization_data in data.items():
+        result[organization] = OrganizationData.model_validate(organization_data)
 
     return result
 
 
 def create_model_info(
-    family_name: str,
-    model_name: str,
-    family_display_name: str,
+    organization: str,
+    model: str,
+    organization_name: str,
     model_def: BaseModelDefinition,
     version_data: Optional[BaseModelDefinition] = None,
 ) -> "ModelInfo":
@@ -60,11 +60,11 @@ def create_model_info(
     data_source = version_data if version_data is not None else model_def
 
     return ModelInfo(
-        family=family_name,
-        model=model_name,
+        organization=organization,
+        model=model,
         snapshot=data_source.snapshot,
-        family_display_name=family_display_name,
-        model_display_name=data_source.display_name or model_def.display_name,
+        organization_name=organization_name,
+        model_name=data_source.display_name or model_def.display_name,
         knowledge_cutoff_date=data_source.knowledge_cutoff_date
         or model_def.knowledge_cutoff_date,
         release_date=data_source.release_date or model_def.release_date,
@@ -77,12 +77,12 @@ def create_model_info(
 class ModelInfo(BaseModel):
     """Model information and metadata"""
 
-    family: str
+    organization: str
     model: str
     snapshot: str | None = None
 
-    family_display_name: str | None = None
-    model_display_name: str | None = None
+    organization_name: str | None = None
+    model_name: str | None = None
 
     knowledge_cutoff_date: date | None = None
     release_date: date | None = None
@@ -105,15 +105,15 @@ def read_model_info() -> dict[str, ModelInfo]:
     for info_file in info_files:
         try:
             # Load and validate YAML
-            families = load_families_from_yaml(info_file)
+            organizations = load_organizations_from_yaml(info_file)
 
-            for family_name, family_data in families.items():
-                family_display_name = family_data.display_name
+            for organization, organization_data in organizations.items():
+                organization_name = organization_data.display_name
 
-                for model_name, model_def in family_data.models.items():
+                for model_name, model_def in organization_data.models.items():
                     # Create the base model
                     base_model = create_model_info(
-                        family_name, model_name, family_display_name, model_def
+                        organization, model_name, organization_name, model_def
                     )
                     model_infos[model_key(base_model)] = base_model
 
@@ -121,9 +121,9 @@ def read_model_info() -> dict[str, ModelInfo]:
                     if model_def.versions:
                         for version_name, version_data in model_def.versions.items():
                             version_model = create_model_info(
-                                family_name,
+                                organization,
                                 version_name,
-                                family_display_name,
+                                organization_name,
                                 model_def,
                                 version_data,
                             )
@@ -133,7 +133,7 @@ def read_model_info() -> dict[str, ModelInfo]:
                     if model_def.aliases:
                         for alias in model_def.aliases:
                             alias_model = create_model_info(
-                                family_name, alias, family_display_name, model_def
+                                organization, alias, organization_name, model_def
                             )
                             model_infos[model_key(alias_model)] = alias_model
 
@@ -143,9 +143,9 @@ def read_model_info() -> dict[str, ModelInfo]:
                             if version_data.aliases:
                                 for alias in version_data.aliases:
                                     alias_version_model = create_model_info(
-                                        family_name,
+                                        organization,
                                         alias,
-                                        family_display_name,
+                                        organization_name,
                                         model_def,
                                         version_data,
                                     )
@@ -164,5 +164,5 @@ def read_model_info() -> dict[str, ModelInfo]:
 
 
 def model_key(model_info: ModelInfo) -> str:
-    """Generate a unique key for the model based on its family and model name."""
-    return f"{model_info.family}/{model_info.model}"
+    """Generate a unique key for the model based on its organization and model name."""
+    return f"{model_info.organization}/{model_info.model}"
