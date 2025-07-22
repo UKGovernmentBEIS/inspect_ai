@@ -21,7 +21,7 @@ def model_info(
     def transform(df: pd.DataFrame) -> pd.DataFrame:
         # Column mapping from DataFrame to ModelInfo field to read
         fields = {
-            "model_organization": "organization_name",
+            "model_organization_name": "organization_name",
             "model_display_name": "model_name",
             "model_snapshot": "snapshot",
             "model_release_date": "release_date",
