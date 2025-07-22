@@ -30,14 +30,19 @@ def model_info(
 
         # Ensure all fields are present in the DataFrame
         for field in fields:
-            df[field] = None
+            if field == "model_display_name":
+                df[field] = df["model"].astype(str)
+            else:
+                df[field] = None
 
         for idx in df.index:
             model = df.loc[idx, "model"]
             model_data = resolved_model_info.get(str(model))
             if model_data is not None:
                 for field in fields:
-                    df.loc[idx, field] = getattr(model_data, field, None)
+                    value = getattr(model_data, field, None)
+                    if value is not None:
+                        df.loc[idx, field] = value
 
         return df
 
