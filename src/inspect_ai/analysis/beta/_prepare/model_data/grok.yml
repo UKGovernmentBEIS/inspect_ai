@@ -1,0 +1,34 @@
+xAI:
+  display_name: xAI
+  models:
+    grok-4:
+      display_name: "Grok 4"
+      release_date: 2025-07-09
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 256000
+      reasoning: True
+      versions:
+        grok-4-0709:
+          snapshot: "0709"
+        grok-4-latest:
+          snapshot: latest
+    grok-3:
+      display_name: "Grok 3"
+      release_date: 2025-02-17
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 131072
+      versions:
+        grok-3-latest:
+          snapshot: latest
+        grok-3-beta:
+          snapshot: beta
+    grok-3-mini:
+      display_name: "Grok 3 Mini"
+      release_date: 2025-02-17
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 131072
+      versions:
+        grok-3-mini-latest:
+          snapshot: latest
+        grok-3-mini-beta:
+          snapshot: beta
