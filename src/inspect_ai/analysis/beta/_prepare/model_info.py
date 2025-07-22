@@ -21,11 +21,11 @@ def model_info(
     def transform(df: pd.DataFrame) -> pd.DataFrame:
         # Add columns from ModelInfo for each row based on the 'model' column
         fields = [
-            "family_display_name",
+            "model_family",
             "model_display_name",
-            "snapshot",
-            "release_date",
-            "knowledge_cutoff_date",
+            "model_snapshot",
+            "model_release_date",
+            "model_knowledge_cutoff_date",
         ]
 
         # Ensure all fields are present in the DataFrame

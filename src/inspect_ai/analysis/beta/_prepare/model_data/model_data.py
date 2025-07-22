@@ -51,7 +51,7 @@ def load_families_from_yaml(file_path: Path) -> Dict[str, FamilyData]:
 def create_model_info(
     family_name: str,
     model_name: str,
-    family_short_name: str,
+    family_display_name: str,
     model_def: BaseModelDefinition,
     version_data: Optional[BaseModelDefinition] = None,
 ) -> "ModelInfo":
@@ -63,7 +63,7 @@ def create_model_info(
         family=family_name,
         model=model_name,
         snapshot=data_source.snapshot,
-        family_display_name=family_short_name,
+        family_display_name=family_display_name,
         model_display_name=data_source.display_name or model_def.display_name,
         knowledge_cutoff_date=data_source.knowledge_cutoff_date
         or model_def.knowledge_cutoff_date,
@@ -108,12 +108,12 @@ def read_model_info() -> dict[str, ModelInfo]:
             families = load_families_from_yaml(info_file)
 
             for family_name, family_data in families.items():
-                family_short_name = family_data.display_name
+                family_display_name = family_data.display_name
 
                 for model_name, model_def in family_data.models.items():
                     # Create the base model
                     base_model = create_model_info(
-                        family_name, model_name, family_short_name, model_def
+                        family_name, model_name, family_display_name, model_def
                     )
                     model_infos[model_key(base_model)] = base_model
 
@@ -123,7 +123,7 @@ def read_model_info() -> dict[str, ModelInfo]:
                             version_model = create_model_info(
                                 family_name,
                                 version_name,
-                                family_short_name,
+                                family_display_name,
                                 model_def,
                                 version_data,
                             )
@@ -133,7 +133,7 @@ def read_model_info() -> dict[str, ModelInfo]:
                     if model_def.aliases:
                         for alias in model_def.aliases:
                             alias_model = create_model_info(
-                                family_name, alias, family_short_name, model_def
+                                family_name, alias, family_display_name, model_def
                             )
                             model_infos[model_key(alias_model)] = alias_model
 
@@ -145,7 +145,7 @@ def read_model_info() -> dict[str, ModelInfo]:
                                     alias_version_model = create_model_info(
                                         family_name,
                                         alias,
-                                        family_short_name,
+                                        family_display_name,
                                         model_def,
                                         version_data,
                                     )
