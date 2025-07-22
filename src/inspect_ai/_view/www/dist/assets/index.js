@@ -51470,9 +51470,9 @@ categories: ${categories.join(" ")}`;
         },
         enableSorting: true,
         enableGlobalFilter: true,
-        size: 80,
-        minSize: 60,
-        maxSize: 120,
+        size: 60,
+        minSize: 40,
+        maxSize: 80,
         enableResizing: true
       });
     };
@@ -51528,7 +51528,7 @@ categories: ${categories.join(" ")}`;
         cell: (info) => {
           const item2 = info.row.original;
           let value2 = itemName(item2);
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$18.logLink, children: value2 }) : value2 });
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.nameCell, children: item2.url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: item2.url, className: styles$18.logLink, title: item2.name, children: value2 }) : value2 });
         },
         enableSorting: true,
         enableGlobalFilter: true,
@@ -51558,10 +51558,10 @@ categories: ${categories.join(" ")}`;
         iconColumn(),
         taskColumn(),
         modelColumn(),
-        fileNameColumn(),
-        completedDateColumn(),
         scoreColumn(),
-        statusColumn()
+        statusColumn(),
+        completedDateColumn(),
+        fileNameColumn()
       ];
       return allColumns;
     };
@@ -91259,13 +91259,13 @@ Supported expressions:
       const metricKey = metrics2.map((m) => m.name).join("");
       return metricKey;
     };
-    const simpleMetricsRows = "_simpleMetricsRows_yha6g_1";
-    const verticalMetricReducer = "_verticalMetricReducer_yha6g_26";
-    const verticalMetricName = "_verticalMetricName_yha6g_33";
-    const verticalMetricValue = "_verticalMetricValue_yha6g_41";
-    const moreButton = "_moreButton_yha6g_91";
-    const metricsSummary = "_metricsSummary_yha6g_97";
-    const modalScores = "_modalScores_yha6g_103";
+    const simpleMetricsRows = "_simpleMetricsRows_1itqo_1";
+    const verticalMetricReducer = "_verticalMetricReducer_1itqo_26";
+    const verticalMetricName = "_verticalMetricName_1itqo_33";
+    const verticalMetricValue = "_verticalMetricValue_1itqo_41";
+    const moreButton = "_moreButton_1itqo_91";
+    const metricsSummary = "_metricsSummary_1itqo_97";
+    const modalScores = "_modalScores_1itqo_104";
     const styles$6 = {
       simpleMetricsRows,
       verticalMetricReducer,
