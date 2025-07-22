@@ -153,6 +153,8 @@ def react(
                 for result in tool_results
                 if isinstance(result, ChatMessageTool)
                 and result.function == submit_tool.name
+                # Require that the submit tool call has no error
+                and result.error is None
             ),
             None,
         )
