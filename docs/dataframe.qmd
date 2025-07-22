@@ -23,12 +23,17 @@ table a {
 
 Inspect eval logs have a hierarchical structure which is well suited to flexibly capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into a [dataframe](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for extracting [Pandas](https://pandas.pydata.org/) dataframes from logs, including:
 
-| Function | Description |
-|---------------------------|---------------------------------------------|
-| [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
-| [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
-| [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
-| [events_df()](#events) | Event level data (type, timing, content, etc.). One row per event, where each sample contains many events. |
++----------------------------+-------------------------------------------------------------------------------------------------------------------------------+
+| Function                   | Description                                                                                                                   |
++============================+===============================================================================================================================+
+| [evals_df()](#evals)       | Evaluation level data (e.g. task, model, scores, etc.). One row per log file.                                                 |
++----------------------------+-------------------------------------------------------------------------------------------------------------------------------+
+| [samples_df()](#samples)   | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
++----------------------------+-------------------------------------------------------------------------------------------------------------------------------+
+| [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages.                 |
++----------------------------+-------------------------------------------------------------------------------------------------------------------------------+
+| [events_df()](#events)     | Event level data (type, timing, content, etc.). One row per event, where each sample contains many events.                    |
++----------------------------+-------------------------------------------------------------------------------------------------------------------------------+
 
 Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g. if you want to immediately summarise or plot them) or normalised (e.g. if you are importing them into a SQL database).
 
@@ -226,9 +231,21 @@ df = prepare(df, [
 
 Available data preparation operations include:
 
-| Function | Description |
-|----|----|
-| `log_viewer()` | Add a "log_viewer" column to an eval data frame by mapping log file paths to remote URLs. |
++----------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Function       | Description                                                                                                                                                                                                                                       |
++================+===================================================================================================================================================================================================================================================+
+| `log_viewer()` | Add a "log_viewer" column to an eval data frame by mapping log file paths to remote URLs.                                                                                                                                                         |
++----------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| `model_info()` | Add additional model metadata to an eval data frame. Fields added (when possible) include:\                                                                                                                                                       |
+|                | \                                                                                                                                                                                                                                                 |
+|                | `model_organization_name`: Displayable model organization\                                                                                                                                                                                             |
+|                | `model_display_name`: Displayable model name\                                                                                                                                                                                                     |
+|                | `model_snapshot`: A snapshot (version) string, if available\                                                                                                                                                                                      |
+|                | `model_release_date`: The model's release date\                                                                                                                                                                                                   |
+|                | `model_knowledge_cutoff_date`: The model's knowledge cutoff date\                                                                                                                                                                                 |
+|                | \                                                                                                                                                                                                                                                 |
+|                | Inspect includes built in support for many models (based upon the `model` string in the dataframe). If you are using models for which Inspect does not include model metadata, you may include your own model metadata when calling `model_info`. |
++----------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 ## Column Definitions {#column-definitions}
 
@@ -258,14 +275,21 @@ Here are are all of the options available for `Column` definitions:
 
 #### Column Options
 
-| Parameter | Type | Description |
-|-------------------|-------------------|----------------------------------|
-| `name` | `str` | Column name for dataframe. Can include wildcard characters (e.g. `task_arg_*`) for mapping dictionaries into multiple columns. |
-| `path` | `str` \| `JSONPath` | Path into JSON to extract the column from (uses [JSON Path](https://github.com/h2non/jsonpath-ng) expressions). Subclasses also implement path handlers that take e.g. an `EvalLog` and return a value. |
-| `required` | `bool` | Is the field required (i.e. should an error occur if it not found). |
-| `default` | `JsonValue` | Default value to yield if the field or its parents are not found in JSON. |
-| `type` | `Type[ColumnType]` | Validation check and directive to attempt to coerce the data into the specified `type`. Coercion from `str` to other types is done after interpreting the string using YAML (e.g. `"true"` -\> `True`). |
-| `value` | `Callable[[JsonValue], JsonValue]` | Function used to transform the value read from JSON into a value for the dataframe (e.g. converting a `list` to a comma-separated `str`). |
++------------+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Parameter  | Type                               | Description                                                                                                                                                                                             |
++============+====================================+=========================================================================================================================================================================================================+
+| `name`     | `str`                              | Column name for dataframe. Can include wildcard characters (e.g. `task_arg_*`) for mapping dictionaries into multiple columns.                                                                          |
++------------+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| `path`     | `str` \| `JSONPath`                | Path into JSON to extract the column from (uses [JSON Path](https://github.com/h2non/jsonpath-ng) expressions). Subclasses also implement path handlers that take e.g. an `EvalLog` and return a value. |
++------------+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| `required` | `bool`                             | Is the field required (i.e. should an error occur if it not found).                                                                                                                                     |
++------------+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| `default`  | `JsonValue`                        | Default value to yield if the field or its parents are not found in JSON.                                                                                                                               |
++------------+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| `type`     | `Type[ColumnType]`                 | Validation check and directive to attempt to coerce the data into the specified `type`. Coercion from `str` to other types is done after interpreting the string using YAML (e.g. `"true"` -\> `True`). |
++------------+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| `value`    | `Callable[[JsonValue], JsonValue]` | Function used to transform the value read from JSON into a value for the dataframe (e.g. converting a `list` to a comma-separated `str`).                                                               |
++------------+------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 Here are some examples that demonstrate the use of various options:
 
@@ -310,15 +334,23 @@ if len(errors) > 0:
 
 `EvalColumns` defines a default set of roughly 50 columns to read from the top level of an eval log. `EvalColumns` is in turn composed of several sets of column definitions that you can be used independently, these include:
 
-| Type | Description |
-|------------------------------------|------------------------------------|
-| `EvalInfo` | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| `EvalTask` | Task configuration (name, file, args, solver, etc.) |
-| `EvalModel` | Model name, args, generation config, etc. |
-| `EvalDataset` | Dataset name, location, sample ids, etc. |
-| `EvalConfig` | Epochs, approval, sample limits, etc. |
-| `EvalResults` | Status, errors, samples completed, headline metric. |
-| `EvalScores` | All scores and metrics broken into separate columns. |
++---------------+--------------------------------------------------------------------------+
+| Type          | Description                                                              |
++===============+==========================================================================+
+| `EvalInfo`    | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
++---------------+--------------------------------------------------------------------------+
+| `EvalTask`    | Task configuration (name, file, args, solver, etc.)                      |
++---------------+--------------------------------------------------------------------------+
+| `EvalModel`   | Model name, args, generation config, etc.                                |
++---------------+--------------------------------------------------------------------------+
+| `EvalDataset` | Dataset name, location, sample ids, etc.                                 |
++---------------+--------------------------------------------------------------------------+
+| `EvalConfig`  | Epochs, approval, sample limits, etc.                                    |
++---------------+--------------------------------------------------------------------------+
+| `EvalResults` | Status, errors, samples completed, headline metric.                      |
++---------------+--------------------------------------------------------------------------+
+| `EvalScores`  | All scores and metrics broken into separate columns.                     |
++---------------+--------------------------------------------------------------------------+
 
 #### Multi-Columns
 
@@ -543,12 +575,17 @@ The `events_df()` function enables reading event level data from a set of eval l
 
 Because events are so heterogeneous, there is no default `columns` specification for calls to `events_df()`. Rather, you can compose columns from the following pre-built groups:
 
-| Type | Description |
-|------------------------------------|------------------------------------|
-| `EventInfo` | Event type and span id. |
-| `EventTiming` | Start and end times (both clock time and working time) |
-| `ModelEventColumns` | Read data from model events. |
-| `ToolEventColumns` | Read data from tool events. |
++---------------------+--------------------------------------------------------+
+| Type                | Description                                            |
++=====================+========================================================+
+| `EventInfo`         | Event type and span id.                                |
++---------------------+--------------------------------------------------------+
+| `EventTiming`       | Start and end times (both clock time and working time) |
++---------------------+--------------------------------------------------------+
+| `ModelEventColumns` | Read data from model events.                           |
++---------------------+--------------------------------------------------------+
+| `ToolEventColumns`  | Read data from tool events.                            |
++---------------------+--------------------------------------------------------+
 
 The `events_df()` function also takes a `filter` parameter which can provide a function that performs filtering. For example, to read all model events:
 
