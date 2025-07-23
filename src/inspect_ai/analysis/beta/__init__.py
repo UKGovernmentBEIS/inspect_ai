@@ -35,6 +35,7 @@ from ._dataframe.samples.table import samples_df
 from ._prepare.log_viewer import log_viewer
 from ._prepare.model_data.model_data import ModelInfo
 from ._prepare.model_info import model_info
+from ._prepare.frontier import frontier
 from ._prepare.operation import Operation
 from ._prepare.prepare import prepare
 
@@ -74,4 +75,5 @@ __all__ = [
     "Operation",
     "model_info",
     "ModelInfo",
+    "frontier",
 ]
