@@ -12,7 +12,6 @@ from mistralai import (
     ImageURL,
     ImageURLChunk,
     Mistral,
-    ReferenceChunk,
     TextChunk,
 )
 from mistralai.models import (
@@ -492,9 +491,7 @@ def completion_content(content: str | list[ContentChunk]) -> str | list[Content]
 
 
 def completion_content_chunks(content: ContentChunk) -> list[Content]:
-    if isinstance(content, ReferenceChunk):
-        raise TypeError("ReferenceChunk content is not supported by Inspect.")
-    elif isinstance(content, TextChunk):
+    if isinstance(content, TextChunk):
         content_text, reasoning = parse_content_with_reasoning(content.text)
         if reasoning:
             return [
@@ -507,7 +504,7 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         return [ContentText(text=content.document_url)]
     elif isinstance(content, FileChunk):
         return [ContentText(text=f"file: {content.file_id}")]
-    else:
+    elif isinstance(content, ImageURLChunk):
         if isinstance(content.image_url, str):
             return [ContentImage(image=content.image_url)]
         else:
@@ -517,6 +514,11 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                 case _:
                     detail = "auto"
             return [ContentImage(image=content.image_url.url, detail=detail)]
+    else:
+        raise TypeError(
+            f"Unsupported content type: {type(content)}. "
+            + "Only TextChunk, DocumentURLChunk, FileChunk, and ImageURLChunk are supported."
+        )
 
 
 def completion_choices_from_response(
