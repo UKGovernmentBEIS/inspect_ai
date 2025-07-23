@@ -96,8 +96,19 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
     const showReducer = scorers.findIndex((score) => !!score.reducer) !== -1;
     const grouped = groupScorers(scorers);
 
+    // If grouping produced an empty array, no results to show
+    if (grouped.length < 1) {
+      return undefined;
+    }
+
     // Try to select metrics with a group size 5 or less, if possible
     let primaryResults = grouped[0];
+
+    // If there are no primary results, nothing to show here
+    if (!primaryResults) {
+      return undefined;
+    }
+
     let showMore = grouped.length > 1;
     if (primaryResults.length > kMaxPrimaryScoreRows) {
       const shorterResults = grouped.find((g) => {
