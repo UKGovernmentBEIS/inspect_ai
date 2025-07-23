@@ -12,6 +12,30 @@ from inspect_ai.analysis.beta._prepare.operation import Operation
 def model_info(
     model_info: Dict[str, ModelInfo] | None = None,
 ) -> Operation:
+    """Amend data frame with model metadata.
+
+    Fields added (when available) include:
+
+    `model_organization_name`
+    : Displayable model organization (e.g. OpenAI, Anthropic, etc.)
+
+    `model_display_name`
+    : Displayable model name (e.g. Gemini Flash 2.5)
+
+    `model_snapshot`
+    : A snapshot (version) string, if available (e.g. "latest" or "20240229")
+
+    `model_release_date`
+    : The model's release date
+
+    `model_knowledge_cutoff_date`
+    : The model's knowledge cutoff date
+
+    Inspect includes built in support for many models (based upon the `model` string in the dataframe). If you are using models for which Inspect does not include model metadata, you may include your own model metadata via the `model_info` argument.
+
+    Args:
+        model_info: Additional model info for models not supported directly by Inspect's internal database.
+    """
     # Read built in model info
     builtin_model_info = read_model_info()
 
