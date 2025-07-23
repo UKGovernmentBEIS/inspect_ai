@@ -1,15 +1,19 @@
+## Unreleased
+
+- Analysis: `model_info()` operation for adding model metadata to data frames.
+- ReAct Agent: Require submit tool to have no errors before you exit the react loop.
+- Inspect View: Use MathJax rather than Katex for math rendering.
+- Inspect View: Fix issue with scores 'More...' link not being displayed in some configurations.
+- Bugfix: Strip smuggled `<think>` and `<internal>` tags from tool messages to prevent leakage in multi-agent scenarios where an _inner_ assistant message can be coerced into a tool message.
+- Bugfix: Handle descriptions of nested `BaseModel` types in tool call schemas.
+
 ## 0.3.114 (17 July 2025)
 
 - OpenAI: Move model classification functions into `ModelAPI` class so that subclasses can override them.
 - Azure: Support for authenticating with Microsoft Entra ID managed identities.
-- Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames, `model_info()` operation for adding model metadata to data frames).
-- ReAct Agent: Require submit tool to have no errors before you exit the react loop.
-- Inspect View: Use MathJax rather than Katex for math rendering.
+- Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames).
 - Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
-- Inspect View: Fix issue with scores 'More...' link not being displayed in some configurations.
 - Bugfix: Use the output filesystem when creating directories in `inspect log convert`
-- Bugfix: Strip smuggled `<think>` and `<internal>` tags from tool messages to prevent leakage in multi-agent scenarios where an _inner_ assistant message can be coerced into a tool message.
-- Bugfix: Handle descriptions of nested `BaseModel` types in tool call schemas.
 
 ## 0.3.113 (16 July 2025)
 
