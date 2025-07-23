@@ -59,8 +59,8 @@ def create_model_info(
 
     return ModelInfo(
         snapshot=data_source.snapshot,
-        organization_name=organization_name,
-        model_name=data_source.display_name or model_def.display_name,
+        organization=organization_name,
+        model=data_source.display_name or model_def.display_name,
         knowledge_cutoff_date=data_source.knowledge_cutoff_date
         or model_def.knowledge_cutoff_date,
         release_date=data_source.release_date or model_def.release_date,
@@ -73,15 +73,19 @@ def create_model_info(
 class ModelInfo(BaseModel):
     """Model information and metadata"""
 
+    organization: str | None = None
+    """Model organization (e.g. Anthropic, OpenAI)."""
+
+    model: str | None = None
+    """Model name (e.g. Gemini 2.5 Flash)."""
+
     snapshot: str | None = None
     """A snapshot (version) string, if available (e.g. “latest” or “20240229”).."""
 
-    organization_name: str | None = None
-    model_name: str | None = None
+    release_date: date | None = None
+    """The mode's release date."""
 
     knowledge_cutoff_date: date | None = None
-    release_date: date | None = None
-
     context_length: float | None = None
     output_tokens: float | None = None
 
