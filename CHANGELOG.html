@@ -146,8 +146,9 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#july-2025" id="toc-july-2025" class="nav-link" data-scroll-target="#july-2025">0.3.113 (16 July 2025)</a></li>
-  <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.112 (03 July 2025)</a></li>
+  <li><a href="#july-2025" id="toc-july-2025" class="nav-link" data-scroll-target="#july-2025">0.3.114 (17 July 2025)</a></li>
+  <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.113 (16 July 2025)</a></li>
+  <li><a href="#july-2025-2" id="toc-july-2025-2" class="nav-link" data-scroll-target="#july-2025-2">0.3.112 (03 July 2025)</a></li>
   <li><a href="#june-2025" id="toc-june-2025" class="nav-link" data-scroll-target="#june-2025">0.3.111 (29 June 2025)</a></li>
   <li><a href="#june-2025-1" id="toc-june-2025-1" class="nav-link" data-scroll-target="#june-2025-1">0.3.110 (28 June 2025)</a></li>
   <li><a href="#june-2025-2" id="toc-june-2025-2" class="nav-link" data-scroll-target="#june-2025-2">0.3.109 (27 June 2025)</a></li>
@@ -270,13 +271,26 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>OpenAI: Move model classification functions into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modelapi">ModelAPI</a></span> class so that subclasses can override them.</li>
-<li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#prepare">prepare()</a></span> function for doing common data preparation tasks (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#log_viewer">log_viewer()</a></span> operation for adding log viewer URLs to data frames).</li>
-<li>Inspect View: Supporting linking to events via <code>uuid</code> field (or <code>event_id</code> in analysis data frames).</li>
+<li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation for adding model metadata to data frames.</li>
+<li>ReAct Agent: Require submit tool to have no errors before you exit the react loop.</li>
+<li>Inspect View: Use MathJax rather than Katex for math rendering.</li>
+<li>Inspect View: Fix issue with scores ‘More…’ link not being displayed in some configurations.</li>
+<li>Bugfix: Strip smuggled <code>&lt;think&gt;</code> and <code>&lt;internal&gt;</code> tags from tool messages to prevent leakage in multi-agent scenarios where an <em>inner</em> assistant message can be coerced into a tool message.</li>
+<li>Bugfix: Handle descriptions of nested <code>BaseModel</code> types in tool call schemas.</li>
 </ul>
 </section>
 <section id="july-2025" class="level2">
-<h2 class="anchored" data-anchor-id="july-2025">0.3.113 (16 July 2025)</h2>
+<h2 class="anchored" data-anchor-id="july-2025">0.3.114 (17 July 2025)</h2>
+<ul>
+<li>OpenAI: Move model classification functions into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modelapi">ModelAPI</a></span> class so that subclasses can override them.</li>
+<li>Azure: Support for authenticating with Microsoft Entra ID managed identities.</li>
+<li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#prepare">prepare()</a></span> function for doing common data preparation tasks (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#log_viewer">log_viewer()</a></span> operation for adding log viewer URLs to data frames).</li>
+<li>Inspect View: Supporting linking to events via <code>uuid</code> field (or <code>event_id</code> in analysis data frames).</li>
+<li>Bugfix: Use the output filesystem when creating directories in <code>inspect log convert</code></li>
+</ul>
+</section>
+<section id="july-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025-1">0.3.113 (16 July 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/models.html#batch-processing">Batch processing</a> API support for OpenAI and Anthropic models.</li>
 <li><a href="https://inspect.aisi.org.uk/providers.html#transformer-lens">TransformerLens</a> model provider enabling use of <code>HookedTransformer</code> models with Inspect.</li>
@@ -306,8 +320,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix cases where <think> blocks are dropped in OpenAI choices because they are not at the front of text content.</think></li>
 </ul>
 </section>
-<section id="july-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="july-2025-1">0.3.112 (03 July 2025)</h2>
+<section id="july-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025-2">0.3.112 (03 July 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/extensions.html#hooks">Hooks</a>: Generic lifecycle hooks for Inspect extensions.</li>
 <li>Datasets: Expand glob wildcards when processing <code>--sample_id</code> filter for datasets.</li>

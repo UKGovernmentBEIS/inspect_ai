@@ -108,9 +108,12 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI
 Foundry](https://ai.azure.com/). To use OpenAI models on Azure AI,
 specify the following environment variables:
 
-- `AZUREAI_OPENAI_API_KEY`
-- `AZUREAI_OPENAI_BASE_URL`
-- `AZUREAI_OPENAI_API_VERSION`.
+| Variable | Description |
+|----|----|
+| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional). |
+| `AZUREAI_OPENAI_BASE_URL` | Base URL for requests (required) |
+| `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
+| `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
 You can then use the normal `openai` provider with the `azure` qualifier
 and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
@@ -122,9 +125,22 @@ export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
 inspect eval math.py --model openai/azure/gpt-4o-mini
 ```
 
+If using managed identity for authentication, install the
+`azure-identity` package and do not specify `AZUREAI_API_KEY`.
+
+``` bash
+pip install azure-identity
+export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
+export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
+export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
+inspect eval math.py --model openai/azure/gpt-4o-mini
+```
+
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect
 will generally default to the latest deployed version, which as of this
-writing is `2025-03-01-preview`.
+writing is `2025-03-01-preview`. When using managed identity for
+authentication, install the `azure-identity` package and leave
+`AZUREAI_OPENAI_API_KEY` undefined.
 
 ## Anthropic
 
@@ -410,16 +426,27 @@ export AZUREAI_BASE_URL=https://your-url-at.azure.com/models
 $ inspect eval math.py --model azureai/Llama-3.3-70B-Instruct
 ```
 
+If using managed identity for authentication, install the
+`azure-identity` package and do not specify `AZUREAI_API_KEY`.
+
+``` bash
+pip install azure-identity
+export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
+export AZUREAI_BASE_URL=https://your-url-at.azure.com/models
+$ inspect eval math.py --model azureai/Llama-3.3-70B-Instruct
+```
+
 For the `azureai` provider, custom model args (`-M`) are forwarded to
 the constructor of the `ChatCompletionsClient` class.
 
 The following environment variables are supported by the Azure AI
 provider
 
-| Variable           | Description                      |
-|--------------------|----------------------------------|
-| `AZUREAI_API_KEY`  | API key credentials (required).  |
+| Variable | Description |
+|----|----|
+| `AZUREAI_API_KEY` | API key credentials (optional). |
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
+| `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
 If you are using Open AI or Mistral on Azure AI, you can alternatively
 use the [OpenAI provider](#openai-on-azure) or [Mistral

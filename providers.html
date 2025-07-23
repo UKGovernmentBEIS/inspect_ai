@@ -669,25 +669,56 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="openai-on-azure" class="level3">
 <h3 class="anchored" data-anchor-id="openai-on-azure">OpenAI on Azure</h3>
 <p>The <code>openai</code> provider supports OpenAI models deployed on the <a href="https://ai.azure.com/">Azure AI Foundry</a>. To use OpenAI models on Azure AI, specify the following environment variables:</p>
-<ul>
-<li><code>AZUREAI_OPENAI_API_KEY</code></li>
-<li><code>AZUREAI_OPENAI_BASE_URL</code></li>
-<li><code>AZUREAI_OPENAI_API_VERSION</code>.</li>
-</ul>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 62%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>AZUREAI_OPENAI_API_KEY</code></td>
+<td>API key credentials (optional).</td>
+</tr>
+<tr class="even">
+<td><code>AZUREAI_OPENAI_BASE_URL</code></td>
+<td>Base URL for requests (required)</td>
+</tr>
+<tr class="odd">
+<td><code>AZUREAI_OPENAI_API_VERSION</code></td>
+<td>OpenAI API version (optional)</td>
+</tr>
+<tr class="even">
+<td><code>AZUREAI_AUDIENCE</code></td>
+<td>Azure resource URI that the access token is intended for when using managed identity (optional, defaults to <code>https://cognitiveservices.azure.com/.default</code>)</td>
+</tr>
+</tbody>
+</table>
 <p>You can then use the normal <code>openai</code> provider with the <code>azure</code> qualifier and the name of your model deployment (e.g.&nbsp;<code>gpt-4o-mini</code>). For example:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_API_KEY</span><span class="op">=</span>your-api-key</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_API_VERSION</span><span class="op">=</span>2025-03-01-preview</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/azure/gpt-4o-mini</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that if the <code>AZUREAI_OPENAI_API_VERSION</code> is not specified, Inspect will generally default to the latest deployed version, which as of this writing is <code>2025-03-01-preview</code>.</p>
+<p>If using managed identity for authentication, install the <code>azure-identity</code> package and do not specify <code>AZUREAI_API_KEY</code>.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install azure-identity</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_AUDIENCE</span><span class="op">=</span>https://cognitiveservices.azure.com/.default</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_API_VERSION</span><span class="op">=</span>2025-03-01-preview</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/azure/gpt-4o-mini</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that if the <code>AZUREAI_OPENAI_API_VERSION</code> is not specified, Inspect will generally default to the latest deployed version, which as of this writing is <code>2025-03-01-preview</code>. When using managed identity for authentication, install the <code>azure-identity</code> package and leave <code>AZUREAI_OPENAI_API_KEY</code> undefined.</p>
 </section>
 </section>
 <section id="anthropic" class="level2">
 <h2 class="anchored" data-anchor-id="anthropic">Anthropic</h2>
 <p>To use the <a href="https://www.anthropic.com/api">Anthropic</a> provider, install the <code>anthropic</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install anthropic</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_API_KEY</span><span class="op">=</span>your-anthropic-api-key</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-3-5-sonnet-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install anthropic</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_API_KEY</span><span class="op">=</span>your-anthropic-api-key</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-3-5-sonnet-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>anthropic</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncAnthropic</code> class.</p>
 <p>The following environment variables are supported by the Anthropic provider</p>
 <table class="caption-top table">
@@ -715,27 +746,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="anthropic-on-aws-bedrock" class="level3">
 <h3 class="anchored" data-anchor-id="anthropic-on-aws-bedrock">Anthropic on AWS Bedrock</h3>
 <p>To use Anthropic models on Bedrock, use the normal <code>anthropic</code> provider with the <code>bedrock</code> qualifier, specifying a model name that corresponds to a model you have access to on Bedrock. For Bedrock, authentication is not handled using an API key but rather your standard AWS credentials (e.g.&nbsp;<code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code>). You should also be sure to have specified an AWS region. For example:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>your-aws-access-key-id</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>your-aws-secret-access-key</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_DEFAULT_REGION</span><span class="op">=</span>us-east-1</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>your-aws-access-key-id</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>your-aws-secret-access-key</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_DEFAULT_REGION</span><span class="op">=</span>us-east-1</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also optionally set the <code>ANTHROPIC_BEDROCK_BASE_URL</code> environment variable to set a custom base URL for Bedrock API requests.</p>
 </section>
 <section id="anthropic-on-vertex-ai" class="level3">
 <h3 class="anchored" data-anchor-id="anthropic-on-vertex-ai">Anthropic on Vertex AI</h3>
 <p>To use Anthropic models on Vertex, you can use the standard <code>anthropic</code> model provider with the <code>vertex</code> qualifier (e.g.&nbsp;<code>anthropic/vertex/claude-3-5-sonnet-v2@20241022</code>). You should also set two environment variables indicating your project ID and region. Here is a complete example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_VERTEX_PROJECT_ID</span><span class="op">=</span>project-12345</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_VERTEX_REGION</span><span class="op">=</span>us-east5</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> anthropic/vertex/claude-3-5-sonnet-v2@20241022</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_VERTEX_PROJECT_ID</span><span class="op">=</span>project-12345</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_VERTEX_REGION</span><span class="op">=</span>us-east5</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> anthropic/vertex/claude-3-5-sonnet-v2@20241022</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Authentication is doing using the standard Google Cloud CLI (i.e.&nbsp;if you have authorised the CLI then no additional auth is needed for the model API).</p>
 </section>
 </section>
 <section id="google-gemini" class="level2">
 <h2 class="anchored" data-anchor-id="google-gemini">Google</h2>
 <p>To use the <a href="https://ai.google.dev/">Google</a> provider, install the <code>google-genai</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install google-genai</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_API_KEY</span><span class="op">=</span>your-google-api-key</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install google-genai</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_API_KEY</span><span class="op">=</span>your-google-api-key</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>google</code> provider, custom model args (<code>-M</code>) are forwarded to the <code>genai.Client</code> function.</p>
 <p>The following environment variables are supported by the Google provider</p>
 <table class="caption-top table">
@@ -759,14 +790,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="gemini-on-vertex-ai" class="level3">
 <h3 class="anchored" data-anchor-id="gemini-on-vertex-ai">Gemini on Vertex AI</h3>
 <p>To use Google Gemini models on Vertex, you can use the standard <code>google</code> model provider with the <code>vertex</code> qualifier (e.g.&nbsp;<code>google/vertex/gemini-2.0-flash</code>). You should also set two environment variables indicating your project ID and region. Here is a complete example:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_CLOUD_PROJECT</span><span class="op">=</span>project-12345</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_CLOUD_LOCATION</span><span class="op">=</span>us-east5</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> google/vertex/gemini-2.0-flash</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_CLOUD_PROJECT</span><span class="op">=</span>project-12345</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_CLOUD_LOCATION</span><span class="op">=</span>us-east5</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> google/vertex/gemini-2.0-flash</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can alternatively pass the project and location as custom model args (<code>-M</code>). For example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> google/vertex/gemini-2.0-flash <span class="dt">\</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">-M</span> project=project-12345 <span class="at">-M</span> location=us-east5</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> google/vertex/gemini-2.0-flash <span class="dt">\</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">-M</span> project=project-12345 <span class="at">-M</span> location=us-east5</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Authentication is done using the standard Google Cloud CLI. For example:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">gcloud</span> auth application-default login</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">gcloud</span> auth application-default login</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If you have authorised the CLI then no additional auth is needed for the model API.</p>
 </section>
 <section id="safety-settings" class="level3">
@@ -838,24 +869,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>By default, Inspect sets all four categories to <code>none</code> (enabling all content). You can override these defaults by using the <code>safety_settings</code> model argument. For example:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>safety_settings <span class="op">=</span> <span class="bu">dict</span>(</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  dangerous_content <span class="op">=</span> <span class="st">"medium_and_above"</span>,</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  hate_speech <span class="op">=</span> <span class="st">"low_and_above"</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"eval.py"</span>,</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  model_args<span class="op">=</span><span class="bu">dict</span>(safety_settings<span class="op">=</span>safety_settings)</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>safety_settings <span class="op">=</span> <span class="bu">dict</span>(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  dangerous_content <span class="op">=</span> <span class="st">"medium_and_above"</span>,</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  hate_speech <span class="op">=</span> <span class="st">"low_and_above"</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"eval.py"</span>,</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  model_args<span class="op">=</span><span class="bu">dict</span>(safety_settings<span class="op">=</span>safety_settings)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This also can be done from the command line:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval eval.py <span class="at">-M</span> <span class="st">"safety_settings={'hate_speech': 'low_and_above'}"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval eval.py <span class="at">-M</span> <span class="st">"safety_settings={'hate_speech': 'low_and_above'}"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="mistral" class="level2">
 <h2 class="anchored" data-anchor-id="mistral">Mistral</h2>
 <p>To use the <a href="https://mistral.ai/">Mistral</a> provider, install the <code>mistral</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install mistral</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">MISTRAL_API_KEY</span><span class="op">=</span>your-mistral-api-key</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> mistral/mistral-large-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install mistral</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">MISTRAL_API_KEY</span><span class="op">=</span>your-mistral-api-key</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> mistral/mistral-large-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>mistral</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>Mistral</code> class.</p>
 <p>The following environment variables are supported by the Mistral provider</p>
 <table class="caption-top table">
@@ -888,25 +919,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>AZUREAI_MISTRAL_BASE_URL</code></li>
 </ul>
 <p>You can then use the normal <code>mistral</code> provider with the <code>azure</code> qualifier and the name of your model deployment (e.g.&nbsp;<code>Mistral-Large-2411</code>). For example:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_MISTRAL_API_KEY</span><span class="op">=</span>key</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_MISTRAL_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com/models</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> mistral/azure/Mistral-Large-2411</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_MISTRAL_API_KEY</span><span class="op">=</span>key</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_MISTRAL_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com/models</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> mistral/azure/Mistral-Large-2411</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="deepseek" class="level2">
 <h2 class="anchored" data-anchor-id="deepseek">DeepSeek</h2>
 <p><a href="https://www.deepseek.com/">DeepSeek</a> provides an OpenAI compatible API endpoint which you can use with Inspect via the <code>openai-api</code> provider. To do this, define the <code>DEEPSEEK_API_KEY</code> and <code>DEEPSEEK_BASE_URL</code> environment variables then refer to models with <code>openai-api/deepseek/&lt;model-name&gt;</code>. For example:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_BASE_URL</span><span class="op">=</span>https://api.deepseek.com</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-reasoner </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_BASE_URL</span><span class="op">=</span>https://api.deepseek.com</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-reasoner </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="grok" class="level2">
 <h2 class="anchored" data-anchor-id="grok">Grok</h2>
 <p>To use the <a href="https://x.ai/">Grok</a> provider, install the <code>openai</code> package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GROK_API_KEY</span><span class="op">=</span>your-grok-api-key</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> grok/grok-3-mini</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GROK_API_KEY</span><span class="op">=</span>your-grok-api-key</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> grok/grok-3-mini</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>grok</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
 <p>The following environment variables are supported by the Grok provider</p>
 <table class="caption-top table">
@@ -935,10 +966,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="aws-bedrock" class="level2">
 <h2 class="anchored" data-anchor-id="aws-bedrock">AWS Bedrock</h2>
 <p>To use the <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a> provider, install the <code>aioboto3</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>access-key-id</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>secret-access-key</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_DEFAULT_REGION</span><span class="op">=</span>us-east-1</span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval bedrock/meta.llama2-70b-chat-v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>access-key-id</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>secret-access-key</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_DEFAULT_REGION</span><span class="op">=</span>us-east-1</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval bedrock/meta.llama2-70b-chat-v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>bedrock</code> provider, custom model args (<code>-M</code>) are forwarded to the <code>client</code> method of the <code>aioboto3.Session</code> class.</p>
 <p>Note that all models on AWS Bedrock require that you <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html">request model access</a> before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).</p>
 <p>You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren’t likely to need to, but you can also specify a custom base URL for AWS Bedrock using the <code>BEDROCK_BASE_URL</code> environment variable.</p>
@@ -948,13 +979,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="azure-ai">Azure AI</h2>
 <p>The <code>azureai</code> provider supports models deployed on the <a href="https://ai.azure.com/">Azure AI Foundry</a>.</p>
 <p>To use the <code>azureai</code> provider, install the <code>azure-ai-inference</code> package, set your credentials and base URL, and specify the name of the model you have deployed (e.g.&nbsp;<code>Llama-3.3-70B-Instruct</code>). For example:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install azure-ai-inference</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_API_KEY</span><span class="op">=</span>api-key</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com/models</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval math.py <span class="at">--model</span> azureai/Llama-3.3-70B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install azure-ai-inference</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_API_KEY</span><span class="op">=</span>api-key</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com/models</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval math.py <span class="at">--model</span> azureai/Llama-3.3-70B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If using managed identity for authentication, install the <code>azure-identity</code> package and do not specify <code>AZUREAI_API_KEY</code>.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install azure-identity</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_AUDIENCE</span><span class="op">=</span>https://cognitiveservices.azure.com/.default</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com/models</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval math.py <span class="at">--model</span> azureai/Llama-3.3-70B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>azureai</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>ChatCompletionsClient</code> class.</p>
 <p>The following environment variables are supported by the Azure AI provider</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 62%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Variable</th>
@@ -964,11 +1004,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>AZUREAI_API_KEY</code></td>
-<td>API key credentials (required).</td>
+<td>API key credentials (optional).</td>
 </tr>
 <tr class="even">
 <td><code>AZUREAI_BASE_URL</code></td>
 <td>Base URL for requests (required)</td>
+</tr>
+<tr class="odd">
+<td><code>AZUREAI_AUDIENCE</code></td>
+<td>Azure resource URI that the access token is intended for when using managed identity (optional, defaults to <code>https://cognitiveservices.azure.com/.default</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -976,7 +1020,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="tool-emulation" class="level3">
 <h3 class="anchored" data-anchor-id="tool-emulation">Tool Emulation</h3>
 <p>When using the <code>azureai</code> model provider, tool calling support can be ‘emulated’ for models that Azure AI has not yet implemented tool calling for. This occurs by default for Llama models. For other models, use the <code>emulate_tools</code> model arg to force tool emulation:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">-M</span> emulate_tools=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">-M</span> emulate_tools=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also use this option to disable tool emulation for Llama models with <code>emulate_tools=false</code>.</p>
 </section>
 </section>
@@ -998,16 +1042,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>To use the <a href="https://cloud.google.com/vertex-ai">Vertex AI</a> provider, install the <code>google-cloud-aiplatform</code> package, <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1">configure your environment</a> for Vertex API access, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval eval.py <span class="at">--model</span> vertex/mistral-large-2411</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval eval.py <span class="at">--model</span> vertex/mistral-large-2411</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn’t use the standard <code>BASE_URL</code>/<code>API_KEY</code> approach that others do. Consequently you don’t need to set these environment variables.</p>
 <p>Vertex AI also provides the same <code>safety_settings</code> outlined in the <a href="#safety-settings">Google</a> provider.</p>
 </section>
 <section id="together-ai" class="level2">
 <h2 class="anchored" data-anchor-id="together-ai">Together AI</h2>
 <p>To use the <a href="https://www.together.ai/">Together AI</a> provider, install the <code>openai</code> package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">TOGETHER_API_KEY</span><span class="op">=</span>your-together-api-key</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">TOGETHER_API_KEY</span><span class="op">=</span>your-together-api-key</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>together</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
 <p>The following environment variables are supported by the Together AI provider</p>
 <table class="caption-top table">
@@ -1036,9 +1080,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="groq" class="level2">
 <h2 class="anchored" data-anchor-id="groq">Groq</h2>
 <p>To use the <a href="https://groq.com/">Groq</a> provider, install the <code>groq</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install groq</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GROQ_API_KEY</span><span class="op">=</span>your-groq-api-key</span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> groq/llama-3.1-70b-versatile</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install groq</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GROQ_API_KEY</span><span class="op">=</span>your-groq-api-key</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> groq/llama-3.1-70b-versatile</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>groq</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncGroq</code> class.</p>
 <p>The following environment variables are supported by the Groq provider</p>
 <table class="caption-top table">
@@ -1067,9 +1111,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="cloudflare" class="level2">
 <h2 class="anchored" data-anchor-id="cloudflare">Cloudflare</h2>
 <p>To use the <a href="https://developers.cloudflare.com/workers-ai/">Cloudflare</a> provider, set your account id and access token, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">CLOUDFLARE_ACCOUNT_ID</span><span class="op">=</span>account-id</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">CLOUDFLARE_API_TOKEN</span><span class="op">=</span>api-token</span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> cf/meta/llama-3.1-70b-instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">CLOUDFLARE_ACCOUNT_ID</span><span class="op">=</span>account-id</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">CLOUDFLARE_API_TOKEN</span><span class="op">=</span>api-token</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> cf/meta/llama-3.1-70b-instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>cloudflare</code> provider, custom model args (<code>-M</code>) are included as fields in the post body of the chat request.</p>
 <p>The following environment variables are supported by the Cloudflare provider:</p>
 <table class="caption-top table">
@@ -1102,9 +1146,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="perplexity" class="level2">
 <h2 class="anchored" data-anchor-id="perplexity">Perplexity</h2>
 <p>To use the <a href="https://www.perplexity.ai/">Perplexity</a> provider, install the <code>openai</code> package (if not already installed), set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PERPLEXITY_API_KEY</span><span class="op">=</span>your-perplexity-api-key</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> perplexity/sonar</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PERPLEXITY_API_KEY</span><span class="op">=</span>your-perplexity-api-key</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> perplexity/sonar</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The following environment variables are supported by the Perplexity provider</p>
 <table class="caption-top table">
 <colgroup>
@@ -1133,8 +1177,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="hugging-face" class="level2">
 <h2 class="anchored" data-anchor-id="hugging-face">Hugging Face</h2>
 <p>The <a href="https://huggingface.co/models">Hugging Face</a> provider implements support for local models using the <a href="https://pypi.org/project/transformers/">transformers</a> package. To use the Hugging Face provider, install the <code>torch</code>, <code>transformers</code>, and <code>accelerate</code> packages and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install torch transformers accelerate</span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install torch transformers accelerate</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="batching" class="level3">
 <h3 class="anchored" data-anchor-id="batching">Batching</h3>
 <p>Concurrency for REST API based models is managed using the <code>max_connections</code> option. The same option is used for <code>transformers</code> inference—up to <code>max_connections</code> calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> will be batched together (note that batches will proceed at a smaller size if no new calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> have occurred in the last 2 seconds).</p>
@@ -1143,27 +1187,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="device" class="level3">
 <h3 class="anchored" data-anchor-id="device">Device</h3>
 <p>The PyTorch <code>cuda</code> device will be used automatically if CUDA is available (as will the Mac OS <code>mps</code> device). If you want to override the device used, use the <code>device</code> model argument. For example:</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> hf/openai-community/gpt2 <span class="at">-M</span> device=cuda:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> hf/openai-community/gpt2 <span class="at">-M</span> device=cuda:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This also works in calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>:</p>
-<div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"hf/openai-community/gpt2"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(device<span class="op">=</span><span class="st">"cuda:0"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"hf/openai-community/gpt2"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(device<span class="op">=</span><span class="st">"cuda:0"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or in a call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span></p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/openai-community/gpt2"</span>, device<span class="op">=</span><span class="st">"cuda:0"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/openai-community/gpt2"</span>, device<span class="op">=</span><span class="st">"cuda:0"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="local-models" class="level3">
 <h3 class="anchored" data-anchor-id="local-models">Local Models</h3>
 <p>In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g.&nbsp;for a locally fine tuned model). Use <code>hf/local</code> along with the <code>model_path</code>, and (optionally) <code>tokenizer_path</code> arguments to select a local model. For example, from the command line, use the <code>-M</code> flag to pass the model arguments:</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> hf/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> hf/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"hf/local"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(model_path<span class="op">=</span><span class="st">"./my-model"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"hf/local"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(model_path<span class="op">=</span><span class="st">"./my-model"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or in a call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span></p>
-<div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/local"</span>, model_path<span class="op">=</span><span class="st">"./my-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/local"</span>, model_path<span class="op">=</span><span class="st">"./my-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="vllm" class="level2">
 <h2 class="anchored" data-anchor-id="vllm">vLLM</h2>
 <p>The <a href="https://docs.vllm.ai/">vLLM</a> provider also implements support for Hugging Face models using the <a href="https://github.com/vllm-project/vllm/">vllm</a> package. To use the vLLM provider, install the <code>vllm</code> package and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install vllm</span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> vllm/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install vllm</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> vllm/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>vllm</code> provider, custom model args (-M) are forwarded to the vllm <a href="https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference">CLI</a>.</p>
 <p>The following environment variables are supported by the vLLM provider:</p>
 <table class="caption-top table">
@@ -1201,12 +1245,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="device-1" class="level3">
 <h3 class="anchored" data-anchor-id="device-1">Device</h3>
 <p>The <code>device</code> option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:</p>
-<div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">-M</span> device=<span class="st">'0,1,2,3'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">-M</span> device=<span class="st">'0,1,2,3'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="local-models-1" class="level3">
 <h3 class="anchored" data-anchor-id="local-models-1">Local Models</h3>
 <p>Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use <code>vllm/local</code> along with the <code>model_path</code>, and (optionally) <code>tokenizer_path</code> arguments to select a local model. For example, from the command line, use the <code>-M</code> flag to pass the model arguments:</p>
-<div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="tool-use-and-reasoning" class="level3">
 <h3 class="anchored" data-anchor-id="tool-use-and-reasoning">Tool Use and Reasoning</h3>
@@ -1215,19 +1259,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="vllm-server" class="level3">
 <h3 class="anchored" data-anchor-id="vllm-server">vLLM Server</h3>
 <p>Rather than letting Inspect start and stop a vLLM server every time you run an evaluation (which can take several minutes for large models), you can instead start the server manually and then connect to it. To do this, set the model base URL to point to the vLLM server and the API key to the server’s API key. For example:</p>
-<div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export VLLM_BASE_URL=http://localhost:8080/v1</span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export VLLM_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb39"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export VLLM_BASE_URL=http://localhost:8080/v1</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export VLLM_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>or</p>
-<div class="sourceCode" id="cb38"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">--model-base-url</span> http://localhost:8080/v1 <span class="at">-M</span> api_key=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">--model-base-url</span> http://localhost:8080/v1 <span class="at">-M</span> api_key=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>See the vLLM documentation on <a href="https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html">Server Mode</a> for additional details.</p>
 </section>
 </section>
 <section id="sglang" class="level2">
 <h2 class="anchored" data-anchor-id="sglang">SGLang</h2>
 <p>To use the <a href="https://docs.sglang.ai/index.html">SGLang</a> provider, install the <code>sglang</code> package and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb39"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"sglang[all]&gt;=0.4.4.post2"</span> <span class="at">--find-links</span> https://flashinfer.ai/whl/cu124/torch2.5/flashinfer-python</span>
-<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> sglang/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb41"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"sglang[all]&gt;=0.4.4.post2"</span> <span class="at">--find-links</span> https://flashinfer.ai/whl/cu124/torch2.5/flashinfer-python</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> sglang/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>sglang</code> provider, custom model args (-M) are forwarded to the sglang <a href="https://docs.sglang.ai/backend/server_arguments.html">CLI</a>.</p>
 <p>The following environment variables are supported by the SGLang provider:</p>
 <table class="caption-top table">
@@ -1257,11 +1301,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>SGLang is a fast and efficient language model server that supports a variety of model architectures and configurations. Its usage in Inspect is almost identical to the <a href="#vllm">vLLM provider</a>. You can either let Inspect start and stop the server for you, or start the server manually and then connect to it:</p>
-<div class="sourceCode" id="cb40"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export SGLANG_BASE_URL=http://localhost:8080/v1</span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export SGLANG_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> sglang/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb42"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export SGLANG_BASE_URL=http://localhost:8080/v1</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export SGLANG_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> sglang/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>or</p>
-<div class="sourceCode" id="cb41"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> sglang/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">--model-base-url</span> http://localhost:8080/v1 <span class="at">-M</span> api_key=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb43"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> sglang/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">--model-base-url</span> http://localhost:8080/v1 <span class="at">-M</span> api_key=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="tool-use-and-reasoning-1" class="level3">
 <h3 class="anchored" data-anchor-id="tool-use-and-reasoning-1">Tool Use and Reasoning</h3>
 <p>SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the <a href="https://docs.sglang.ai/backend/function_calling.html">Tool Use</a> and <a href="https://docs.sglang.ai/backend/separate_reasoning.html">Reasoning</a> sections of the SGLang documentation for details.</p>
@@ -1271,31 +1315,31 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="transformer-lens">TransformerLens</h2>
 <p>The <a href="https://github.com/neelnanda-io/TransformerLens">TransformerLens</a> provider allows you to use <code>HookedTransformer</code> models with Inspect.</p>
 <p>To use the TransformerLens provider, install the <code>transformer_lens</code> package:</p>
-<div class="sourceCode" id="cb42"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install transformer_lens</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb44"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install transformer_lens</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="usage-with-pre-loaded-models" class="level3">
 <h3 class="anchored" data-anchor-id="usage-with-pre-loaded-models">Usage with Pre-loaded Models</h3>
 <p>Unlike other providers, TransformerLens requires you to first load a <code>HookedTransformer</code> model instance and then pass it to Inspect. This is because TransformerLens models expose special hooks for accessing and manipulating internal activations that need to be set up before use in the inspect framework.</p>
 <p>You will need to specify the <code>tl_model</code> and <code>tl_generate_args</code> in the model arguments. The <code>tl_model</code> is the <code>HookedTransformer</code> instance and the <code>tl_generate_args</code> is a dictionary of transformer-lens generation arguments. You can specify the model name as anything, it will not affect the model you are using.</p>
 <p>Here’s an example:</p>
-<div class="sourceCode" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a HookedTransformer model and set up all the hooks</span></span>
-<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>tl_model <span class="op">=</span> HookedTransformer(...)</span>
-<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>...</span>
-<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Create model args with the TransformerLens model and generation parameters</span></span>
-<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>model_args <span class="op">=</span> {</span>
-<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tl_model"</span>: tl_model,</span>
-<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tl_generate_args"</span>: {</span>
-<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">"max_new_tokens"</span>: <span class="dv">50</span>,</span>
-<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"temperature"</span>: <span class="fl">0.7</span>,</span>
-<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"do_sample"</span>: <span class="va">True</span>,</span>
-<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Use with get_model()</span></span>
-<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"transformer_lens/your-model-name"</span>, <span class="op">**</span>model_args)</span>
-<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Or use directly in eval()</span></span>
-<span id="cb43-19"><a href="#cb43-19" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"transformer_lens/your-model-name"</span>, model_args<span class="op">=</span>model_args)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a HookedTransformer model and set up all the hooks</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>tl_model <span class="op">=</span> HookedTransformer(...)</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Create model args with the TransformerLens model and generation parameters</span></span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>model_args <span class="op">=</span> {</span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tl_model"</span>: tl_model,</span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tl_generate_args"</span>: {</span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">"max_new_tokens"</span>: <span class="dv">50</span>,</span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"temperature"</span>: <span class="fl">0.7</span>,</span>
+<span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"do_sample"</span>: <span class="va">True</span>,</span>
+<span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Use with get_model()</span></span>
+<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"transformer_lens/your-model-name"</span>, <span class="op">**</span>model_args)</span>
+<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Or use directly in eval()</span></span>
+<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"transformer_lens/your-model-name"</span>, model_args<span class="op">=</span>model_args)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="limitations" class="level3">
 <h3 class="anchored" data-anchor-id="limitations">Limitations</h3>
@@ -1308,8 +1352,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="ollama" class="level2">
 <h2 class="anchored" data-anchor-id="ollama">Ollama</h2>
 <p>To use the <a href="https://ollama.com/">Ollama</a> provider, install the <code>openai</code> package (which Ollama provides a compatible backend for) and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb44"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> ollama/llama3.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> ollama/llama3.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that you should be sure that Ollama is running on your system before using it with Inspect.</p>
 <p>The following environment variables are supported by the Ollma provider</p>
 <table class="caption-top table">
@@ -1334,8 +1378,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="llama-cpp-python" class="level2">
 <h2 class="anchored" data-anchor-id="llama-cpp-python">Llama-cpp-python</h2>
 <p>To use the <a href="https://llama-cpp-python.readthedocs.io/en/latest/">Llama-cpp-python</a> provider, install the <code>openai</code> package (which llama-cpp-python provides a compatible backend for) and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb45"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> llama-cpp-python/llama3</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> llama-cpp-python/llama3</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that you should be sure that the <a href="https://llama-cpp-python.readthedocs.io/en/latest/server/">llama-cpp-python server</a> is running on your system before using it with Inspect.</p>
 <p>The following environment variables are supported by the llama-cpp-python provider</p>
 <table class="caption-top table">
@@ -1368,17 +1412,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
 <p>Here is how you would access DeepSeek using the <code>openai-api</code> provider:</p>
-<div class="sourceCode" id="cb48"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
-<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_BASE_URL</span><span class="op">=</span>https://api.deepseek.com</span>
-<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-reasoner </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb50"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_BASE_URL</span><span class="op">=</span>https://api.deepseek.com</span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-reasoner </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="openrouter" class="level2">
 <h2 class="anchored" data-anchor-id="openrouter">OpenRouter</h2>
 <p>To use the <a href="https://openrouter.ai/">OpenRouter</a> provider, install the <code>openai</code> package (which the OpenRouter service provides a compatible backend for), set your credentials, and specify a model using the <code>--model</code> option:</p>
-<div class="sourceCode" id="cb49"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENROUTER_API_KEY</span><span class="op">=</span>your-openrouter-api-key</span>
-<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openrouter/gryphe/mythomax-l2-13b</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb51"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENROUTER_API_KEY</span><span class="op">=</span>your-openrouter-api-key</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openrouter/gryphe/mythomax-l2-13b</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>openrouter</code> provider, the following custom model args (<code>-M</code>) are supported (click the argument name to see its docs on the OpenRouter site):</p>
 <table class="caption-top table">
 <colgroup>

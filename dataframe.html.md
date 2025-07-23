@@ -283,19 +283,64 @@ publish logs to a website, you can use the `log_viewer()` operation to
 map log file paths to their published URLs:
 
 ``` python
-from inspect_ai.analysis.beta import evals_df, prepare, log_viewer
+from inspect_ai.analysis.beta import evals_df, log_viewer, model_info, prepare
 
+df = evals_df("logs")
+df = prepare(df, [
+    model_info(),
+    log_viewer("eval", { "logs": "https://logs.example.com"})
+])
+```
+
+See below for details on available data preparation functions.
+
+### model_info()
+
+Add additional model metadata to an eval data frame. For example:
+
+``` python
+df = evals_df("logs")
+df = prepare(df, model_info())
+```
+
+Fields added (when available) include:
+
+`model_organization_name`  
+Displayable model organization (e.g. OpenAI, Anthropic, etc.)
+
+`model_display_name`  
+Displayable model name (e.g. Gemini Flash 2.5)
+
+`model_snapshot`  
+A snapshot (version) string, if available (e.g. “latest” or “20240229”)
+
+`model_release_date`  
+The model’s release date
+
+`model_knowledge_cutoff_date`  
+The model’s knowledge cutoff date
+
+Inspect includes built in support for many models (based upon the
+`model` string in the dataframe). If you are using models for which
+Inspect does not include model metadata, you may include your own model
+metadata (see the `model_info()` reference for additional details).
+
+### log_viewer()
+
+Add a “log_viewer” column to an eval data frame by mapping log file
+paths to remote URLs. Pass mappings from the local log directory (or S3
+bucket) to the URL where the logs have been publishing using
+[`inspect view bundle`](https://inspect.aisi.org.uk/log-viewer.html#sec-publishing).
+For example:
+
+``` python
 df = evals_df("logs")
 df = prepare(df, [
     log_viewer("eval", { "logs": "https://logs.example.com"})
 ])
 ```
 
-Available data preparation operations include:
-
-| Function | Description |
-|----|----|
-| `log_viewer()` | Add a “log_viewer” column to an eval data frame by mapping log file paths to remote URLs. |
+See the `log_viewer()` reference for additional details.
 
 ## Column Definitions
 

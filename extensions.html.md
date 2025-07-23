@@ -33,7 +33,7 @@ described below):
 ``` python
 class CustomModelAPI(ModelAPI):
     def __init__(
-        self, 
+        self,
         model_name: str,
         base_url: str | None = None,
         api_key: str | None = None,
@@ -42,7 +42,7 @@ class CustomModelAPI(ModelAPI):
         **model_args: Any
     ) -> None:
         super().__init__(model_name, base_url, api_key, api_key_vars, config)
-  
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -198,9 +198,9 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def sample_init(
-        cls, 
-        task_name: str, 
-        config: SandboxEnvironmentConfigType | None, 
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
         metadata: dict[str, str]
     ) -> dict[str, SandboxEnvironment]:
         ...
@@ -507,7 +507,7 @@ at creation time:
 ``` python
 @approver
 def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
-    
+
     async def approve(
         message: str,
         call: ToolCall,
@@ -515,7 +515,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
         history: list[ChatMessage],
     ) -> Approval:
         return Approval(
-            decision=decision, 
+            decision=decision,
             explanation="Automatic decision."
         )
 
@@ -715,11 +715,12 @@ class WBHooks(Hooks):
         wandb.finish()
 
     async def on_sample_end(self, data: SampleEnd) -> None:
-        scores = {k: v.value for k, v in data.summary.scores.items()}
-        wandb.log({
-            "sample_id": data.sample_id,
-            "scores": scores
-        })
+    if data.sample.scores:
+          scores = {k: v.value for k, v in data.sample.scores.items()}
+          wandb.log({
+              "sample_id": data.sample_id,
+              "scores": scores
+          })
 ```
 
 See the `Hooks` class for more documentation and the full list of

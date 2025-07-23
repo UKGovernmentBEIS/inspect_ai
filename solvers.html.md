@@ -261,7 +261,7 @@ Here is the task definition:
 @task
 def mmlu():
     # read the dataset
-    dataset = csv_dataset(
+    task_dataset = csv_dataset(
         "mmlu.csv", 
         sample_fields=record_to_sample
     )
