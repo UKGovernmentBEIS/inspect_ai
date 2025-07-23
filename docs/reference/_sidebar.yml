@@ -536,8 +536,12 @@ website:
           href: reference/inspect_ai.analysis.qmd#prepare
         - text: log_viewer
           href: reference/inspect_ai.analysis.qmd#log_viewer
+        - text: model_info
+          href: reference/inspect_ai.analysis.qmd#model_info
         - text: Operation
           href: reference/inspect_ai.analysis.qmd#operation
+        - text: ModelInfo
+          href: reference/inspect_ai.analysis.qmd#modelinfo
         - text: Column
           href: reference/inspect_ai.analysis.qmd#column
         - text: ColumnType

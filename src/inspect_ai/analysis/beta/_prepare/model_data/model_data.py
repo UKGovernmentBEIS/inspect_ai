@@ -78,8 +78,13 @@ class ModelInfo(BaseModel):
     """Model information and metadata"""
 
     organization: str
+    """Model organization (e.g. Anthropic, OpenAI)."""
+
     model: str
+    """Model name (e.g. Gemini 2.5 Flash)."""
+
     snapshot: str | None = None
+    """A snapshot (version) string, if available (e.g. “latest” or “20240229”).."""
 
     organization_name: str | None = None
     model_name: str | None = None
