@@ -1,0 +1,37 @@
+mistral:
+  display_name: Mistral
+  models:
+    mistral-medium-2505:
+      display_name: Mistral Medium 3
+      release_date: 2025-05-07
+      context_length: 131072
+    magistral-medium-2506:
+      display_name: Magistral Medium 3
+      release_date: 2025-05-07
+      reasoning: True
+      context_length: 40960
+    magistral-small-2506:
+      display_name: Magistral Small
+      release_date: 2025-06-10
+      reasoning: True
+      context_length: 40960
+    mistral-small-2506:
+      display_name: Mistral Small 3.2
+      release_date: 2025-06-01
+      context_length: 131072
+    mistral-small-2503:
+      display_name: Mistral Small 3.1
+      release_date: 2025-03-17
+      context_length: 131072
+    mistral-small-2501:
+      display_name: Mistral Small 3
+      context_length: 32768
+      release_date: 2025-01-30
+    mistral-large-2411:
+      display_name: Mistral Large 2.1
+      context_length: 131072
+      release_date: 2024-11-18
+    mistral-small-2407:
+      display_name: Mistral Small 2
+      context_length: 32768
+      release_date: 2024-09-17
