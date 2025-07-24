@@ -538,6 +538,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#log_viewer
         - text: model_info
           href: reference/inspect_ai.analysis.qmd#model_info
+        - text: frontier
+          href: reference/inspect_ai.analysis.qmd#frontier
         - text: Operation
           href: reference/inspect_ai.analysis.qmd#operation
         - text: ModelInfo
