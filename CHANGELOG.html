@@ -271,8 +271,9 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation for adding model metadata to data frames.</li>
+<li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> operations for data frame preparation.</li>
 <li>ReAct Agent: Require submit tool to have no errors before you exit the react loop.</li>
+<li>Mistral: Type updates for <code>ThinkChunk</code> and <code>AudioChunk</code> in package v1.9.3 (which is now the minimum required version).</li>
 <li>Inspect View: Use MathJax rather than Katex for math rendering.</li>
 <li>Inspect View: Fix issue with scores ‘More…’ link not being displayed in some configurations.</li>
 <li>Bugfix: Strip smuggled <code>&lt;think&gt;</code> and <code>&lt;internal&gt;</code> tags from tool messages to prevent leakage in multi-agent scenarios where an <em>inner</em> assistant message can be coerced into a tool message.</li>
@@ -284,7 +285,9 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li>OpenAI: Move model classification functions into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modelapi">ModelAPI</a></span> class so that subclasses can override them.</li>
 <li>Azure: Support for authenticating with Microsoft Entra ID managed identities.</li>
-<li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#prepare">prepare()</a></span> function for doing common data preparation tasks (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#log_viewer">log_viewer()</a></span> operation for adding log viewer URLs to data frames).</li>
+<li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#prepare">prepare()</a></span> function for doing common data preparation tasks and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#log_viewer">log_viewer()</a></span> operation for adding log viewer URLs to data frames.</li>
+<li>ReAct Agent: Require submit tool to have no errors before you exit the react loop.</li>
+<li>Inspect View: Use MathJax rather than Katex for math rendering.</li>
 <li>Inspect View: Supporting linking to events via <code>uuid</code> field (or <code>event_id</code> in analysis data frames).</li>
 <li>Bugfix: Use the output filesystem when creating directories in <code>inspect log convert</code></li>
 </ul>

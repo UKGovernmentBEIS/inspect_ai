@@ -342,6 +342,28 @@ df = prepare(df, [
 
 See the `log_viewer()` reference for additional details.
 
+### frontier()
+
+Adds a “frontier” column to each task. The value of the “frontier”
+column will be `True` if for the task, the model was the top-scoring
+model among all models available at the moment the model was released;
+otherwise it will be `False`.
+
+The `frontier()` requires scores and model release dates, so must be run
+after the `model_info()` operation.
+
+``` python
+from inspect_ai.analysis.beta import (
+    evals_df, frontier, log_viewer, model_info, prepare
+)
+
+df = evals_df("logs")
+df = prepare(df, [
+    model_info(),
+    frontier()
+])
+```
+
 ## Column Definitions
 
 The examples above all use built-in column specifications

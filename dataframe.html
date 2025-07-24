@@ -504,6 +504,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#model_info" id="toc-model_info" class="nav-link" data-scroll-target="#model_info">model_info()</a></li>
   <li><a href="#log_viewer" id="toc-log_viewer" class="nav-link" data-scroll-target="#log_viewer">log_viewer()</a></li>
+  <li><a href="#frontier" id="toc-frontier" class="nav-link" data-scroll-target="#frontier">frontier()</a></li>
   </ul></li>
   <li><a href="#column-definitions" id="toc-column-definitions" class="nav-link" data-scroll-target="#column-definitions">Column Definitions</a>
   <ul class="collapse">
@@ -774,22 +775,38 @@ The model’s knowledge cutoff date
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#log_viewer">log_viewer()</a></span> reference for additional details.</p>
 </section>
+<section id="frontier" class="level3">
+<h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
+<p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
+<div id="44c28dd5" class="cell">
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> (</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> evals_df(<span class="st">"logs"</span>)</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> prepare(df, [</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    model_info(),</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    frontier()</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
 </section>
 <section id="column-definitions" class="level2">
 <h2 class="anchored" data-anchor-id="column-definitions">Column Definitions</h2>
 <p>The examples above all use built-in column specifications (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalmodel">EvalModel</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalresults">EvalResults</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span>, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.</p>
 <p>Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> class (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplecolumn">SampleColumn</a></span>). For example, here is the definition of the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evaltask">EvalTask</a></span> column group:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>EvalTask: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_name"</span>, path<span class="op">=</span><span class="st">"eval.task"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_version"</span>, path<span class="op">=</span><span class="st">"eval.task_version"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_file"</span>, path<span class="op">=</span><span class="st">"eval.task_file"</span>),</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_attribs"</span>, path<span class="op">=</span><span class="st">"eval.task_attribs"</span>),</span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_arg_*"</span>, path<span class="op">=</span><span class="st">"eval.task_args"</span>),</span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"solver"</span>, path<span class="op">=</span><span class="st">"eval.solver"</span>),</span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"solver_args"</span>, path<span class="op">=</span><span class="st">"eval.solver_args"</span>),</span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_type"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.type"</span>),</span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_config"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.config"</span>),</span>
-<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>EvalTask: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_name"</span>, path<span class="op">=</span><span class="st">"eval.task"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_version"</span>, path<span class="op">=</span><span class="st">"eval.task_version"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_file"</span>, path<span class="op">=</span><span class="st">"eval.task_file"</span>),</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_attribs"</span>, path<span class="op">=</span><span class="st">"eval.task_attribs"</span>),</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_arg_*"</span>, path<span class="op">=</span><span class="st">"eval.task_args"</span>),</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"solver"</span>, path<span class="op">=</span><span class="st">"eval.solver"</span>),</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"solver_args"</span>, path<span class="op">=</span><span class="st">"eval.solver_args"</span>),</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_type"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.type"</span>),</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_config"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.config"</span>),</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Columns are defined with a <code>name</code>, a <code>path</code> (location within JSON to read their value from), and other options (e.g.&nbsp;<code>required</code>, <code>type</code>, etc.) . Column paths use <a href="https://github.com/h2non/jsonpath-ng">JSON Path</a> expressions to indicate how they should be read from JSON.</p>
 <p>Many fields within eval logs are optional, and path expressions will automatically resolve to <code>None</code> when they include a missing field (unless the <code>required=True</code> option is specified).</p>
 <p>Here are are all of the options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> definitions:</p>
@@ -837,34 +854,34 @@ The model’s knowledge cutoff date
 </tbody>
 </table>
 <p>Here are some examples that demonstrate the use of various options:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># required field</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>EvalColumn(<span class="st">"run_id"</span>, path<span class="op">=</span><span class="st">"eval.run_id"</span>, required<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co"># coerce field from int to str</span></span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"id"</span>, path<span class="op">=</span><span class="st">"id"</span>, required<span class="op">=</span><span class="va">True</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>)</span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co"># split metadata dict into multiple columns</span></span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)</span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a><span class="co"># transform list[str] to str</span></span>
-<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, value<span class="op">=</span>list_as_str),</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># required field</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>EvalColumn(<span class="st">"run_id"</span>, path<span class="op">=</span><span class="st">"eval.run_id"</span>, required<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="co"># coerce field from int to str</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"id"</span>, path<span class="op">=</span><span class="st">"id"</span>, required<span class="op">=</span><span class="va">True</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>)</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="co"># split metadata dict into multiple columns</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="co"># transform list[str] to str</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, value<span class="op">=</span>list_as_str),</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="column-merging" class="level4">
 <h4 class="anchored" data-anchor-id="column-merging">Column Merging</h4>
 <p>If a column is name is repeated within a list of columns then the column definition encountered last is utilised. This makes it straightforward to override default column definitions. For example, here we override the behaviour of the default sample <code>metadata</code> columns (keeping it as JSON rather than splitting it into multiple columns):</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a> samples_df(</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>     logs<span class="op">=</span><span class="st">"logs"</span>,</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>     columns<span class="op">=</span>SampleSummary <span class="op">+</span> [SampleColumn(<span class="st">"metadata"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)]</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a> )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a> samples_df(</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>     logs<span class="op">=</span><span class="st">"logs"</span>,</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>     columns<span class="op">=</span>SampleSummary <span class="op">+</span> [SampleColumn(<span class="st">"metadata"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)]</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a> )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="strict-mode" class="level4">
 <h4 class="anchored" data-anchor-id="strict-mode">Strict Mode</h4>
 <p>By default, dataframes are read in <code>strict</code> mode, which means that if fields are missing or paths are invalid an error is raised and the import is aborted. You can optionally set <code>strict=False</code>, in which case importing will proceed and a tuple containing <code>pd.DataFrame</code> and a list of any errors encountered is returned. For example:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> evals_df</span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>evals, errors <span class="op">=</span> evals_df(<span class="st">"logs"</span>, strict<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(errors) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(errors)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> evals_df</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>evals, errors <span class="op">=</span> evals_df(<span class="st">"logs"</span>, strict<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(errors) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(errors)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="evals" class="level3">
 <h3 class="anchored" data-anchor-id="evals">Evals</h3>
@@ -910,98 +927,98 @@ The model’s knowledge cutoff date
 <section id="multi-columns" class="level4">
 <h4 class="anchored" data-anchor-id="multi-columns">Multi-Columns</h4>
 <p>The <code>task_args</code> dictionary and eval scores data structure are both expanded into multiple columns by default:</p>
-<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>EvalColumn(<span class="st">"task_arg_*"</span>, path<span class="op">=</span><span class="st">"eval.task_args"</span>)</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>eval_log_scores_dict)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>EvalColumn(<span class="st">"task_arg_*"</span>, path<span class="op">=</span><span class="st">"eval.task_args"</span>)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>eval_log_scores_dict)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that scores are a two-level dictionary of <code>score_&lt;scorer&gt;_&lt;metric&gt;</code> and are extracted using a custom function. If you want to handle scores a different way you can build your own set of eval columns with a custom scores handler. For example, here we take a subset of eval columns along with our own custom handler (<code>custom_scores_fn</code>) for scores:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>evals_df(</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>(</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>        EvalInfo</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> EvalModel</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> EvalResults</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> ([EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>custom_scores_fn)])</span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>evals_df(</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>(</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>        EvalInfo</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> EvalModel</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> EvalResults</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> ([EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>custom_scores_fn)])</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="custom-extraction" class="level4">
 <h4 class="anchored" data-anchor-id="custom-extraction">Custom Extraction</h4>
 <p>The example above demonstrates the use of custom extraction functions, which take an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> and return a <code>JsonValue</code>.</p>
 <p>For example, here is the default extraction function for the the dictionary of scores/metrics:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> scores_dict(log: EvalLog) <span class="op">-&gt;</span> JsonValue:</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> log.results <span class="kw">is</span> <span class="va">None</span>:</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    metrics: JsonValue <span class="op">=</span> [</span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>        {</span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>            score.name: {</span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>                metric.name: metric.value <span class="cf">for</span> metric <span class="kw">in</span> score.metrics.values()</span>
-<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>            }</span>
-<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>        }</span>
-<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> score <span class="kw">in</span> log.results.scores</span>
-<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> metrics</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> scores_dict(log: EvalLog) <span class="op">-&gt;</span> JsonValue:</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> log.results <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    metrics: JsonValue <span class="op">=</span> [</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>        {</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>            score.name: {</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>                metric.name: metric.value <span class="cf">for</span> metric <span class="kw">in</span> score.metrics.values()</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>            }</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> score <span class="kw">in</span> log.results.scores</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> metrics</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Which is then used in the definition of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalscores">EvalScores</a></span> column group as follows:</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>EvalScores: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>scores_dict),</span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>EvalScores: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>scores_dict),</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="samples" class="level3">
 <h3 class="anchored" data-anchor-id="samples">Samples</h3>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> function can read from either sample summaries (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span>) or full sample records (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span>).</p>
 <p>By default, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span> column group is used, which reads only from summaries, resulting in considerably higher performance than reading full samples.</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>SampleSummary: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"id"</span>, path<span class="op">=</span><span class="st">"id"</span>, required<span class="op">=</span><span class="va">True</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>),</span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"epoch"</span>, path<span class="op">=</span><span class="st">"epoch"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"input"</span>, path<span class="op">=</span>sample_input_as_str, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>list_as_str),</span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>),</span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values),</span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"model_usage"</span>, path<span class="op">=</span><span class="st">"model_usage"</span>),</span>
-<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"total_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
-<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"working_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
-<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"error"</span>, path<span class="op">=</span><span class="st">"error"</span>),</span>
-<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
-<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
-<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>SampleSummary: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"id"</span>, path<span class="op">=</span><span class="st">"id"</span>, required<span class="op">=</span><span class="va">True</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>),</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"epoch"</span>, path<span class="op">=</span><span class="st">"epoch"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"input"</span>, path<span class="op">=</span>sample_input_as_str, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>list_as_str),</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>),</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values),</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"model_usage"</span>, path<span class="op">=</span><span class="st">"model_usage"</span>),</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"total_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"working_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"error"</span>, path<span class="op">=</span><span class="st">"error"</span>),</span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If you want to read all of the messages contained in a sample into a string column, use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplemessages">SampleMessages</a></span> column group. For example, here we read the summary field and the messages:</p>
-<div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> (</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    SampleMessages, SampleSummary, samples_df</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>samples_df(</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    columns <span class="op">=</span> SampleSummary <span class="op">+</span> SampleMessages</span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> (</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    SampleMessages, SampleSummary, samples_df</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>samples_df(</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    columns <span class="op">=</span> SampleSummary <span class="op">+</span> SampleMessages</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that reading <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplemessages">SampleMessages</a></span> requires reading full sample content, so will take considerably longer than reading only summaries.</p>
 <p>When you create a samples data frame the <code>eval_id</code> of its parent evaluation is automatically included. You can additionally include other fields from the evals table, for example:</p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>samples_df(</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    columns <span class="op">=</span> EvalModel <span class="op">+</span> SampleSummary <span class="op">+</span> SampleMessages</span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>samples_df(</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    columns <span class="op">=</span> EvalModel <span class="op">+</span> SampleSummary <span class="op">+</span> SampleMessages</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="multi-columns-1" class="level4">
 <h4 class="anchored" data-anchor-id="multi-columns-1">Multi-Columns</h4>
 <p>Note that the <code>metadata</code> and <code>score</code> columns are both dictionaries that are expanded into multiple columns:</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This might or might not be what you want for your data frame. To preserve them as JSON, remove the <code>_*</code>:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"metadata"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"score"</span>, path<span class="op">=</span><span class="st">"scores"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"metadata"</span>, path<span class="op">=</span><span class="st">"metadata"</span>)</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"score"</span>, path<span class="op">=</span><span class="st">"scores"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You could also write a custom <a href="#custom-extraction-1">extraction</a> handler to read them in some other way.</p>
 </section>
 <section id="full-samples" class="level4">
 <h4 class="anchored" data-anchor-id="full-samples">Full Samples</h4>
 <p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplecolumn">SampleColumn</a></span> will automatically determine whether it is referencing a field that requires a full sample read (for example, <code>messages</code> or <code>store</code>). There are five fields in sample summaries that have reduced footprint in the summary (<code>input</code>, <code>metadata</code>, and <code>scores</code>, <code>error</code>, and <code>limit</code>). For these, fields specify <code>full=True</code> to force reading from the full sample record. For example:</p>
-<div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"limit_type"</span>, path<span class="op">=</span><span class="st">"limit.type"</span>, full<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"limit_value"</span>, path<span class="op">=</span><span class="st">"limit.limit"</span>, full<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"limit_type"</span>, path<span class="op">=</span><span class="st">"limit.type"</span>, full<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"limit_value"</span>, path<span class="op">=</span><span class="st">"limit.limit"</span>, full<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="custom-extraction-1" class="level4">
 <h4 class="anchored" data-anchor-id="custom-extraction-1">Custom Extraction</h4>
 <p>As with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>, you can also extract data from a sample using a callback function passed as the <code>path</code>:</p>
-<div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_reasoning_tokens(summary: EvalSampleSummary) <span class="op">-&gt;</span> JsonValue:</span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">## extract reasoning tokens from summary.model_usage</span></span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"model_reasoning_tokens"</span>, path<span class="op">=</span>model_reasoning_tokens)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_reasoning_tokens(summary: EvalSampleSummary) <span class="op">-&gt;</span> JsonValue:</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">## extract reasoning tokens from summary.model_usage</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>SampleColumn(<span class="st">"model_reasoning_tokens"</span>, path<span class="op">=</span>model_reasoning_tokens)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
@@ -1009,7 +1026,7 @@ The model’s knowledge cutoff date
 </div>
 <div class="callout-body-container">
 <p>Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the <code>metadata</code>, <code>model_usage</code>, <code>total_time</code>, <code>working_time</code>, and <code>retries</code> fields. If you need to read any of these values you can update older logs with the new fields by round-tripping them through <code>inspect log convert</code>. For example:</p>
-<div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert ./logs <span class="at">--to</span> eval <span class="at">--output-dir</span> ./logs-amended</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert ./logs <span class="at">--to</span> eval <span class="at">--output-dir</span> ./logs-amended</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
@@ -1025,49 +1042,49 @@ The model’s knowledge cutoff date
 <h3 class="anchored" data-anchor-id="messages">Messages</h3>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messages_df">messages_df()</a></span> function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes a <code>sample_id</code> and <code>eval_id</code> for linking back to its parents.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messages_df">messages_df()</a></span> function takes a <code>filter</code> parameter which can either be a list of <code>role</code> designations or a function that performs filtering. For example:</p>
-<div class="sourceCode" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>assistant_messages <span class="op">=</span> messages_df(<span class="st">"logs"</span>, <span class="bu">filter</span><span class="op">=</span>[<span class="st">"assistant"</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>assistant_messages <span class="op">=</span> messages_df(<span class="st">"logs"</span>, <span class="bu">filter</span><span class="op">=</span>[<span class="st">"assistant"</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="default-columns" class="level4">
 <h4 class="anchored" data-anchor-id="default-columns">Default Columns</h4>
 <p>The default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messagecolumns">MessageColumns</a></span> includes <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messagecontent">MessageContent</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messagetoolcalls">MessageToolCalls</a></span>:</p>
-<div class="sourceCode" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>MessageContent: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"role"</span>, path<span class="op">=</span><span class="st">"role"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"content"</span>, path<span class="op">=</span>message_text),</span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"source"</span>, path<span class="op">=</span><span class="st">"source"</span>),</span>
-<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>MessageToolCalls: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_calls"</span>, path<span class="op">=</span>message_tool_calls),</span>
-<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_id"</span>, path<span class="op">=</span><span class="st">"tool_call_id"</span>),</span>
-<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_function"</span>, path<span class="op">=</span><span class="st">"function"</span>),</span>
-<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_error"</span>, path<span class="op">=</span><span class="st">"error.message"</span>),</span>
-<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>MessageColumns: <span class="bu">list</span>[Column] <span class="op">=</span> MessageContent <span class="op">+</span> MessageToolCalls</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>MessageContent: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"role"</span>, path<span class="op">=</span><span class="st">"role"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"content"</span>, path<span class="op">=</span>message_text),</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"source"</span>, path<span class="op">=</span><span class="st">"source"</span>),</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>MessageToolCalls: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_calls"</span>, path<span class="op">=</span>message_tool_calls),</span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_id"</span>, path<span class="op">=</span><span class="st">"tool_call_id"</span>),</span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_function"</span>, path<span class="op">=</span><span class="st">"function"</span>),</span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_error"</span>, path<span class="op">=</span><span class="st">"error.message"</span>),</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>MessageColumns: <span class="bu">list</span>[Column] <span class="op">=</span> MessageContent <span class="op">+</span> MessageToolCalls</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>When you create a messages data frame the parent <code>sample_id</code> and <code>eval_id</code> are automatically included in each record. You can additionally include other fields from these tables, for example:</p>
-<div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>messages <span class="op">=</span> messages_df(</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>,</span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EvalModel <span class="op">+</span> MessageColumns             </span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>messages <span class="op">=</span> messages_df(</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>,</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EvalModel <span class="op">+</span> MessageColumns             </span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="custom-extraction-2" class="level4">
 <h4 class="anchored" data-anchor-id="custom-extraction-2">Custom Extraction</h4>
 <p>Two of the fields above are resolved using custom extraction functions (<code>content</code> and <code>tool_calls</code>). Here is the source code for those functions:</p>
-<div class="sourceCode" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> message_text(message: ChatMessage) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
-<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> message.text</span>
-<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> message_tool_calls(message: ChatMessage) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>:</span>
-<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(message, ChatMessageAssistant) <span class="kw">and</span> message.tool_calls <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
-<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>        tool_calls <span class="op">=</span> <span class="st">"</span><span class="ch">\n</span><span class="st">"</span>.join(</span>
-<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>            [</span>
-<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>                format_function_call(</span>
-<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>                    tool_call.function, tool_call.arguments, width<span class="op">=</span><span class="dv">1000</span></span>
-<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>                )</span>
-<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> tool_call <span class="kw">in</span> message.tool_calls</span>
-<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>            ]</span>
-<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> tool_calls</span>
-<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
-<span id="cb39-16"><a href="#cb39-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> message_text(message: ChatMessage) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> message.text</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> message_tool_calls(message: ChatMessage) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(message, ChatMessageAssistant) <span class="kw">and</span> message.tool_calls <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>        tool_calls <span class="op">=</span> <span class="st">"</span><span class="ch">\n</span><span class="st">"</span>.join(</span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>            [</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>                format_function_call(</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>                    tool_call.function, tool_call.arguments, width<span class="op">=</span><span class="dv">1000</span></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> tool_call <span class="kw">in</span> message.tool_calls</span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a>            ]</span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> tool_calls</span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="events" class="level3">
@@ -1101,65 +1118,65 @@ The model’s knowledge cutoff date
 </tbody>
 </table>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#events_df">events_df()</a></span> function also takes a <code>filter</code> parameter which can provide a function that performs filtering. For example, to read all model events:</p>
-<div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_event_filter(event: Event) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> event.event <span class="op">==</span> <span class="st">"model"</span></span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>model_events <span class="op">=</span> events_df(</span>
-<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
-<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EventTiming <span class="op">+</span> ModelEventColumns,</span>
-<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">filter</span><span class="op">=</span>model_event_filter</span>
-<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>To read all tool events:</p>
-<div class="sourceCode" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_event_filter(event: Event) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> event.event <span class="op">==</span> <span class="st">"tool"</span></span>
+<div class="sourceCode" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_event_filter(event: Event) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> event.event <span class="op">==</span> <span class="st">"model"</span></span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>model_events <span class="op">=</span> events_df(</span>
 <span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
-<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EvalModel <span class="op">+</span> EventTiming <span class="op">+</span> ToolEventColumns,</span>
-<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">filter</span><span class="op">=</span>tool_event_filter</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EventTiming <span class="op">+</span> ModelEventColumns,</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">filter</span><span class="op">=</span>model_event_filter</span>
 <span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>To read all tool events:</p>
+<div class="sourceCode" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_event_filter(event: Event) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> event.event <span class="op">==</span> <span class="st">"tool"</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>model_events <span class="op">=</span> events_df(</span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EvalModel <span class="op">+</span> EventTiming <span class="op">+</span> ToolEventColumns,</span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">filter</span><span class="op">=</span>tool_event_filter</span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that for tool events we also include the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalmodel">EvalModel</a></span> column group as model information is not directly embedded in tool events (whereas it is within model events).</p>
 </section>
 <section id="custom" class="level3">
 <h3 class="anchored" data-anchor-id="custom">Custom</h3>
 <p>You can create custom column types that extract data based on additional parameters. For example, imagine you want to write a set of extraction functions that are passed a <code>ReportConfig</code> and an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> (the report configuration might specify scores to extract, normalisation constraints, etc.)</p>
 <p>Here we define a new <code>ReportColumn</code> class that derives from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>:</p>
-<div class="sourceCode" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> functools</span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Callable</span>
-<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel, JsonValue</span>
-<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> EvalLog</span>
-<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> EvalColumn</span>
-<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ReportConfig(BaseModel):</span>
-<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># config fields</span></span>
-<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb42-12"><a href="#cb42-12" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ReportColumn(EvalColumn):</span>
-<span id="cb42-13"><a href="#cb42-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(</span>
-<span id="cb42-14"><a href="#cb42-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
-<span id="cb42-15"><a href="#cb42-15" aria-hidden="true" tabindex="-1"></a>        name: <span class="bu">str</span>,</span>
-<span id="cb42-16"><a href="#cb42-16" aria-hidden="true" tabindex="-1"></a>        config: ReportConfig,</span>
-<span id="cb42-17"><a href="#cb42-17" aria-hidden="true" tabindex="-1"></a>        extract: Callable[[ReportConfig, EvalLog], JsonValue],</span>
-<span id="cb42-18"><a href="#cb42-18" aria-hidden="true" tabindex="-1"></a>        <span class="op">*</span>,</span>
-<span id="cb42-19"><a href="#cb42-19" aria-hidden="true" tabindex="-1"></a>        required: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb42-20"><a href="#cb42-20" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb42-21"><a href="#cb42-21" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>(</span>
-<span id="cb42-22"><a href="#cb42-22" aria-hidden="true" tabindex="-1"></a>            name<span class="op">=</span>name,</span>
-<span id="cb42-23"><a href="#cb42-23" aria-hidden="true" tabindex="-1"></a>            path<span class="op">=</span>functools.partial(extract, config),</span>
-<span id="cb42-24"><a href="#cb42-24" aria-hidden="true" tabindex="-1"></a>            required<span class="op">=</span>required,</span>
-<span id="cb42-25"><a href="#cb42-25" aria-hidden="true" tabindex="-1"></a>        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> functools</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Callable</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel, JsonValue</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> EvalLog</span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> EvalColumn</span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ReportConfig(BaseModel):</span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># config fields</span></span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ReportColumn(EvalColumn):</span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a>        name: <span class="bu">str</span>,</span>
+<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a>        config: ReportConfig,</span>
+<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a>        extract: Callable[[ReportConfig, EvalLog], JsonValue],</span>
+<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a>        <span class="op">*</span>,</span>
+<span id="cb43-19"><a href="#cb43-19" aria-hidden="true" tabindex="-1"></a>        required: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb43-20"><a href="#cb43-20" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb43-21"><a href="#cb43-21" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>(</span>
+<span id="cb43-22"><a href="#cb43-22" aria-hidden="true" tabindex="-1"></a>            name<span class="op">=</span>name,</span>
+<span id="cb43-23"><a href="#cb43-23" aria-hidden="true" tabindex="-1"></a>            path<span class="op">=</span>functools.partial(extract, config),</span>
+<span id="cb43-24"><a href="#cb43-24" aria-hidden="true" tabindex="-1"></a>            required<span class="op">=</span>required,</span>
+<span id="cb43-25"><a href="#cb43-25" aria-hidden="true" tabindex="-1"></a>        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The key here is using <a href="https://www.geeksforgeeks.org/partial-functions-python/">functools.partial</a> to adapt the function that takes <code>config</code> and <code>log</code> into a function that takes <code>log</code> (which is what the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span> class works with).</p>
 <p>We can now create extraction functions that take a <code>ReportConfig</code> and an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> and pass them to <code>ReportColumn</code>:</p>
-<div class="sourceCode" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read dict scores from log according to config</span></span>
-<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_scores(config: ReportConfig, log: EvalLog) <span class="op">-&gt;</span> JsonValue:</span>
-<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="co"># config for a given report</span></span>
-<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> ReportConfig(...)</span>
-<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a><span class="co"># column that reads scores from log based on config</span></span>
-<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>ReportColumn(<span class="st">"score_*"</span>, config, read_scores)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read dict scores from log according to config</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_scores(config: ReportConfig, log: EvalLog) <span class="op">-&gt;</span> JsonValue:</span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a><span class="co"># config for a given report</span></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> ReportConfig(...)</span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a><span class="co"># column that reads scores from log based on config</span></span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>ReportColumn(<span class="st">"score_*"</span>, config, read_scores)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
