@@ -100,7 +100,9 @@ export const MessageContents: FC<MessageContentsProps> = ({
   } else {
     return (
       <>
-        <MessageContent contents={message.content} context={context} />
+        {message.content && (
+          <MessageContent contents={message.content} context={context} />
+        )}
       </>
     );
   }
