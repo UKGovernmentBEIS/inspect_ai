@@ -26,4 +26,4 @@ def test_mistral_reasoning():
     )[0]
     assert log.status == "success"
     assert log.samples
-    assert isinstance(log.samples[0].messages[-1].content[0], ContentReasoning)
+    assert isinstance(log.samples[0].messages[1].content[0], ContentReasoning)
