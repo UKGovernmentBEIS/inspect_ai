@@ -9,12 +9,14 @@ from typing import Any, Generic, TypeVar
 
 import anyio
 import anyio.abc
+from tenacity import RetryCallState
 
 from inspect_ai._util._async import run_in_background, tg_collect
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.notgiven import sanitize_notgiven
 from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
+from inspect_ai.model._retry import ModelRetryConfig
 
 DEFAULT_BATCH_TICK = 15
 DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
@@ -30,6 +32,18 @@ It gets returned by the `_check_batch` method and passed to `_handle_batch_resul
 
 Not all model providers need this
 """
+
+
+def log_batch_retry(operation: str, retry_state: RetryCallState) -> None:
+    print(
+        f"-> Batch {operation} last outcome: {retry_state.outcome} retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)"
+    )
+
+
+def tweak_retry_config(config: ModelRetryConfig, operation: str) -> ModelRetryConfig:
+    tweaked_retry_config: ModelRetryConfig = config.copy()
+    tweaked_retry_config["before_sleep"] = functools.partial(log_batch_retry, operation)
+    return tweaked_retry_config
 
 
 @dataclasses.dataclass

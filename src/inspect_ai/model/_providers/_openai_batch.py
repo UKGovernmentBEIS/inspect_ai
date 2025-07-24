@@ -9,7 +9,7 @@ import httpx
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
-from tenacity import RetryCallState, retry
+from tenacity import retry
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai.model._generate_config import BatchConfig
@@ -19,14 +19,9 @@ from .util.batch import (
     Batch,
     Batcher,
     BatchRequest,
+    tweak_retry_config,
 )
 from .util.hooks import HttpxHooks
-
-
-def _log_batch_retry(operation: str, retry_state: RetryCallState) -> None:
-    print(
-        f"-> Batch {operation} retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)"
-    )
 
 
 class CompletedBatchInfo(TypedDict):
@@ -48,15 +43,8 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         self._client = client
         self._retry_config = retry_config
 
-    def _tweak_retry_config(self, operation: str) -> ModelRetryConfig:
-        tweaked_retry_config: ModelRetryConfig = self._retry_config.copy()
-        tweaked_retry_config["before_sleep"] = functools.partial(
-            _log_batch_retry, operation
-        )
-        return tweaked_retry_config
-
     async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
-        @retry(**self._tweak_retry_config("_create_batch"))
+        @retry(**tweak_retry_config(self._retry_config, "_create_batch"))
         async def _create() -> str:
             # TODO: support other endpoints
             endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
@@ -145,7 +133,11 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
     ) -> dict[str, ChatCompletion | Exception]:
         result_uris = completion_info["result_uris"]
 
-        @retry(**self._tweak_retry_config(f"_handle_batch_result({batch.id})"))
+        @retry(
+            **tweak_retry_config(
+                self._retry_config, f"_handle_batch_result({batch.id})"
+            )
+        )
         async def _results() -> list[dict[str, ChatCompletion | Exception]]:
             return await tg_collect(
                 [
