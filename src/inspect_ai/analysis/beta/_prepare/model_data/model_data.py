@@ -49,8 +49,6 @@ def load_organizations_from_yaml(file_path: Path) -> Dict[str, OrganizationData]
 
 
 def create_model_info(
-    organization: str,
-    model: str,
     organization_name: str,
     model_def: BaseModelDefinition,
     version_data: Optional[BaseModelDefinition] = None,
@@ -60,11 +58,9 @@ def create_model_info(
     data_source = version_data if version_data is not None else model_def
 
     return ModelInfo(
-        organization=organization,
-        model=model,
         snapshot=data_source.snapshot,
-        organization_name=organization_name,
-        model_name=data_source.display_name or model_def.display_name,
+        organization=organization_name,
+        model=data_source.display_name or model_def.display_name,
         knowledge_cutoff_date=data_source.knowledge_cutoff_date
         or model_def.knowledge_cutoff_date,
         release_date=data_source.release_date or model_def.release_date,
@@ -77,21 +73,19 @@ def create_model_info(
 class ModelInfo(BaseModel):
     """Model information and metadata"""
 
-    organization: str
+    organization: str | None = None
     """Model organization (e.g. Anthropic, OpenAI)."""
 
-    model: str
+    model: str | None = None
     """Model name (e.g. Gemini 2.5 Flash)."""
 
     snapshot: str | None = None
     """A snapshot (version) string, if available (e.g. “latest” or “20240229”).."""
 
-    organization_name: str | None = None
-    model_name: str | None = None
+    release_date: date | None = None
+    """The mode's release date."""
 
     knowledge_cutoff_date: date | None = None
-    release_date: date | None = None
-
     context_length: float | None = None
     output_tokens: float | None = None
 
@@ -117,30 +111,30 @@ def read_model_info() -> dict[str, ModelInfo]:
 
                 for model_name, model_def in organization_data.models.items():
                     # Create the base model
-                    base_model = create_model_info(
-                        organization, model_name, organization_name, model_def
-                    )
-                    model_infos[model_key(base_model)] = base_model
+                    base_model = create_model_info(organization_name, model_def)
+                    model_infos[model_key(organization, model=model_name)] = base_model
 
                     # Resolve model versions, if present
                     if model_def.versions:
                         for version_name, version_data in model_def.versions.items():
                             version_model = create_model_info(
-                                organization,
-                                version_name,
                                 organization_name,
                                 model_def,
                                 version_data,
                             )
-                            model_infos[model_key(version_model)] = version_model
+                            model_infos[model_key(organization, model=version_name)] = (
+                                version_model
+                            )
 
                     # Resolve aliases for the base model
                     if model_def.aliases:
                         for alias in model_def.aliases:
                             alias_model = create_model_info(
-                                organization, alias, organization_name, model_def
+                                organization_name, model_def
                             )
-                            model_infos[model_key(alias_model)] = alias_model
+                            model_infos[model_key(organization, model=alias)] = (
+                                alias_model
+                            )
 
                     # Resolve any aliases for each version
                     if model_def.versions:
@@ -148,15 +142,13 @@ def read_model_info() -> dict[str, ModelInfo]:
                             if version_data.aliases:
                                 for alias in version_data.aliases:
                                     alias_version_model = create_model_info(
-                                        organization,
-                                        alias,
                                         organization_name,
                                         model_def,
                                         version_data,
                                     )
-                                    model_infos[model_key(alias_version_model)] = (
-                                        alias_version_model
-                                    )
+                                    model_infos[
+                                        model_key(organization, model=alias)
+                                    ] = alias_version_model
 
         except yaml.YAMLError as e:
             raise yaml.YAMLError(f"Error parsing YAML file {info_file}: {e}") from e
@@ -168,6 +160,6 @@ def read_model_info() -> dict[str, ModelInfo]:
     return model_infos
 
 
-def model_key(model_info: ModelInfo) -> str:
+def model_key(organization: str, model: str) -> str:
     """Generate a unique key for the model based on its organization and model name."""
-    return f"{model_info.organization}/{model_info.model}"
+    return f"{organization}/{model}"

@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Analysis: `model_info()` operation for adding model metadata to data frames.
+- Analysis: `model_info()` and `frontier()` operations for data frame preparation.
 - ReAct Agent: Require submit tool to have no errors before you exit the react loop.
 - Mistral: Type updates for `ThinkChunk` and `AudioChunk` in package v1.9.3 (which is now the minimum required version).
 - Inspect View: Use MathJax rather than Katex for math rendering.
@@ -12,7 +12,9 @@
 
 - OpenAI: Move model classification functions into `ModelAPI` class so that subclasses can override them.
 - Azure: Support for authenticating with Microsoft Entra ID managed identities.
-- Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames).
+- Analysis: `prepare()` function for doing common data preparation tasks and `log_viewer()` operation for adding log viewer URLs to data frames.
+- ReAct Agent: Require submit tool to have no errors before you exit the react loop.
+- Inspect View: Use MathJax rather than Katex for math rendering.
 - Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
 - Bugfix: Use the output filesystem when creating directories in `inspect log convert`
 
