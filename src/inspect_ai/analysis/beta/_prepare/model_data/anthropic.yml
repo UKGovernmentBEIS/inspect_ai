@@ -100,3 +100,15 @@ anthropic:
             - claude-3-haiku@20240307
         claude-3-haiku-latest:
           snapshot: "latest"
+    claude-2.1:
+      display_name: Claude 2.1
+      release_date: 2023-11-21
+      knowledge_cutoff_date: 2023-01-01
+      output_tokens: 4096
+      context_length: 200000
+    claude-2:
+      display_name: Claude 2
+      release_date: 2023-07-11
+      knowledge_cutoff_date: 2023-01-01
+      output_tokens: 4096
+      context_length: 200000
