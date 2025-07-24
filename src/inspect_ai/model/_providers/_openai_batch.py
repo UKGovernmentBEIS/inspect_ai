@@ -19,6 +19,7 @@ from .util.batch import (
     Batch,
     Batcher,
     BatchRequest,
+    tweak_retry_config,
 )
 from .util.hooks import HttpxHooks
 
@@ -43,7 +44,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         self._retry_config = retry_config
 
     async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
-        @retry(**self._retry_config)
+        @retry(**tweak_retry_config(self._retry_config, "_create_batch"))
         async def _create() -> str:
             # TODO: support other endpoints
             endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
@@ -132,7 +133,11 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
     ) -> dict[str, ChatCompletion | Exception]:
         result_uris = completion_info["result_uris"]
 
-        @retry(**self._retry_config)
+        @retry(
+            **tweak_retry_config(
+                self._retry_config, f"_handle_batch_result({batch.id})"
+            )
+        )
         async def _results() -> list[dict[str, ChatCompletion | Exception]]:
             return await tg_collect(
                 [

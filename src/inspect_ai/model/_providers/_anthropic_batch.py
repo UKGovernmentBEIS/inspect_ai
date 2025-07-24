@@ -37,6 +37,7 @@ from .util.batch import (
     Batch,
     Batcher,
     BatchRequest,
+    tweak_retry_config,
 )
 from .util.hooks import HttpxHooks
 
@@ -59,7 +60,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         self._retry_config = retry_config
 
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
-        @retry(**self._retry_config)
+        @retry(**tweak_retry_config(self._retry_config, "_create_batch"))
         async def _create() -> str:
             requests: list[AnthropicBatchRequest] = []
             extra_headers: dict[str, str] = {}
@@ -106,7 +107,11 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         batch: Batch[Message],
         completion_info: CompletedBatchInfo,
     ) -> dict[str, Message | Exception]:
-        @retry(**self._retry_config)
+        @retry(
+            **tweak_retry_config(
+                self._retry_config, f"_handle_batch_result({batch.id})"
+            )
+        )
         async def _results() -> AsyncIterator[MessageBatchIndividualResponse]:
             return await self._client.messages.batches.results(batch.id)
 
