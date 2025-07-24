@@ -1,4 +1,3 @@
-from pydantic_core import to_json
 from test_helpers.utils import skip_if_no_mistral
 
 from inspect_ai import Task, eval
