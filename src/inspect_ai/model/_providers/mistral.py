@@ -4,6 +4,7 @@ import os
 from typing import Any, Literal
 
 from mistralai import (
+    AudioChunk,
     ContentChunk,
     DocumentURLChunk,
     FileChunk,
@@ -14,6 +15,7 @@ from mistralai import (
     Mistral,
     ReferenceChunk,
     TextChunk,
+    ThinkChunk,
 )
 from mistralai.models import (
     AssistantMessage as MistralAssistantMessage,
@@ -425,6 +427,8 @@ async def mistral_content_chunk(content: Content) -> ContentChunk:
 
         # return chunk
         return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+    elif isinstance(content, ContentReasoning):
+        raise TypeError("Mistral models use <think> tags for reasoning.")
     else:
         raise RuntimeError("Mistral models do not support audio or video inputs.")
 
@@ -507,7 +511,7 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         return [ContentText(text=content.document_url)]
     elif isinstance(content, FileChunk):
         return [ContentText(text=f"file: {content.file_id}")]
-    else:
+    elif isinstance(content, ImageURLChunk):
         if isinstance(content.image_url, str):
             return [ContentImage(image=content.image_url)]
         else:
@@ -517,6 +521,10 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                 case _:
                     detail = "auto"
             return [ContentImage(image=content.image_url.url, detail=detail)]
+    elif isinstance(content, ThinkChunk):
+        raise TypeError("Mistral models use <think> tags for reasoning.")
+    elif isinstance(content, AudioChunk):
+        raise TypeError("AudioChunk content is not supported by Inspect.")
 
 
 def completion_choices_from_response(

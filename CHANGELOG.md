@@ -2,6 +2,7 @@
 
 - Analysis: `model_info()` operation for adding model metadata to data frames.
 - ReAct Agent: Require submit tool to have no errors before you exit the react loop.
+- Mistral: Type updates for `ThinkChunk` and `AudioChunk` in package v1.9.3 (which is now the minimum required version).
 - Inspect View: Use MathJax rather than Katex for math rendering.
 - Inspect View: Fix issue with scores 'More...' link not being displayed in some configurations.
 - Bugfix: Strip smuggled `<think>` and `<internal>` tags from tool messages to prevent leakage in multi-agent scenarios where an _inner_ assistant message can be coerced into a tool message.
