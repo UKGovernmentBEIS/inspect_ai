@@ -41,19 +41,20 @@ def frontier(
             # Filter out models with missing release dates for frontier calculation
             task_group_with_dates = task_group.dropna(subset=[date_column])
 
+            # For each release date, keep only the highest scoring model
+            best_per_date = task_group_with_dates.dropna(subset=[score_column]).loc[
+                task_group_with_dates.groupby(date_column)[score_column].idxmax()
+            ]
+
             # Sort by model_release_date to process chronologically
-            task_group_with_dates = task_group_with_dates.sort_values(date_column)
+            best_per_date = best_per_date.sort_values(date_column)
 
             # Track the highest score seen so far
             highest_score = float("-inf")
             frontier_indices = []
 
-            for idx, row in task_group_with_dates.iterrows():
+            for idx, row in best_per_date.iterrows():
                 current_score = row[score_column]
-
-                # Skip if score is NaN
-                if pd.isna(current_score):
-                    continue
 
                 # If this is a new high score, it's on the frontier
                 if current_score > highest_score:
