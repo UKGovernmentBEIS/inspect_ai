@@ -190,8 +190,7 @@ def eval_set(
         **kwargs: Model generation options.
 
     Returns:
-        Tuple of bool (whether all tasks completed successfully) and list of EvalLog
-        (one for each task)
+        A tuple of bool (whether all tasks completed successfully) and a list of `EvalLog` headers (i.e. raw sample data is not included in the logs returned).
     """
 
     # helper function to run a set of evals
