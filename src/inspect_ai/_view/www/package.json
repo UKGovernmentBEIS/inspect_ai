@@ -86,7 +86,7 @@
     "react-dom": "^19.0.0",
     "react-popper": "^2.3.0",
     "react-router-dom": "^7.6.3",
-    "react-virtuoso": "^4.12.7",
+    "react-virtuoso": "^4.13.0",
     "zustand": "^5.0.6"
   }
 }
