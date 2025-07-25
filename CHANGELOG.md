@@ -8,6 +8,7 @@
 - Inspect View: Fix issue displaying tool calls in transcript in some configurations.
 - Bugfix: Strip smuggled `<think>` and `<internal>` tags from tool messages to prevent leakage in multi-agent scenarios where an _inner_ assistant message can be coerced into a tool message.
 - Bugfix: Handle descriptions of nested `BaseModel` types in tool call schemas.
+- Bugfix: Update workaround of OpenAI reasoning issue to retain only the last (rather than the first) in a run of consecutive reasoning items.
 
 
 ## 0.3.114 (17 July 2025)
