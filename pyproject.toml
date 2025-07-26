@@ -141,6 +141,7 @@ dev = [
   "aioboto3",
   "azure-identity",
   "azure-ai-inference",
+  "goodfire",
   "google-cloud-aiplatform",
   "google-genai",
   "griffe",
