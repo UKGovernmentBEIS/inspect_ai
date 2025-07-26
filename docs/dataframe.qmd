@@ -216,14 +216,6 @@ result = con.execute("""
 
 ## Data Preparation
 
-::: callout-note
-Data preparation functions are available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 After reading data frames from log files, there will often be additional data preparation required for plotting or analysis. Some common transformations are provided as built in functions that satisfy the `Operation` protocol. To apply these transformations, use the `prepare()` function.
 
 For example, if you have used the [`inspect view bundle`](log-viewer.qmd#sec-publishing) command to publish logs to a website, you can use the `log_viewer()` operation to map log file paths to their published URLs:

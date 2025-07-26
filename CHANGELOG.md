@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.115 (26 July 2025)
 
 - Analysis: `model_info()` and `frontier()` operations for data frame preparation.
 - ReAct Agent: Require submit tool to have no errors before you exit the react loop.
