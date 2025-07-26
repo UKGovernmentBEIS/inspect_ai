@@ -1,3 +1,7 @@
+## Unreleased
+
+[Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
+
 ## 0.3.115 (26 July 2025)
 
 - Analysis: `model_info()` and `frontier()` operations for data frame preparation.
