@@ -25,3 +25,4 @@ repos:
     hooks:
       - id: typos
         files: docs|.md
+        exclude: .yml
