@@ -1,9 +1,17 @@
 from pathlib import Path
 from typing import Any
 
-from inspect_ai.analysis.beta import evals_df, log_viewer, prepare
+from inspect_ai.analysis.beta import evals_df, log_viewer, prepare, task_info
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
+
+
+def test_task_info():
+    df = evals_df(LOGS_DIR / "2025-05-12T20-27-36-04-00_browser.json")
+    df = prepare(df, task_info({}))
+    assert df["task_display_name"].to_list() == ["browser"]
+    df = prepare(df, task_info({"browser": "Browser Task"}))
+    assert df["task_display_name"].to_list() == ["Browser Task"]
 
 
 def test_prepare_log_viewer():
