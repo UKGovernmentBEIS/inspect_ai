@@ -78,9 +78,9 @@ ul.task-list li input[type="checkbox"] {
     }
 
     const options = {
-      valueNames: ['listing-arxiv','listing-categories','listing-contributors','listing-description','listing-group','listing-tasks','listing-title','listing-dependency','listing-tags',{ data: ['index'] },{ data: ['categories'] }],
+      valueNames: ['listing-arxiv','listing-categories','listing-contributors','listing-description','listing-group','listing-metadata','listing-tasks','listing-title','listing-dependency','listing-tags',{ data: ['index'] },{ data: ['categories'] }],
       
-      searchColumns: ["listing-arxiv","listing-categories","listing-contributors","listing-description","listing-group","listing-tasks","listing-title","listing-dependency","listing-tags"],
+      searchColumns: ["listing-arxiv","listing-categories","listing-contributors","listing-description","listing-group","listing-metadata","listing-tasks","listing-title","listing-dependency","listing-tags"],
     };
 
     window['quarto-listings'] = window['quarto-listings'] || {};
@@ -203,7 +203,7 @@ window.Quarto = {
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
         
-    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(68)</span></div><div class="category" data-category="Agent">Agent <span class="quarto-category-count">(13)</span></div><div class="category" data-category="Assistants">Assistants <span class="quarto-category-count">(5)</span></div><div class="category" data-category="Coding">Coding <span class="quarto-category-count">(11)</span></div><div class="category" data-category="Cybersecurity">Cybersecurity <span class="quarto-category-count">(8)</span></div><div class="category" data-category="Knowledge">Knowledge <span class="quarto-category-count">(14)</span></div><div class="category" data-category="Mathematics">Mathematics <span class="quarto-category-count">(5)</span></div><div class="category" data-category="Multimodal">Multimodal <span class="quarto-category-count">(5)</span></div><div class="category" data-category="Personality">Personality <span class="quarto-category-count">(1)</span></div><div class="category" data-category="Reasoning">Reasoning <span class="quarto-category-count">(18)</span></div><div class="category" data-category="Safeguards">Safeguards <span class="quarto-category-count">(4)</span></div><div class="category" data-category="Scheming">Scheming <span class="quarto-category-count">(2)</span></div></div></div>
+    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(76)</span></div><div class="category" data-category="Agent">Agent <span class="quarto-category-count">(15)</span></div><div class="category" data-category="Assistants">Assistants <span class="quarto-category-count">(6)</span></div><div class="category" data-category="Coding">Coding <span class="quarto-category-count">(11)</span></div><div class="category" data-category="Cybersecurity">Cybersecurity <span class="quarto-category-count">(8)</span></div><div class="category" data-category="Knowledge">Knowledge <span class="quarto-category-count">(16)</span></div><div class="category" data-category="Mathematics">Mathematics <span class="quarto-category-count">(5)</span></div><div class="category" data-category="Multimodal">Multimodal <span class="quarto-category-count">(9)</span></div><div class="category" data-category="Personality">Personality <span class="quarto-category-count">(1)</span></div><div class="category" data-category="Reasoning">Reasoning <span class="quarto-category-count">(15)</span></div><div class="category" data-category="Safeguards">Safeguards <span class="quarto-category-count">(7)</span></div><div class="category" data-category="Scheming">Scheming <span class="quarto-category-count">(2)</span></div><div class="category" data-category="Writing">Writing <span class="quarto-category-count">(1)</span></div></div></div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
@@ -575,12 +575,34 @@ window.Quarto = {
 </li>
 
   
+    
+  
+<li class="example" data-index="16" data-categories="Assistants,Agent">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-info-circle"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/browse_comp">
+            BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A benchmark for evaluating agents' ability to browse the web.
+The dataset consists of challenging questions that generally require web-access to answer correctly.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#cybersecurity" class="anchored">Cybersecurity</h2></li>
     
   
-<li class="example" data-index="16" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="17" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -601,7 +623,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="17" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="18" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -622,7 +644,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="18" data-categories="Cybersecurity">
+<li class="example" data-index="19" data-categories="Cybersecurity">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -643,7 +665,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="19" data-categories="Cybersecurity">
+<li class="example" data-index="20" data-categories="Cybersecurity">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -664,7 +686,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="20" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="21" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -685,7 +707,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="21" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="22" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -706,7 +728,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="22" data-categories="Cybersecurity">
+<li class="example" data-index="23" data-categories="Cybersecurity">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -727,7 +749,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="23" data-categories="Cybersecurity">
+<li class="example" data-index="24" data-categories="Cybersecurity">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -751,7 +773,28 @@ window.Quarto = {
 <li class="group"><h2 href="#safeguards" class="anchored">Safeguards</h2></li>
     
   
-<li class="example" data-index="24" data-categories="Safeguards">
+<li class="example" data-index="25" data-categories="Safeguards">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mask">
+            MASK: Disentangling Honesty from Accuracy in AI Systems
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluates honesty in large language models by testing whether they contradict their own beliefs when pressured to lie.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="26" data-categories="Safeguards">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
@@ -772,7 +815,28 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="25" data-categories="Safeguards,Agent">
+<li class="example" data-index="27" data-categories="Safeguards,Agent">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agentdojo">
+            AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Assesses whether AI agents can be hijacked by malicious third parties using prompt injections in simple environments such as a workspace or travel booking app.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="28" data-categories="Safeguards,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
@@ -793,7 +857,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="26" data-categories="Safeguards">
+<li class="example" data-index="29" data-categories="Safeguards">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
@@ -814,7 +878,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="27" data-categories="Safeguards">
+<li class="example" data-index="30" data-categories="Safeguards">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
@@ -833,12 +897,34 @@ window.Quarto = {
 </li>
 
   
+    
+  
+<li class="example" data-index="31" data-categories="Safeguards">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/stereoset">
+            StereoSet: Measuring stereotypical bias in pretrained language models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A dataset that measures stereotype bias in language models across gender, race, religion, and profession domains.
+Models choose between stereotype, anti-stereotype, and unrelated completions to sentences.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#mathematics" class="anchored">Mathematics</h2></li>
     
   
-<li class="example" data-index="28" data-categories="Mathematics">
+<li class="example" data-index="32" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -859,7 +945,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="29" data-categories="Mathematics">
+<li class="example" data-index="33" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -880,7 +966,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="30" data-categories="Mathematics,Multimodal">
+<li class="example" data-index="34" data-categories="Mathematics,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -901,7 +987,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="31" data-categories="Mathematics">
+<li class="example" data-index="35" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -922,7 +1008,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="32" data-categories="Mathematics">
+<li class="example" data-index="36" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -946,28 +1032,7 @@ window.Quarto = {
 <li class="group"><h2 href="#reasoning" class="anchored">Reasoning</h2></li>
     
   
-<li class="example" data-index="33" data-categories="Reasoning,Multimodal">
-    <div class="example-card">
-      <div class="example-icon fs-5">
-        <i class="bi bi-boxes"></i>
-      </div>
-      <div class="example-info">
-        <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/vstar_bench">
-            V*Bench: A Visual QA Benchmark with Detailed High-resolution Images
-          </a>
-        </div>
-        <div class="listing-description text-secondary">V*Bench is a visual question &amp; answer benchmark that evaluates MLLMs in their ability to process high-resolution and visually crowded images to find and focus on small details.
-</div>
-      </div>
-    </div>
-  
-</li>
-
-  
-    
-  
-<li class="example" data-index="34" data-categories="Reasoning">
+<li class="example" data-index="37" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -987,7 +1052,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="35" data-categories="Reasoning">
+<li class="example" data-index="38" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1008,7 +1073,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="36" data-categories="Reasoning">
+<li class="example" data-index="39" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1029,7 +1094,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="37" data-categories="Reasoning">
+<li class="example" data-index="40" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1050,7 +1115,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="38" data-categories="Reasoning">
+<li class="example" data-index="41" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1071,7 +1136,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="39" data-categories="Reasoning">
+<li class="example" data-index="42" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1092,28 +1157,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="40" data-categories="Reasoning,Multimodal">
-    <div class="example-card">
-      <div class="example-icon fs-5">
-        <i class="bi bi-boxes"></i>
-      </div>
-      <div class="example-info">
-        <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/docvqa">
-            DocVQA: A Dataset for VQA on Document Images
-          </a>
-        </div>
-        <div class="listing-description text-secondary">DocVQA is a Visual Question Answering benchmark that consists of 50,000 questions covering 12,000+ document images. This implementation solves and scores the "validation" split.
-</div>
-      </div>
-    </div>
-  
-</li>
-
-  
-    
-  
-<li class="example" data-index="41" data-categories="Reasoning">
+<li class="example" data-index="43" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1134,7 +1178,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="42" data-categories="Reasoning">
+<li class="example" data-index="44" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1155,7 +1199,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="43" data-categories="Reasoning">
+<li class="example" data-index="45" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1176,7 +1220,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="44" data-categories="Reasoning,Multimodal">
+<li class="example" data-index="46" data-categories="Reasoning,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1197,7 +1241,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="45" data-categories="Reasoning">
+<li class="example" data-index="47" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1218,7 +1262,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="46" data-categories="Reasoning">
+<li class="example" data-index="48" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1239,7 +1283,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="47" data-categories="Reasoning">
+<li class="example" data-index="49" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1260,7 +1304,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="48" data-categories="Reasoning">
+<li class="example" data-index="50" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1281,7 +1325,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="49" data-categories="Reasoning">
+<li class="example" data-index="51" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1300,32 +1344,12 @@ window.Quarto = {
 </li>
 
   
-    
-  
-<li class="example" data-index="50" data-categories="Reasoning,Multimodal">
-    <div class="example-card">
-      <div class="example-icon fs-5">
-        <i class="bi bi-boxes"></i>
-      </div>
-      <div class="example-info">
-        <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmiu">
-            MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language Models
-          </a>
-        </div>
-        <div class="listing-description text-secondary">A comprehensive dataset designed to evaluate Large Vision-Language Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses 7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously curated multiple-choice questions.</div>
-      </div>
-    </div>
-  
-</li>
-
-  
   
     
 <li class="group"><h2 href="#knowledge" class="anchored">Knowledge</h2></li>
     
   
-<li class="example" data-index="51" data-categories="Knowledge">
+<li class="example" data-index="52" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1346,7 +1370,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="52" data-categories="Knowledge">
+<li class="example" data-index="53" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1367,7 +1391,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="53" data-categories="Knowledge">
+<li class="example" data-index="54" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1388,7 +1412,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="54" data-categories="Knowledge">
+<li class="example" data-index="55" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1409,7 +1433,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="55" data-categories="Knowledge">
+<li class="example" data-index="56" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1430,7 +1454,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="56" data-categories="Knowledge">
+<li class="example" data-index="57" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1451,7 +1475,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="57" data-categories="Knowledge">
+<li class="example" data-index="58" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1472,7 +1496,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="58" data-categories="Knowledge">
+<li class="example" data-index="59" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1493,7 +1517,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="59" data-categories="Knowledge">
+<li class="example" data-index="60" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1514,7 +1538,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="60" data-categories="Knowledge">
+<li class="example" data-index="61" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1535,7 +1559,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="61" data-categories="Knowledge">
+<li class="example" data-index="62" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1556,7 +1580,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="62" data-categories="Knowledge">
+<li class="example" data-index="63" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1577,7 +1601,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="63" data-categories="Knowledge">
+<li class="example" data-index="64" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1598,7 +1622,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="64" data-categories="Knowledge">
+<li class="example" data-index="65" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1617,12 +1641,78 @@ window.Quarto = {
 </li>
 
   
+    
+  
+<li class="example" data-index="66" data-categories="Knowledge">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sosbench">
+            SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A regulation-grounded, hazard-focused benchmark encompassing six high-risk scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology. The benchmark comprises 3,000 prompts derived from real-world regulations and laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions involving advanced chemical formulas).
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="67" data-categories="Knowledge">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/medqa">
+            MedQA: Medical exam Q&amp;A benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A Q&amp;A benchmark with questions collected from professional medical board exams. Only includes the English subset of the dataset (which also contains Mandarin Chinese and Taiwanese questions).
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#writing" class="anchored">Writing</h2></li>
+    
+  
+<li class="example" data-index="68" data-categories="Writing">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/writingbench">
+            WritingBench: A Comprehensive Benchmark for Generative Writing
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A comprehensive evaluation benchmark designed to assess large language models' capabilities across diverse writing tasks. The benchmark evaluates models on various writing domains including academic papers, business documents, creative writing, and technical documentation, with multi-dimensional scoring based on domain-specific criteria.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#scheming" class="anchored">Scheming</h2></li>
     
   
-<li class="example" data-index="65" data-categories="Scheming,Agent">
+<li class="example" data-index="69" data-categories="Scheming,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-person-gear"></i>
@@ -1630,7 +1720,7 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/self_reasoning">
-            GDM Dangerous Capabilities: Self-Reasoning
+            GDM Dangerous Capabilities: Self-reasoning
           </a>
         </div>
         <div class="listing-description text-secondary">Test AI's ability to reason about its environment.
@@ -1643,7 +1733,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="66" data-categories="Scheming,Agent">
+<li class="example" data-index="70" data-categories="Scheming,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-person-gear"></i>
@@ -1667,7 +1757,7 @@ window.Quarto = {
 <li class="group"><h2 href="#personality" class="anchored">Personality</h2></li>
     
   
-<li class="example" data-index="67" data-categories="Personality">
+<li class="example" data-index="71" data-categories="Personality">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-people"></i>
@@ -1683,6 +1773,91 @@ Its primary goals are twofold:
   1. Assess a model's default personality: the persona it naturally exhibits without specific prompting.  
   2. Evaluate whether a model can embody a specified persona**: how effectively it adopts certain personality traits when prompted or guided.
 </div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#multimodal" class="anchored">Multimodal</h2></li>
+    
+  
+<li class="example" data-index="72" data-categories="Multimodal,Multimodal">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/vstar_bench">
+            V*Bench: A Visual QA Benchmark with Detailed High-resolution Images
+          </a>
+        </div>
+        <div class="listing-description text-secondary">V*Bench is a visual question &amp; answer benchmark that evaluates MLLMs in their ability to process high-resolution and visually crowded images to find and focus on small details.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="73" data-categories="Multimodal,Multimodal">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/docvqa">
+            DocVQA: A Dataset for VQA on Document Images
+          </a>
+        </div>
+        <div class="listing-description text-secondary">DocVQA is a Visual Question Answering benchmark that consists of 50,000 questions covering 12,000+ document images. This implementation solves and scores the "validation" split.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="74" data-categories="Multimodal">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmiu">
+            MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A comprehensive dataset designed to evaluate Large Vision-Language Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses 7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously curated multiple-choice questions.</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="75" data-categories="Multimodal,Multimodal">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/zerobench">
+            ZeroBench
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A lightweight visual reasoning benchmark that is (1) Challenging, (2) Lightweight, (3) Diverse, and (4) High-quality.</div>
       </div>
     </div>
   
