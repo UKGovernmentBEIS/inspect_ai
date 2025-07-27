@@ -14,7 +14,7 @@
 
 Read a dataframe containing evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L53)
 
 ``` python
 def evals_df(
@@ -45,7 +45,7 @@ terminal environments, and `True` for notebooks.
 
 Column which maps to `EvalLog`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L21)
 
 ``` python
 class EvalColumn(Column)
@@ -55,7 +55,7 @@ class EvalColumn(Column)
 
 Default columns to import for `evals_df()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L124)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L130)
 
 ``` python
 EvalColumns: list[Column] = (
@@ -73,7 +73,7 @@ EvalColumns: list[Column] = (
 
 Eval basic information columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L56)
 
 ``` python
 EvalInfo: list[Column] = [
@@ -93,11 +93,12 @@ EvalInfo: list[Column] = [
 
 Eval task configuration columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L69)
 
 ``` python
 EvalTask: list[Column] = [
     EvalColumn("task_name", path="eval.task", required=True, value=remove_namespace),
+    EvalColumn("task_display_name", path=eval_log_task_display_name),
     EvalColumn("task_version", path="eval.task_version", required=True),
     EvalColumn("task_file", path="eval.task_file"),
     EvalColumn("task_attribs", path="eval.task_attribs"),
@@ -113,7 +114,7 @@ EvalTask: list[Column] = [
 
 Eval model columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L83)
 
 ``` python
 EvalModel: list[Column] = [
@@ -129,7 +130,7 @@ EvalModel: list[Column] = [
 
 Eval configuration columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L101)
 
 ``` python
 EvalConfig: list[Column] = [
@@ -147,7 +148,7 @@ EvalConfig: list[Column] = [
 
 Eval results columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L112)
 
 ``` python
 EvalResults: list[Column] = [
@@ -167,7 +168,7 @@ EvalResults: list[Column] = [
 
 Eval scores (one score/metric per-columns).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L119)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L125)
 
 ``` python
 EvalScores: list[Column] = [
@@ -181,7 +182,7 @@ EvalScores: list[Column] = [
 
 Read a dataframe containing samples from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L76)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L76)
 
 ``` python
 def samples_df(
@@ -219,7 +220,7 @@ terminal environments, and `True` for notebooks.
 
 Column which maps to `EvalSample` or `EvalSampleSummary`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L19)
 
 ``` python
 class SampleColumn(Column)
@@ -229,7 +230,7 @@ class SampleColumn(Column)
 
 Sample summary columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L58)
 
 ``` python
 SampleSummary: list[Column] = [
@@ -252,7 +253,7 @@ SampleSummary: list[Column] = [
 
 Sample messages as a string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L74)
 
 ``` python
 SampleMessages: list[Column] = [
@@ -266,7 +267,7 @@ SampleMessages: list[Column] = [
 
 Read a dataframe containing messages from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L45)
 
 ``` python
 def messages_df(
@@ -308,7 +309,7 @@ terminal environments, and `True` for notebooks.
 
 Filter for `messages_df()` rows.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L19)
 
 ``` python
 MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
@@ -318,7 +319,7 @@ MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
 
 Column which maps to `ChatMessage`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L16)
 
 ``` python
 class MessageColumn(Column)
@@ -328,7 +329,7 @@ class MessageColumn(Column)
 
 Message content columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L44)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L44)
 
 ``` python
 MessageContent: list[Column] = [
@@ -343,7 +344,7 @@ MessageContent: list[Column] = [
 
 Message tool call columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L52)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L52)
 
 ``` python
 MessageToolCalls: list[Column] = [
@@ -358,7 +359,7 @@ MessageToolCalls: list[Column] = [
 
 Chat message columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L60)
 
 ``` python
 MessageColumns: list[Column] = MessageContent + MessageToolCalls
@@ -370,7 +371,7 @@ MessageColumns: list[Column] = MessageContent + MessageToolCalls
 
 Read a dataframe containing events from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/events/table.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/events/table.py#L45)
 
 ``` python
 def events_df(
@@ -412,7 +413,7 @@ terminal environments, and `True` for notebooks.
 
 Column which maps to `Event`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L19)
 
 ``` python
 class EventColumn(Column)
@@ -422,7 +423,7 @@ class EventColumn(Column)
 
 Event basic information columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L47)
 
 ``` python
 EventInfo: list[Column] = [
@@ -436,7 +437,7 @@ EventInfo: list[Column] = [
 
 Event timing columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L54)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L54)
 
 ``` python
 EventTiming: list[Column] = [
@@ -451,7 +452,7 @@ EventTiming: list[Column] = [
 
 Model event columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L62)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L62)
 
 ``` python
 ModelEventColumns: list[Column] = [
@@ -475,7 +476,7 @@ ModelEventColumns: list[Column] = [
 
 Tool event columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L79)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L79)
 
 ``` python
 ToolEventColumns: list[Column] = [
@@ -491,21 +492,12 @@ ToolEventColumns: list[Column] = [
 
 ## Prepare
 
-> [!NOTE]
->
-> Data preparation functions are available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ### prepare
 
 Prepare a data frame for analysis using one or more transform
 operations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_prepare/prepare.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_prepare/prepare.py#L9)
 
 ``` python
 def prepare(
@@ -532,7 +524,7 @@ should be the location where the output of the
 [`inspect view bundle`](../log-viewer.qmd#sec-publishing) command was
 published.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_prepare/log_viewer.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_prepare/log_viewer.py#L10)
 
 ``` python
 def log_viewer(
@@ -582,7 +574,7 @@ Inspect includes built in support for many models (based upon the
 Inspect does not include model metadata, you may include your own model
 metadata via the `model_info` argument.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_prepare/model_info.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_prepare/model_info.py#L10)
 
 ``` python
 def model_info(
@@ -593,6 +585,38 @@ def model_info(
 `model_info` Dict\[str, [ModelInfo](inspect_ai.analysis.qmd#modelinfo)\] \| None  
 Additional model info for models not supported directly by Inspect’s
 internal database.
+
+### task_info
+
+Amend data frame with task display name.
+
+Maps task names to task display names for plotting (e.g. “gpqa_diamond”
+-\> “GPQA Diamond”)
+
+If no mapping is provided for a task then name will come from the
+`display_name` attribute of the `Task` (or failing that from the
+registered name of the `Task`).
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_prepare/task_info.py#L6)
+
+``` python
+def task_info(
+    display_names: dict[str, str],
+    task_name_column: str = "task_name",
+    task_display_name_column: str = "task_display_name",
+) -> Operation
+```
+
+`display_names` dict\[str, str\]  
+Mapping of task log names (e.g. “gpqa_diamond”) to task display names
+(e.g. “GPQA Diamond”).
+
+`task_name_column` str  
+Column to draw the task name from (defaults to “task_name”).
+
+`task_display_name_column` str  
+Column to populate with the task display name (defaults to
+“task_display_name”)
 
 ### frontier
 
@@ -605,7 +629,7 @@ The frontier column will be True if the model was the top-scoring model
 on the task among all models available at the moment the model was
 released; otherwise it will be False.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_prepare/frontier.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_prepare/frontier.py#L4)
 
 ``` python
 def frontier(
@@ -635,7 +659,7 @@ The column to create with the frontier value (defaults to “frontier”).
 
 Operation to transform a data frame for analysis.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_prepare/operation.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_prepare/operation.py#L8)
 
 ``` python
 class Operation(Protocol):
@@ -649,7 +673,7 @@ Input data frame.
 
 Model information and metadata
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_prepare/model_data/model_data.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_prepare/model_data/model_data.py#L73)
 
 ``` python
 class ModelInfo(BaseModel)
@@ -696,7 +720,7 @@ to a comma-separated string).
 The `root` option indicates which root eval log context the columns
 select from.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/columns.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/columns.py#L21)
 
 ``` python
 class Column(abc.ABC)
@@ -726,7 +750,7 @@ value
 Convert extracted value into a column value (defaults to identity
 function).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/columns.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/columns.py#L86)
 
 ``` python
 def value(self, x: JsonValue) -> JsonValue
@@ -742,7 +766,7 @@ Valid types for columns.
 Values of `list` and `dict` are converted into column values as JSON
 `str`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/columns.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/columns.py#L14)
 
 ``` python
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
@@ -752,7 +776,7 @@ ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 
 Error which occurred parsing a column.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6178409d98fa0794cfe8ae8cb7f80c0b779c7c1e/src/inspect_ai/analysis/beta/_dataframe/columns.py#L115)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/866c4f6a74ee90bfc569ca1ef254e9dc7c74b48d/src/inspect_ai/analysis/beta/_dataframe/columns.py#L115)
 
 ``` python
 @dataclass

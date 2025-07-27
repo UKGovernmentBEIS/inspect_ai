@@ -262,15 +262,6 @@ result = con.execute("""
 
 ## Data Preparation
 
-> [!NOTE]
->
-> Data preparation functions are available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 After reading data frames from log files, there will often be additional
 data preparation required for plotting or analysis. Some common
 transformations are provided as built in functions that satisfy the
@@ -283,12 +274,14 @@ publish logs to a website, you can use the `log_viewer()` operation to
 map log file paths to their published URLs:
 
 ``` python
-from inspect_ai.analysis.beta import evals_df, log_viewer, model_info, prepare
+from inspect_ai.analysis.beta import (
+    evals_df, log_viewer, model_info, prepare
+)
 
 df = evals_df("logs")
 df = prepare(df, [
     model_info(),
-    log_viewer("eval", { "logs": "https://logs.example.com"})
+    log_viewer("eval", {"logs": "https://logs.example.com"})
 ])
 ```
 
@@ -325,6 +318,20 @@ Inspect includes built in support for many models (based upon the
 Inspect does not include model metadata, you may include your own model
 metadata (see the `model_info()` reference for additional details).
 
+### task_info()
+
+Map task names to task display names (e.g. “gpqa_diamond” -\> “GPQA
+Diamond”).
+
+``` python
+df = evals_df("logs")
+df = prepare(df, [
+    task_info({"gpqa_diamond": "GPQA Diamond"})
+])
+```
+
+See the `task_info()` reference for additional details.
+
 ### log_viewer()
 
 Add a “log_viewer” column to an eval data frame by mapping log file
@@ -336,7 +343,7 @@ For example:
 ``` python
 df = evals_df("logs")
 df = prepare(df, [
-    log_viewer("eval", { "logs": "https://logs.example.com"})
+    log_viewer("eval", {"logs": "https://logs.example.com"})
 ])
 ```
 
