@@ -1,4 +1,9 @@
-## Unreleased
+## 0.3.116 (27 July 2025)
+
+- Added `display_name` property to `Task` (e.g. for plotting).
+- Analysis: `task_info()` operation for data frame preparation.
+
+## 0.3.115 (26 July 2025)
 
 - Analysis: `model_info()` and `frontier()` operations for data frame preparation.
 - ReAct Agent: Require submit tool to have no errors before you exit the react loop.

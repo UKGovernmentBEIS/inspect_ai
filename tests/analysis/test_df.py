@@ -1,5 +1,8 @@
+import tempfile
 from pathlib import Path
 
+from inspect_ai import eval
+from inspect_ai._eval.task.task import Task
 from inspect_ai.analysis.beta import (
     EvalInfo,
     EvalModel,
@@ -13,6 +16,7 @@ from inspect_ai.analysis.beta import (
     messages_df,
     samples_df,
 )
+from inspect_ai.analysis.beta._dataframe.evals.columns import EvalTask
 from inspect_ai.log import EvalLog, list_eval_logs
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
@@ -24,9 +28,13 @@ def test_evals_df():
 
 
 def test_evals_df_columns():
-    df = evals_df(LOGS_DIR, columns=EvalInfo + EvalModel + EvalResults)
-    assert len(df.columns) == 1 + len(EvalInfo) + len(EvalModel) + len(EvalResults)
+    df = evals_df(LOGS_DIR, columns=EvalInfo + EvalModel + EvalResults + EvalTask)
+    assert (
+        len(df.columns)
+        == 1 + len(EvalInfo) + len(EvalModel) + len(EvalResults) + len(EvalTask) - 1
+    )
     assert "eval_id" in df.columns
+    assert "task_display_name" in df.columns
 
 
 def test_evals_df_strict():
@@ -98,3 +106,13 @@ def test_events_df_columns():
 def test_events_df_filter():
     df = events_df(LOGS_DIR, filter=lambda e: e.event == "tool")
     assert len(df) == 4
+
+
+def test_eval_df_display_name():
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval(Task(display_name="My Task"), model="mockllm/model", log_dir=log_dir)
+        df = evals_df(log_dir)
+        assert df["task_display_name"].to_list() == ["My Task"]
+        eval(Task(name="my_task"), model="mockllm/model", log_dir=log_dir)
+        df = evals_df(log_dir)
+        assert df["task_display_name"].to_list().sort() == ["My Task", "my_task"].sort()

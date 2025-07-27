@@ -1,7 +1,5 @@
 from typing import Dict
 
-import pandas as pd
-
 from inspect_ai.analysis.beta._prepare.model_data.model_data import (
     ModelInfo,
     read_model_info,
@@ -36,6 +34,8 @@ def model_info(
     Args:
         model_info: Additional model info for models not supported directly by Inspect's internal database.
     """
+    import pandas as pd
+
     # Read built in model info
     builtin_model_info = read_model_info()
 

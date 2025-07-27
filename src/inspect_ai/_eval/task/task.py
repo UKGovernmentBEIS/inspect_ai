@@ -7,7 +7,11 @@ from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai._util.registry import is_registry_object, registry_info
+from inspect_ai._util.registry import (
+    is_registry_object,
+    registry_info,
+    registry_unqualified_name,
+)
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_config
@@ -63,6 +67,7 @@ class Task:
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
+        display_name: str | None = None,
         name: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
@@ -98,9 +103,8 @@ class Task:
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
             name: Task name. If not specified is automatically
-                determined based on the name of the task directory (or "task")
-                if its anonymous task (e.g. created in a notebook and passed to
-                eval() directly)
+                determined based on the registered name of the task.
+            display_name: Task display name (e.g. for plotting). If not specified then defaults to the registered task name.
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
@@ -150,6 +154,7 @@ class Task:
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.version = version
+        self._display_name = display_name
         self._name = name
         self.metadata = metadata
 
@@ -168,6 +173,17 @@ class Task:
             return registry_info(self).name
         else:
             return None
+
+    @property
+    def display_name(self) -> str:
+        if self._display_name is not None:
+            return self._display_name
+        elif self._name is not None:
+            return self._name
+        elif is_registry_object(self):
+            return registry_unqualified_name(self)
+        else:
+            return "task"
 
     @property
     def attribs(self) -> dict[str, Any]:
