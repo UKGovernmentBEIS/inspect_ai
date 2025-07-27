@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added `display_name` property to `Task` (e.g. for plotting).
+
 ## 0.3.115 (26 July 2025)
 
 - Analysis: `model_info()` and `frontier()` operations for data frame preparation.
