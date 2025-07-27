@@ -1,4 +1,15 @@
-# Groups: Coding Assistants Cybersecurity Safeguards Mathematics Reasoning Knowledge Personality Scheming
+# Groups: Coding Assistants Cybersecurity Safeguards Mathematics Reasoning Knowledge
+
+- title: "MASK: Disentangling Honesty from Accuracy in AI Systems"
+  description: |
+    Evaluates honesty in large language models by testing whether they contradict their own beliefs when pressured to lie.
+  path: src/inspect_evals/mask
+  arxiv: https://arxiv.org/abs/2503.03750?
+  group: Safeguards
+  contributors: ["Scott-Simmons"]
+  tasks:
+    - name: mask
+      dataset_samples: 1000
 
 - title: "HumanEval: Python Function Generation from Instructions"
   description: |
@@ -10,6 +21,8 @@
   tasks:
     - name: humaneval
       dataset_samples: 164
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "MBPP: Basic Python Coding Challenges"
   description: |
@@ -21,6 +34,8 @@
   tasks:
     - name: mbpp
       dataset_samples: 257
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "SWE-bench Verified: Resolving Real-World GitHub Issues"
   description: |
@@ -36,6 +51,9 @@
       dataset_samples: 50
   dependency: "swe_bench"
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+    requires_internet: true
 
 - title: "MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering"
   description: |
@@ -53,6 +71,8 @@
       dataset_samples: 22
   dependency: "mle_bench"
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
 
 - title: "DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation"
   description: Code generation benchmark with a thousand data science problems spanning seven Python libraries.
@@ -63,6 +83,8 @@
   tasks:
     - name: ds1000
       dataset_samples: 1000
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "BigCodeBench: Benchmarking Code Generation with Diverse Function Calls and Complex Instructions"
   description: |
@@ -74,6 +96,8 @@
   tasks:
     - name: bigcodebench
       dataset_samples: 1140
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation"
   description: |
@@ -85,6 +109,8 @@
   tasks:
     - name: class_eval
       dataset_samples: 100
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "GAIA: A Benchmark for General AI Assistants"
   description: |
@@ -103,6 +129,9 @@
     - name: gaia_level3
       dataset_samples: 26
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+    requires_internet: true
 
 - title: "OSWorld: Multimodal Computer Interaction Tasks"
   description: |
@@ -117,6 +146,9 @@
     - name: osworld_small
       dataset_samples: 39 # This is the count in the OSWorld corpus. Many samples are excluded because they are not yet supported
   tags: ["Agent"]
+  metadata:
+    sandbox: ["scorer", "solver"]
+    requires_internet: true
 
 - title: "AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?"
   description: |
@@ -137,6 +169,9 @@
     - name: assistant_bench_web_browser
       dataset_samples: 33
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+    requires_internet: true
 
 - title: "Cybench: Capture-The-Flag Cybersecurity Challenges"
   description: |
@@ -149,6 +184,11 @@
     - name: cybench
       dataset_samples: 40
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+    requires_internet: true
+    environment: "Kali-Linux"
+  dependency: "cybench"
 
 - title: "CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation for Evaluating LLMs in Cybersecurity Knowledge"
   description: |
@@ -167,6 +207,8 @@
     - name: cybermetric_10000
       dataset_samples: 10000
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
 
 - title: "CyberSecEval_2: Cybersecurity Risk and Vulnerability Evaluation"
   description: |
@@ -182,6 +224,8 @@
       dataset_samples: 251
     - name: cyse2_vulnerability_exploit
       dataset_samples: 585
+  metadata:
+    sandbox: ["scorer", "solver"] # (only cyse2_vulnerability_exploit is sandboxed)
 
 - title: "CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models"
   description: |
@@ -205,6 +249,8 @@
     - name: gdm_intercode_ctf
       dataset_samples: 79
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
 
 - title: "GDM Dangerous Capabilities: Capture the Flag"
   description: |
@@ -217,8 +263,11 @@
     - name: gdm_in_house_ctf
       dataset_samples: 13
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver", "scorer"]
+    environment: "Kali-Linux"
 
-- title: "GDM Dangerous Capabilities: Self-Reasoning"
+- title: "GDM Dangerous Capabilities: Self-reasoning"
   description: |
     Test AI's ability to reason about its environment.
   path: src/inspect_evals/gdm_capabilities/self_reasoning
@@ -328,14 +377,28 @@
     - name: lab_bench_cloning_scenarios
       dataset_samples: 33
 
+- title: "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents"
+  description: |
+    Assesses whether AI agents can be hijacked by malicious third parties using prompt injections in simple environments such as a workspace or travel booking app.
+  path: src/inspect_evals/agentdojo
+  arxiv: https://arxiv.org/abs/2406.13352
+  group: Safeguards
+  contributors: ["eric-aisi"]
+  tasks:
+    - name: agentdojo
+      dataset_samples: 1014
+  tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+  dependency: "agentdojo"
+
 - title: "AgentHarm: Harmfulness Potential in AI Agents"
   description: |
     Assesses whether AI agents might engage in harmful activities by testing their responses to malicious prompts in areas like cybercrime, harassment, and fraud, aiming to ensure safe behavior.
   path: src/inspect_evals/agentharm
   arxiv: https://arxiv.org/abs/2410.09024
   group: Safeguards
-  contributors:
-    ["alexandrasouly-aisi", "EricWinsorDSIT", "max-andr", "xanderdavies"]
+  contributors: ["alexandrasouly-aisi", "eric-aisi", "max-andr", "xanderdavies"]
   tasks:
     - name: agentharm
       dataset_samples: 176
@@ -428,7 +491,7 @@
     V*Bench is a visual question & answer benchmark that evaluates MLLMs in their ability to process high-resolution and visually crowded images to find and focus on small details.
   path: src/inspect_evals/vstar_bench
   arxiv: https://arxiv.org/abs/2312.14135
-  group: Reasoning
+  group: Multimodal
   tags: ["Multimodal"]
   contributors: ["bienehito"]
   tasks:
@@ -530,7 +593,7 @@
     DocVQA is a Visual Question Answering benchmark that consists of 50,000 questions covering 12,000+ document images. This implementation solves and scores the "validation" split.
   path: src/inspect_evals/docvqa
   arxiv: https://arxiv.org/abs/2007.00398
-  group: Reasoning
+  group: Multimodal
   tags: ["Multimodal"]
   contributors: ["evanmiller-anthropic"]
   tasks:
@@ -777,6 +840,8 @@
   tasks:
     - name: scicode
       dataset_samples: 65
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "LiveBench: A Challenging, Contamination-Free LLM Benchmark"
   description: |
@@ -832,6 +897,8 @@
   tasks:
     - name: apps
       dataset_samples: 5000
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "SimpleQA: Measuring short-form factuality in large language models"
   description: |
@@ -858,8 +925,7 @@
   description: A comprehensive dataset designed to evaluate Large Vision-Language Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses 7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously curated multiple-choice questions.
   path: src/inspect_evals/mmiu
   arxiv: https://arxiv.org/pdf/2408.02718
-  group: Reasoning
-  tags: ["Multimodal"]
+  group: Multimodal
   contributors: ["Esther-Guo"]
   tasks:
     - name: mmiu
@@ -876,6 +942,18 @@
     - name: strong_reject
       dataset_samples: 324
 
+- title: "StereoSet: Measuring stereotypical bias in pretrained language models"
+  description: |
+    A dataset that measures stereotype bias in language models across gender, race, religion, and profession domains.
+    Models choose between stereotype, anti-stereotype, and unrelated completions to sentences.
+  path: src/inspect_evals/stereoset
+  arxiv: https://arxiv.org/abs/2004.09456
+  group: Safeguards
+  contributors: ["Xodarap"]
+  tasks:
+    - name: stereoset
+      dataset_samples: 4299
+
 - title: "CORE-Bench"
   description: Evaluate how well an LLM Agent is at computationally reproducing the results of a set of scientific papers.
   path: src/inspect_evals/core_bench
@@ -885,8 +963,10 @@
   tasks:
     - name: core_bench
       dataset_samples: 45
-  dependency: "core_bench"
   tags: ["Agent"]
+  metadata:
+    sandbox: ["solver", "scorer"]
+  dependency: "core_bench"
 
 - title: "AIR Bench: AI Risk Benchmark"
   description: |
@@ -925,6 +1005,8 @@
         metric: pass@1
         score: 0.3583
         source: https://arxiv.org/abs/2404.10952
+  metadata:
+    sandbox: ["scorer"]
 
 - title: "Personality"
   description: |
@@ -943,3 +1025,69 @@
     - name: personality_PRIME
       dataset_samples: 50
   dependency: "personality"
+
+- title: "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge"
+  description: |
+    A regulation-grounded, hazard-focused benchmark encompassing six high-risk scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology. The benchmark comprises 3,000 prompts derived from real-world regulations and laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions involving advanced chemical formulas).
+  path: src/inspect_evals/sosbench
+  arxiv: https://arxiv.org/pdf/2505.21605
+  group: Knowledge
+  contributors: ["Esther-Guo"]
+  tasks:
+    - name: sosbench
+      dataset_samples: 3000
+
+- title: "BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents"
+  description: |
+    A benchmark for evaluating agents' ability to browse the web.
+    The dataset consists of challenging questions that generally require web-access to answer correctly.
+  path: src/inspect_evals/browse_comp
+  arxiv: https://arxiv.org/pdf/2504.12516
+  group: Assistants
+  contributors: ["AnselmC"]
+  tasks:
+    - name: browse_comp
+      dataset_samples: 1266
+  tags: ["Agent"]
+  metadata:
+    requires_internet: true
+    sandbox: ["solver"]
+
+- title: "ZeroBench"
+  description: A lightweight visual reasoning benchmark that is (1) Challenging, (2) Lightweight, (3) Diverse, and (4) High-quality.
+  path: src/inspect_evals/zerobench
+  arxiv: https://arxiv.org/abs/2502.09696
+  group: Multimodal
+  tags: ["Multimodal"]
+  contributors: ["ItsTania"]
+  tasks:
+    - name: Zerobench
+      dataset_samples: 100
+    - name: Zerobench Subquestions
+      dataset_samples: 335
+
+- title: "WritingBench: A Comprehensive Benchmark for Generative Writing"
+  description: |
+    A comprehensive evaluation benchmark designed to assess large language models' capabilities across diverse writing tasks. The benchmark evaluates models on various writing domains including academic papers, business documents, creative writing, and technical documentation, with multi-dimensional scoring based on domain-specific criteria.
+  path: src/inspect_evals/writingbench
+  group: Writing
+  arxiv: https://arxiv.org/pdf/2503.05244
+  contributors: ["jtv199"]
+  tasks:
+    - name: writingbench
+      dataset_samples: 1000
+
+- title: "MedQA: Medical exam Q&A benchmark"
+  description: |
+    A Q&A benchmark with questions collected from professional medical board exams. Only includes the English subset of the dataset (which also contains Mandarin Chinese and Taiwanese questions).
+  path: src/inspect_evals/medqa
+  group: Knowledge
+  arxiv: https://arxiv.org/abs/2009.13081
+  contributors: ["bunny-baxter", "JasonBenn"]
+  tasks:
+    - name: medqa
+      dataset_samples: 1273
+      human_baseline:
+        metric: accuracy
+        score: 0.870
+        source: https://arxiv.org/abs/2306.10070v2
