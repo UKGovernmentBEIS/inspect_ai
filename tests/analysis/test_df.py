@@ -65,9 +65,10 @@ def test_samples_df():
 
 def test_samples_df_columns():
     df = samples_df(LOGS_DIR, columns=SampleSummary)
-    assert len(df.columns) == 1 + 1 + len(SampleSummary) + 2
+    assert len(df.columns) == 1 + 1 + len(SampleSummary) + 1 + 1 + 1
     assert "eval_id" in df.columns
     assert "sample_id" in df.columns
+    assert "log" in df.columns
 
 
 def test_messages_df():
@@ -77,10 +78,11 @@ def test_messages_df():
 
 def test_messages_df_columns():
     df = messages_df(LOGS_DIR, columns=EvalModel + MessageColumns)
-    assert len(df.columns) == 1 + 1 + 1 + len(EvalModel) + len(MessageColumns)
+    assert len(df.columns) == 1 + 1 + 1 + 1 + len(EvalModel) + len(MessageColumns)
     assert "eval_id" in df.columns
     assert "sample_id" in df.columns
     assert "message_id" in df.columns
+    assert "log" in df.columns
 
 
 def test_messages_df_filter():
@@ -95,12 +97,13 @@ def test_events_df():
 
 def test_events_df_columns():
     df = events_df(LOGS_DIR, columns=EvalModel + EventInfo + EventTiming)
-    assert len(df.columns) == 1 + 1 + 1 + len(EvalModel) + len(EventInfo) + len(
+    assert len(df.columns) == 1 + 1 + 1 + 1 + len(EvalModel) + len(EventInfo) + len(
         EventTiming
     )
     assert "eval_id" in df.columns
     assert "sample_id" in df.columns
     assert "event_id" in df.columns
+    assert "log" in df.columns
 
 
 def test_events_df_filter():

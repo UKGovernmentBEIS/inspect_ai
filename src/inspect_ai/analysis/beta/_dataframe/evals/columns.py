@@ -53,10 +53,15 @@ EvalId: list[Column] = [
 ]
 """Eval id column."""
 
+EvalLogPath: list[Column] = [
+    EvalColumn("log", path=eval_log_location, required=True),
+]
+"""Eval log column."""
+
 EvalInfo: list[Column] = [
     EvalColumn("run_id", path="eval.run_id", required=True),
     EvalColumn("task_id", path="eval.task_id", required=True),
-    EvalColumn("log", path=eval_log_location),
+    *EvalLogPath,
     EvalColumn("created", path="eval.created", type=datetime, required=True),
     EvalColumn("tags", path="eval.tags", default="", value=list_as_str),
     EvalColumn("git_origin", path="eval.revision.origin"),

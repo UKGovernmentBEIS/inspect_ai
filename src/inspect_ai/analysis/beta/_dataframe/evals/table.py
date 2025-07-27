@@ -21,7 +21,7 @@ from ..util import (
     resolve_logs,
     verify_prerequisites,
 )
-from .columns import EvalColumns, EvalId
+from .columns import EvalColumns, EvalId, EvalLogPath
 
 logger = getLogger(__name__)
 
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 EVAL_ID = "eval_id"
+EVAL_LOG_PATH = "log"
 EVAL_SUFFIX = "_eval"
 
 
@@ -133,7 +134,7 @@ def _read_evals_df(
     all_errors: list[ColumnError] = []
 
     # ensure eval_id
-    columns = ensure_eval_id(columns)
+    columns = ensure_eval_data(columns)
 
     # read logs
     total_samples = 0
@@ -171,11 +172,18 @@ def _read_evals_df(
         return evals_table, eval_logs, all_errors, total_samples
 
 
-def ensure_eval_id(columns: Sequence[Column]) -> Sequence[Column]:
-    if not any([column.name == EVAL_ID for column in columns]):
-        return list(columns) + EvalId
-    else:
-        return columns
+def ensure_eval_data(columns: Sequence[Column]) -> Sequence[Column]:
+    result = list(columns)
+
+    # Add EvalId if not present
+    if not any(column.name == EVAL_ID for column in columns):
+        result.extend(EvalId)
+
+    # Add EvalLogPath if 'log' not present
+    if not any(column.name == EVAL_LOG_PATH for column in result):
+        result.extend(EvalLogPath)
+
+    return result
 
 
 def reorder_evals_df_columns(

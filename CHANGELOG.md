@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added "sample" linking to `log_viewer()` data preparation function.
+
 ## 0.3.116 (27 July 2025)
 
 - Added `display_name` property to `Task` (e.g. for plotting).

@@ -8,7 +8,7 @@ from .._dataframe.util import verify_prerequisites
 
 
 def log_viewer(
-    target: Literal["eval"],
+    target: Literal["eval", "sample"],
     url_mappings: dict[str, str],
     log_column: str = "log",
     log_viewer_column: str = "log_viewer",
@@ -20,7 +20,7 @@ def log_viewer(
     URL mappings define the relationship between log file paths (either fileystem or S3) and URLs where logs are published. The URL target should be the location where the output of the [`inspect view bundle`](../log-viewer.qmd#sec-publishing) command was published.
 
     Args:
-        target: Target for log viewer (currently only "eval" is supported).
+        target: Target for log viewer ("eval" appends a URL to the top level eval, "sample" appends a URL to the individual sample).")
         url_mappings: Map log file paths (either filesystem or S3) to URLs where logs are published.
         log_column: Column in the data frame containing log file path (defaults to "log").
         log_viewer_column: Column to create with log viewer URL (defaults to "log_viewer")
@@ -47,8 +47,29 @@ def log_viewer(
             + "(no valid url mapping provided for log)"
         )
 
+    def sample_log_viewer_url(row: pd.Series) -> str:  # type: ignore[type-arg]
+        ## ensure required columns are present
+        if "id" not in row or "epoch" not in row:
+            raise ValueError(
+                "Row must contain 'id' and 'epoch' columns to generate sample log viewer URL"
+            )
+
+        log = _normalize_file_path(row[log_column])
+        for k, v in url_mappings.items():
+            if log.startswith(k):
+                base_url = log.replace(k, f"{v}#/logs/", 1)
+                return f"{base_url}/samples/sample/{row.id}/{row.epoch}"
+
+        raise ValueError(
+            f"Unable to resolve log viewer URL for log {row[log_column]} "
+            + "(no valid url mapping provided for log)"
+        )
+
     def transform(df: pd.DataFrame) -> pd.DataFrame:
-        df[log_viewer_column] = df.apply(log_viewer_url, axis=1)
+        if target == "sample":
+            df[log_viewer_column] = df.apply(sample_log_viewer_url, axis=1)
+        else:
+            df[log_viewer_column] = df.apply(log_viewer_url, axis=1)
         return df
 
     return transform
