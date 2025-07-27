@@ -178,6 +178,8 @@ class Task:
     def display_name(self) -> str:
         if self._display_name is not None:
             return self._display_name
+        elif self._name is not None:
+            return self._name
         elif is_registry_object(self):
             return registry_unqualified_name(self)
         else:
