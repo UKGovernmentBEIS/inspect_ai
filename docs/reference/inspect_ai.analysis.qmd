@@ -48,6 +48,7 @@ Analysis functions are currently in beta and are exported from the **inspect_ai.
 ### prepare
 ### log_viewer
 ### model_info
+### task_info
 ### frontier
 ### Operation
 ### ModelInfo

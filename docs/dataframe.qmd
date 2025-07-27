@@ -221,12 +221,14 @@ After reading data frames from log files, there will often be additional data pr
 For example, if you have used the [`inspect view bundle`](log-viewer.qmd#sec-publishing) command to publish logs to a website, you can use the `log_viewer()` operation to map log file paths to their published URLs:
 
 ``` python
-from inspect_ai.analysis.beta import evals_df, log_viewer, model_info, prepare
+from inspect_ai.analysis.beta import (
+    evals_df, log_viewer, model_info, prepare
+)
 
 df = evals_df("logs")
 df = prepare(df, [
     model_info(),
-    log_viewer("eval", { "logs": "https://logs.example.com"})
+    log_viewer("eval", {"logs": "https://logs.example.com"})
 ])
 ```
 
@@ -260,6 +262,19 @@ Fields added (when available) include:
 
 Inspect includes built in support for many models (based upon the `model` string in the dataframe). If you are using models for which Inspect does not include model metadata, you may include your own model metadata (see the `model_info()` reference for additional details).
 
+### task_info()
+
+Map task names to task display names (e.g. "gpqa_diamond" -> "GPQA Diamond").
+
+```python
+df = evals_df("logs")
+df = prepare(df, [
+    task_info({"gpqa_diamond": "GPQA Diamond"})
+])
+```
+
+See the `task_info()` reference for additional details.
+
 ### log_viewer()
 
 Add a "log_viewer" column to an eval data frame by mapping log file paths to remote URLs. Pass mappings from the local log directory (or S3 bucket) to the URL where the logs have been publishing using [`inspect view bundle`](https://inspect.aisi.org.uk/log-viewer.html#sec-publishing). For example:
@@ -267,9 +282,10 @@ Add a "log_viewer" column to an eval data frame by mapping log file paths to rem
 ```python
 df = evals_df("logs")
 df = prepare(df, [
-    log_viewer("eval", { "logs": "https://logs.example.com"})
+    log_viewer("eval", {"logs": "https://logs.example.com"})
 ])
 ```
+
 See the `log_viewer()` reference for additional details.
 
 ### frontier()

@@ -10,7 +10,12 @@ from inspect_ai.log._log import EvalLog
 from ..columns import Column, ColumnType
 from ..extract import list_as_str, remove_namespace
 from ..validate import resolved_schema
-from .extract import eval_log_headline_stderr, eval_log_location, eval_log_scores_dict
+from .extract import (
+    eval_log_headline_stderr,
+    eval_log_location,
+    eval_log_scores_dict,
+    eval_log_task_display_name,
+)
 
 
 class EvalColumn(Column):
@@ -63,6 +68,7 @@ EvalInfo: list[Column] = [
 
 EvalTask: list[Column] = [
     EvalColumn("task_name", path="eval.task", required=True, value=remove_namespace),
+    EvalColumn("task_display_name", path=eval_log_task_display_name),
     EvalColumn("task_version", path="eval.task_version", required=True),
     EvalColumn("task_file", path="eval.task_file"),
     EvalColumn("task_attribs", path="eval.task_attribs"),

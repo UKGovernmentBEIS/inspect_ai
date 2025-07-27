@@ -706,6 +706,9 @@ class EvalSpec(BaseModel):
     task_file: str | None = Field(default=None)
     """Task source file."""
 
+    task_display_name: str | None = Field(default=None)
+    """Task display name."""
+
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""
 
