@@ -3148,6 +3148,13 @@
           },
           "title": "Model Usage",
           "type": "object"
+        },
+        "idealized_model_usage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          },
+          "title": "Idealized Model Usage",
+          "type": "object"
         }
       },
       "title": "EvalStats",
@@ -3155,7 +3162,8 @@
       "required": [
         "started_at",
         "completed_at",
-        "model_usage"
+        "model_usage",
+        "idealized_model_usage"
       ],
       "additionalProperties": false
     },

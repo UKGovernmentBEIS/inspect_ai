@@ -51,6 +51,7 @@ from ._model import (
 from ._model_call import ModelCall
 from ._model_output import (
     ChatCompletionChoice,
+    IdealizedModelUsage,
     Logprob,
     Logprobs,
     ModelOutput,
@@ -88,6 +89,7 @@ __all__ = [
     "Logprobs",
     "Logprob",
     "TopLogprob",
+    "IdealizedModelUsage",
     "Model",
     "ModelAPI",
     "ModelName",

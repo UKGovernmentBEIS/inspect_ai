@@ -44,7 +44,7 @@ from inspect_ai.model import (
     Model,
     ModelName,
 )
-from inspect_ai.model._model import model_usage
+from inspect_ai.model._model import idealized_model_usage, model_usage
 from inspect_ai.scorer._metric import MetricSpec
 from inspect_ai.scorer._scorer import ScorerSpec
 from inspect_ai.solver._plan import Plan
@@ -282,6 +282,7 @@ def collect_eval_data(stats: EvalStats) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
+    stats.idealized_model_usage = idealized_model_usage()
 
 
 def resolve_eval_metrics(

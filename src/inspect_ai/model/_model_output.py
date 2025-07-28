@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Literal, Type
+from typing import Any, Literal, Self, Type
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
@@ -30,17 +30,13 @@ class ModelUsage(BaseModel):
     reasoning_tokens: int | None = Field(default=None)
     """Number of tokens used for reasoning."""
 
-    def __add__(self, other: "ModelUsage") -> "ModelUsage":
+    def __add__(self, other: Self) -> Self:
         def optional_sum(a: int | None, b: int | None) -> int | None:
-            if a is not None and b is not None:
-                return a + b
-            if a is not None:
-                return a
-            if b is not None:
-                return b
-            return None
+            if a is None and b is None:
+                return None
+            return (a or 0) + (b or 0)
 
-        return ModelUsage(
+        return type(self)(
             input_tokens=self.input_tokens + other.input_tokens,
             output_tokens=self.output_tokens + other.output_tokens,
             total_tokens=self.total_tokens + other.total_tokens,
@@ -54,6 +50,50 @@ class ModelUsage(BaseModel):
                 self.reasoning_tokens, other.reasoning_tokens
             ),
         )
+
+
+class IdealizedModelUsage(ModelUsage):
+    """
+    Theoretical model usage, tracked as if a provider perfectly cached all inputs.
+
+    IdealizedModelUsage counts reads from the local inspect cache as contributing to
+    the tracked usage.
+
+    NOTE only a subset of ModelUsage fields are used in this class:
+    * input_tokens_cache_write stores the total number of unique tokens
+    * input_tokens stores the total input tokens used
+    * output tokens stores the total output tokens produced
+
+    Unique tokens are defined as unique suffixes when looking across all prior inputs
+    sent to a given model. When each prompt is sent to the model it will be matched
+    against the longest previous prefix sent to that model, and only the new text since
+    the match (or all text in the case of no match) will be counted as unique tokens.
+
+    Partial matches will not be counted, only entire prefixes (e.g., a turn based agent);
+    we assume caching happens at a prompt granularity. This assumption allows us to
+    use provider-reported token usage stats to understand the number of tokens (as defined
+    by any provider) in the suffix.
+
+    For example, consider the following sequence of prompts (one prompt per line). Underlined
+    text is considered unique:
+
+        part1
+        _____
+
+        part1part2
+             _____
+
+        part1part3
+             _____
+
+        part1part2part4
+                  _____
+
+        part5
+        _____
+    """
+
+    pass
 
 
 StopReason = Literal[

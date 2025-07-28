@@ -25,7 +25,13 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.dataset._dataset import MT, metadata_as
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    IdealizedModelUsage,
+    ModelOutput,
+    ModelUsage,
+)
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -904,6 +910,9 @@ class EvalStats(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
+
+    idealized_model_usage: dict[str, IdealizedModelUsage] = Field(default_factory=dict)
+    """Theoretical model token usage if provider perfectly cached all prompts."""
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
