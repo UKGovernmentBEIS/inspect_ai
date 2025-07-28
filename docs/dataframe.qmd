@@ -286,7 +286,7 @@ df = prepare(df, [
 ])
 ```
 
-See the `log_viewer()` reference for additional details.
+Note that the code above targets "eval" (the top level viewer page for an eval). Other available targets include "sample", "event", and "message". See the `log_viewer()` reference for additional details.
 
 ### frontier()
 

@@ -20,7 +20,7 @@ def log_viewer(
     URL mappings define the relationship between log file paths (either fileystem or S3) and URLs where logs are published. The URL target should be the location where the output of the [`inspect view bundle`](../log-viewer.qmd#sec-publishing) command was published.
 
     Args:
-        target: Target for log viewer ("eval" appends a URL to the top level eval, "sample" appends a URL to the individual sample).")
+        target: Target for log viewer ("eval", "sample", "event", or "message").
         url_mappings: Map log file paths (either filesystem or S3) to URLs where logs are published.
         log_column: Column in the data frame containing log file path (defaults to "log").
         log_viewer_column: Column to create with log viewer URL (defaults to "log_viewer")
