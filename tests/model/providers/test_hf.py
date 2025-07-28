@@ -74,6 +74,7 @@ async def test_hf_api_with_stop_seqs(model_with_stop_seqs) -> None:
 @pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_transformers
+@skip_if_no_accelerate
 async def test_hf_api_fails(model) -> None:
     temp_before = model.config.temperature
     try:

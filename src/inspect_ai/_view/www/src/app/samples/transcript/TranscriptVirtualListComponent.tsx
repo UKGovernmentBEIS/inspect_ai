@@ -76,6 +76,7 @@ export const TranscriptVirtualListComponent: FC<
         >
           <RenderedEventNode
             node={item}
+            next={next}
             className={clsx(attachedParentClass, attachedChildClass)}
           />
         </div>

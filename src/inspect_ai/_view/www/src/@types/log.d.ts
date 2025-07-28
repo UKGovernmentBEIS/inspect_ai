@@ -14,6 +14,7 @@ export type Task = string;
 export type TaskId = string;
 export type TaskVersion = number | string;
 export type TaskFile = string | null;
+export type TaskDisplayName = string | null;
 export type TaskRegistryName = string | null;
 export type Solver = string | null;
 export type SolverArgs = {
@@ -777,6 +778,7 @@ export interface EvalSpec {
   task_id: TaskId;
   task_version: TaskVersion;
   task_file: TaskFile;
+  task_display_name: TaskDisplayName;
   task_registry_name: TaskRegistryName;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;

@@ -29,7 +29,7 @@ from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnError, ColumnType
 from ..evals.columns import EvalColumn
-from ..evals.table import EVAL_ID, EVAL_SUFFIX, _read_evals_df, ensure_eval_id
+from ..evals.table import EVAL_ID, EVAL_SUFFIX, _read_evals_df, ensure_eval_data
 from ..events.columns import EventColumn
 from ..extract import message_as_str
 from ..messages.columns import MessageColumn
@@ -243,7 +243,7 @@ def _read_samples_df_serial(
     )
 
     # make sure eval_id is present
-    columns_eval = list(ensure_eval_id(columns_eval))
+    columns_eval = list(ensure_eval_data(columns_eval))
 
     # establish progress
     progress_cm = (

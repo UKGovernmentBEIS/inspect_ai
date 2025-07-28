@@ -377,7 +377,7 @@ def set_random_seeds(seed: int | None = None) -> None:
     # python hash seed
     os.environ["PYTHONHASHSEED"] = str(seed)
     # transformers seed
-    set_seed(seed)
+    set_seed(seed)  # type: ignore
 
 
 # return value from generate as a result of specifying return_dict_in_generate

@@ -335,7 +335,7 @@ inspect eval inspect_evals/swe_bench
 
 ### Example
 
-Here's an example that walks through all of the requirements for registering tasks in packages. Let's say your package is named `evals` and has a task named `mytask` the `tasks.py` file:
+Here's an example that walks through all of the requirements for registering tasks in packages. Let's say your package is named `evals` and has a task named `mytask` in the `tasks.py` file:
 
 ```  
 evals/       

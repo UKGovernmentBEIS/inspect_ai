@@ -1,8 +1,37 @@
 ## Unreleased
 
+- Added sample, message, and event linking to `log_viewer()` data preparation function.
+- Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
+- Batch Processing: Add retry attempt logging.
+- Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
+
+## 0.3.116 (27 July 2025)
+
+- Added `display_name` property to `Task` (e.g. for plotting).
+- Analysis: `task_info()` operation for data frame preparation.
+
+## 0.3.115 (26 July 2025)
+
+- Analysis: `model_info()` and `frontier()` operations for data frame preparation.
+- ReAct Agent: Require submit tool to have no errors before you exit the react loop.
+- Mistral: Type updates for `ThinkChunk` and `AudioChunk` in package v1.9.3 (which is now the minimum required version).
+- Inspect View: Use MathJax rather than Katex for math rendering.
+- Inspect View: Fix issue with scores 'More...' link not being displayed in some configurations.
+- Inspect View: Fix issue displaying tool calls in transcript in some configurations.
+- Bugfix: Strip smuggled `<think>` and `<internal>` tags from tool messages to prevent leakage in multi-agent scenarios where an _inner_ assistant message can be coerced into a tool message.
+- Bugfix: Handle descriptions of nested `BaseModel` types in tool call schemas.
+- Bugfix: Update workaround of OpenAI reasoning issue to retain only the last (rather than the first) in a run of consecutive reasoning items.
+
+
+## 0.3.114 (17 July 2025)
+
 - OpenAI: Move model classification functions into `ModelAPI` class so that subclasses can override them.
-- Analysis: `prepare()` function for doing common data preparation tasks (`log_viewer()` operation for adding log viewer URLs to data frames).
+- Azure: Support for authenticating with Microsoft Entra ID managed identities.
+- Analysis: `prepare()` function for doing common data preparation tasks and `log_viewer()` operation for adding log viewer URLs to data frames.
+- ReAct Agent: Require submit tool to have no errors before you exit the react loop.
+- Inspect View: Use MathJax rather than Katex for math rendering.
 - Inspect View: Supporting linking to events via `uuid` field (or `event_id` in analysis data frames).
+- Bugfix: Use the output filesystem when creating directories in `inspect log convert`
 
 ## 0.3.113 (16 July 2025)
 

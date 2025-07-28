@@ -106,13 +106,14 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
 
 interface RenderedEventNodeProps {
   node: EventNode;
+  next?: EventNode;
   className?: string | string[];
 }
 /**
  * Renders the event based on its type.
  */
 export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
-  ({ node, className }) => {
+  ({ node, next, className }) => {
     switch (node.event.event) {
       case "sample_init":
         return (
@@ -150,6 +151,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
         return (
           <ModelEventView
             eventNode={node as EventNode<ModelEvent>}
+            showToolCalls={next?.event.event !== "tool"}
             className={className}
           />
         );

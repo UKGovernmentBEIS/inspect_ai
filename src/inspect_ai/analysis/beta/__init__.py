@@ -32,9 +32,13 @@ from ._dataframe.messages.columns import (
 from ._dataframe.messages.table import MessageFilter, messages_df
 from ._dataframe.samples.columns import SampleColumn, SampleMessages, SampleSummary
 from ._dataframe.samples.table import samples_df
+from ._prepare.frontier import frontier
 from ._prepare.log_viewer import log_viewer
+from ._prepare.model_data.model_data import ModelInfo
+from ._prepare.model_info import model_info
 from ._prepare.operation import Operation
 from ._prepare.prepare import prepare
+from ._prepare.task_info import task_info
 
 __all__ = [
     "evals_df",
@@ -70,4 +74,8 @@ __all__ = [
     "prepare",
     "log_viewer",
     "Operation",
+    "model_info",
+    "task_info",
+    "ModelInfo",
+    "frontier",
 ]

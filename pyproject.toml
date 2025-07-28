@@ -139,6 +139,7 @@ inspect = "inspect_ai._cli.main:main"
 dev = [
   "anthropic>=0.52.0",
   "aioboto3",
+  "azure-identity",
   "azure-ai-inference",
   "google-cloud-aiplatform",
   "google-genai",

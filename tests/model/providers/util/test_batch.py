@@ -7,6 +7,7 @@ from typing import TypedDict
 
 import anyio
 import pytest
+from tenacity import RetryError
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -17,6 +18,7 @@ from inspect_ai.model._providers.util.batch import (
     Batcher,
     BatchRequest,
 )
+from inspect_ai.model._retry import model_retry_config
 
 
 class FakeCompletionInfo(TypedDict):
@@ -48,6 +50,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         """
         super().__init__(
             config or BatchConfig(size=3, send_delay=0.01, tick=0.001),
+            model_retry_config("test", 3, None, lambda e: True, lambda m, s: None),
             max_batch_request_count=10,
             max_batch_size_mb=1,
         )
@@ -193,22 +196,21 @@ class TestBatcher:
 
             batcher._create_batch = failing_create_batch
 
-            # Request should fail with the creation error
-            with pytest.raises(Exception, match="Batch creation failed"):
+            # Request should fail with the creation error wrapped in RetryError
+            with pytest.raises(RetryError):
                 await batcher.generate({"prompt": "test"}, GenerateConfig())
 
-        # For this test, we need to catch the ExceptionGroup that wraps the error
+        # Run the test within task group context, expecting ExceptionGroup
         try:
             await self._run_with_task_group(test_logic)
         except ExceptionGroup as eg:
-            # The TaskGroup wraps the exception in an ExceptionGroup
-            # We need to check if the underlying exception is what we expect
+            # Should contain a RetryError wrapped in the ExceptionGroup
             exceptions = eg.exceptions
-            assert len(exceptions) == 1
-            assert "Batch creation failed" in str(exceptions[0])
-        except Exception as e:
-            # If it's not an ExceptionGroup, check if it's the expected error
-            assert "Batch creation failed" in str(e)
+            assert len(exceptions) >= 1
+            assert any(isinstance(exc, RetryError) for exc in exceptions)
+        except RetryError:
+            # Direct RetryError is also acceptable
+            pass
 
     async def test_batch_check_failure_retry(self):
         """Test that batch check failures are retried appropriately."""
@@ -241,8 +243,8 @@ class TestBatcher:
             handle_error = Exception("Result handling failed")
             batcher = FakeBatcher(handle_batch_error=handle_error)
 
-            # Request should fail with the handling error
-            with pytest.raises(Exception, match="Result handling failed"):
+            # Request should fail with the handling error wrapped in RetryError
+            with pytest.raises(RetryError):
                 await batcher.generate({"prompt": "test"}, GenerateConfig())
 
         await self._run_with_task_group(test_logic)
@@ -400,8 +402,8 @@ class TestBatcher:
                 handle_batch_error=Exception("Batch result handling failed"),
             )
 
-            # All requests in the failing batch should get the error
-            with pytest.raises(Exception, match="Batch result handling failed"):
+            # All requests in the failing batch should get the error wrapped in RetryError
+            with pytest.raises(RetryError):
                 await batcher_fail.generate({"prompt": "test-fail"}, GenerateConfig())
 
             # Test 3: Individual request failures within a successful batch
