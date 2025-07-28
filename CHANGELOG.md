@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
+- Bugfix: Correct mapping for organization and model name in `model_info()` operation.
 
 ## 0.3.116 (27 July 2025)
 
