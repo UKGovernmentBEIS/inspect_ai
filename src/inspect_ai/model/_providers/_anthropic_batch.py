@@ -1,5 +1,5 @@
 import time
-from typing import AsyncIterator, TypeAlias, cast
+from typing import TypeAlias, cast
 
 import httpx
 from anthropic import (
@@ -28,7 +28,6 @@ from anthropic.types.messages import MessageBatchIndividualResponse
 from anthropic.types.messages.batch_create_params import (
     Request as AnthropicBatchRequest,
 )
-from tenacity import retry
 
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
@@ -52,36 +51,32 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     ):
         super().__init__(
             config,
+            retry_config,
             max_batch_request_count=100000,
             max_batch_size_mb=256,
         )
         self._client = client
-        self._retry_config = retry_config
 
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
-        @retry(**self._retry_config)
-        async def _create() -> str:
-            requests: list[AnthropicBatchRequest] = []
-            extra_headers: dict[str, str] = {}
-            for request in batch:
-                extra_headers = request.request.pop("extra_headers", {})
-                request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-                if request_id is not None:
-                    request.custom_id = request_id
-                requests.append(
-                    AnthropicBatchRequest(
-                        custom_id=request.custom_id,
-                        params=cast(MessageCreateParamsNonStreaming, request.request),
-                    )
+        requests: list[AnthropicBatchRequest] = []
+        extra_headers: dict[str, str] = {}
+        for request in batch:
+            extra_headers = request.request.pop("extra_headers", {})
+            request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+            if request_id is not None:
+                request.custom_id = request_id
+            requests.append(
+                AnthropicBatchRequest(
+                    custom_id=request.custom_id,
+                    params=cast(MessageCreateParamsNonStreaming, request.request),
                 )
-
-            batch_info = await self._client.messages.batches.create(
-                requests=requests,
-                extra_headers=extra_headers or None,
             )
-            return batch_info.id
 
-        return await _create()
+        batch_info = await self._client.messages.batches.create(
+            requests=requests,
+            extra_headers=extra_headers or None,
+        )
+        return batch_info.id
 
     async def _check_batch(
         self, batch: Batch[Message]
@@ -106,13 +101,11 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         batch: Batch[Message],
         completion_info: CompletedBatchInfo,
     ) -> dict[str, Message | Exception]:
-        @retry(**self._retry_config)
-        async def _results() -> AsyncIterator[MessageBatchIndividualResponse]:
-            return await self._client.messages.batches.results(batch.id)
-
         return {
             individual_response.custom_id: _get_individual_result(individual_response)
-            async for individual_response in await _results()
+            async for individual_response in await self._client.messages.batches.results(
+                batch.id
+            )
         }
 
 

@@ -41,6 +41,8 @@ class BatchConfig(BaseModel):
 
     tick: float | None = Field(default=None)
     """Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.
+
+    When expecting a very large number of concurrent batches, consider increasing this value to reduce overhead from continuous polling since an http request must be made for each batch on each tick.
     """
 
     max_batches: int | None = Field(default=None)
