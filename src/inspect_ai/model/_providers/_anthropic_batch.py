@@ -62,7 +62,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     @override
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
         @retry(**self._retry_config)
-        async def _send() -> str:
+        async def _create() -> str:
             requests: list[AnthropicBatchRequest] = []
             extra_headers: dict[str, str] = {}
             for request in batch:
@@ -83,7 +83,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
             )
             return batch_info.id
 
-        return await _send()
+        return await _create()
 
     @override
     async def _check_batch(
