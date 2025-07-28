@@ -4,8 +4,6 @@ from typing import Literal
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai.analysis.beta._prepare.operation import Operation
 
-from .._dataframe.util import verify_prerequisites
-
 
 def log_viewer(
     target: Literal["eval", "sample", "event", "message"],
@@ -25,8 +23,6 @@ def log_viewer(
         log_column: Column in the data frame containing log file path (defaults to "log").
         log_viewer_column: Column to create with log viewer URL (defaults to "log_viewer")
     """
-    verify_prerequisites()
-
     import pandas as pd
 
     # normalize mappings
@@ -36,7 +32,9 @@ def log_viewer(
     }
 
     def resolve_base_url(
-        row: pd.Series, log_column: str, url_mappings: dict[str, str]
+        row: pd.Series,  # type: ignore[type-arg]
+        log_column: str,
+        url_mappings: dict[str, str],
     ) -> str:
         """Resolve base URL from log path using URL mappings."""
         log = _normalize_file_path(row[log_column])
@@ -49,7 +47,7 @@ def log_viewer(
             + "(no valid url mapping provided for log)"
         )
 
-    def validate_required_columns(row: pd.Series, required_columns: list[str]) -> None:
+    def validate_required_columns(row: pd.Series, required_columns: list[str]) -> None:  # type: ignore[type-arg]
         """Validate that row contains all required columns."""
         missing = [col for col in required_columns if col not in row]
         if missing:
