@@ -151,7 +151,7 @@ class OpenAIAPI(ModelAPI):
                 )
 
         # create async http client
-        http_client = OpenAIAsyncHttpxClient()
+        http_client = model_args.get('http_client', OpenAIAsyncHttpxClient())
 
         # azure client
         if self.is_azure():

@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Added "sample" linking to `log_viewer()` data preparation function.
+- Allow custom `http_client` to OpenAI clients.
 
 ## 0.3.116 (27 July 2025)
 
