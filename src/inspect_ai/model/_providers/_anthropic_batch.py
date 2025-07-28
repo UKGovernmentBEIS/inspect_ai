@@ -60,7 +60,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         self._retry_config = retry_config
 
     @override
-    async def _send_batch(self, batch: list[BatchRequest[Message]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
         @retry(**self._retry_config)
         async def _send() -> str:
             requests: list[AnthropicBatchRequest] = []

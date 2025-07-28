@@ -45,7 +45,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         self._retry_config = retry_config
 
     @override
-    async def _send_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
         @retry(**self._retry_config)
         async def _create() -> str:
             # TODO: support other endpoints
@@ -79,7 +79,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
 
                 file_id = await self._upload_batch_file(temp_file.file, extra_headers)
 
-            return await self._create_batch(file_id, endpoint, extra_headers)
+            return await self._create_xxx_batch(file_id, endpoint, extra_headers)
 
         return await _create()
 
@@ -165,7 +165,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         )
         return file_object.id
 
-    async def _create_batch(
+    async def _create_xxx_batch(
         self,
         file_id: str,
         endpoint: Literal["/v1/chat/completions"],

@@ -191,7 +191,7 @@ class TestBatcher:
             async def failing_create_batch(_batch_requests):
                 raise Exception("Batch creation failed")
 
-            batcher._send_batch = failing_create_batch
+            batcher._create_batch = failing_create_batch
 
             # Request should fail with the creation error
             with pytest.raises(Exception, match="Batch creation failed"):

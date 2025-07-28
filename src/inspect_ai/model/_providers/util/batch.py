@@ -217,7 +217,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             batch_requests = self._next_batch.requests
             self._next_batch = None
 
-            batch_id = await self._wrapped_send_batch(batch_requests)
+            batch_id = await self._wrapped_create_batch(batch_requests)
 
             self._inflight_batches[batch_id] = Batch(
                 id=batch_id,
@@ -232,9 +232,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     # allows the code above to not worry about try/catch'ing the abstract methods.
     # Any exception that escapes a _wrapped_* method will bring down the eval.
 
-    async def _wrapped_send_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _wrapped_create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         try:
-            result = await self._send_batch(batch)
+            result = await self._create_batch(batch)
             print(f"Created batch {result} with {len(batch)} requests")
             return result
         except Exception as e:
@@ -289,7 +289,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             await self._fail_and_cleanup_inflight_batch("handling result", batch, e)
 
     @abstractmethod
-    async def _send_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         """Create a new batch.
 
         This method should submit the batch requests to the model and return a

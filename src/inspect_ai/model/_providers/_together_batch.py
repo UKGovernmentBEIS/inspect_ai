@@ -54,7 +54,7 @@ class TogetherBatcher(OpenAIBatcher):
         return str(response.id)
 
     @override
-    async def _create_batch(
+    async def _create_xxx_batch(
         self,
         file_id: str,
         endpoint: Literal["/v1/chat/completions"],
