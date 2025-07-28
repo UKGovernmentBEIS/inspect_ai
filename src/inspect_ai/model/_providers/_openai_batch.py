@@ -74,19 +74,9 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             temp_file.flush()
             temp_file.seek(0)
 
-            batch_file = await self._client.files.create(
-                file=temp_file.file,
-                purpose="batch",
-                extra_headers=extra_headers or None,
-            )
+            file_id = await self._upload_batch_file(temp_file.file, extra_headers)
 
-        batch_info = await self._client.batches.create(
-            input_file_id=batch_file.id,
-            completion_window="24h",
-            endpoint=endpoint,
-            extra_headers=extra_headers or None,
-        )
-        return batch_info.id
+        return await self._create_xxx_batch(file_id, endpoint, extra_headers)
 
     @override
     async def _check_batch(
