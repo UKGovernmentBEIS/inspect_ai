@@ -1,6 +1,9 @@
 ## Unreleased
 
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
+- Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
+- Batch Processing: Add retry attempt logging.
+- Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
 
 ## 0.3.116 (27 July 2025)
 
