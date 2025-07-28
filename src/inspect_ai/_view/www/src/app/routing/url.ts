@@ -52,6 +52,7 @@ export const useDecodedParams = <
 export const useLogRouteParams = () => {
   const params = useParams<{
     "*": string;
+    sampleUuid?: string;
     sampleId?: string;
     epoch?: string;
     sampleTabId?: string;
@@ -59,6 +60,22 @@ export const useLogRouteParams = () => {
 
   return useMemo(() => {
     const splatPath = params["*"] || "";
+
+    // Check for sample UUID route pattern
+    const sampleUuidMatch = splatPath.match(
+      /^(.+?)\/samples\/sample_uuid\/([^/]+)(?:\/(.+?))?\/?\s*$/,
+    );
+    if (sampleUuidMatch) {
+      const [, logPath, sampleUuid, sampleTabId] = sampleUuidMatch;
+      return {
+        logPath: decodeUrlParam(logPath),
+        tabId: undefined,
+        sampleTabId: decodeUrlParam(sampleTabId),
+        sampleId: undefined,
+        epoch: undefined,
+        sampleUuid: decodeUrlParam(sampleUuid),
+      };
+    }
 
     // Check for full sample route pattern in splat path (when route params aren't populated)
     // Pattern: logPath/samples/sample/sampleId/epoch/sampleTabId (with optional trailing slash)
@@ -187,6 +204,8 @@ export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/*";
 export const kSampleRouteUrlPattern =
   "/logs/*/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+export const kSampleUuidRouteUrlPattern =
+  "/logs/*/samples/sample_uuid/:sampleUuid/:sampleTabId?";
 
 export const baseUrl = (
   logPath: string,
