@@ -50,13 +50,15 @@ class TogetherBatcher(OpenAIBatcher):
     async def _upload_batch_file(
         self, temp_file: IO[bytes], extra_headers: dict[str, str]
     ) -> str:
-        # The Together.ai sdk client decided that everyone would want a progress
-        # indicator in the console via tqdm. Doing this on another thread induces
-        # Python's multiprocessing resource management code. This code requires a
-        # valid fd at stderr. Textual, which inspect uses for its rending during
-        # an eval, redirects stderr to something that has -1 for its fd. This
-        # causes the to_thread call to fail.
-        # To work around that, we temporarily move back to the original stderr
+        # The Together.AI SDK client decided that everyone would want a progress
+        # indicator in the console. They do that with tqdm. The tqdm package is
+        # sophisticated and has proper locking/race condition avoidance code.
+        # This locking code leverages ResourceTracker to be properly multiprocessing
+        # safe. ResourceTracker requires a stderr to have a valid fd. Textual, which
+        # inspect uses for its console TUI, redirects stderr to something that has
+        # -1 for its fd causing ResourceTracker to throw failing the to_thread call.
+        #
+        # To work around this, we temporarily move back to the original stderr
         # for the duration of the upload.
         old_stderr = sys.stderr
         sys.stderr = sys.__stderr__
