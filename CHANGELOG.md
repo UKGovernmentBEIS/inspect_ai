@@ -1,9 +1,15 @@
 ## Unreleased
 
+- Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.
+- Added "sample" linking to `log_viewer()` data preparation function.
+- OpenAI: Add `http_client` custom model argument.
+- Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Add retry attempt logging.
 - Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
+- Inspect View: Do not use instance cache for S3FileSystem (eliminates some errors with large eval sets)
+- Bugfix: Correct mapping for organization and model name in `model_info()` operation.
 
 ## 0.3.116 (27 July 2025)
 
