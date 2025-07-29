@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import functools
 import sys
-from typing import IO, Any, Literal, TypedDict, cast
+from typing import IO, Literal, TypedDict, cast
 
 from anyio import to_thread
 from openai import AsyncOpenAI
@@ -42,7 +42,7 @@ class TogetherBatcher(OpenAIBatcher):
         super().__init__(client, config, retry_config)
         # together uses different file upload method than openai
         # async client doesn't have .upload method implemented
-        self._together_client = Together(
+        self._together_sync_client = Together(
             api_key=client.api_key, base_url=str(client.base_url)
         )
 
@@ -65,7 +65,7 @@ class TogetherBatcher(OpenAIBatcher):
         try:
             response = await to_thread.run_sync(
                 functools.partial(
-                    self._together_client.files.upload, purpose="batch-api"
+                    self._together_sync_client.files.upload, purpose="batch-api"
                 ),
                 temp_file.name,
             )
@@ -80,23 +80,17 @@ class TogetherBatcher(OpenAIBatcher):
         endpoint: Literal["/v1/chat/completions"],
         extra_headers: dict[str, str],
     ) -> str:
-        response = await self._openai_client.batches.create(
-            input_file_id=file_id,
-            completion_window="24h",
-            endpoint=endpoint,
-            extra_headers=extra_headers or None,
+        from together import AsyncTogether  # type: ignore
+
+        # We make a new client every call so that we can pass variable
+        # extra_headers in the request.
+        client = AsyncTogether(
+            api_key=self._openai_client.api_key,
+            base_url=str(self._openai_client.base_url),
+            supplied_headers=extra_headers,
         )
-        if response.id:
-            return response.id
 
-        if not hasattr(response, "job"):
-            raise ValueError("Batch creation failed")
-
-        job_info = cast(dict[str, Any], response.job)  # pyright: ignore[reportUnknownMemberType,reportAttributeAccessIssue]
-        if "id" in job_info:
-            return str(job_info["id"])
-
-        raise ValueError("Batch creation failed")
+        return str((await client.batches.create_batch(file_id, endpoint)).id)
 
     @override
     def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
