@@ -195,6 +195,12 @@ def together() -> type[ModelAPI]:
 
     return TogetherAIAPI
 
+@modelapi(name="fireworks")
+def fireworks() -> type[ModelAPI]:
+    validate_openai_client("FireworksAI API")
+    from .fireworks import FireworksAIAPI
+    
+    return FireworksAIAPI
 
 @modelapi(name="ollama")
 def ollama() -> type[ModelAPI]:
