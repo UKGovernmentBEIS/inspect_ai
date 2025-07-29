@@ -5,6 +5,7 @@
 - OpenAI: Add `http_client` custom model argument.
 - Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
+- Analysis: Added `full` option to `samples_df()` for reading full sample metadata.
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Add retry attempt logging.
 - Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
