@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import datetime
 import functools
 import sys
 from typing import IO, Any, Literal, TypedDict, cast
 
 from anyio import to_thread
 from openai import AsyncOpenAI
+from openai.types import Batch as OpenAIBatch
 from typing_extensions import override
 
 from inspect_ai._util.error import pip_dependency_error
@@ -93,3 +95,45 @@ class TogetherBatcher(OpenAIBatcher):
             return str(job_info["id"])
 
         raise ValueError("Batch creation failed")
+
+    @override
+    def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
+        # Together.ai's response for polling batches is NOT compatible with
+        # OpenAI. In order to share the OpenAI base class, we need to coerce
+        # the Together.ai response into a valid OpenAI one.
+        return OpenAIBatch.model_validate(
+            {
+                **input.model_dump(exclude_none=True, warnings=False),
+                "completion_window": "24h",
+                "object": "batch",
+                "status": str(input.status).lower(),
+                **{
+                    field: _iso_to_unix(input, field)
+                    for field in [
+                        "created_at",
+                        "cancelled_at",
+                        "cancelling_at",
+                        "completed_at",
+                        "expired_at",
+                        "expires_at",
+                        "failed_at",
+                        "finalizing_at",
+                        "in_progress_at",
+                    ]
+                },
+            }
+        )
+
+
+def _iso_to_unix(input: OpenAIBatch, field: str) -> int | None:
+    """Convert an ISO date string field in input to unix time (seconds)."""
+    value = getattr(input, field, None)
+    return (
+        None
+        if value is None
+        else int(
+            datetime.datetime.fromisoformat(
+                cast(str, value).replace("Z", "+00:00")
+            ).timestamp()
+        )
+    )

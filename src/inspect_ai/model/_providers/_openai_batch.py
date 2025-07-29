@@ -8,6 +8,7 @@ from typing import IO, Any, Literal, TypedDict
 import httpx
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
+from openai.types import Batch as OpenAIBatch
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
@@ -82,7 +83,9 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
     async def _check_batch(
         self, batch: Batch[ChatCompletion]
     ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
-        batch_info = await self._client.batches.retrieve(batch.id)
+        batch_info = self._adapt_batch_info(
+            await self._client.batches.retrieve(batch.id)
+        )
 
         # TODO: Is it bogus to return 0, 0 when request_counts isn't available
         completed, failed = (
@@ -187,6 +190,11 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
                 extra_headers=extra_headers or None,
             )
         ).id
+
+    def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
+        # Some OpenAI "compatible" providers don't return data that properly
+        # conforms to this. Provide a hook point to fixup that data.
+        return input
 
     async def _handle_batch_result_file(
         self, file_id: str
