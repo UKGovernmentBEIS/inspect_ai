@@ -493,6 +493,7 @@ async def async_fileystem(
     options.update(fs_options)
 
     if protocol == "s3":
+        options["skip_instance_cache"] = True
         s3 = S3FileSystem(asynchronous=True, **options)
         session = await s3.set_session()
         try:
