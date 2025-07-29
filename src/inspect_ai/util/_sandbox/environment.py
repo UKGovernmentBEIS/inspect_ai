@@ -395,7 +395,7 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
 
 SandboxEnvironmentConfigType = BaseModel | str
 
-SandboxEnvironmentType = SandboxEnvironmentSpec | str | tuple[str, str]
+SandboxEnvironmentType = str | tuple[str, str] | SandboxEnvironmentSpec
 """SandboxEnvironmentSpec and str and tuple shorthands for it.
 
 A plain str, e.g. "docker", is equivalent to SandboxEnvironmentSpec("docker")
