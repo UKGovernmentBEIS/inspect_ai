@@ -92,7 +92,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         # create async http client
-        http_client = model_args.pop('http_client', OpenAIAsyncHttpxClient())
+        http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
         self.client = AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
