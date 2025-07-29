@@ -10,7 +10,6 @@ class FireworksAIAPI(OpenAICompatibleAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
     ) -> None:
-        print(model_name)
         super().__init__(
             model_name=model_name,
             base_url=base_url,

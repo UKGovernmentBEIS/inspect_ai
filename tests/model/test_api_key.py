@@ -47,7 +47,7 @@ async def test_grok_api_key():
 @skip_if_no_anthropic
 async def test_anthropic_api_key():
     await check_explicit_api_key(
-        "anthropic/claude-3-sonnet-20240229", "ANTHROPIC_API_KEY"
+        "anthropic/claude-3-7-sonnet-latest", "ANTHROPIC_API_KEY"
     )
 
 
@@ -66,4 +66,6 @@ async def test_mistral_api_key():
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_api_key():
-    await check_explicit_api_key("together/google/gemma-2b-it", "TOGETHER_API_KEY")
+    await check_explicit_api_key(
+        "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "TOGETHER_API_KEY"
+    )
