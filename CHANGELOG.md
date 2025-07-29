@@ -9,6 +9,7 @@
 - Batch Processing: Add retry attempt logging.
 - Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
 - Inspect View: Do not use instance cache for S3FileSystem (eliminates some errors with large eval sets)
+- Batch Processing: Add batching support for Together.ai.
 - Bugfix: Correct mapping for organization and model name in `model_info()` operation.
 
 ## 0.3.116 (27 July 2025)
