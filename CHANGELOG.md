@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Added "sample" linking to `log_viewer()` data preparation function.
+- OpenAI: Add `http_client` custom model argument.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Add retry attempt logging.
