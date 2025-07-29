@@ -15,11 +15,11 @@ def test_read_model_info():
     assert o3_model.reasoning is True
 
     # Assert Anthropic is present
-    assert models.get("anthropic/claude-3-7-sonnet").model == "Claude 3.7 Sonnet"
+    assert models.get("anthropic/claude-3-7-sonnet").model == "Claude Sonnet 3.7"
 
     # Assert name overriding is working
     assert (
-        models.get("anthropic/claude-3-5-sonnet-20241022").model == "Claude 3.6 Sonnet"
+        models.get("anthropic/claude-3-5-sonnet-20241022").model == "Claude Sonnet 3.6"
     )
 
     # Assert GDM is present
