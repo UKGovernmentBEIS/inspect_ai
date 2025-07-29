@@ -11,7 +11,7 @@ providers is built in to Inspect:
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [Fireworks AI](providers.qmd#fireworks-ai) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
 If the provider you are using is not listed above, you may still be able
@@ -290,12 +290,14 @@ inspect eval math.py \
 
 ## Batch Processing
 
-Inspect supports calling the batch processing APIs for OpenAI and
-[Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
-models. Batch processing has lower token costs (typically 50% of normal
-costs) and higher rate limits, but also substantially longer processing
-times (batched generations typically complete within an hour but can
-take longer).
+Inspect supports calling the batch processing APIs for
+[OpenAI](https://platform.openai.com/docs/guides/batch),
+[Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing),
+and [Together AI](https://docs.together.ai/docs/batch-inference) models.
+Batch processing has lower token costs (typically 50% of normal costs)
+and higher rate limits, but also substantially longer processing times
+(batched generations typically complete within an hour but can take
+longer).
 
 When batch processing is enabled, individual model requests are
 automatically collected and sent as batches to the provider’s batch API
@@ -399,6 +401,9 @@ limitations:
 
 - [Anthropic Batch
   Processing](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
+
+- [Together AI Batch
+  Inference](https://docs.together.ai/docs/batch-inference)
 
 In general, you should keep the following limitations in mind when using
 batch processing:

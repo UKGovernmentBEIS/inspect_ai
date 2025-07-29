@@ -347,7 +347,9 @@ df = prepare(df, [
 ])
 ```
 
-See the `log_viewer()` reference for additional details.
+Note that the code above targets “eval” (the top level viewer page for
+an eval). Other available targets include “sample”, “event”, and
+“message”. See the `log_viewer()` reference for additional details.
 
 ### frontier()
 
@@ -633,6 +635,13 @@ from the full sample record. For example:
 ``` python
 SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
+```
+
+If you are only interested in reading full values for `metadata`, you
+can use `full=True` when calling `samples_df()` as shorthand for this:
+
+``` python
+samples_df(logs="logs", full=True)
 ```
 
 #### Custom Extraction

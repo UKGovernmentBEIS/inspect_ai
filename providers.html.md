@@ -11,7 +11,7 @@ providers is built in to Inspect:
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [Fireworks AI](providers.qmd#fireworks-ai) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
 If the provider you are using is not listed above, you may still be able
@@ -543,6 +543,39 @@ The following environment variables are supported by the Groq provider
 |----|----|
 | `GROQ_API_KEY` | API key credentials (required). |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
+
+## Fireworks AI
+
+> [!NOTE]
+>
+> The Fireworks AI model provider is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+To use the [Fireworks AI](https://fireworks.ai/) provider, install the
+`openai` package (which the Fireworks AI service provides a compatible
+backend for), set your credentials, and specify a model using the
+`--model` option:
+
+``` bash
+pip install openai
+export FIREWORKS_API_KEY=your-firewrks-api-key
+inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
+```
+
+For the `fireworks` provider, custom model args (`-M`) are forwarded to
+the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the Together AI
+provider
+
+| Variable | Description |
+|----|----|
+| `FIREWORKS_API_KEY` | API key credentials (required). |
+| `FIREWORKS_BASE_URL` | Base URL for requests (optional, defaults to `https://api.fireworks.ai/inference/v1`) |
 
 ## Cloudflare
 
