@@ -413,6 +413,14 @@ The following environment variables are supported by the Groq provider
 
 ## Fireworks AI {#fireworks-ai}
 
+::: callout-note
+The Fireworks AI model provider is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
 To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` package (which the Fireworks AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
