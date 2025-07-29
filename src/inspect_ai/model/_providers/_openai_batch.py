@@ -42,7 +42,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             max_batch_size_mb=200,
         )
         # Members below are considered protected and fair game for derived classes
-        self._client = client
+        self._openai_client = client
 
     @override
     async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
@@ -77,14 +77,14 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
 
             file_id = await self._upload_batch_file(temp_file.file, extra_headers)
 
-        return await self._create_xxx_batch(file_id, endpoint, extra_headers)
+        return await self._submit_batch_for_file(file_id, endpoint, extra_headers)
 
     @override
     async def _check_batch(
         self, batch: Batch[ChatCompletion]
     ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
         batch_info = self._adapt_batch_info(
-            await self._client.batches.retrieve(batch.id)
+            await self._openai_client.batches.retrieve(batch.id)
         )
 
         # TODO: Is it bogus to return 0, 0 when request_counts isn't available
@@ -152,14 +152,14 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         Returns:
             The ID of the uploaded file as a string.
         """
-        file_object = await self._client.files.create(
+        file_object = await self._openai_client.files.create(
             file=temp_file,
             purpose="batch",
             extra_headers=extra_headers or None,
         )
         return file_object.id
 
-    async def _create_xxx_batch(
+    async def _submit_batch_for_file(
         self,
         file_id: str,
         endpoint: Literal["/v1/chat/completions"],
@@ -183,7 +183,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             ValueError: If batch creation fails or the response is invalid.
         """
         return (
-            await self._client.batches.create(
+            await self._openai_client.batches.create(
                 input_file_id=file_id,
                 completion_window="24h",
                 endpoint=endpoint,
@@ -202,7 +202,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
         # TODO: Add error handling so that if one uri fails, the others can
         # still succeed
         results: dict[str, ChatCompletion | Exception] = {}
-        batch_file = await self._client.files.content(file_id)
+        batch_file = await self._openai_client.files.content(file_id)
         for line in (await batch_file.aread()).decode().splitlines():
             result: dict[str, Any] = json.loads(line)
             request_id = result.pop("custom_id")
@@ -215,7 +215,7 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             results[request_id] = (
                 ChatCompletion.model_validate(result["response"]["body"])
                 if (error := result.get("error")) is None
-                else self._client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                else self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
                     httpx.Response(status_code=error["code"], text=error["message"])
                 )
             )

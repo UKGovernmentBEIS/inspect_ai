@@ -72,13 +72,13 @@ class TogetherBatcher(OpenAIBatcher):
         return str(response.id)
 
     @override
-    async def _create_xxx_batch(
+    async def _submit_batch_for_file(
         self,
         file_id: str,
         endpoint: Literal["/v1/chat/completions"],
         extra_headers: dict[str, str],
     ) -> str:
-        response = await self._client.batches.create(
+        response = await self._openai_client.batches.create(
             input_file_id=file_id,
             completion_window="24h",
             endpoint=endpoint,
