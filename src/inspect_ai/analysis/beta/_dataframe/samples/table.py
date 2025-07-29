@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from copy import deepcopy
 from dataclasses import dataclass
 from functools import lru_cache
 from itertools import chain
@@ -57,6 +58,7 @@ SAMPLE_SUFFIX = "_sample"
 def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
+    full: bool = False,
     strict: Literal[True] = True,
     parallel: bool | int = False,
     quiet: bool | None = None,
@@ -67,6 +69,7 @@ def samples_df(
 def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
+    full: bool = False,
     strict: Literal[False] = False,
     parallel: bool | int = False,
     quiet: bool | None = None,
@@ -76,6 +79,7 @@ def samples_df(
 def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
+    full: bool = False,
     strict: bool = True,
     parallel: bool | int = False,
     quiet: bool | None = None,
@@ -87,6 +91,10 @@ def samples_df(
           Defaults to the contents of the currently active log directory
           (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
+       full: Read full sample `metadata`. This will be much slower, but will include
+          the unfiltered values of sample `metadata` rather than the abbrevivated
+          metadata from sample summaries (which includes only scalar values and limits
+          string values to 1k).
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
        parallel: If `True`, use `ProcessPoolExecutor` to read logs in parallel
@@ -105,7 +113,7 @@ def samples_df(
 
     quiet = quiet if quiet is not None else running_in_notebook()
     return _read_samples_df(
-        logs, columns, strict=strict, progress=not quiet, parallel=parallel
+        logs, columns, full=full, strict=strict, progress=not quiet, parallel=parallel
     )
 
 
@@ -127,6 +135,7 @@ def _read_samples_df(
     logs: LogPaths,
     columns: Sequence[Column],
     *,
+    full: bool = False,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
     progress: bool = True,
@@ -164,6 +173,7 @@ def _read_samples_df(
                         _read_samples_df_serial,  # type: ignore[arg-type]
                         logs=[log],
                         columns=columns,
+                        full=full,
                         strict=strict,
                         detail=detail,
                         progress=False,
@@ -203,7 +213,12 @@ def _read_samples_df(
     # non-parallel
     else:
         return _read_samples_df_serial(
-            logs=logs, columns=columns, strict=strict, detail=detail, progress=progress
+            logs=logs,
+            columns=columns,
+            full=full,
+            strict=strict,
+            detail=detail,
+            progress=progress,
         )
 
 
@@ -211,6 +226,7 @@ def _read_samples_df_serial(
     logs: list[str],
     columns: Sequence[Column],
     *,
+    full: bool = False,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
     progress: bool = True,
@@ -223,6 +239,9 @@ def _read_samples_df_serial(
         if isinstance(column, EvalColumn):
             columns_eval.append(column)
         elif isinstance(column, SampleColumn):
+            if full and not column._full and (column.name == "metadata_*"):
+                column = deepcopy(column)
+                column._full = True
             columns_sample.append(column)
             if column._full:
                 require_full_samples = True
