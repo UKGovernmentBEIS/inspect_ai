@@ -3,6 +3,10 @@
 - Added "sample" linking to `log_viewer()` data preparation function.
 - Allow custom `http_client` to OpenAI clients
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
+- Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
+- Batch Processing: Add retry attempt logging.
+- Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
+- Bugfix: Correct mapping for organization and model name in `model_info()` operation.
 
 ## 0.3.116 (27 July 2025)
 
