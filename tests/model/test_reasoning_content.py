@@ -19,7 +19,7 @@ from inspect_ai.solver._solver import generate
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_reasoning_content_together():
-    await check_reasoning_content("together/deepseek-ai/DeepSeek-R1")
+    await check_reasoning_content("together/Qwen/Qwen3-235B-A22B-Thinking-2507")
 
 
 @pytest.mark.anyio
