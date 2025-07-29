@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import sys
 from typing import IO, Any, Literal, TypedDict, cast
 
 from anyio import to_thread
@@ -47,10 +48,25 @@ class TogetherBatcher(OpenAIBatcher):
     async def _upload_batch_file(
         self, temp_file: IO[bytes], extra_headers: dict[str, str]
     ) -> str:
-        response = await to_thread.run_sync(
-            functools.partial(self._together_client.files.upload, purpose="batch-api"),
-            temp_file.name,
-        )
+        # The Together.ai sdk client decided that everyone would want a progress
+        # indicator in the console via tqdm. Doing this on another thread induces
+        # Python's multiprocessing resource management code. This code requires a
+        # valid fd at stderr. Textual, which inspect uses for its rending during
+        # an eval, redirects stderr to something that has -1 for its fd. This
+        # causes the to_thread call to fail.
+        # To work around that, we temporarily move back to the original stderr
+        # for the duration of the upload.
+        old_stderr = sys.stderr
+        sys.stderr = sys.__stderr__
+        try:
+            response = await to_thread.run_sync(
+                functools.partial(
+                    self._together_client.files.upload, purpose="batch-api"
+                ),
+                temp_file.name,
+            )
+        finally:
+            sys.stderr = old_stderr
         return str(response.id)
 
     @override
