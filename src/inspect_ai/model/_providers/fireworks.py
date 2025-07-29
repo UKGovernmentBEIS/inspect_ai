@@ -1,6 +1,6 @@
 from .._generate_config import GenerateConfig
-
 from .openai_compatible import OpenAICompatibleAPI
+
 
 class FireworksAIAPI(OpenAICompatibleAPI):
     def __init__(
