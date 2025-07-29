@@ -191,6 +191,9 @@ class GenerateConfig(BaseModel):
     logprobs: bool | None = Field(default=None)
     """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, vLLM, and SGLang only."""
 
+    hidden_states: bool | None = Field(default=None)
+    """Return hidden states of the output tokens. Huggingface only"""
+    
     top_logprobs: int | None = Field(default=None)
     """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, Huggingface, vLLM, and SGLang only."""
 

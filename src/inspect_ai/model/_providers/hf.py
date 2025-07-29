@@ -172,6 +172,8 @@ class HuggingFaceAPI(ModelAPI):
             kwargs["top_k"] = config.top_k
         if config.logprobs is not None:
             kwargs["output_logits"] = config.logprobs
+        if config.hidden_states is not None:
+            kwargs["output_hidden_states"]= config.hidden_states
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
         if config.stop_seqs is not None:
