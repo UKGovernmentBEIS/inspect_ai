@@ -109,7 +109,7 @@ def test_openai_flex_requests_not_available():
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "error"
-    assert "Flex is not available for this model" in str(log.error)
+    assert "Invalid service_tier argument" in str(log.error)
 
 
 def encode_internal(obj):
