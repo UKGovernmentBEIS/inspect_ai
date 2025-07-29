@@ -651,6 +651,28 @@ eval("arc.py", model="transformer_lens/your-model-name", model_args=model_args)
 1. Please note that tool calling is not yet supported for TransformerLens models.
 2. Since the model is loaded dynamically, it is not possible to use cli arguments to specify the model.
 
+## Fireworks AI {#fireworks-ai}
+The [Fireworks API](https://fireworks.ai/docs/getting-started/introduction) is an OpenAI compatible hosted inference platform that provides access to open source models like DeepSeek, Meta Llama, and more. You can also fine tune your models on the platform and access them via your account id.
+
+Here's an example:
+```bash
+export FIREWORKS_API_KEY=your api key
+```
+
+```python
+
+from inspect_ai.model import get_model
+import asyncio
+
+model = get_model("fireworks/accounts/fireworks/models/deepseek-r1")
+
+async def main():
+  res = await model.generate("Hello fireworks!")
+  print(res)
+
+asyncio.run(main())
+```
+
 ## Ollama {#ollama}
 
 To use the [Ollama](https://ollama.com/) provider, install the `openai` package (which Ollama provides a compatible backend for) and specify a model using the `--model` option:
