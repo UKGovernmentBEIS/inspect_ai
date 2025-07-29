@@ -1,5 +1,5 @@
 import pytest 
-from test_helpers import skip_if_no_fireworks
+from test_helpers.utils import skip_if_no_fireworks
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -23,6 +23,6 @@ async def test_fireworks_compatible()-> None:
             top_p=1.0,
         ),
     )
-    message = ChatMessageUser(content="Hello!")
+    message = ChatMessageUser(content="Hello Fireworks!🎆")
     res = await model.generate(input=[message])
     assert len(res.completion)>=1
