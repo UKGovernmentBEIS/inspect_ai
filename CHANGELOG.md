@@ -3,6 +3,7 @@
 - Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.
 - Added "sample" linking to `log_viewer()` data preparation function.
 - OpenAI: Add `http_client` custom model argument.
+- Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Add retry attempt logging.
