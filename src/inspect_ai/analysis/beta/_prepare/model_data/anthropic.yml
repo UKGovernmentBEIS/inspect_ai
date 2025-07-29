@@ -28,7 +28,7 @@ anthropic:
             - anthropic.claude-sonnet-4-20250514-v1:0
             - claude-sonnet-4@20250514
     claude-3-7-sonnet:
-      display_name: Claude 3.7 Sonnet
+      display_name: Claude Sonnet 3.7
       release_date: 2025-02-19
       knowledge_cutoff_date: 2024-11-01
       context_length: 200000
@@ -42,14 +42,14 @@ anthropic:
         claude-3-7-sonnet-latest:
           snapshot: "latest"
     claude-3-5-sonnet:
-      display_name: Claude 3.5 Sonnet
+      display_name: Claude Sonnet 3.5
       release_date: 2024-10-22
       knowledge_cutoff_date: 2024-07-01
       context_length: 200000
       output_tokens: 8192
       versions:
         claude-3-5-sonnet-20241022:
-          display_name: Claude 3.6 Sonnet
+          display_name: Claude Sonnet 3.6
           snapshot: "20241022"
           aliases:
             - anthropic.claude-3-5-sonnet-20241022-v2:0
@@ -62,7 +62,7 @@ anthropic:
         claude-3-5-sonnet-latest:
           snapshot: "latest"
     claude-3-5-haiku:
-      display_name: Claude 3.5 Haiku
+      display_name: Claude Haiku 3.5
       release_date: 2024-10-22
       knowledge_cutoff_date: 2024-07-01
       context_length: 200000
@@ -76,7 +76,7 @@ anthropic:
         claude-3-5-haiku-latest:
           snapshot: "latest"
     claude-3-opus:
-      display_name: Claude 3 Opus
+      display_name: Claude Opus 3
       release_date: 2024-02-29
       knowledge_cutoff_date: 2023-08-01
       context_length: 200000
@@ -87,7 +87,7 @@ anthropic:
         claude-3-opus-latest:
           snapshot: "latest"
     claude-3-haiku:
-      display_name: Claude 3 Haiku
+      display_name: Claude Haiku 3
       release_date: 2024-03-07
       knowledge_cutoff_date: 2023-08-01
       context_length: 200000
