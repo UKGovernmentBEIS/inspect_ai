@@ -46,7 +46,6 @@ export type Seed = number | null;
 export type TopK = number | null;
 export type NumChoices = number | null;
 export type Logprobs = boolean | null;
-export type HiddenStates = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
@@ -850,7 +849,6 @@ export interface GenerateConfig {
   top_k: TopK;
   num_choices: NumChoices;
   logprobs: Logprobs;
-  hidden_states: HiddenStates;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
   internal_tools: InternalTools;
@@ -1031,7 +1029,6 @@ export interface GenerateConfig1 {
   top_k: TopK;
   num_choices: NumChoices;
   logprobs: Logprobs;
-  hidden_states: HiddenStates;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
   internal_tools: InternalTools;
