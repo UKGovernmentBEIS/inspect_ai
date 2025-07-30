@@ -17,7 +17,6 @@ from typing import Any, Literal, Protocol, cast
 
 import anyio
 import numpy as np
-from regex import T
 import torch  # type: ignore
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
@@ -174,7 +173,7 @@ class HuggingFaceAPI(ModelAPI):
         if config.logprobs is not None:
             kwargs["output_logits"] = config.logprobs
         if config.hidden_states is not None:
-            kwargs["output_hidden_states"]= config.hidden_states
+            kwargs["output_hidden_states"] = config.hidden_states
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
         if config.stop_seqs is not None:
@@ -243,7 +242,7 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
-            metadata={"hidden_states":response.hidden_states}
+            metadata={"hidden_states": response.hidden_states},
         )
 
     @override
@@ -391,7 +390,6 @@ class ModelGenerateOutput:
     hidden_states: tuple[tuple[Tensor]] | None
 
 
-
 class Tokenizer(Protocol):
     def __call__(
         self, input: list[str]
@@ -503,7 +501,7 @@ def process_batches() -> None:
                 generate_ids = generation_outputs.sequences
                 logits = generation_outputs.logits
                 hidden_states = generation_outputs.hidden_states
-               
+
             # get logprobs from logits
             logprobs = None
             if logits is not None:
@@ -533,7 +531,9 @@ def process_batches() -> None:
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
-                        hidden_states = hidden_states if hidden_states is not None else None,
+                        hidden_states=hidden_states
+                        if hidden_states is not None
+                        else None,
                         time=total_time,
                     )
                 )
