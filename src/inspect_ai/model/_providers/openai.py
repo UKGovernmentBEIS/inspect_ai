@@ -80,6 +80,8 @@ class OpenAIAPI(ModelAPI):
         else:
             self.service = None
 
+        self.user = model_args.pop("user", None)
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -289,6 +291,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
+                user=self.user,
                 openai_api=self,
             )
 

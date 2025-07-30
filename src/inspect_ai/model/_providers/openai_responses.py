@@ -40,6 +40,7 @@ async def generate_responses(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     service_tier: str | None,
+    user: str | None,
     openai_api: "OpenAIAPI",
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
@@ -72,6 +73,7 @@ async def generate_responses(
         else NOT_GIVEN,
         truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        user=user,
         **completion_params_responses(
             model_name,
             openai_api=openai_api,
