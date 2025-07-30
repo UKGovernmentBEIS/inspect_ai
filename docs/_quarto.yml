@@ -35,8 +35,7 @@ website:
       title: "Inspect AI"
       background: light
       search: true
-      logo: images/aisi-logo.svg
-      logo-href: https://www.aisi.gov.uk/     
+      logo: images/aisi-logo.svg  
       left:      
           - text: "User Guide"
             href: index.qmd
