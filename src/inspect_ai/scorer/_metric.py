@@ -15,6 +15,7 @@ from typing import (
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -25,7 +26,6 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
 )
-from inspect_ai.dataset._dataset import MT, metadata_as
 
 logger = getLogger(__name__)
 
