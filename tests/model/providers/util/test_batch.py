@@ -13,7 +13,7 @@ if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 
-from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.util.batch import (
     Batcher,
     BatchRequest,
@@ -414,7 +414,6 @@ class TestBatcher:
                 ](1)
                 request = BatchRequest[str](
                     request={"prompt": f"test-{i}"},
-                    provider_extra={},
                     result_stream=send_stream,
                     custom_id=custom_id,
                 )
@@ -739,8 +738,7 @@ class TestBatcher:
             # Create requests that will hit byte limit before count limit
             tasks = [
                 batcher.generate_for_request(
-                    {"data": f"medium-sized-request-{i:03d}-{'x' * 20}"},
-                    GenerateConfig(),
+                    {"data": f"medium-sized-request-{i:03d}-{'x' * 20}"}
                 )
                 for i in range(8)
             ]
