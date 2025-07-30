@@ -136,7 +136,7 @@ def resolve_sample_files(files: dict[str, str]) -> dict[str, str]:
             for file in fs.ls(contents, recursive=True):
                 if file.type == "file":
                     file_uri = fs.path_as_uri(file.name)
-                    file_relative = file_uri.removeprefix(root_uri)
+                    file_relative = file_uri.removeprefix(root_uri)[1:]
                     resolved_files[os.path.join(key, file_relative)] = file.name
         else:
             resolved_files[key] = contents
