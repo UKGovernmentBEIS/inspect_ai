@@ -103,7 +103,7 @@ EvalDataset: list[Column] = [
 ]
 """Eval dataset columns."""
 
-EvalConfig: list[Column] = [
+EvalConfiguration: list[Column] = [
     EvalColumn("epochs", path="eval.config.epochs"),
     EvalColumn("epochs_reducer", path="eval.config.epochs_reducer"),
     EvalColumn("approval", path="eval.config.approval"),
@@ -137,7 +137,7 @@ EvalColumns: list[Column] = (
     + EvalTask
     + EvalModel
     + EvalDataset
-    + EvalConfig
+    + EvalConfiguration
     + EvalResults
     + EvalScores
 )

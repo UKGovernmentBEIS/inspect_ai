@@ -14,7 +14,7 @@ Analysis functions are currently in beta and are exported from the **inspect_ai.
 ### EvalInfo
 ### EvalTask
 ### EvalModel
-### EvalConfig
+### EvalConfiguration
 ### EvalResults
 ### EvalScores
 

@@ -6,7 +6,7 @@ from ._dataframe.columns import (
 from ._dataframe.evals.columns import (
     EvalColumn,
     EvalColumns,
-    EvalConfig,
+    EvalConfiguration,
     EvalDataset,
     EvalInfo,
     EvalModel,
@@ -48,7 +48,7 @@ __all__ = [
     "EvalTask",
     "EvalModel",
     "EvalColumns",
-    "EvalConfig",
+    "EvalConfiguration",
     "EvalDataset",
     "EvalResults",
     "EvalScores",
