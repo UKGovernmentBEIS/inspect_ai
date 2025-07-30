@@ -8,6 +8,7 @@ from typing import IO, Literal, TypedDict, cast
 from anyio import to_thread
 from openai import AsyncOpenAI
 from openai.types import Batch as OpenAIBatch
+from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai._util.error import pip_dependency_error
@@ -21,7 +22,7 @@ class CompletedBatchInfo(TypedDict):
     result_uris: list[str]
 
 
-class TogetherBatcher(OpenAIBatcher):
+class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
     def __init__(
         self,
         client: AsyncOpenAI,
@@ -39,7 +40,7 @@ class TogetherBatcher(OpenAIBatcher):
         except ImportError:
             raise pip_dependency_error(FEATURE, [PACKAGE])
 
-        super().__init__(client, config, retry_config)
+        super().__init__(client, config, retry_config, ChatCompletion)
         # together uses different file upload method than openai
         # async client doesn't have .upload method implemented
         self._together_sync_client = Together(
@@ -77,7 +78,7 @@ class TogetherBatcher(OpenAIBatcher):
     async def _submit_batch_for_file(
         self,
         file_id: str,
-        endpoint: Literal["/v1/chat/completions"],
+        endpoint: Literal["/v1/chat/completions", "/v1/responses"],
         extra_headers: dict[str, str],
     ) -> str:
         from together import AsyncTogether  # type: ignore

@@ -15,7 +15,7 @@ from inspect_ai._util._async import run_in_background, tg_collect
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.notgiven import sanitize_notgiven
-from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .batch_log import log_batch
@@ -88,8 +88,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
-    async def generate(
-        self, request: dict[str, Any], config: GenerateConfig
+    async def generate_for_request(
+        self,
+        request: dict[str, Any],
     ) -> ResponseT:
         send_stream, receive_stream = anyio.create_memory_object_stream[
             ResponseT | Exception

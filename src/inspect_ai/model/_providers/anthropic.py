@@ -307,7 +307,7 @@ class AnthropicAPI(ModelAPI):
                         log_model_retry,
                     ),
                 )
-            head_message = await self._batcher.generate(request, config)
+            head_message = await self._batcher.generate_for_request(request)
         elif streaming:
             async with self.client.messages.stream(**request) as stream:
                 head_message = await stream.get_final_message()
