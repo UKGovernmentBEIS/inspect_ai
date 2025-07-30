@@ -3,6 +3,7 @@
 - Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.
 - OpenAI: Add `http_client` custom model argument.
 - Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
+- Datasets: Support for directories in sample `files` field.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
 - Analysis: Added `full` option to `samples_df()` for reading full sample metadata.
 - Batch Processing: Add batch processing support for Together AI

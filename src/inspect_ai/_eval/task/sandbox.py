@@ -1,5 +1,6 @@
 import base64
 import contextlib
+import os
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
@@ -15,7 +16,7 @@ from tenacity import (
 
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
-from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.file import FileSystem, file, filesystem
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
@@ -76,7 +77,8 @@ async def sandboxenv_context(
         # read files from sample
         files: dict[str, bytes] = {}
         if sample.files:
-            for path, contents in sample.files.items():
+            resolved_files = resolve_sample_files(sample.files)
+            for path, contents in resolved_files.items():
                 files[path] = await read_sandboxenv_file(contents)
 
         # read setup script from sample (add bash shebang if necessary)
@@ -120,6 +122,28 @@ async def sandboxenv_context(
                 )
 
 
+def resolve_sample_files(files: dict[str, str]) -> dict[str, str]:
+    # if the source path is a directory then add its files recursively
+    resolved_files: dict[str, str] = dict()
+    for key, contents in files.items():
+        fs = filesystem_for_file(contents)
+        if (
+            fs is not None
+            and fs.exists(contents)
+            and fs.info(contents).type == "directory"
+        ):
+            root_uri = fs.path_as_uri(contents)
+            for file in fs.ls(contents, recursive=True):
+                if file.type == "file":
+                    file_uri = fs.path_as_uri(file.name)
+                    file_relative = file_uri.removeprefix(root_uri)[1:]
+                    resolved_files[os.path.join(key, file_relative)] = file.name
+        else:
+            resolved_files[key] = contents
+
+    return resolved_files
+
+
 async def read_sandboxenv_file(contents: str) -> bytes:
     if is_data_uri(contents):
         contents_base64 = data_uri_to_base64(contents)
@@ -140,6 +164,18 @@ async def read_sandboxenv_file(contents: str) -> bytes:
             file_bytes = contents.encode("utf-8")
 
     return file_bytes
+
+
+def filesystem_for_file(contents: str) -> FileSystem | None:
+    if is_data_uri(contents):
+        return None
+    elif is_http_url(contents):
+        return None
+    else:
+        try:
+            return filesystem(contents)
+        except Exception:
+            return None
 
 
 class TaskSandboxEnvironment(NamedTuple):
