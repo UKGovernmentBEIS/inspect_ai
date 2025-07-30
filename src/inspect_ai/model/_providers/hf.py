@@ -25,6 +25,7 @@ from transformers import (  # type: ignore
     PreTrainedTokenizerBase,
     set_seed,
 )
+from transformers.generation import GenerateDecoderOnlyOutput
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
@@ -242,6 +243,7 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
+            metadata={"hidden_states":response.hidden_states}
         )
 
     @override
@@ -419,6 +421,7 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
+    hidden_states: GenerateDecoderOnlyOutput | None
     time: float
 
 
