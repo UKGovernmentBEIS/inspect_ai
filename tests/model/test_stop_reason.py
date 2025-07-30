@@ -80,4 +80,4 @@ async def test_grok_stop_reason() -> None:
 @skip_if_no_together
 @skip_if_trio
 async def test_together_stop_reason() -> None:
-    await check_stop_reason("together/google/gemma-2b-it")
+    await check_stop_reason("together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo")

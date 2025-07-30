@@ -8,7 +8,7 @@ from inspect_ai.model import GenerateConfig, get_model
 @skip_if_no_anthropic
 async def test_anthropic_api() -> None:
     model = get_model(
-        "anthropic/claude-2.1",
+        "anthropic/claude-3-7-sonnet-latest",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -31,7 +31,7 @@ def test_anthropic_should_retry():
     from anthropic import APIStatusError
 
     # scaffold for should_retry
-    model = get_model("anthropic/claude-3-5-sonnet-latest")
+    model = get_model("anthropic/claude-3-7-sonnet-latest")
     response = httpx.Response(
         status_code=405, request=httpx.Request("GET", "https://example.com")
     )

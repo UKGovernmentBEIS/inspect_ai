@@ -538,6 +538,12 @@ SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
 
+If you are only interested in reading full values for `metadata`, you can use `full=True` when calling `samples_df()` as shorthand for this:
+
+```python
+samples_df(logs="logs", full=True)
+```
+
 #### Custom Extraction {#custom-extraction-1}
 
 As with `EvalColumn`, you can also extract data from a sample using a callback function passed as the `path`:
