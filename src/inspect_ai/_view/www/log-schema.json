@@ -2035,6 +2035,7 @@
             "top_k": null,
             "num_choices": null,
             "logprobs": null,
+            "hidden_states": null,
             "top_logprobs": null,
             "parallel_tool_calls": null,
             "internal_tools": null,
@@ -3360,6 +3361,18 @@
           "default": null,
           "title": "Logprobs"
         },
+        "hidden_states": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hidden States"
+        },
         "top_logprobs": {
           "anyOf": [
             {
@@ -3550,6 +3563,7 @@
         "top_k",
         "num_choices",
         "logprobs",
+        "hidden_states",
         "top_logprobs",
         "parallel_tool_calls",
         "internal_tools",
