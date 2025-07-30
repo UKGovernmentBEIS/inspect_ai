@@ -12,7 +12,7 @@ from inspect_ai.model import (
 @skip_if_no_fireworks
 async def test_fireworks_compatible() -> None:
     model = get_model(
-        "fireworks/accounts/fireworks/models/deepseek-r1",
+        "fireworks/accounts/fireworks/models/deepseek-r1-0528",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -24,6 +24,6 @@ async def test_fireworks_compatible() -> None:
             top_p=1.0,
         ),
     )
-    message = ChatMessageUser(content="Hello Fireworks!🎆")
+    message = ChatMessageUser(content="Hello Fireworks!")
     res = await model.generate(input=[message])
     assert len(res.completion) >= 1

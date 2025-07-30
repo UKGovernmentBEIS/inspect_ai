@@ -374,8 +374,19 @@ class Model:
         base_config = self.config
 
         # if we are the active_model then merge active generate config
+        active_config = active_generate_config()
         if is_active_model:
-            base_config = base_config.merge(active_generate_config())
+            base_config = base_config.merge(active_config)
+
+        ## otherwise merge connection-oriented config
+        else:
+            base_config = base_config.merge(
+                GenerateConfig(
+                    max_connections=active_config.max_connections,
+                    max_retries=active_config.max_retries,
+                    timeout=active_config.timeout,
+                )
+            )
 
         # merge passed config
         config = base_config.merge(config)
