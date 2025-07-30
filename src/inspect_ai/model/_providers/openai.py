@@ -7,6 +7,7 @@ from openai import (
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
+    NotGiven,
     RateLimitError,
     UnprocessableEntityError,
 )
@@ -79,6 +80,9 @@ class OpenAIAPI(ModelAPI):
             self.service: str | None = parts[0]
         else:
             self.service = None
+
+        # extract user model arg if provided
+        self.user: str | NotGiven = model_args.pop("user", NOT_GIVEN)
 
         # call super
         super().__init__(
@@ -289,6 +293,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
+                user=self.user,
                 openai_api=self,
             )
 
@@ -336,6 +341,7 @@ class OpenAIAPI(ModelAPI):
             if len(tools) > 0
             else NOT_GIVEN,
             extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+            user=self.user,
             **self.completion_params(config, len(tools) > 0),
         )
 

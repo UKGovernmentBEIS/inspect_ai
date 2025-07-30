@@ -22,6 +22,7 @@ from shortuuid import uuid
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, DESERIALIZING, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.hash import base57_id_hash
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.dataset._dataset import MT, metadata_as
@@ -975,6 +976,15 @@ class EvalLog(BaseModel):
         elif has_reductions and (has_results and not has_sample_reductions):
             values["results"]["sample_reductions"] = values["reductions"]
         return values
+
+    def __repr__(self) -> str:
+        return to_json_str_safe(
+            self.model_dump(
+                exclude={"samples", "reductions"},
+                exclude_none=True,
+                fallback=lambda _: None,
+            )
+        )
 
 
 def sort_samples(samples: list[EvalSample]) -> None:
