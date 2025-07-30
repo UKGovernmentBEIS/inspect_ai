@@ -6,6 +6,7 @@
 - Datasets: Support for directories in sample `files` field.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
 - Analysis: Added `full` option to `samples_df()` for reading full sample metadata.
+- Analysis: Renamed `EvalConfig` column defs to `EvalConfiguration`.
 - Improved `_repr_` for `EvalLog` (print JSON representation of log header).
 - Batch Processing: Add batch processing support for Together AI
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
