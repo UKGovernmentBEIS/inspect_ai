@@ -544,9 +544,9 @@ import asyncio
 hf_model = get_model( model="hf/meta-llama/Llama-3.1-8B-Instruct", device="auto")
 
 async def main()->None:
-    #specify hidden_states=True in generation config
-    gen_config = GenerateConfig(hidden_states=True)
-    outputs = await hf_model.generate("hello", config=gen_config)
+    #specify hidden_states=True in model args 
+    
+    outputs = await hf_model.generate("hello", hidden_states=True)
 
     #examine outputs
     print(f"Output text: {outputs.choices[0].message.content}")
