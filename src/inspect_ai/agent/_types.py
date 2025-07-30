@@ -37,13 +37,17 @@ class AgentPrompt(NamedTuple):
     """Agent-specific contextual instructions."""
 
     handoff_prompt: str | None = DEFAULT_HANDOFF_PROMPT
-    """Prompt used when there are additional handoff agents active."""
+    """Prompt used when there are additional handoff agents active.
+    Pass `None` for no additional handoff prompt."""
 
     assistant_prompt: str | None = DEFAULT_ASSISTANT_PROMPT
-    """Prompt for assistant (covers tool use, CoT, etc.)."""
+    """Prompt for assistant (covers tool use, CoT, etc.).
+    Pass `None` for no additional assistant prompt."""
 
     submit_prompt: str | None = DEFAULT_SUBMIT_PROMPT
     """Prompt to tell the model about the submit tool.
+
+    Pass `None` for no additional submit prompt.
 
     This prompt is not used if the `assistant_prompt` contains a
     {submit} placeholder.
