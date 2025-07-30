@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
-from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError
+from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError, NotGiven
 from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
 
@@ -40,7 +40,7 @@ async def generate_responses(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     service_tier: str | None,
-    user: str | None,
+    user: str | NotGiven,
     openai_api: "OpenAIAPI",
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
