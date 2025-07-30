@@ -34,6 +34,9 @@ class RunEnd:
 
     run_id: str
     """The globally unique identifier for the run."""
+    exception: Exception | None
+    """The exception that occurred during the run, if any. If None, the run completed
+    successfully."""
     logs: EvalLogs
     """All eval logs generated during the run. Can be headers only if the run was an
     `eval_set()`."""
@@ -268,8 +271,10 @@ async def emit_run_start(run_id: str, tasks: list[ResolvedTask]) -> None:
     await _emit_to_all(lambda hook: hook.on_run_start(data))
 
 
-async def emit_run_end(run_id: str, logs: EvalLogs) -> None:
-    data = RunEnd(run_id=run_id, logs=logs)
+async def emit_run_end(
+    run_id: str, logs: EvalLogs, exception: Exception | None = None
+) -> None:
+    data = RunEnd(run_id=run_id, logs=logs, exception=exception)
     await _emit_to_all(lambda hook: hook.on_run_end(data))
 
 

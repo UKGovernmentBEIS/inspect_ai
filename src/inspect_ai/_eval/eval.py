@@ -683,12 +683,16 @@ async def _eval_async_inner(
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
 
-    finally:
         try:
             await emit_run_end(run_id, logs)
         except UnboundLocalError:
             await emit_run_end(run_id, EvalLogs([]))
         _eval_async_running = False
+
+    except Exception as e:
+        await emit_run_end(run_id, EvalLogs([]), e)
+        _eval_async_running = False
+        raise e
 
     # return logs
     return logs
