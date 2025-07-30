@@ -9,6 +9,8 @@ import httpx
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types import Batch as OpenAIBatch
+from openai.types.batch import Errors as OpenAIErrors
+from openai.types.batch_error import BatchError
 from pydantic import BaseModel
 from typing_extensions import override
 
@@ -93,6 +95,14 @@ class OpenAIBatcher(Batcher[ResponseT, CompletedBatchInfo], Generic[ResponseT]):
         batch_info = self._adapt_batch_info(
             await self._openai_client.batches.retrieve(batch.id)
         )
+
+        # If the entire batch was rejected, OpenAI doesn't populate `request_counts`.
+        # Instead, the `.errors` object is set in the batch info.
+        if batch_info.status == "failed":
+            await self._resolve_inflight_batch(
+                batch, self._results_from_rejection(batch, batch_info.errors)
+            )
+            return (0, 0, 0, None)
 
         # TODO: Is it bogus to return 0, 0 when request_counts isn't available
         completed, failed = (
@@ -229,3 +239,44 @@ class OpenAIBatcher(Batcher[ResponseT, CompletedBatchInfo], Generic[ResponseT]):
                     )
                 )
         return results
+
+    def _results_from_rejection(
+        self, batch: Batch[ResponseT], errors: OpenAIErrors | None
+    ) -> dict[str, ResponseT | Exception]:
+        """Create error results for a rejected batch.
+
+        On the happy path, errors.data will contain a list that is the same size as
+        batch.requests. In that case, we map each batch.request.id to the corresponding
+        error in errors.data.
+
+        If errors is None, errors.data is None, or the lengths don't match, we create
+        a single generic exception for all request IDs.
+        """
+        request_ids = list(batch.requests.keys())
+
+        # Happy path: errors and errors.data exist and match request count
+        if (
+            errors is not None
+            and errors.data is not None
+            and len(errors.data) == len(request_ids)
+        ):
+            return {
+                request_id: _batch_error_to_exception(error)
+                for request_id, error in zip(request_ids, errors.data)
+            }
+
+        exception = RuntimeError(
+            "Batch rejected: error information could not be determined"
+        )
+
+        return {request_id: exception for request_id in request_ids}
+
+
+def _batch_error_to_exception(error: BatchError) -> Exception:
+    """Convert a BatchError to an Exception."""
+    message = error.message or "Batch request failed"
+    if error.code:
+        message = f"[{error.code}] {message}"
+    if error.param:
+        message = f"{message} (param: {error.param})"
+    return RuntimeError(message)
