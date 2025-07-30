@@ -168,6 +168,7 @@ dev = [
   "pytest-watcher",
   "pytest-xdist",
   "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
+  "together",
   "textual-dev>=0.86.2",
   "transformer-lens",
   "trio",
@@ -186,7 +187,7 @@ dev = [
   "types-python-dateutil",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
+doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]
 
 [tool.typos.default.extend-words]

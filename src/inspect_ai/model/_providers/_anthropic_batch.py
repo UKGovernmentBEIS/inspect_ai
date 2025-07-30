@@ -28,6 +28,7 @@ from anthropic.types.messages import MessageBatchIndividualResponse
 from anthropic.types.messages.batch_create_params import (
     Request as AnthropicBatchRequest,
 )
+from typing_extensions import override
 
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
@@ -57,6 +58,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         )
         self._client = client
 
+    @override
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
         requests: list[AnthropicBatchRequest] = []
         extra_headers: dict[str, str] = {}
@@ -78,6 +80,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         )
         return batch_info.id
 
+    @override
     async def _check_batch(
         self, batch: Batch[Message]
     ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
@@ -96,6 +99,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
             True if batch_info.processing_status == "ended" else None,
         )
 
+    @override
     async def _handle_batch_result(
         self,
         batch: Batch[Message],
