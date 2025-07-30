@@ -17,6 +17,7 @@ from typing import Any, Literal, Protocol, cast
 
 import anyio
 import numpy as np
+from regex import T
 import torch  # type: ignore
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
@@ -25,7 +26,6 @@ from transformers import (  # type: ignore
     PreTrainedTokenizerBase,
     set_seed,
 )
-from transformers.generation import GenerateDecoderOnlyOutput
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
@@ -388,6 +388,8 @@ def set_random_seeds(seed: int | None = None) -> None:
 class ModelGenerateOutput:
     sequences: Tensor
     logits: tuple[Tensor]
+    hidden_states: tuple[tuple[Tensor]] | None
+
 
 
 class Tokenizer(Protocol):
@@ -421,7 +423,7 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
-    hidden_states: GenerateDecoderOnlyOutput | None
+    hidden_states: tuple[tuple[torch.Tensor]] | None
     time: float
 
 
@@ -500,7 +502,8 @@ def process_batches() -> None:
                 )
                 generate_ids = generation_outputs.sequences
                 logits = generation_outputs.logits
-
+                hidden_states = generation_outputs.hidden_states
+               
             # get logprobs from logits
             logprobs = None
             if logits is not None:
@@ -530,6 +533,7 @@ def process_batches() -> None:
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
+                        hidden_states = hidden_states if hidden_states is not None else None,
                         time=total_time,
                     )
                 )

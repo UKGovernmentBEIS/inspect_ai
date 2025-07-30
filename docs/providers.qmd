@@ -504,6 +504,36 @@ Or in a call to `get_model()`
 model = get_model("hf/local", model_path="./my-model")
 ```
 
+### Hidden states 
+If you wish to access hidden states (activations) from the model.generate function, here's how:
+```python
+
+from inspect_ai.model import get_model, GenerateConfig
+import asyncio
+
+#load huggingface model
+hf_model = get_model( model="hf/meta-llama/Llama-3.1-8B-Instruct", device="auto")
+
+async def main()->None:
+    #specify hidden_states=True in generation config
+    gen_config = GenerateConfig(hidden_states=True)
+    outputs = await hf_model.generate("hello", config=gen_config)
+
+    #examine outputs
+    print(f"Output text: {outputs.choices[0].message.content}")
+    if outputs.metadata is not None:
+        hidden_states = outputs.metadata["hidden_states"]
+        print(f"Number of tokens generated: {len(hidden_states)}")
+        print(f"Num layers: {len(hidden_states[0])}")
+        #generated length starts at len prompt for token 0 but drops to 1 for subsequent tokens
+        print(f"Shape of first layer in token 0 (batch size, generated_length, hidden_size): {hidden_states[0][0].shape}")
+
+
+if __name__=="__main__":
+    asyncio.run(main())
+```
+The returned hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput)
+
 ## vLLM {#vllm}
 
 The [vLLM](https://docs.vllm.ai/) provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM provider, install the `vllm` package and specify a model using the `--model` option:

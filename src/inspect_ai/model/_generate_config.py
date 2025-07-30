@@ -103,6 +103,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     logprobs: bool | None
     """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
 
+    hidden_states: bool | None 
+    """Return hidden states of the output tokens. Huggingface only"""
+
     top_logprobs: int | None
     """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, and Huggingface only."""
 
