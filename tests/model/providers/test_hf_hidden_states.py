@@ -10,14 +10,13 @@ from inspect_ai.model import GenerateConfig, get_model
 
 @pytest.fixture
 def model():
-    # specify hidden_states=True in generation config
-    gen_config = GenerateConfig(
+    # specify hidden_states=True in model_args
+    return get_model(
+        model="hf/EleutherAI/pythia-70m",
+        device="auto",
+        config=GenerateConfig(max_tokens=2, seed=42, temperature=0.001),
         hidden_states=True,
-        max_tokens=1,
-        seed=42,
-        temperature=0.01,
     )
-    return get_model(model="hf/EleutherAI/pythia-70m", device="auto", config=gen_config)
 
 
 @pytest.mark.asyncio

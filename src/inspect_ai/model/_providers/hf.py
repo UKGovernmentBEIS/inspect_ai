@@ -95,6 +95,7 @@ class HuggingFaceAPI(ModelAPI):
         self.enable_thinking = collect_model_arg("enable_thinking")
         if self.tokenizer_call_args is None:
             self.tokenizer_call_args = {}
+        self.hidden_states = collect_model_arg("hidden_states")
 
         # device
         if device:
@@ -172,8 +173,8 @@ class HuggingFaceAPI(ModelAPI):
             kwargs["top_k"] = config.top_k
         if config.logprobs is not None:
             kwargs["output_logits"] = config.logprobs
-        if config.hidden_states is not None:
-            kwargs["output_hidden_states"] = config.hidden_states
+        if self.hidden_states is not None:
+            kwargs["output_hidden_states"] = self.hidden_states
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
         if config.stop_seqs is not None:
