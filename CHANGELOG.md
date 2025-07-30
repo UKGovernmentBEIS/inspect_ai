@@ -8,6 +8,7 @@
 - Analysis: Added `full` option to `samples_df()` for reading full sample metadata.
 - Analysis: Renamed `EvalConfig` column defs to `EvalConfiguration`.
 - Improved `_repr_` for `EvalLog` (print JSON representation of log header).
+- Added `metadata_as()` typesafe `metadata` accessor to `ChatMessageBase`.
 - Batch Processing: Add batch processing support for Together AI
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Log retry attempts to the task display console.
