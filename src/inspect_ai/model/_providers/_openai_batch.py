@@ -1,4 +1,3 @@
-import json
 import time
 from typing import IO, Any, Generic, Literal, TypedDict, TypeVar
 
@@ -63,7 +62,9 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
         }
 
     @override
-    def _extract_result_uris(self, completion_info: CompletedBatchInfo) -> list[str]:
+    def _uris_from_completion_info(
+        self, completion_info: CompletedBatchInfo
+    ) -> list[str]:
         """Extract result file URIs from OpenAI completion info."""
         return completion_info["result_uris"]
 
@@ -173,32 +174,33 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
         return input
 
     @override
-    async def _parse_result_file(
-        self, file_id: str
-    ) -> dict[str, ResponseT | Exception]:
-        # TODO: Add error handling so that if one uri fails, the others can
-        # still succeed
-        results: dict[str, ResponseT | Exception] = {}
+    async def _download_result_file(self, file_id: str) -> bytes:
+        """Download result file content from OpenAI."""
         batch_file = await self._openai_client.files.content(file_id)
-        for line in (await batch_file.aread()).decode().splitlines():
-            result: dict[str, Any] = json.loads(line)
-            request_id = result.pop("custom_id")
-            if not request_id:
-                raise ValueError(
-                    f"Unable to find custom_id in batched request result. {result}"
-                )
+        return await batch_file.aread()
 
-            # Store the result in the dictionary instead of sending to result_stream
-            if (error := result.get("error")) is None:
-                response_body = result["response"]["body"]
-                results[request_id] = self._response_cls.model_validate(response_body)
-            else:
-                results[request_id] = (
-                    self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                        httpx.Response(status_code=error["code"], text=error["message"])
-                    )
+    @override
+    def _parse_jsonl_line(
+        self, line_data: dict[str, Any]
+    ) -> tuple[str, ResponseT | Exception]:
+        """Parse a single JSONL result line from OpenAI."""
+        # Make a copy to avoid mutating the original
+        result = line_data.copy()
+        request_id = result.pop("custom_id", "")
+        if not request_id:
+            raise ValueError(
+                f"Unable to find custom_id in batched request result. {result}"
+            )
+
+        if (error := result.get("error")) is None:
+            response_body = result["response"]["body"]
+            return request_id, self._response_cls.model_validate(response_body)
+        else:
+            return request_id, (
+                self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                    httpx.Response(status_code=error["code"], text=error["message"])
                 )
-        return results
+            )
 
     def _results_from_rejection(
         self, batch: Batch[ResponseT], errors: OpenAIErrors | None

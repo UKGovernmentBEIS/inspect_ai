@@ -96,7 +96,7 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         completion_info: CompletedBatchInfoT,
     ) -> dict[str, ResponseT | Exception]:
         """Handle batch results by processing all result files."""
-        result_uris = self._extract_result_uris(completion_info)
+        result_uris = self._uris_from_completion_info(completion_info)
 
         # Process all result files in parallel
         results = await tg_collect(
@@ -161,21 +161,35 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
         pass
 
     @abstractmethod
-    async def _parse_result_file(
-        self, file_id: str
-    ) -> dict[str, ResponseT | Exception]:
-        """Parse a result file from the provider.
+    async def _download_result_file(self, file_uri: str) -> bytes:
+        """Download result file content as bytes.
 
         Args:
-            file_id: ID of the result file to parse
+            file_uri: URI/ID of the result file to download
 
         Returns:
-            Dictionary mapping request IDs to their responses or exceptions
+            File content as bytes
         """
         pass
 
     @abstractmethod
-    def _extract_result_uris(self, completion_info: CompletedBatchInfoT) -> list[str]:
+    def _parse_jsonl_line(
+        self, line_data: dict[str, Any]
+    ) -> tuple[str, ResponseT | Exception]:
+        """Parse a single JSONL result line.
+
+        Args:
+            line_data: Parsed JSON data from one line
+
+        Returns:
+            Tuple of (request_id, response_or_exception)
+        """
+        pass
+
+    @abstractmethod
+    def _uris_from_completion_info(
+        self, completion_info: CompletedBatchInfoT
+    ) -> list[str]:
         """Extract result file URIs from completion info.
 
         Args:
@@ -185,3 +199,26 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
             List of file IDs/URIs to process
         """
         pass
+
+    async def _parse_result_file(
+        self, file_uri: str
+    ) -> dict[str, ResponseT | Exception]:
+        """Parse a result file from the provider.
+
+        Args:
+            file_uri: URI/ID of the result file to parse
+
+        Returns:
+            Dictionary mapping request IDs to their responses or exceptions
+        """
+        return {
+            request_id: response_or_exception
+            for line in (await self._download_result_file(file_uri))
+            .decode()
+            .splitlines()
+            if line.strip()
+            for request_id, response_or_exception in [
+                self._parse_jsonl_line(json.loads(line))
+            ]
+            if request_id
+        }
