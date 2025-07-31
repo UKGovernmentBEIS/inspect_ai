@@ -171,10 +171,6 @@ def skip_if_no_bedrock(func):
     return pytest.mark.api(skip_if_env_var("ENABLE_BEDROCK_TESTS", exists=False)(func))
 
 
-def skip_if_no_vertex(func):
-    return pytest.mark.api(skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func))
-
-
 def skip_if_github_action(func):
     return skip_if_env_var("GITHUB_ACTIONS", exists=True)(func)
 

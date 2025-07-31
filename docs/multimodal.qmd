@@ -13,7 +13,6 @@ The following providers currently have support for multimodal inputs:
 | OpenAI    |   •    |   •   |       |
 | Anthropic |   •    |       |       |
 | Google    |   •    |   •   |   •   |
-| Vertex    |   •    |   •   |       |
 | Mistral   |   •    |       |       |
 | Grok      |   •    |       |       |
 | Bedrock   |   •    |       |       |
@@ -30,7 +29,7 @@ The following models currently support image inputs:
 
 -   OpenAI: GPT-4o series and the full o1 model,
 -   Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.
--   Google/Vertex: Gemini 1.5 and Gemini 2.0 models.
+-   Google/: Gemini 1.5 and Gemini 2.0 models.
 -   Mistral: Pixstral models (e.g. `pixtral-12b-2409`)
 -   Grok: Vision models (e.g. `grok-vision-beta`)
 
@@ -76,7 +75,7 @@ ContentImage(image="picture.png", detail="low")
 The following models currently support audio inputs:
 
 -   Open AI: `gpt-4o-audio-preview`
--   Google/Vertex: Gemini 1.5 and 2.0 models
+-   Google: Gemini 1.5 and 2.0 models
 
 To include audio in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:
 

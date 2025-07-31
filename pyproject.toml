@@ -141,7 +141,6 @@ dev = [
   "aioboto3",
   "azure-identity",
   "azure-ai-inference",
-  "google-cloud-aiplatform",
   "google-genai",
   "griffe",
   "groq",
@@ -167,7 +166,7 @@ dev = [
   "pytest-mock",
   "pytest-watcher",
   "pytest-xdist",
-  "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
+  "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
   "together",
   "textual-dev>=0.86.2",
   "transformer-lens",

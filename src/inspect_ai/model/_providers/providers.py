@@ -1,5 +1,3 @@
-import os
-
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
@@ -74,31 +72,6 @@ def anthropic() -> type[ModelAPI]:
     from .anthropic import AnthropicAPI
 
     return AnthropicAPI
-
-
-@modelapi(name="vertex")
-def vertex() -> type[ModelAPI]:
-    FEATURE = "Google Vertex API"
-    PACKAGE = "google-cloud-aiplatform"
-    MIN_VERSION = "1.73.0"
-
-    # workaround log spam
-    # https://github.com/ray-project/ray/issues/24917
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
-
-    # verify we have the package
-    try:
-        import vertexai  # type: ignore  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-    # in the clear
-    from .vertex import VertexAPI  # type: ignore
-
-    return VertexAPI  # type: ignore
 
 
 @modelapi(name="google")

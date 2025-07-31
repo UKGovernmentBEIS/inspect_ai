@@ -357,27 +357,6 @@ inspect eval ctf.py -M emulate_tools=true
 
 You can also use this option to disable tool emulation for Llama models with `emulate_tools=false`.
 
-## Vertex AI {#vertex-ai}
-
-::: {.callout-note appearance="simple"}
-If you are using Gemini or Anthropic models on Vertex AI, we recommend you use the Google and Anthropic providers (respectively) which both support models hosted on Vertex:
-
--   [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
--   [Gemini on Vertex AI](#gemini-on-vertex-ai)
-
-If you are using other models hosted on Vertex (e.g. Mistral, Llama, Gemma, etc.) then you should instead use the `vertex` provider as described below.
-:::
-
-To use the [Vertex AI](https://cloud.google.com/vertex-ai) provider, install the `google-cloud-aiplatform` package, [configure your environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1) for Vertex API access, and specify a model using the `--model` option:
-
-``` bash
-inspect eval eval.py --model vertex/mistral-large-2411
-```
-
-The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables.
-
-Vertex AI also provides the same `safety_settings` outlined in the [Google](#safety-settings) provider.
-
 ## Together AI {#together-ai}
 
 To use the [Together AI](https://www.together.ai/) provider, install the `openai` package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
