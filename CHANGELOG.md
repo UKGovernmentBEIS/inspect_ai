@@ -9,6 +9,7 @@
 - Analysis: Renamed `EvalConfig` column defs to `EvalConfiguration`.
 - Improved `_repr_` for `EvalLog` (print JSON representation of log header).
 - Added `metadata_as()` typesafe `metadata` accessor to `ChatMessageBase`.
+- Hooks: Emit run end hook when unhandled exceptions occur.
 - Batch Processing: Add batch processing support for Together AI
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Log retry attempts to the task display console.
