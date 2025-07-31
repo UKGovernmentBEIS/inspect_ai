@@ -295,21 +295,22 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         try:
-            if self._batcher:
-                req = {
-                    "contents": [
-                        content.model_dump(exclude_none=True)
-                        for content in gemini_contents
-                    ],
-                    "generation_config": {},
-                    # "generation_config": parameters.model_dump(exclude_none=True),
-                }
-                foo = await self._batcher.generate_for_request(req)
-                print(foo)
-            response = await client.aio.models.generate_content(
-                model=self.service_model_name(),
-                contents=gemini_contents,  # type: ignore[arg-type]
-                config=parameters,
+            response = await (
+                self._batcher.generate_for_request(
+                    {
+                        "contents": [
+                            content.model_dump(exclude_none=True)
+                            for content in gemini_contents
+                        ],
+                        **parameters.model_dump(exclude_none=True),
+                    }
+                )
+                if self._batcher
+                else client.aio.models.generate_content(
+                    model=self.service_model_name(),
+                    contents=gemini_contents,  # type: ignore[arg-type]
+                    config=parameters,
+                )
             )
         except ClientError as ex:
             return self.handle_client_error(ex), model_call()

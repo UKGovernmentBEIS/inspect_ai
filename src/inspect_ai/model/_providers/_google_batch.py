@@ -47,7 +47,13 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
     ) -> dict[str, Any]:
         return {
             "key": custom_id,
-            "request": request.request,
+            "request": {
+                **{
+                    k: v
+                    for k, v in request.request.items()
+                    if k not in ("http_options", "thinking_config")
+                }
+            },
         }
 
     @override
