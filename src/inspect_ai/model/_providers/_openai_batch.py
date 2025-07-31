@@ -50,6 +50,8 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
         self._openai_client = client
         self.endpoint = endpoint
 
+    # FileBatcher overrides
+
     @override
     def _jsonl_line_for_request(
         self, request: BatchRequest[ResponseT], custom_id: str
@@ -68,52 +70,6 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
     ) -> list[str]:
         """Extract result file URIs from OpenAI completion info."""
         return completion_info["result_uris"]
-
-    @override
-    async def _check_batch(
-        self, batch: Batch[ResponseT]
-    ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
-        batch_info = self._adapt_batch_info(
-            await self._openai_client.batches.retrieve(batch.id)
-        )
-
-        # If the entire batch was rejected, OpenAI doesn't populate `request_counts`.
-        # Instead, the `.errors` object is set in the batch info.
-        if batch_info.status == "failed":
-            await self._resolve_inflight_batch(
-                batch, self._results_from_rejection(batch, batch_info.errors)
-            )
-            return (0, 0, 0, None)
-
-        # TODO: Is it bogus to return 0, 0 when request_counts isn't available
-        completed, failed = (
-            (batch_info.request_counts.completed, batch_info.request_counts.failed)
-            if batch_info.request_counts
-            else (0, 0)
-        )
-
-        age = int(time.time() - batch_info.created_at) if batch_info.created_at else 0
-
-        if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
-            return (completed, failed, age, None)
-
-        # The doc suggests that `output_file_id` will only be populated if the batch
-        # as a whole reached the `completed` state. This means that if all but
-        # one request in the batch completed, but ultimately the batch expired,
-        # there will be no partial results returned.
-
-        batch_file_ids = [
-            file_id
-            for file_id in [batch_info.output_file_id, batch_info.error_file_id]
-            if file_id is not None
-        ]
-
-        return (
-            completed,
-            failed,
-            age,
-            {"result_uris": batch_file_ids} if batch_file_ids else None,
-        )
 
     @override
     async def _upload_batch_file(
@@ -169,11 +125,6 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             )
         ).id
 
-    def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
-        # Some OpenAI "compatible" providers don't return data that properly
-        # conforms to this. Provide a hook point to fixup that data.
-        return input
-
     @override
     async def _download_result_file(self, file_id: str) -> bytes:
         """Download result file content from OpenAI."""
@@ -202,6 +153,63 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
                     httpx.Response(status_code=error["code"], text=error["message"])
                 )
             )
+
+    # Batcher overrides
+
+    @override
+    async def _check_batch(
+        self, batch: Batch[ResponseT]
+    ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
+        batch_info = self._adapt_batch_info(
+            await self._openai_client.batches.retrieve(batch.id)
+        )
+
+        # If the entire batch was rejected, OpenAI doesn't populate `request_counts`.
+        # Instead, the `.errors` object is set in the batch info.
+        if batch_info.status == "failed":
+            await self._resolve_inflight_batch(
+                batch, self._results_from_rejection(batch, batch_info.errors)
+            )
+            return (0, 0, 0, None)
+
+        # TODO: Is it bogus to return 0, 0 when request_counts isn't available
+        completed, failed = (
+            (batch_info.request_counts.completed, batch_info.request_counts.failed)
+            if batch_info.request_counts
+            else (0, 0)
+        )
+
+        age = int(time.time() - batch_info.created_at) if batch_info.created_at else 0
+
+        if batch_info.status not in {"completed", "failed", "cancelled", "expired"}:
+            return (completed, failed, age, None)
+
+        # The doc suggests that `output_file_id` will only be populated if the batch
+        # as a whole reached the `completed` state. This means that if all but
+        # one request in the batch completed, but ultimately the batch expired,
+        # there will be no partial results returned.
+
+        batch_file_ids = [
+            file_id
+            for file_id in [batch_info.output_file_id, batch_info.error_file_id]
+            if file_id is not None
+        ]
+
+        return (
+            completed,
+            failed,
+            age,
+            {"result_uris": batch_file_ids} if batch_file_ids else None,
+        )
+
+    # Protected - subclasses can override
+
+    def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
+        # Some OpenAI "compatible" providers don't return data that properly
+        # conforms to this. Provide a hook point to fixup that data.
+        return input
+
+    # Private gunk
 
     def _results_from_rejection(
         self, batch: Batch[ResponseT], errors: OpenAIErrors | None
