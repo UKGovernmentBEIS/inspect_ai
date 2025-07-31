@@ -9,7 +9,6 @@ from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
-import pydantic
 from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
