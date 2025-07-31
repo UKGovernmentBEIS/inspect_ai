@@ -62,12 +62,12 @@ If your samples include `choices`, then the `target` should be a capital
 letter representing the correct answer in `choices`, see
 [`multiple_choice`](solvers.qmd#multiple-choice)
 
-### Files
+## Sample Files
 
-The `files` field maps sandbox target file paths to file contents (where
-contents can be either a filesystem path, a URL, or a string with inline
-content). For example, to copy a local file named `flag.txt` into the
-sandbox path `/shared/flag.txt` you would use this:
+The sample `files` field maps sandbox target file paths to file contents
+(where contents can be either a filesystem path, a URL, or a string with
+inline content). For example, to copy a local file named `flag.txt` into
+the sandbox path `/shared/flag.txt` you would use this:
 
 ``` python
 "/shared/flag.txt": "flag.txt"
@@ -81,7 +81,14 @@ copy into the `victim` sandbox:
 "victim:/shared/flag.txt": "flag.txt"
 ```
 
-### Setup
+You can also specify a directory rather than a single file path and it
+will be copied recursively into the sandbox:
+
+``` python
+"/shared/resources": "resources"
+```
+
+### Sample Setup
 
 The `setup` field contains either a path to a bash setup script
 (resolved relative to the dataset path) or the contents of a script to

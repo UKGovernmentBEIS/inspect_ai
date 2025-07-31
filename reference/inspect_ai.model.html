@@ -127,10 +127,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <a href="../index.html" class="navbar-brand navbar-brand-logo">
     <img src="../images/aisi-logo.svg" alt="" class="navbar-logo">
     </a>
-    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Inspect AI</span>
     </a>
   </div>
@@ -1683,8 +1683,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalconfig" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalConfig</span></a>
+  <a href="../reference/inspect_ai.analysis.html#evalconfiguration" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalConfiguration</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2366,7 +2366,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> <span class="cf">await</span> model.generate(<span class="st">"Say hello"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>In this case, the model client will be closed at the end of the context manager and will not be available in the get_model() cache.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L877">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L877">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_model(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -2421,7 +2421,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> get_model(<span class="st">"openai/gpt-4o"</span>) <span class="im">as</span> model:</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> <span class="cf">await</span> model.generate(<span class="st">"Say hello"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L257">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L257">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2452,7 +2452,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L276">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L276">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, api: ModelAPI, config: GenerateConfig, model_args: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {}</span>
@@ -2476,7 +2476,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Generate output from the model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L342">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L342">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> generate(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -2514,7 +2514,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Generate output from the model, looping as long as the model calls tools.</p>
 <p>Similar to <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span>, but runs in a loop resolving model tool calls. The loop terminates when the model stops calling tools. The final <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span> as well the message list for the conversation are returned as a tuple.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L446">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L446">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> generate_loop(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -2549,7 +2549,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="generateconfig">GenerateConfig</h3>
 <p>Model generation options.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_generate_config.py#L143">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_generate_config.py#L143">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> GenerateConfig(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2676,7 +2676,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Merge another model configuration into this one.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_generate_config.py#L247">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_generate_config.py#L247">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> merge(</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, other: Union[<span class="st">"GenerateConfig"</span>, GenerateConfigArgs]</span>
@@ -2695,7 +2695,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="generateconfigargs">GenerateConfigArgs</h3>
 <p>Type for kwargs that selectively override GenerateConfig.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_generate_config.py#L55">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_generate_config.py#L55">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> GenerateConfigArgs(TypedDict, total<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2820,7 +2820,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="batchconfig">BatchConfig</h3>
 <p>Batch processing configuration.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_generate_config.py#L29">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_generate_config.py#L29">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BatchConfig(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2858,7 +2858,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="responseschema">ResponseSchema</h3>
 <p>Schema for model response when using Structured Output.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_generate_config.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_generate_config.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ResponseSchema(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2887,7 +2887,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modeloutput">ModelOutput</h3>
 <p>Output from model generation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L131">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L131">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelOutput(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2938,7 +2938,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create ModelOutput from simple text content.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L191">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L191">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@staticmethod</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_content(</span>
@@ -2970,7 +2970,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Returns a ModelOutput for requesting a tool call.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L219">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L219">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@staticmethod</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> for_tool_call(</span>
@@ -3015,7 +3015,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelcall">ModelCall</h3>
 <p>Model call (raw request/response data).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_call.py#L16">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_call.py#L16">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelCall(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3043,7 +3043,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Create a ModelCall object.</p>
 <p>Create a ModelCall from arbitrary request and response objects (they might be dataclasses, Pydandic objects, dicts, etc.). Converts all values to JSON serialiable (exluding those that can’t be)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_call.py#L28">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_call.py#L28">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@staticmethod</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create(</span>
@@ -3078,7 +3078,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelconversation">ModelConversation</h3>
 <p>Model conversation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_conversation.py#L7">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_conversation.py#L7">Source</a>
 </div>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelConversation(Protocol)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3099,7 +3099,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelusage">ModelUsage</h3>
 <p>Token usage for completion.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelUsage(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3136,7 +3136,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="stopreason">StopReason</h3>
 <p>Reason that the model stopped or failed to generate.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L59">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L59">Source</a>
 </div>
 <div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>StopReason <span class="op">=</span> Literal[</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"stop"</span>,</span>
@@ -3151,7 +3151,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chatcompletionchoice">ChatCompletionChoice</h3>
 <p>Choice generated for completion.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L106">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L106">Source</a>
 </div>
 <div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatCompletionChoice(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3179,7 +3179,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chatmessage">ChatMessage</h3>
 <p>Message in a chat conversation</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_chat_message.py#L198">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_chat_message.py#L213">Source</a>
 </div>
 <div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>ChatMessage <span class="op">=</span> Union[</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool</span>
@@ -3189,7 +3189,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chatmessagebase">ChatMessageBase</h3>
 <p>Base class for chat messages.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_chat_message.py#L17">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_chat_message.py#L18">Source</a>
 </div>
 <div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageBase(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3222,14 +3222,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 </dl>
 </section>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>metadata_as</dt>
+<dd>
+<p>Metadata as a Pydantic model.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_chat_message.py#L33">Source</a>
+</div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code class="ref-definition">metadata_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">MT</span>]</span></dt>
+<dd>
+<p>BaseModel derived class.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
 </section>
 <section id="chatmessagesystem" class="level3">
 <h3 class="anchored" data-anchor-id="chatmessagesystem">ChatMessageSystem</h3>
 <p>System chat message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_chat_message.py#L88">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_chat_message.py#L103">Source</a>
 </div>
-<div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageSystem(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageSystem(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3244,9 +3263,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chatmessageuser">ChatMessageUser</h3>
 <p>User chat message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_chat_message.py#L95">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_chat_message.py#L110">Source</a>
 </div>
-<div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageUser(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageUser(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3265,9 +3284,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chatmessageassistant">ChatMessageAssistant</h3>
 <p>Assistant chat message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_chat_message.py#L105">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_chat_message.py#L120">Source</a>
 </div>
-<div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageAssistant(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageAssistant(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3290,9 +3309,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chatmessagetool">ChatMessageTool</h3>
 <p>Tool chat message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_chat_message.py#L158">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_chat_message.py#L173">Source</a>
 </div>
-<div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageTool(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageTool(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3320,11 +3339,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Trim message list to fit within model context.</p>
 <p>Trim the list of messages by: - Retaining all system messages. - Retaining the ‘input’ messages from the sample. - Preserving a proportion of the remaining messages (<code>preserve=0.7</code> by default). - Ensuring that all assistant tool calls have corresponding tool messages. - Ensuring that the sequence of messages doesn’t end with an assistant message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_trim.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_trim.py#L6">Source</a>
 </div>
-<div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> trim_messages(</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatMessage], preserve: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.7</span></span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> trim_messages(</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatMessage], preserve: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.7</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">messages</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
@@ -3343,24 +3362,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="content-1">Content</h3>
 <p>Content sent to or received from a model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/content.py#L100">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/content.py#L100">Source</a>
 </div>
-<div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>Content <span class="op">=</span> Union[</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    ContentText,</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    ContentReasoning,</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    ContentImage,</span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    ContentAudio,</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    ContentVideo,</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    ContentData,</span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>Content <span class="op">=</span> Union[</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    ContentText,</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    ContentReasoning,</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    ContentImage,</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    ContentAudio,</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    ContentVideo,</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    ContentData,</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="contenttext" class="level3">
 <h3 class="anchored" data-anchor-id="contenttext">ContentText</h3>
 <p>Text content.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/content.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/content.py#L13">Source</a>
 </div>
-<div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentText(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentText(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3388,9 +3407,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Reasoning content.</p>
 <p>See the specification for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks">thinking blocks</a> for Claude models.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/content.py#L29">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/content.py#L29">Source</a>
 </div>
-<div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentReasoning(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentReasoning(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3417,9 +3436,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="contentimage">ContentImage</h3>
 <p>Image content.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/content.py#L48">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/content.py#L48">Source</a>
 </div>
-<div class="sourceCode" id="cb32"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentImage(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentImage(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3443,9 +3462,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="contentaudio">ContentAudio</h3>
 <p>Audio content.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/content.py#L64">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/content.py#L64">Source</a>
 </div>
-<div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentAudio(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentAudio(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3468,9 +3487,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="contentvideo">ContentVideo</h3>
 <p>Video content.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/content.py#L77">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/content.py#L77">Source</a>
 </div>
-<div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentVideo(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentVideo(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3493,9 +3512,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="contentdata">ContentData</h3>
 <p>Model internal.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/content.py#L90">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/content.py#L90">Source</a>
 </div>
-<div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentData(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentData(ContentBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3517,24 +3536,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="citation-1">Citation</h3>
 <p>A citation sent to or received from a model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/citation.py#L80">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/citation.py#L80">Source</a>
 </div>
-<div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>Citation: TypeAlias <span class="op">=</span> Annotated[</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>    Union[</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>        ContentCitation,</span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>        DocumentCitation,</span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>        UrlCitation,</span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>    Discriminator(<span class="st">"type"</span>),</span>
-<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>Citation: TypeAlias <span class="op">=</span> Annotated[</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    Union[</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>        ContentCitation,</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>        DocumentCitation,</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>        UrlCitation,</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>    Discriminator(<span class="st">"type"</span>),</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="citationbase" class="level3">
 <h3 class="anchored" data-anchor-id="citationbase">CitationBase</h3>
 <p>Base class for citations.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/citation.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/citation.py#L6">Source</a>
 </div>
-<div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CitationBase(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CitationBase(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3558,9 +3577,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="urlcitation">UrlCitation</h3>
 <p>A citation that refers to a URL.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/citation.py#L70">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/citation.py#L70">Source</a>
 </div>
-<div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> UrlCitation(CitationBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> UrlCitation(CitationBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3579,9 +3598,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="documentcitation">DocumentCitation</h3>
 <p>A citation that refers to a page range in a document.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/citation.py#L60">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/citation.py#L60">Source</a>
 </div>
-<div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DocumentCitation(CitationBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DocumentCitation(CitationBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3600,9 +3619,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="contentcitation">ContentCitation</h3>
 <p>A generic content citation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/_util/citation.py#L40">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/_util/citation.py#L40">Source</a>
 </div>
-<div class="sourceCode" id="cb40"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentCitation(CitationBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb41"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentCitation(CitationBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3620,13 +3639,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="execute_tools">execute_tools</h3>
 <p>Perform tool calls in the last assistant message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_call_tools.py#L97">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_call_tools.py#L97">Source</a>
 </div>
-<div class="sourceCode" id="cb41"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> execute_tools(</span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatMessage],</span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    tools: Sequence[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource] <span class="op">|</span> ToolSource,</span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>    max_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ExecuteToolsResult</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb42"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> execute_tools(</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatMessage],</span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>    tools: Sequence[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource] <span class="op">|</span> ToolSource,</span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>    max_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ExecuteToolsResult</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">messages</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
@@ -3647,9 +3666,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Result from executing tools in the last assistant message.</p>
 <p>In conventional tool calling scenarios there will be only a list of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> appended and no-output. However, if there are <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#handoff">handoff()</a></span> tools (used in multi-agent systems) then other messages may be appended and an <code>output</code> may be available as well.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_call_tools.py#L81">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_call_tools.py#L81">Source</a>
 </div>
-<div class="sourceCode" id="cb42"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ExecuteToolsResult(NamedTuple)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb43"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ExecuteToolsResult(NamedTuple)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3671,9 +3690,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="logprob">Logprob</h3>
 <p>Log probability for a token.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L83">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L83">Source</a>
 </div>
-<div class="sourceCode" id="cb43"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Logprob(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb44"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Logprob(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3700,9 +3719,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="logprobs-1">Logprobs</h3>
 <p>Log probability information for a completion choice.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L99">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L99">Source</a>
 </div>
-<div class="sourceCode" id="cb44"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Logprobs(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb45"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Logprobs(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3717,9 +3736,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="toplogprob">TopLogprob</h3>
 <p>List of the most likely tokens and their log probability, at this token position.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model_output.py#L70">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model_output.py#L70">Source</a>
 </div>
-<div class="sourceCode" id="cb45"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TopLogprob(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb46"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TopLogprob(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3748,9 +3767,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>per_epoch</code>: Default True. By default we cache responses separately for different epochs. The general use case is that if there are multiple epochs, we should cache each response separately because scorers will aggregate across epochs. However, sometimes a response can be cached regardless of epoch if the call being made isn’t under test as part of the evaluation. If False, this option allows you to bypass that and cache independently of the epoch.</p>
 <p><code>scopes</code>: A dictionary of additional metadata that should be included in the cache key. This allows for more fine-grained control over the cache key generation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_cache.py#L58">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_cache.py#L58">Source</a>
 </div>
-<div class="sourceCode" id="cb46"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CachePolicy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb47"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CachePolicy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
 <h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
 <dl>
@@ -3758,14 +3777,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a CachePolicy.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_cache.py#L80">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_cache.py#L80">Source</a>
 </div>
-<div class="sourceCode" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
-<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    expiry: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="st">"1W"</span>,</span>
-<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>    per_epoch: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>    scopes: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
-<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>    expiry: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="st">"1W"</span>,</span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>    per_epoch: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>    scopes: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">expiry</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3789,11 +3808,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Calculate the size of various cached directories and files</p>
 <p>If neither <code>subdirs</code> nor <code>files</code> are provided, the entire cache directory will be calculated.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_cache.py#L339">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_cache.py#L339">Source</a>
 </div>
-<div class="sourceCode" id="cb48"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_size(</span>
-<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>    subdirs: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> [], files: <span class="bu">list</span>[Path] <span class="op">=</span> []</span>
-<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">tuple</span>[<span class="bu">str</span>, <span class="bu">int</span>]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb49"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_size(</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>    subdirs: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> [], files: <span class="bu">list</span>[Path] <span class="op">=</span> []</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">tuple</span>[<span class="bu">str</span>, <span class="bu">int</span>]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">subdirs</code> <span class="element-type">list[<span class="element-type-name">str</span>]</span></dt>
 <dd>
@@ -3809,9 +3828,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="cache_clear">cache_clear</h3>
 <p>Clear the cache directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_cache.py#L254">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_cache.py#L254">Source</a>
 </div>
-<div class="sourceCode" id="cb49"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_clear(model: <span class="bu">str</span> <span class="op">=</span> <span class="st">""</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb50"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_clear(model: <span class="bu">str</span> <span class="op">=</span> <span class="st">""</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">model</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3823,9 +3842,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="cache_list_expired">cache_list_expired</h3>
 <p>Returns a list of all the cached files that have passed their expiry time.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_cache.py#L368">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_cache.py#L368">Source</a>
 </div>
-<div class="sourceCode" id="cb50"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_list_expired(filter_by: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> []) <span class="op">-&gt;</span> <span class="bu">list</span>[Path]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb51"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_list_expired(filter_by: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> []) <span class="op">-&gt;</span> <span class="bu">list</span>[Path]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">filter_by</code> <span class="element-type">list[<span class="element-type-name">str</span>]</span></dt>
 <dd>
@@ -3837,9 +3856,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="cache_prune">cache_prune</h3>
 <p>Delete all expired cache entries.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_cache.py#L408">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_cache.py#L408">Source</a>
 </div>
-<div class="sourceCode" id="cb51"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_prune(files: <span class="bu">list</span>[Path] <span class="op">=</span> []) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb52"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_prune(files: <span class="bu">list</span>[Path] <span class="op">=</span> []) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">files</code> <span class="element-type">list[<span class="element-type-name">Path</span>]</span></dt>
 <dd>
@@ -3851,9 +3870,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="cache_path">cache_path</h3>
 <p>Path to cache directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_cache.py#L274">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_cache.py#L274">Source</a>
 </div>
-<div class="sourceCode" id="cb52"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_path(model: <span class="bu">str</span> <span class="op">=</span> <span class="st">""</span>) <span class="op">-&gt;</span> Path</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb53"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_path(model: <span class="bu">str</span> <span class="op">=</span> <span class="st">""</span>) <span class="op">-&gt;</span> Path</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">model</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3868,9 +3887,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelapi">modelapi</h3>
 <p>Decorator for registering model APIs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_registry.py#L30">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_registry.py#L30">Source</a>
 </div>
-<div class="sourceCode" id="cb53"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> modelapi(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., <span class="bu">type</span>[ModelAPI]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb54"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> modelapi(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., <span class="bu">type</span>[ModelAPI]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3883,9 +3902,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Model API provider.</p>
 <p>If you are implementing a custom ModelAPI provider your <code>__init__()</code> method will also receive a <code>**model_args</code> parameter that will carry any custom <code>model_args</code> (or <code>-M</code> arguments from the CLI) specified by the user. You can then pass these on to the approriate place in your model initialisation code (for example, here is what many of the built-in providers do with the <code>model_args</code> passed to them: <a href="https://inspect.aisi.org.uk/models.html#model-args" class="uri">https://inspect.aisi.org.uk/models.html#model-args</a>)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L96">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L96">Source</a>
 </div>
-<div class="sourceCode" id="cb54"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelAPI(abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb55"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelAPI(abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
 <h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
 <dl>
@@ -3893,16 +3912,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a model API provider.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L108">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L108">Source</a>
 </div>
-<div class="sourceCode" id="cb55"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
-<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
-<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>    model_name: <span class="bu">str</span>,</span>
-<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a>    base_url: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a>    api_key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a>    api_key_vars: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> [],</span>
-<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
-<span id="cb55-8"><a href="#cb55-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a>    model_name: <span class="bu">str</span>,</span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a>    base_url: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a>    api_key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb56-6"><a href="#cb56-6" aria-hidden="true" tabindex="-1"></a>    api_key_vars: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> [],</span>
+<span id="cb56-7"><a href="#cb56-7" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
+<span id="cb56-8"><a href="#cb56-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">model_name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3930,9 +3949,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Async close method for closing any client allocated for the model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L151">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L151">Source</a>
 </div>
-<div class="sourceCode" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> aclose(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> aclose(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -3941,9 +3960,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Sync close method for closing any client allocated for the model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L155">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L155">Source</a>
 </div>
-<div class="sourceCode" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> close(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb58"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> close(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -3952,16 +3971,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Generate output from the model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L166">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L166">Source</a>
 </div>
-<div class="sourceCode" id="cb58"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
-<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> generate(</span>
-<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
-<span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">list</span>[ChatMessage],</span>
-<span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a>    tools: <span class="bu">list</span>[ToolInfo],</span>
-<span id="cb58-6"><a href="#cb58-6" aria-hidden="true" tabindex="-1"></a>    tool_choice: ToolChoice,</span>
-<span id="cb58-7"><a href="#cb58-7" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig,</span>
-<span id="cb58-8"><a href="#cb58-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ModelOutput <span class="op">|</span> <span class="bu">tuple</span>[ModelOutput <span class="op">|</span> <span class="pp">Exception</span>, ModelCall]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> generate(</span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb59-4"><a href="#cb59-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">list</span>[ChatMessage],</span>
+<span id="cb59-5"><a href="#cb59-5" aria-hidden="true" tabindex="-1"></a>    tools: <span class="bu">list</span>[ToolInfo],</span>
+<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a>    tool_choice: ToolChoice,</span>
+<span id="cb59-7"><a href="#cb59-7" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig,</span>
+<span id="cb59-8"><a href="#cb59-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ModelOutput <span class="op">|</span> <span class="bu">tuple</span>[ModelOutput <span class="op">|</span> <span class="pp">Exception</span>, ModelCall]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">input</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
@@ -3985,9 +4004,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Default max_tokens.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L193">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L193">Source</a>
 </div>
-<div class="sourceCode" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_tokens(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb60"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_tokens(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -3996,9 +4015,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Default max_tokens for a given config.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L197">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L197">Source</a>
 </div>
-<div class="sourceCode" id="cb60"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_tokens_for_config(<span class="va">self</span>, config: GenerateConfig) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_tokens_for_config(<span class="va">self</span>, config: GenerateConfig) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span></span></dt>
 <dd>
@@ -4010,9 +4029,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Default max_connections.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L208">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L208">Source</a>
 </div>
-<div class="sourceCode" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_connections(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb62"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_connections(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4021,9 +4040,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Scope for enforcement of max_connections.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L212">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L212">Source</a>
 </div>
-<div class="sourceCode" id="cb62"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> connection_key(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> connection_key(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4032,9 +4051,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Should this exception be retried?</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L216">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L216">Source</a>
 </div>
-<div class="sourceCode" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> should_retry(<span class="va">self</span>, ex: <span class="pp">Exception</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb64"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> should_retry(<span class="va">self</span>, ex: <span class="pp">Exception</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">ex</code> <span class="element-type"><span class="element-type-name">Exception</span></span></dt>
 <dd>
@@ -4046,9 +4065,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Collapse consecutive user messages into a single message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L224">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L224">Source</a>
 </div>
-<div class="sourceCode" id="cb64"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collapse_user_messages(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb65"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collapse_user_messages(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4057,9 +4076,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Collapse consecutive assistant messages into a single message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L228">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L228">Source</a>
 </div>
-<div class="sourceCode" id="cb65"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collapse_assistant_messages(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb66"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collapse_assistant_messages(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4068,9 +4087,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Any tool use in a message stream means that tools must be passed.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L232">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L232">Source</a>
 </div>
-<div class="sourceCode" id="cb66"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tools_required(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb67"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tools_required(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4079,9 +4098,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Tool results can contain images</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L236">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L236">Source</a>
 </div>
-<div class="sourceCode" id="cb67"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_result_images(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb68"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_result_images(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4090,9 +4109,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Some models do not support truncation of computer screenshots.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L240">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L240">Source</a>
 </div>
-<div class="sourceCode" id="cb68"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> disable_computer_screenshot_truncation(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb69"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> disable_computer_screenshot_truncation(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4101,9 +4120,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Chat message assistant messages with reasoning should playback reasoning with emulation (.e.g. <think> tags)</think></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L244">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L244">Source</a>
 </div>
-<div class="sourceCode" id="cb69"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> emulate_reasoning_history(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb70"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> emulate_reasoning_history(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4112,9 +4131,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Force a specific reasoning history behavior for this provider.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L248">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L248">Source</a>
 </div>
-<div class="sourceCode" id="cb70"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> force_reasoning_history(<span class="va">self</span>) <span class="op">-&gt;</span> Literal[<span class="st">"none"</span>, <span class="st">"all"</span>, <span class="st">"last"</span>] <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb71"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> force_reasoning_history(<span class="va">self</span>) <span class="op">-&gt;</span> Literal[<span class="st">"none"</span>, <span class="st">"all"</span>, <span class="st">"last"</span>] <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>
@@ -4123,9 +4142,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Behavior to use for reasoning_history=‘auto’</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/438c56e50436bf8828ae672b755e296dd42d58a1/src/inspect_ai/model/_model.py#L252">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc757411551f4756a8fd00da9dc172f7375b129d/src/inspect_ai/model/_model.py#L252">Source</a>
 </div>
-<div class="sourceCode" id="cb71"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> auto_reasoning_history(<span class="va">self</span>) <span class="op">-&gt;</span> Literal[<span class="st">"none"</span>, <span class="st">"all"</span>, <span class="st">"last"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb72"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> auto_reasoning_history(<span class="va">self</span>) <span class="op">-&gt;</span> Literal[<span class="st">"none"</span>, <span class="st">"all"</span>, <span class="st">"last"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
 
 </div>

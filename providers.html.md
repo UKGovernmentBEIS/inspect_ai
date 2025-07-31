@@ -39,8 +39,16 @@ export OPENAI_API_KEY=your-openai-api-key
 inspect eval arc.py --model openai/gpt-4o-mini
 ```
 
-For the `openai` provider, custom model args (`-M`) are forwarded to the
-constructor of the `AsyncOpenAI` class.
+The `openai` provider supports the `user` custom model arg (`-M`), which
+is a unique identifier representing your end-user, which can help OpenAI
+to monitor and detect abuse. For example:
+
+``` bash
+inspect eval arc.py --model openai/gpt-4o-mini -M user=my-user
+```
+
+Other model args are forwarded to the constructor of the `AsyncOpenAI`
+class.
 
 The following environment variables are supported by the OpenAI provider
 
@@ -546,15 +554,6 @@ The following environment variables are supported by the Groq provider
 
 ## Fireworks AI
 
-> [!NOTE]
->
-> The Fireworks AI model provider is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 To use the [Fireworks AI](https://fireworks.ai/) provider, install the
 `openai` package (which the Fireworks AI service provides a compatible
 backend for), set your credentials, and specify a model using the
@@ -675,6 +674,29 @@ Or in a call to `get_model()`
 ``` python
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
+
+### Hidden States
+
+If you wish to access hidden states (activations) from generation, use
+the `hidden_states` model arg. For example:
+
+``` bash
+$ inspect eval arc.py --model hf/openai-community/gpt2 -M hidden_states=true
+```
+
+Or from Python:
+
+``` python
+model = get_model( 
+    model="hf/meta-llama/Llama-3.1-8B-Instruct", 
+    hidden_states=True
+)
+```
+
+Activations are available in the “hidden_states” field of
+`ModelOutput.metadata`. The hidden_states value is the same as
+transformers
+[GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
 
 ### Local Models
 

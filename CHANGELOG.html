@@ -90,10 +90,10 @@ ul.task-list li input[type="checkbox"] {
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
     <img src="./images/aisi-logo.svg" alt="" class="navbar-logo">
     </a>
-    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <a class="navbar-brand" href="./index.html">
     <span class="navbar-title">Inspect AI</span>
     </a>
   </div>
@@ -146,12 +146,12 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#july-2025" id="toc-july-2025" class="nav-link" data-scroll-target="#july-2025">0.3.116 (27 July 2025)</a></li>
-  <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.115 (26 July 2025)</a></li>
-  <li><a href="#july-2025-2" id="toc-july-2025-2" class="nav-link" data-scroll-target="#july-2025-2">0.3.114 (17 July 2025)</a></li>
-  <li><a href="#july-2025-3" id="toc-july-2025-3" class="nav-link" data-scroll-target="#july-2025-3">0.3.113 (16 July 2025)</a></li>
-  <li><a href="#july-2025-4" id="toc-july-2025-4" class="nav-link" data-scroll-target="#july-2025-4">0.3.112 (03 July 2025)</a></li>
+  <li><a href="#july-2025" id="toc-july-2025" class="nav-link active" data-scroll-target="#july-2025">0.3.117 (31 July 2025)</a></li>
+  <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.116 (27 July 2025)</a></li>
+  <li><a href="#july-2025-2" id="toc-july-2025-2" class="nav-link" data-scroll-target="#july-2025-2">0.3.115 (26 July 2025)</a></li>
+  <li><a href="#july-2025-3" id="toc-july-2025-3" class="nav-link" data-scroll-target="#july-2025-3">0.3.114 (17 July 2025)</a></li>
+  <li><a href="#july-2025-4" id="toc-july-2025-4" class="nav-link" data-scroll-target="#july-2025-4">0.3.113 (16 July 2025)</a></li>
+  <li><a href="#july-2025-5" id="toc-july-2025-5" class="nav-link" data-scroll-target="#july-2025-5">0.3.112 (03 July 2025)</a></li>
   <li><a href="#june-2025" id="toc-june-2025" class="nav-link" data-scroll-target="#june-2025">0.3.111 (29 June 2025)</a></li>
   <li><a href="#june-2025-1" id="toc-june-2025-1" class="nav-link" data-scroll-target="#june-2025-1">0.3.110 (28 June 2025)</a></li>
   <li><a href="#june-2025-2" id="toc-june-2025-2" class="nav-link" data-scroll-target="#june-2025-2">0.3.109 (27 June 2025)</a></li>
@@ -271,31 +271,41 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="july-2025" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025">0.3.117 (31 July 2025)</h2>
 <ul>
 <li>Added <a href="https://inspect.aisi.org.uk/providers.html#fireworks-ai">Fireworks AI</a> model provider.</li>
-<li>OpenAI: Add <code>http_client</code> custom model argument.</li>
+<li>OpenAI: Add <code>user</code> and <code>http_client</code> custom model arguments.</li>
+<li>vLLM: Add <code>is_mistral</code> model arg for mistral compatible tool calling.</li>
+<li>Hugging Face: Add <code>hidden_states</code> model arg to get model activations.</li>
 <li>Model API: <code>--max-connections</code>, <code>--max-retries</code>, and <code>--timeout</code> now provide defaults for all models rather than only the main model being evaluated.</li>
+<li>Tool calling: Do middle truncation when enforcing <code>max_tool_output</code>.</li>
+<li>Datasets: Support for directories in sample <code>files</code> field.</li>
 <li>Added sample, message, and event linking to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#log_viewer">log_viewer()</a></span> data preparation function.</li>
 <li>Analysis: Added <code>full</code> option to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> for reading full sample metadata.</li>
+<li>Analysis: Renamed <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalconfig">EvalConfig</a></span> column defs to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalconfiguration">EvalConfiguration</a></span>.</li>
+<li>Improved <code>_repr_</code> for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> (print JSON representation of log header).</li>
+<li>Added <code>metadata_as()</code> typesafe <code>metadata</code> accessor to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagebase">ChatMessageBase</a></span>.</li>
+<li>Hooks: Emit run end hook when unhandled exceptions occur.</li>
 <li>Batch Processing: Add batch processing support for Together AI</li>
 <li>Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.</li>
 <li>Batch Processing: Log retry attempts to the task display console.</li>
 <li>Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.</li>
+<li>Batch Processing: Enable batch support when using OpenAI Responses API.</li>
 <li>Inspect View: Do not use instance cache for S3FileSystem (eliminates some errors with large eval sets)</li>
 <li>Bugfix: Correct mapping for organization and model name in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</li>
+<li>Bugfix: Fix bug that failed to detect when an entire batch gets rejected by OpenAI.</li>
 </ul>
 </section>
-<section id="july-2025" class="level2">
-<h2 class="anchored" data-anchor-id="july-2025">0.3.116 (27 July 2025)</h2>
+<section id="july-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025-1">0.3.116 (27 July 2025)</h2>
 <ul>
 <li>Added <code>display_name</code> property to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> (e.g.&nbsp;for plotting).</li>
 <li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#task_info">task_info()</a></span> operation for data frame preparation.</li>
 </ul>
 </section>
-<section id="july-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="july-2025-1">0.3.115 (26 July 2025)</h2>
+<section id="july-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025-2">0.3.115 (26 July 2025)</h2>
 <ul>
 <li>Analysis: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> operations for data frame preparation.</li>
 <li>ReAct Agent: Require submit tool to have no errors before you exit the react loop.</li>
@@ -308,8 +318,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Update workaround of OpenAI reasoning issue to retain only the last (rather than the first) in a run of consecutive reasoning items.</li>
 </ul>
 </section>
-<section id="july-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="july-2025-2">0.3.114 (17 July 2025)</h2>
+<section id="july-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025-3">0.3.114 (17 July 2025)</h2>
 <ul>
 <li>OpenAI: Move model classification functions into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modelapi">ModelAPI</a></span> class so that subclasses can override them.</li>
 <li>Azure: Support for authenticating with Microsoft Entra ID managed identities.</li>
@@ -320,8 +330,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Use the output filesystem when creating directories in <code>inspect log convert</code></li>
 </ul>
 </section>
-<section id="july-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="july-2025-3">0.3.113 (16 July 2025)</h2>
+<section id="july-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025-4">0.3.113 (16 July 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/models.html#batch-processing">Batch processing</a> API support for OpenAI and Anthropic models.</li>
 <li><a href="https://inspect.aisi.org.uk/providers.html#transformer-lens">TransformerLens</a> model provider enabling use of <code>HookedTransformer</code> models with Inspect.</li>
@@ -351,8 +361,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix cases where <think> blocks are dropped in OpenAI choices because they are not at the front of text content.</think></li>
 </ul>
 </section>
-<section id="july-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="july-2025-4">0.3.112 (03 July 2025)</h2>
+<section id="july-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="july-2025-5">0.3.112 (03 July 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/extensions.html#hooks">Hooks</a>: Generic lifecycle hooks for Inspect extensions.</li>
 <li>Datasets: Expand glob wildcards when processing <code>--sample_id</code> filter for datasets.</li>
