@@ -24,8 +24,8 @@ from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.approval._policy import ApprovalPolicyConfig
-from inspect_ai.dataset._dataset import MT, metadata_as
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec

@@ -9,7 +9,8 @@ from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
 from inspect_ai._util.interrupt import check_sample_interrupt
-from inspect_ai.dataset._dataset import MT, Sample, metadata_as
+from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
