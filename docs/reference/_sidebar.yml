@@ -494,8 +494,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#evaltask
         - text: EvalModel
           href: reference/inspect_ai.analysis.qmd#evalmodel
-        - text: EvalConfig
-          href: reference/inspect_ai.analysis.qmd#evalconfig
+        - text: EvalConfiguration
+          href: reference/inspect_ai.analysis.qmd#evalconfiguration
         - text: EvalResults
           href: reference/inspect_ai.analysis.qmd#evalresults
         - text: EvalScores
