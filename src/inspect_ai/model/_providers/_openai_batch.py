@@ -1,7 +1,8 @@
 import time
-from typing import IO, Any, Generic, Literal, TypedDict, TypeVar
+from typing import IO, Generic, Literal, TypedDict, TypeVar
 
 import httpx
+import pydantic
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
 from openai.types import Batch as OpenAIBatch
@@ -50,9 +51,9 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
         self.endpoint = endpoint
 
     @override
-    def _format_jsonl_entry(
+    def _jsonl_line_for_request(
         self, request: BatchRequest[ResponseT], custom_id: str
-    ) -> dict[str, Any]:
+    ) -> dict[str, pydantic.JsonValue]:
         """Format request as OpenAI JSONL entry."""
         return {
             "custom_id": custom_id,
@@ -181,7 +182,7 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
 
     @override
     def _parse_jsonl_line(
-        self, line_data: dict[str, Any]
+        self, line_data: dict[str, pydantic.JsonValue]
     ) -> tuple[str, ResponseT | Exception]:
         """Parse a single JSONL result line from OpenAI."""
         # Make a copy to avoid mutating the original

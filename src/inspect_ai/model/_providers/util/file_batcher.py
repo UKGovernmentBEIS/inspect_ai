@@ -2,8 +2,9 @@ import functools
 import json
 import tempfile
 from abc import abstractmethod
-from typing import IO, Any, TypeVar
+from typing import IO, TypeVar
 
+import pydantic
 from typing_extensions import override
 
 from inspect_ai._util._async import tg_collect
@@ -61,7 +62,7 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
                 )
 
                 # Format as provider-specific JSONL entry
-                jsonl_entry = self._format_jsonl_entry(request, custom_id)
+                jsonl_entry = self._jsonl_line_for_request(request, custom_id)
 
                 # Write to file
                 temp_file.write(json.dumps(jsonl_entry).encode() + b"\n")
@@ -72,22 +73,6 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
             # Upload file and submit batch
             file_id = await self._upload_batch_file(temp_file.file, extra_headers)
             return await self._submit_batch_for_file(file_id, extra_headers)
-
-    def _process_request_metadata(
-        self, request: BatchRequest[ResponseT], existing_headers: dict[str, str]
-    ) -> tuple[dict[str, str], str]:
-        """Extract headers and custom_id from request, updating existing headers."""
-        from .hooks import HttpxHooks
-
-        extra_headers = request.request.pop("extra_headers", {})
-        # Merge with any existing headers
-        merged_headers = existing_headers | extra_headers
-
-        request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-        if request_id is not None:
-            request.custom_id = request_id
-
-        return merged_headers, request.custom_id
 
     @override
     async def _handle_batch_result(
@@ -116,9 +101,9 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
     # Abstract methods for provider-specific behavior
 
     @abstractmethod
-    def _format_jsonl_entry(
+    def _jsonl_line_for_request(
         self, request: BatchRequest[ResponseT], custom_id: str
-    ) -> dict[str, Any]:
+    ) -> dict[str, pydantic.JsonValue]:
         """Format a request as a provider-specific JSONL entry.
 
         Args:
@@ -174,7 +159,7 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
 
     @abstractmethod
     def _parse_jsonl_line(
-        self, line_data: dict[str, Any]
+        self, line_data: dict[str, pydantic.JsonValue]
     ) -> tuple[str, ResponseT | Exception]:
         """Parse a single JSONL result line.
 
@@ -199,6 +184,24 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
             List of file IDs/URIs to process
         """
         pass
+
+    # Private gunk
+
+    def _process_request_metadata(
+        self, request: BatchRequest[ResponseT], existing_headers: dict[str, str]
+    ) -> tuple[dict[str, str], str]:
+        """Extract headers and custom_id from request, updating existing headers."""
+        from .hooks import HttpxHooks
+
+        extra_headers = request.request.pop("extra_headers", {})
+        # Merge with any existing headers
+        merged_headers = existing_headers | extra_headers
+
+        request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+        if request_id is not None:
+            request.custom_id = request_id
+
+        return merged_headers, request.custom_id
 
     async def _parse_result_file(
         self, file_uri: str

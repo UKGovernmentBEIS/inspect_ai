@@ -1,12 +1,13 @@
 import time
 from typing import Any, TypedDict
 
+import pydantic
 from google.genai import Client
-from google.genai.errors import ClientError
 from google.genai.types import (
     CreateBatchJobConfig,
     GenerateContentResponse,
     HttpOptions,
+    JobError,
     JobState,
     UploadFileConfig,
 )
@@ -35,16 +36,16 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
         super().__init__(
             config=config,
             retry_config=retry_config,
-            max_batch_request_count=50000,  # Google's limit
-            max_batch_size_mb=2000,  # Google's 2GB file limit
+            max_batch_request_count=50000,  # Not actually specified in the doc afaik
+            max_batch_size_mb=2000,  # 2GB file size limit
         )
         self._client = client
         self._model_name = model_name
 
     @override
-    def _format_jsonl_entry(
+    def _jsonl_line_for_request(
         self, request: BatchRequest[GenerateContentResponse], custom_id: str
-    ) -> dict[str, Any]:
+    ) -> dict[str, pydantic.JsonValue]:
         return {
             "key": custom_id,
             "request": {
@@ -141,18 +142,18 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
 
     @override
     def _parse_jsonl_line(
-        self, line_data: dict[str, Any]
+        self, line_data: dict[str, pydantic.JsonValue]
     ) -> tuple[str, GenerateContentResponse | Exception]:
+        key = line_data["key"]
+        assert isinstance(key, str), "key must be a string"
         if "error" in line_data:
-            error_info = line_data["error"]
-            return line_data["key"], ClientError(
-                code=error_info.get("code", 400),
-                response_json=error_info,
+            error_data = JobError.model_validate(line_data["error"])
+            return (
+                key,
+                RuntimeError(f"{error_data.message} (code: {error_data.code})"),
             )
         else:
-            return line_data["key"], GenerateContentResponse.model_validate(
-                line_data["response"]
-            )
+            return key, GenerateContentResponse.model_validate(line_data["response"])
 
     @override
     def _uris_from_completion_info(
