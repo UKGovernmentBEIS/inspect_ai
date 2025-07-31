@@ -47,6 +47,8 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
             max_batch_size_mb=max_batch_size_mb,
         )
 
+    # Batcher overrides
+
     @override
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         """Create a batch by generating JSONL file and submitting to provider."""
