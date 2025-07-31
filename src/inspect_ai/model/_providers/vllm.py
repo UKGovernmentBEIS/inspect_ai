@@ -8,7 +8,12 @@ from typing import Any
 from openai import APIStatusError
 from typing_extensions import override
 
-from inspect_ai._util.content import ContentImage
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.local_server import (
     configure_devices,
@@ -20,9 +25,6 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageTool,
     ChatMessageUser,
-    Content,
-    ContentReasoning,
-    ContentText,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
