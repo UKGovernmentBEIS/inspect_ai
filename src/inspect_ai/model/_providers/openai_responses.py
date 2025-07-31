@@ -6,6 +6,7 @@ from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -42,6 +43,7 @@ async def generate_responses(
     service_tier: str | None,
     user: str | NotGiven,
     openai_api: "OpenAIAPI",
+    batcher: OpenAIBatcher[Response] | None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -85,7 +87,14 @@ async def generate_responses(
 
     try:
         # generate response
-        model_response: Response = await client.responses.create(**request)
+        model_response: Response = await (
+            batcher.generate_for_request(request)
+            if batcher
+            else client.responses.create(**request)
+        )
+        # model_response is `Response | Any`. The lazy type inference engine
+        # threw up its hands because of the `**request`.
+        assert isinstance(model_response, Response)
 
         # check for error
         if model_response.error is not None:

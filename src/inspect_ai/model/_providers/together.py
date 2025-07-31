@@ -139,27 +139,32 @@ class TogetherAIAPI(OpenAICompatibleAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        batch_config = normalized_batch_config(config.batch)
-        if not batch_config:
-            return cast(
+        self._resolve_batcher(config)
+        return (
+            await self._batcher.generate_for_request(request)
+            if self._batcher
+            else cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)
             )
+        )
 
-        if not self._batcher:
-            self._batcher = TogetherBatcher(
-                self.client,
-                batch_config,
-                # TODO: In the future, we could pass max_retries and timeout
-                # from batch_config falling back to config
-                model_retry_config(
-                    self.model_name,
-                    config.max_retries,
-                    config.timeout,
-                    self.should_retry,
-                    log_model_retry,
-                ),
-            )
-        return await self._batcher.generate(request, config)
+    def _resolve_batcher(self, config: GenerateConfig) -> None:
+        if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
+            return
+
+        self._batcher = TogetherBatcher(
+            self.client,
+            batch_config,
+            # TODO: In the future, we could pass max_retries and timeout
+            # from batch_config falling back to config
+            model_retry_config(
+                self.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                log_model_retry,
+            ),
+        )
 
 
 # Implementation of REST client for Together (currently not used)
