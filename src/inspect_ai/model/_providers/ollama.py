@@ -9,6 +9,7 @@ class OllamaAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        emulate_tools: bool = False,
     ) -> None:
         super().__init__(
             model_name=model_name,
@@ -17,4 +18,5 @@ class OllamaAPI(OpenAICompatibleAPI):
             config=config,
             service="Ollama",
             service_base_url="http://localhost:11434/v1",
+            emulate_tools=emulate_tools,
         )

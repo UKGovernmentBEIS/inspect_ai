@@ -9,6 +9,7 @@ class FireworksAIAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        emulate_tools: bool = False,
     ) -> None:
         super().__init__(
             model_name=model_name,
@@ -17,4 +18,5 @@ class FireworksAIAPI(OpenAICompatibleAPI):
             config=config,
             service="Fireworks",
             service_base_url="https://api.fireworks.ai/inference/v1",
+            emulate_tools=emulate_tools,
         )
