@@ -3,6 +3,7 @@
 - Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.
 - OpenAI: Add `user` and `http_client` custom model arguments.
 - vLLM: Add `is_mistral` model arg for mistral compatible tool calling.
+- Hugging Face: Add `hidden_states` model arg to get model activations.
 - Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
 - Datasets: Support for directories in sample `files` field.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
