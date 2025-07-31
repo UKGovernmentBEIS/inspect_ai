@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.117 (31 July 2025)
 
 - Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.
 - OpenAI: Add `user` and `http_client` custom model arguments.
