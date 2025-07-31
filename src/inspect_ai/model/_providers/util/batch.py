@@ -15,7 +15,7 @@ from inspect_ai._util._async import run_in_background, tg_collect
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.notgiven import sanitize_notgiven
-from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .batch_log import log_batch
@@ -88,8 +88,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
-    async def generate(
-        self, request: dict[str, Any], config: GenerateConfig
+    async def generate_for_request(
+        self,
+        request: dict[str, Any],
     ) -> ResponseT:
         send_stream, receive_stream = anyio.create_memory_object_stream[
             ResponseT | Exception
@@ -298,19 +299,49 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             return await self._handle_batch_result(batch, completion_info)
 
         try:
-            results = await _handle()
             log_batch(f"Batch {batch.id} completed")
-            # TODO: We don't have any evidence that this actually happens. I
-            # think we should just get rid of the code.
-            if len(results) != len(batch.requests):
-                log_batch(
-                    f"Batch {batch.id} returned {len(results)} results, expected {len(batch.requests)}",
-                )
+            await self._resolve_inflight_batch(batch, await _handle())
+        except Exception as e:
+            await self._fail_and_cleanup_inflight_batch("obtaining results", batch, e)
+
+    async def _resolve_inflight_batch(
+        self, batch: Batch[ResponseT], results: dict[str, ResponseT | Exception]
+    ) -> None:
+        """
+        Resolve a batch by sending results to each request and cleaning up inflight state.
+
+        This method iterates over the results dictionary, sends each response or exception
+        to the corresponding request's result stream, and removes the batch from the inflight
+        batches. It is called internally by the batcher after handling batch results, but
+        it is also safe and intended for use by derived classes if they need to manually
+        resolve a batch with results.
+
+        Args:
+            batch: The batch to resolve.
+            results: A dictionary mapping request IDs to their responses or exceptions.
+
+        Notes:
+            - Derived class instances may call this method directly if custom batch resolution
+              logic is required.
+            - This method does not raise exceptions for missing request IDs, but will log if
+              the number of results does not match the number of requests.
+        """
+        # TODO: We don't have any evidence that this actually happens. I
+        # think we should just get rid of the code.
+        if len(results) != len(batch.requests):
+            log_batch(
+                f"Attempting to resolve {batch.id} with {len(results)} results, expected {len(batch.requests)}",
+            )
+
+        # This function needs its own try/catch since in some cases derived classes
+        # call it, and we need to ensure exceptions do not escape
+        try:
             for request_id, response in results.items():
                 await batch.requests[request_id].result_stream.send(response)
-            del self._inflight_batches[batch.id]
         except Exception as e:
-            await self._fail_and_cleanup_inflight_batch("handling result", batch, e)
+            await self._fail_and_cleanup_inflight_batch("sending results", batch, e)
+        finally:
+            del self._inflight_batches[batch.id]
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:

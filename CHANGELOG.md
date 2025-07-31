@@ -17,8 +17,10 @@
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Log retry attempts to the task display console.
 - Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
+- Batch Processing: Enable batch support when using OpenAI Responses API.
 - Inspect View: Do not use instance cache for S3FileSystem (eliminates some errors with large eval sets)
 - Bugfix: Correct mapping for organization and model name in `model_info()` operation.
+- Bugfix: Fix bug that failed to detect when an entire batch gets rejected by OpenAI.
 
 ## 0.3.116 (27 July 2025)
 
