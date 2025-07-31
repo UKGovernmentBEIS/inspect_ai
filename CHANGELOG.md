@@ -5,6 +5,7 @@
 - vLLM: Add `is_mistral` model arg for mistral compatible tool calling.
 - Hugging Face: Add `hidden_states` model arg to get model activations.
 - Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
+- Tool calling: Do middle truncation when enforcing `max_tool_output`.
 - Datasets: Support for directories in sample `files` field.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
 - Analysis: Added `full` option to `samples_df()` for reading full sample metadata.
