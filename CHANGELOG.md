@@ -2,12 +2,16 @@
 
 - Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.
 - OpenAI: Add `user` and `http_client` custom model arguments.
+- vLLM: Add `is_mistral` model arg for mistral compatible tool calling.
+- Hugging Face: Add `hidden_states` model arg to get model activations.
 - Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
 - Datasets: Support for directories in sample `files` field.
 - Added sample, message, and event linking to `log_viewer()` data preparation function.
 - Analysis: Added `full` option to `samples_df()` for reading full sample metadata.
 - Analysis: Renamed `EvalConfig` column defs to `EvalConfiguration`.
 - Improved `_repr_` for `EvalLog` (print JSON representation of log header).
+- Added `metadata_as()` typesafe `metadata` accessor to `ChatMessageBase`.
+- Hooks: Emit run end hook when unhandled exceptions occur.
 - Batch Processing: Add batch processing support for Together AI
 - Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
 - Batch Processing: Log retry attempts to the task display console.
