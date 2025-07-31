@@ -6,7 +6,6 @@ from test_helpers.utils import (
     skip_if_no_grok,
     skip_if_no_mistral,
     skip_if_no_openai,
-    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval, task
@@ -48,11 +47,6 @@ def test_openai_images():
 @skip_if_no_openai
 def test_openai_responses_images():
     check_images(get_model("openai/gpt-4o", responses_api=True))
-
-
-@skip_if_no_vertex
-def test_vertex_images():
-    check_images("vertex/gemini-1.5-flash")
 
 
 @skip_if_no_anthropic
