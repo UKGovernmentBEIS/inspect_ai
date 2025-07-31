@@ -1,5 +1,5 @@
 import time
-from typing import IO, Generic, Literal, TypedDict, TypeVar
+from typing import IO, Any, Generic, Literal, TypedDict, TypeVar
 
 import httpx
 import pydantic
@@ -186,7 +186,7 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
     ) -> tuple[str, ResponseT | Exception]:
         """Parse a single JSONL result line from OpenAI."""
         # Make a copy to avoid mutating the original
-        result = line_data.copy()
+        result: dict[str, Any] = line_data.copy()
         request_id = result.pop("custom_id", "")
         if not request_id:
             raise ValueError(
