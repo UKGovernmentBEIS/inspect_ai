@@ -388,7 +388,7 @@ export TOGETHER_API_KEY=your-together-api-key
 inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
 ```
 
-For the `together` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
+For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class. 
 
 The following environment variables are supported by the Together AI provider
 
@@ -396,6 +396,7 @@ The following environment variables are supported by the Together AI provider
 |----------------------------|--------------------------------------------|
 | `TOGETHER_API_KEY` | API key credentials (required). |
 | `TOGETHER_BASE_URL` | Base URL for requests (optional, defaults to `https://api.together.xyz/v1`) |
+
 
 ## Groq {#groq}
 
@@ -427,7 +428,7 @@ export FIREWORKS_API_KEY=your-firewrks-api-key
 inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
 ```
 
-For the `fireworks` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
+For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class. 
 
 The following environment variables are supported by the Together AI provider
 
@@ -435,6 +436,7 @@ The following environment variables are supported by the Together AI provider
 |----------------------------|--------------------------------------------|
 | `FIREWORKS_API_KEY` | API key credentials (required). |
 | `FIREWORKS_BASE_URL` | Base URL for requests (optional, defaults to `https://api.fireworks.ai/inference/v1`) |
+
 
 
 ## Cloudflare {#cloudflare}
@@ -711,11 +713,15 @@ inspect eval arc.py --model ollama/llama3.1
 
 Note that you should be sure that Ollama is running on your system before using it with Inspect.
 
+You can enable [Tool Emulation](#tool-emulation-openai) for Ollama models using the `emulate_tools` custom model arg (`-M`).
+
 The following environment variables are supported by the Ollma provider
 
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `OLLAMA_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:11434/v1`) |
+
+
 
 ## Llama-cpp-python {#llama-cpp-python}
 
@@ -761,6 +767,24 @@ export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
 ```
 
+### Tool Emulation {#tool-emulation-openai}
+
+::: {.callout-note}
+Emulated tool calling for OpenAI compatible model providers is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+When using OpenAI compatible model providers, tool calling support can be 'emulated' for models that don't yet support it. Use the `emulate_tools` model arg to force tool emulation:
+
+``` bash
+inspect eval ctf.py -M emulate_tools=true
+```
+
+Tool calling emulation works by encoding tool JSON schema in an XML tag and asking the model to make tool calls using another XML tag. This works with varying degrees of efficacy depending on the model and the complexity of the tool schema. Before using tool emulation you should always check if your provider implements native support for tool calling on the model you are using, as that will generally work better.
+
 ## OpenRouter
 
 To use the [OpenRouter](https://openrouter.ai/) provider, install the `openai` package (which the OpenRouter service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -781,12 +805,17 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 : {tbl-colwidths=\[20,85\]}
 
+In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don't yet support tool calling in their API.
+
 The following environment variables are supported by the OpenRouter AI provider
 
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
+
+
+
 
 ## Custom Models
 

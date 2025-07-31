@@ -41,6 +41,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        emulate_tools: bool = False,
         **model_args: Any,
     ) -> None:
         # collect known model args that we forward to generate
@@ -77,6 +78,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             config=config,
             service="OpenRouter",
             service_base_url="https://openrouter.ai/api/v1",
+            emulate_tools=emulate_tools,
             **model_args,
         )
 

@@ -84,6 +84,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        emulate_tools: bool = False,
     ) -> None:
         super().__init__(
             model_name=model_name,
@@ -92,6 +93,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             config=config,
             service="Together",
             service_base_url="https://api.together.xyz/v1",
+            emulate_tools=emulate_tools,
         )
         self._batcher: TogetherBatcher | None = None
 

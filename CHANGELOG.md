@@ -1,3 +1,7 @@
+## Unreleased
+
+- Tool calling: Added support for emulated tool calling (`emulate_tools` model arg) to OpenAI API compatible providers.
+
 ## 0.3.117 (31 July 2025)
 
 - Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.

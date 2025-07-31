@@ -14,10 +14,16 @@ from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.util.chatapi import (
+    ChatAPIHandler,
+    ChatAPIMessage,
+    chat_api_messages_for_handler,
+)
 from inspect_ai.model._providers.util.hooks import HttpxHooks
+from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage
+from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
@@ -47,6 +53,7 @@ class OpenAICompatibleAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         service: str | None = None,
         service_base_url: str | None = None,
+        emulate_tools: bool = False,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -91,6 +98,9 @@ class OpenAICompatibleAPI(ModelAPI):
                     [base_url_var],
                 )
 
+        # grab emulate_tools argument
+        self.emulate_tools = emulate_tools
+
         # create async http client
         http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
         self.client = AsyncOpenAI(
@@ -114,6 +124,16 @@ class OpenAICompatibleAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # tool emulation if requested
+        if self.emulate_tools:
+            handler: ChatAPIHandler | None = OpenAICompatibleHandler(self.model_name)
+        else:
+            handler = None
+
+        # resolve input
+        if handler:
+            input = chat_api_messages_for_handler(input, tools, handler)
+
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
 
@@ -138,11 +158,12 @@ class OpenAICompatibleAPI(ModelAPI):
         )
 
         # prepare request (we do this so we can log the ModelCall)
+        have_tools = (len(tools) > 0) and not self.emulate_tools
         request = dict(
             messages=await openai_chat_messages(input),
-            tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
+            tools=openai_chat_tools(tools) if have_tools else NOT_GIVEN,
             tool_choice=openai_chat_tool_choice(tool_choice)
-            if len(tools) > 0
+            if have_tools
             else NOT_GIVEN,
             extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             **completion_params,
@@ -154,8 +175,16 @@ class OpenAICompatibleAPI(ModelAPI):
             response = completion.model_dump()
             self.on_response(response)
 
-            # return output and call
+            # get choices
             choices = self.chat_choices_from_completion(completion, tools)
+
+            # if we have a handler, see if there are embedded tool calls we need to resolve
+            if handler:
+                choices = [
+                    _resolve_chat_choice(choice, tools, handler) for choice in choices
+                ]
+
+            # return output
             return model_output_from_openai(completion, choices), model_call()
 
         except (BadRequestError, UnprocessableEntityError, PermissionDeniedError) as ex:
@@ -207,3 +236,35 @@ class OpenAICompatibleAPI(ModelAPI):
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         """Hook for subclasses to do bad request handling"""
         return openai_handle_bad_request(self.service_model_name(), ex)
+
+
+class OpenAICompatibleHandler(Llama31Handler):
+    @override
+    def tool_message(self, message: ChatMessageTool) -> ChatAPIMessage:
+        """Construct a chat REST API message from a tool message."""
+        # might be an error in which case we prepend 'Error'
+        results = f"Error: {message.error.message}" if message.error else message.text
+
+        # try to clearly spell out that this 'user' message is the response to a function call
+        content = f"The '{message.function}' function was called. The results are:\n\n{results}"
+
+        # return user message
+        return {"role": "user", "content": content}
+
+
+def _resolve_chat_choice(
+    choice: ChatCompletionChoice, tools: list[ToolInfo], handler: ChatAPIHandler
+) -> ChatCompletionChoice:
+    if choice.message.tool_calls is None or len(choice.message.tool_calls) == 0:
+        # see if we can resolve tool calls in the message body
+        message = handler.parse_assistant_response(choice.message.text, tools)
+        if message.tool_calls:
+            return ChatCompletionChoice(
+                message=message,
+                stop_reason=choice.stop_reason,
+                logprobs=choice.logprobs,
+            )
+        else:
+            return choice
+    else:
+        return choice
