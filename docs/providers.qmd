@@ -519,6 +519,26 @@ Or in a call to `get_model()`
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
+
+### Hidden States 
+
+If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
+
+```bash
+$ inspect eval arc.py --model hf/openai-community/gpt2 -M hidden_states=true
+```
+
+Or from Python:
+
+```python
+model = get_model( 
+    model="hf/meta-llama/Llama-3.1-8B-Instruct", 
+    hidden_states=True
+)
+```
+
+Activations are available in the "hidden_states" field of `ModelOutput.metadata`. The hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
+
 ### Local Models
 
 In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
@@ -539,35 +559,6 @@ Or in a call to `get_model()`
 model = get_model("hf/local", model_path="./my-model")
 ```
 
-### Hidden states 
-If you wish to access hidden states (activations) from the model.generate function, here's how:
-```python
-
-from inspect_ai.model import get_model, GenerateConfig
-import asyncio
-
-#load huggingface model
-hf_model = get_model( model="hf/meta-llama/Llama-3.1-8B-Instruct", device="auto")
-
-async def main()->None:
-    #specify hidden_states=True in model args 
-    
-    outputs = await hf_model.generate("hello", hidden_states=True)
-
-    #examine outputs
-    print(f"Output text: {outputs.choices[0].message.content}")
-    if outputs.metadata is not None:
-        hidden_states = outputs.metadata["hidden_states"]
-        print(f"Number of tokens generated: {len(hidden_states)}")
-        print(f"Num layers: {len(hidden_states[0])}")
-        #generated length starts at len prompt for token 0 but drops to 1 for subsequent tokens
-        print(f"Shape of first layer in token 0 (batch size, generated_length, hidden_size): {hidden_states[0][0].shape}")
-
-
-if __name__=="__main__":
-    asyncio.run(main())
-```
-The returned hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput)
 
 ## vLLM {#vllm}
 
