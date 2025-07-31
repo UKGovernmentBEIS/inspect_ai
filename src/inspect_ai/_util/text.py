@@ -52,7 +52,7 @@ def truncate_string_to_bytes(input: str, max_bytes: int) -> TruncatedOutput | No
         if len(input) <= max_bytes:
             return None
         else:
-            return TruncatedOutput(input[:max_bytes], len(input))
+            return truncate_str(input, max_bytes)
 
     # fast path for smaller strings (4 bytes/char is max for unicode)
     if len(input) * 4 <= max_bytes:
@@ -64,12 +64,20 @@ def truncate_string_to_bytes(input: str, max_bytes: int) -> TruncatedOutput | No
         if len(encoded) <= max_bytes:
             return None
         else:
-            return TruncatedOutput(
-                encoded[:max_bytes].decode("utf-8", errors="replace"), len(encoded)
-            )
+            return truncate_bytes(encoded, max_bytes)
     except Exception as ex:
         logger.warning(f"Unexpected error occurred truncating string: {ex}")
         return None
+
+
+def truncate_str(input: str, max_bytes: int) -> TruncatedOutput:
+    return TruncatedOutput(input[:max_bytes], len(input))
+
+
+def truncate_bytes(input: bytes, max_bytes: int) -> TruncatedOutput:
+    return TruncatedOutput(
+        input[:max_bytes].decode("utf-8", errors="replace"), len(input)
+    )
 
 
 def str_to_float(s: str) -> float:
