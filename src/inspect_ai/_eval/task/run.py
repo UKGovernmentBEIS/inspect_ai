@@ -693,9 +693,6 @@ async def task_run_sample(
                     start_time = time.monotonic()
                     init_sample_working_time(start_time)
 
-                    # monitor working limit in the background
-                    monitor_working_limit()
-
                     # run sample w/ optional limits
                     with (
                         state._token_limit,
@@ -721,6 +718,9 @@ async def task_run_sample(
                             await emit_sample_start(
                                 run_id, task_id, state.uuid, sample_summary
                             )
+
+                        # monitor working limit in the background
+                        monitor_working_limit()
 
                         # set progress for plan then run it
                         async with span("solvers"):
