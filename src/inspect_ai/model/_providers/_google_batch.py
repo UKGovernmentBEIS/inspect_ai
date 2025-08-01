@@ -53,7 +53,7 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
                 **{
                     k: v
                     for k, v in request.request.items()
-                    if k not in ("http_options", "thinking_config")
+                    if k not in ("http_options")
                 }
             },
         }
