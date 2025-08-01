@@ -159,6 +159,21 @@ dataset = json_dataset("data.jsonl", shuffle=True)
 
 Note that both of these methods optionally support specifying a random seed for shuffling.
 
+You can also specify shuffling externally either from the CLI or Python (providing an optional seed for determinisim)
+
+```bash
+inspect eval ctf.py --sample-shuffle
+inspect eval ctf.py --sample-shuffle 42
+```
+
+Or from Python:
+
+```python
+eval("ctf.py", sample_shuffle=True)
+eval("ctf.py", sample_shuffle=42)
+```
+
+
 ## Choice Shuffling
 
 {{< include _shuffling-choices.md >}}

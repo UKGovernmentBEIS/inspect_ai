@@ -75,6 +75,9 @@ class EvalConfig(BaseModel):
     )
     """Evaluate specific sample(s)."""
 
+    sample_shuffle: bool | int | None = Field(default=None)
+    """Shuffle order of samples."""
+
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
 
