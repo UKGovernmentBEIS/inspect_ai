@@ -76,6 +76,7 @@ from inspect_ai.model import (
     TopLogprob,
 )
 from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers._google_batch import GoogleBatcher
 from inspect_ai.model._providers._google_citations import get_candidate_citations
@@ -450,7 +451,7 @@ class GoogleGenAIAPI(ModelAPI):
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
-                lambda msg, state: None,  # log_model_retry placeholder
+                log_model_retry,
             ),
             self.service_model_name(),
         )
