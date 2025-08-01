@@ -8,6 +8,7 @@ from typing import Any, Type, Union, cast, overload
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
+from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
@@ -25,7 +26,6 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import (
     check_message_limit,
     check_token_limit,
-    check_working_limit,
 )
 from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
@@ -364,7 +364,7 @@ class TaskState:
         if self._completed:
             return True
         else:
-            check_working_limit()
+            check_sample_interrupt()
             return self._completed
 
     @completed.setter
