@@ -56,10 +56,12 @@ def resolve_tasks(
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
-        if sample_shuffle is not None:
+        if sample_shuffle:
             for task in tasks:
                 if not task.dataset.shuffled:
-                    task.dataset.shuffle(sample_shuffle)
+                    task.dataset.shuffle(
+                        None if sample_shuffle is True else sample_shuffle
+                    )
 
         return [
             ResolvedTask(
@@ -109,7 +111,9 @@ def resolve_tasks(
                 loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
             if sample_shuffle is not None:
                 if not loaded_task.dataset.shuffled:
-                    loaded_task.dataset.shuffle(sample_shuffle)
+                    loaded_task.dataset.shuffle(
+                        None if sample_shuffle is True else sample_shuffle
+                    )
             loaded_tasks.append(loaded_task)
             loaded_tasks_args.append(loaded_task_args)
 
