@@ -52,14 +52,14 @@ def resolve_tasks(
     model: Model,
     model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
-    shuffle_samples: bool | int | None,
+    sample_shuffle: bool | int | None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
-        if shuffle_samples is not None:
+        if sample_shuffle is not None:
             for task in tasks:
                 if not task.dataset.shuffled:
-                    task.dataset.shuffle(shuffle_samples)
+                    task.dataset.shuffle(sample_shuffle)
 
         return [
             ResolvedTask(
@@ -107,9 +107,9 @@ def resolve_tasks(
             else:
                 loaded_task_args = previous_task.task_args
                 loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
-            if shuffle_samples is not None:
+            if sample_shuffle is not None:
                 if not loaded_task.dataset.shuffled:
-                    loaded_task.dataset.shuffle(shuffle_samples)
+                    loaded_task.dataset.shuffle(sample_shuffle)
             loaded_tasks.append(loaded_task)
             loaded_tasks_args.append(loaded_task_args)
 

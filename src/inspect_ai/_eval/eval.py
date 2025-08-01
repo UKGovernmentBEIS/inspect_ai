@@ -530,6 +530,7 @@ async def _eval_async_inner(
             GenerateConfig(**kwargs),
             approval,
             sandbox,
+            sample_shuffle,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -1109,6 +1110,7 @@ def eval_resolve_tasks(
     config: GenerateConfig,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
+    sample_shuffle: bool | int | None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     resolved_model_roles = resolve_model_roles(model_roles)
     task_args = resolve_args(task_args)
@@ -1117,7 +1119,9 @@ def eval_resolve_tasks(
         for m in models:
             init_active_model(m, config)
             resolved_tasks.extend(
-                resolve_tasks(tasks, task_args, m, resolved_model_roles, sandbox)
+                resolve_tasks(
+                    tasks, task_args, m, resolved_model_roles, sandbox, sample_shuffle
+                )
             )
 
     if isinstance(approval, str | ApprovalPolicyConfig):

@@ -325,6 +325,7 @@ def eval_set(
             GenerateConfig(**kwargs),
             approval,
             sandbox,
+            sample_shuffle,
         )
 
         # list all logs currently in the log directory (update manifest if there are some)
