@@ -59,7 +59,7 @@
 
 ## 0.3.113 (16 July 2025)
 
-- [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
+- [Batch processing](https://inspect.aisi.org.uk/models-batch.html) API support for OpenAI and Anthropic models.
 - [TransformerLens](https://inspect.aisi.org.uk/providers.html#transformer-lens) model provider enabling use of `HookedTransformer` models with Inspect.
 - Web search: Added support for Grok as an internal search provider.
 - Google: Set `thought=True` on content when replaying `ContentReasoning` back to the model.
