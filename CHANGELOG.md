@@ -2,6 +2,7 @@
 
 - Remove support for `vertex` provider as the google-cloud-aiplatform package has [deprecated](https://pypi.org/project/google-cloud-aiplatform/) its support for Vertex generative models. Vertex can still be used via the native `google` and `anthropic` providers.
 - Tool calling: Added support for emulated tool calling (`emulate_tools` model arg) to OpenAI API compatible providers.
+- Task display: Make task cancellation more responsive by directly cancelling sample.
 - Task display: Improved display for multiple scorers/metrics in task results summary.
 - Scoring: Improved error message for scorers missing a return type annotation.
 - Datasets: Added `--sample-shuffle` eval option to control sample shuffling (takes an optional seed for determinism).

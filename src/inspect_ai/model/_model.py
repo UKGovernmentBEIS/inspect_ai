@@ -37,7 +37,6 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -59,6 +58,7 @@ from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
     check_message_limit,
     check_token_limit,
+    check_working_limit,
     record_model_usage,
 )
 
@@ -584,7 +584,7 @@ class Model:
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
 
-            check_sample_interrupt()
+            check_working_limit()
 
             cache_entry: CacheEntry | None
             if cache:
