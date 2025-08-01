@@ -78,6 +78,7 @@ website:
                - text: "Providers"
                  href: providers.qmd
                - caching.qmd
+               - models-batch.qmd
                - multimodal.qmd
                - reasoning.qmd
                - structured.qmd

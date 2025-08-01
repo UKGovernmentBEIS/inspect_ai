@@ -232,6 +232,8 @@ These sections cover how to use various language models with Inspect:
 -   [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
 
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
+
+-   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
  
 -   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
 
