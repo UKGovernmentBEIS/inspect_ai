@@ -100,8 +100,8 @@ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
 In addition to the model providers shown above, Inspect also supports
-models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq,
-Cloudflare, and Goodfire as well as local models with vLLM, Ollama,
+models hosted on AWS Bedrock, Azure AI, TogetherAI, Groq, Cloudflare,
+and Goodfire as well as local models with vLLM, Ollama,
 llama-cpp-python, or TransformerLens. See the documentation on [Model
 Providers](providers.qmd) for additional details.
 
@@ -309,6 +309,9 @@ These sections cover how to use various language models with Inspect:
 
 - [Reasoning](reasoning.qmd) documents the additional options and data
   available for reasoning models.
+
+- [Batch Mode](models-batch.qmd) covers using batch processing APIs for
+  model inference.
 
 - [Structured Output](structured.qmd) explains how to constrain model
   output to a particular JSON schema.

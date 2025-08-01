@@ -295,6 +295,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multimodal</span></a>
   </div>
@@ -677,7 +683,7 @@ Retries and Distribution Shift
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (<code>vertex</code>, and <code>azureai</code>) and in these cases the <code>working_time</code> will include any internal retries that the model client performs.</p>
+<p>In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (<code>azureai</code>) and in these cases the <code>working_time</code> will include any internal retries that the model client performs.</p>
 </div>
 </div>
 </div>
@@ -818,7 +824,7 @@ Important
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (<code>vertex</code>, and <code>azureai</code>) and in these cases the <code>working_time</code> will include any internal retries that the model client performs.</p>
+<p>In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (<code>azureai</code>) and in these cases the <code>working_time</code> will include any internal retries that the model client performs.</p>
 </div>
 </div>
 </div>

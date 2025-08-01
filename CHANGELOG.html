@@ -146,7 +146,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#july-2025" id="toc-july-2025" class="nav-link active" data-scroll-target="#july-2025">0.3.117 (31 July 2025)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#july-2025" id="toc-july-2025" class="nav-link" data-scroll-target="#july-2025">0.3.117 (31 July 2025)</a></li>
   <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.116 (27 July 2025)</a></li>
   <li><a href="#july-2025-2" id="toc-july-2025-2" class="nav-link" data-scroll-target="#july-2025-2">0.3.115 (26 July 2025)</a></li>
   <li><a href="#july-2025-3" id="toc-july-2025-3" class="nav-link" data-scroll-target="#july-2025-3">0.3.114 (17 July 2025)</a></li>
@@ -271,6 +272,15 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Remove support for <code>vertex</code> provider as the google-cloud-aiplatform package has <a href="https://pypi.org/project/google-cloud-aiplatform/">deprecated</a> its support for Vertex generative models. Vertex can still be used via the native <code>google</code> and <code>anthropic</code> providers.</li>
+<li>Tool calling: Added support for emulated tool calling (<code>emulate_tools</code> model arg) to OpenAI API compatible providers.</li>
+<li>Scoring: Improved error message for scorers missing a return type annotation.</li>
+<li>Batch Processing: Enable batch support when using Google model provider.</li>
+</ul>
+</section>
 <section id="july-2025" class="level2">
 <h2 class="anchored" data-anchor-id="july-2025">0.3.117 (31 July 2025)</h2>
 <ul>
@@ -333,7 +343,7 @@ ul.task-list li input[type="checkbox"] {
 <section id="july-2025-4" class="level2">
 <h2 class="anchored" data-anchor-id="july-2025-4">0.3.113 (16 July 2025)</h2>
 <ul>
-<li><a href="https://inspect.aisi.org.uk/models.html#batch-processing">Batch processing</a> API support for OpenAI and Anthropic models.</li>
+<li><a href="https://inspect.aisi.org.uk/models-batch.html">Batch processing</a> API support for OpenAI and Anthropic models.</li>
 <li><a href="https://inspect.aisi.org.uk/providers.html#transformer-lens">TransformerLens</a> model provider enabling use of <code>HookedTransformer</code> models with Inspect.</li>
 <li>Web search: Added support for Grok as an internal search provider.</li>
 <li>Google: Set <code>thought=True</code> on content when replaying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> back to the model.</li>

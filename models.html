@@ -295,6 +295,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multimodal</span></a>
   </div>
@@ -507,13 +513,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#role-defaults" id="toc-role-defaults" class="nav-link" data-scroll-target="#role-defaults">Role Defaults</a></li>
   <li><a href="#roles-for-tasks" id="toc-roles-for-tasks" class="nav-link" data-scroll-target="#roles-for-tasks">Roles for Tasks</a></li>
   </ul></li>
-  <li><a href="#batch-processing" id="toc-batch-processing" class="nav-link" data-scroll-target="#batch-processing">Batch Processing</a>
-  <ul class="collapse">
-  <li><a href="#enabling-batch-mode" id="toc-enabling-batch-mode" class="nav-link" data-scroll-target="#enabling-batch-mode">Enabling Batch Mode</a></li>
-  <li><a href="#batch-configuration" id="toc-batch-configuration" class="nav-link" data-scroll-target="#batch-configuration">Batch Configuration</a></li>
-  <li><a href="#batch-processing-flow" id="toc-batch-processing-flow" class="nav-link" data-scroll-target="#batch-processing-flow">Batch Processing Flow</a></li>
-  <li><a href="#details-and-limitations" id="toc-details-and-limitations" class="nav-link" data-scroll-target="#details-and-limitations">Details and Limitations</a></li>
-  </ul></li>
   <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -551,7 +550,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td>Cloud APIs</td>
-<td><a href="./providers.html#aws-bedrock">AWS Bedrock</a>, <a href="./providers.html#azure-ai">Azure AI</a>, <a href="./providers.html#vertex-ai">Vertex AI</a></td>
+<td><a href="./providers.html#aws-bedrock">AWS Bedrock</a> and <a href="./providers.html#azure-ai">Azure AI</a></td>
 </tr>
 <tr class="odd">
 <td>Open (Hosted)</td>
@@ -687,113 +686,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model-role</span> blue_team=openai/gpt-4o-mini</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
-<section id="batch-processing" class="level2">
-<h2 class="anchored" data-anchor-id="batch-processing">Batch Processing</h2>
-<p>Inspect supports calling the batch processing APIs for <a href="https://platform.openai.com/docs/guides/batch">OpenAI</a>, <a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic</a>, and <a href="https://docs.together.ai/docs/batch-inference">Together AI</a> models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times (batched generations typically complete within an hour but can take longer).</p>
-<p>When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.</p>
-<div class="callout callout-style-default callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Important
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g.&nbsp;a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.</p>
-<p>On the other hand, evaluations with a large and/or variable number of generations (e.g.&nbsp;agentic tasks) can often take many hours or days due to both the large number of batches that must be waited on and the path dependency created between requests in a batch.</p>
-</div>
-</div>
-<section id="enabling-batch-mode" class="level3">
-<h3 class="anchored" data-anchor-id="enabling-batch-mode">Enabling Batch Mode</h3>
-<p>Pass the <code>--batch</code> CLI option or <code>batch=True</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> in order to enable batch processing for providers that support it. The <code>--batch</code> option supports several formats:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable batching with default configuration</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Specify a batch size (e.g. 1000 requests per batch)</span></span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span> 1000</span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Pass a YAML or JSON config file with batch configuration</span></span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span> batch.yml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from Python:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, batch<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, batch<span class="op">=</span><span class="dv">1000</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If a provider does not support batch processing the <code>batch</code> option is ignored for that provider.</p>
-</section>
-<section id="batch-configuration" class="level3">
-<h3 class="anchored" data-anchor-id="batch-configuration">Batch Configuration</h3>
-<p>For more advanced batch processing configuration, you can specify a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#batchconfig">BatchConfig</a></span> object in Python or pass a YAML/JSON config file via the <code>--batch</code> option. For example:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> BatchConfig</span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, </span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    batch<span class="op">=</span>BatchConfig(size<span class="op">=</span><span class="dv">200</span>, send_delay<span class="op">=</span><span class="dv">60</span>)</span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Available <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#batchconfig">BatchConfig</a></span> options include:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 30%">
-<col style="width: 70%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Option</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>size</code></td>
-<td>Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits.</td>
-</tr>
-<tr class="even">
-<td><code>send_delay</code></td>
-<td>Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low.</td>
-</tr>
-<tr class="odd">
-<td><code>tick</code></td>
-<td>Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.</td>
-</tr>
-<tr class="even">
-<td><code>max_batches</code></td>
-<td>Maximum number of batches to have in flight at once for a provider (defaults to 100).</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="batch-processing-flow" class="level3">
-<h3 class="anchored" data-anchor-id="batch-processing-flow">Batch Processing Flow</h3>
-<p>When batch processing is enabled, the following steps are taken when handling generation requests:</p>
-<ol type="1">
-<li><p><strong>Request Queuing</strong>: Individual model requests are queued rather than sent immediately</p></li>
-<li><p><strong>Batch Formation</strong>: Requests are grouped into batches based on size limits and timeouts.</p></li>
-<li><p><strong>Batch Submission</strong>: Complete batches are submitted to the provider’s batch API.</p></li>
-<li><p><strong>Status Monitoring</strong>: Inspect periodically checks batch completion status.</p></li>
-<li><p><strong>Result Distribution</strong>: When batches complete, results are distributed back to the original requests</p></li>
-</ol>
-<p>These steps are transparent to the caller, however do have implications for total evaluation time as discussed above.</p>
-</section>
-<section id="details-and-limitations" class="level3">
-<h3 class="anchored" data-anchor-id="details-and-limitations">Details and Limitations</h3>
-<p>See the following documentation for additional provider-specific details on batch processing, including token costs, rate limits, and limitations:</p>
-<ul>
-<li><p><a href="https://platform.openai.com/docs/guides/batch">Open AI Batch Processing</a></p></li>
-<li><p><a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic Batch Processing</a></p></li>
-<li><p><a href="https://docs.together.ai/docs/batch-inference">Together AI Batch Inference</a></p></li>
-</ul>
-<p>In general, you should keep the following limitations in mind when using batch processing:</p>
-<ul>
-<li><p>Batches may take up to 24 hours to complete.</p></li>
-<li><p>Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.</p></li>
-<li><p>If you are using sandboxes then your machine’s resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.</p></li>
-</ul>
-</section>
-</section>
 <section id="learning-more" class="level2">
 <h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
 <ul>
 <li><p><a href="./providers.html">Providers</a> covers usage details and available options for the various supported providers.</p></li>
 <li><p><a href="./caching.html">Caching</a> explains how to cache model output to reduce the number of API calls made.</p></li>
+<li><p><a href="./models-batch.html">Batch Mode</a> covers using batch processing APIs for model inference.</p></li>
 <li><p><a href="./multimodal.html">Multimodal</a> describes the APIs available for creating multimodal evaluations (including images, audio, and video).</p></li>
 <li><p><a href="./reasoning.html">Reasoning</a> documents the additional options and data available for reasoning models.</p></li>
 <li><p><a href="./structured.html">Structured Output</a> explains how to constrain model output to a particular JSON schema.</p></li>

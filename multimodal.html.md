@@ -14,8 +14,7 @@ The following providers currently have support for multimodal inputs:
 | OpenAI    |   •    |   •   |       |
 | Anthropic |   •    |       |       |
 | Google    |   •    |   •   |   •   |
-| Vertex    |   •    |   •   |       |
-| Mistral   |   •    |       |       |
+| Mistral   |   •    |   •   |       |
 | Grok      |   •    |       |       |
 | Bedrock   |   •    |       |       |
 | AzureAI   |   •    |       |       |
@@ -29,16 +28,18 @@ compatibility matrix.
 
 ## Images
 
-The following models currently support image inputs:
+Please see provider specific documentation on which models support image
+input:
 
-- OpenAI: GPT-4o series and the full o1 model,
-- Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.
-- Google/Vertex: Gemini 1.5 and Gemini 2.0 models.
-- Mistral: Pixstral models (e.g. `pixtral-12b-2409`)
-- Grok: Vision models (e.g. `grok-vision-beta`)
-
-For Bedrock, AzureAI, and Groq, please consult model provider
-documentation for details on which models support image inputs.
+- [OpenAI Images and
+  Vision](https://platform.openai.com/docs/guides/images-vision)
+- [Anthropic
+  Vision](https://docs.anthropic.com/en/docs/build-with-claude/vision)
+- [Gemni Image
+  Understanding](https://ai.google.dev/gemini-api/docs/image-understanding)
+- [Mistral Vision](https://docs.mistral.ai/capabilities/vision/)
+- [Grok Image
+  Understanding](https://docs.x.ai/docs/guides/image-understanding)
 
 To include an image in a [dataset](datasets.qmd) you should use JSON
 input format (either standard JSON or JSON Lines). For example, here we
@@ -92,7 +93,8 @@ ContentImage(image="picture.png", detail="low")
 The following models currently support audio inputs:
 
 - Open AI: `gpt-4o-audio-preview`
-- Google/Vertex: Gemini 1.5 and 2.0 models
+- Google: All Gemini models
+- Mistral: All Voxtral models
 
 To include audio in a [dataset](datasets.qmd) you should use JSON input
 format (either standard JSON or JSON Lines). For example, here we
@@ -141,7 +143,7 @@ including audio input.
 
 The following models currently support video inputs:
 
-- Google: Gemini 1.5 and 2.0 models
+- Google: All Gemini models.
 
 To include video in a [dataset](datasets.qmd) you should use JSON input
 format (either standard JSON or JSON Lines). For example, here we

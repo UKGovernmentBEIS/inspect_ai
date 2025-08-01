@@ -295,6 +295,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multimodal</span></a>
   </div>
@@ -497,7 +503,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#reasoning-content" id="toc-reasoning-content" class="nav-link" data-scroll-target="#reasoning-content">Reasoning Content</a></li>
   <li><a href="#reasoning-options" id="toc-reasoning-options" class="nav-link" data-scroll-target="#reasoning-options">Reasoning Options</a></li>
   <li><a href="#openai-o-series" id="toc-openai-o-series" class="nav-link" data-scroll-target="#openai-o-series">OpenAI o-series</a></li>
-  <li><a href="#claude-3.7-sonnet" id="toc-claude-3.7-sonnet" class="nav-link" data-scroll-target="#claude-3.7-sonnet">Claude 3.7 Sonnet</a></li>
+  <li><a href="#claude-3.7-sonnet-and-claude-4" id="toc-claude-3.7-sonnet-and-claude-4" class="nav-link" data-scroll-target="#claude-3.7-sonnet-and-claude-4">Claude 3.7 Sonnet and Claude 4</a></li>
   <li><a href="#google-gemini" id="toc-google-gemini" class="nav-link" data-scroll-target="#google-gemini">Google Gemini</a></li>
   <li><a href="#grok" id="toc-grok" class="nav-link" data-scroll-target="#grok">Grok</a></li>
   <li><a href="#deepseek-r1" id="toc-deepseek-r1" class="nav-link" data-scroll-target="#deepseek-r1">DeepSeek-R1</a></li>
@@ -562,7 +568,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>reasoning_effort</code></td>
 <td>Constrains effort on reasoning for reasoning models (<code>low</code>, <code>medium</code>, or <code>high</code>)</td>
 <td><code>medium</code></td>
-<td>OpenAI o-series, Grok 3</td>
+<td>OpenAI o-series, Grok 3+</td>
 </tr>
 <tr class="even">
 <td><code>reasoning_tokens</code></td>
@@ -621,9 +627,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>For example, you might need to do this if you have a non-logging interface to OpenAI models (as <code>store</code> is incompatible with non-logging interfaces).</p>
 </section>
 </section>
-<section id="claude-3.7-sonnet" class="level2">
-<h2 class="anchored" data-anchor-id="claude-3.7-sonnet">Claude 3.7 Sonnet</h2>
-<p>Anthropic’s Claude 3.7 Sonnet model includes optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. Unlike other reasoning models 3.7 Sonnet is a hybrid model that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
+<section id="claude-3.7-sonnet-and-claude-4" class="level2">
+<h2 class="anchored" data-anchor-id="claude-3.7-sonnet-and-claude-4">Claude 3.7 Sonnet and Claude 4</h2>
+<p>Anthropic’s Claude 3.7 Sonnet and Claude 4 Sonnet/Opus models include optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. These are hybrid models that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -642,7 +648,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="history" class="level4">
 <h4 class="anchored" data-anchor-id="history">History</h4>
-<p>Note that Anthropic requests that all reasoning blocks and played back to the model in chat conversations (although they will only use the last reasoning block and will not bill for tokens on previous ones). Consequently, the <code>reasoning_history</code> option has no effect for Claude 3.7 models (it effectively always uses <code>last</code>).</p>
+<p>Note that Anthropic requests that all reasoning blocks and played back to the model in chat conversations (although they will only use the last reasoning block and will not bill for tokens on previous ones). Consequently, the <code>reasoning_history</code> option has no effect for Claude models (it effectively always uses <code>last</code>).</p>
 </section>
 <section id="tools" class="level4">
 <h4 class="anchored" data-anchor-id="tools">Tools</h4>
@@ -653,8 +659,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="google-gemini">Google Gemini</h2>
 <p>Google currently makes available several Gemini reasoning models, the most recent of which are:</p>
 <ul>
-<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash">Gemini 2.5 Flash</a>: <code>google/gemini-2.5-flash-preview-05-20</code></p></li>
-<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro">Gemini 2.5 Pro</a>: <code>google/gemini-2.5-pro-preview-05-06</code></p></li>
+<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash">Gemini 2.5 Flash</a>: <code>google/gemini-2.5-flash</code></p></li>
+<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro">Gemini 2.5 Pro</a>: <code>google/gemini-2.5-pro</code></p></li>
 </ul>
 <p>You can use the <code>--reasoning-tokens</code> option to control the amount of reasoning used by these models. For example:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
@@ -666,8 +672,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="grok">Grok</h2>
 <p>Grok currently makes available two reasoning models:</p>
 <ul>
-<li><p><code>grok/grok-3-mini</code></p></li>
-<li><p><code>grok/grok-3-fast</code></p></li>
+<li><code>grok/grok-4</code></li>
+<li><code>grok/grok-3-mini</code></li>
+<li><code>grok/grok-3-mini-fast</code></li>
 </ul>
 <p>You can condition the amount of reasoning done by Grok using the [<code>reasoning_effort</code>]https://docs.x.ai/docs/guides/reasoning) option, which can be set to <code>low</code> or <code>high</code>.</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini <span class="at">--reasoning-effort</span> high</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>

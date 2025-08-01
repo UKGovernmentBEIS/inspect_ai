@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Typing – Inspect</title>
+<title>Batch Mode – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -65,8 +65,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./tracing.html" rel="next">
-<link href="./errors-and-limits.html" rel="prev">
+<link href="./multimodal.html" rel="next">
+<link href="./caching.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -178,7 +178,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./typing.html">Typing</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./models-batch.html">Batch Mode</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -295,7 +295,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
@@ -459,7 +459,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./typing.html" class="sidebar-item-text sidebar-link active">
+  <a href="./typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
 </li>
@@ -500,18 +500,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#typed-store" id="toc-typed-store" class="nav-link" data-scroll-target="#typed-store">Typed Store</a></li>
-  <li><a href="#typed-metadata" id="toc-typed-metadata" class="nav-link" data-scroll-target="#typed-metadata">Typed Metadata</a></li>
-  <li><a href="#log-samples" id="toc-log-samples" class="nav-link" data-scroll-target="#log-samples">Log Samples</a></li>
+  <li><a href="#enabling-batch-mode" id="toc-enabling-batch-mode" class="nav-link" data-scroll-target="#enabling-batch-mode">Enabling Batch Mode</a></li>
+  <li><a href="#batch-configuration" id="toc-batch-configuration" class="nav-link" data-scroll-target="#batch-configuration">Batch Configuration</a></li>
+  <li><a href="#batch-processing-flow" id="toc-batch-processing-flow" class="nav-link" data-scroll-target="#batch-processing-flow">Batch Processing Flow</a></li>
+  <li><a href="#details-and-limitations" id="toc-details-and-limitations" class="nav-link" data-scroll-target="#details-and-limitations">Details and Limitations</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./typing.html">Typing</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./models-batch.html">Batch Mode</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Typing</h1>
+<h1 class="title">Batch Mode</h1>
 </div>
 
 
@@ -530,95 +531,117 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect codebase is written using strict <a href="https://mypy-lang.org/">MyPy</a> type-checking—if you enable the same for your project along with installing the <a href="https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker">MyPy VS Code Extension</a> you’ll benefit from all of these type definitions.</p>
-<p>The sample store and sample metadata interfaces are weakly typed to accommodate arbitrary user data structures. Below, we describe how to implement a <a href="#typed-store">typed store</a> and <a href="#typed-metadata">typed metadata</a> using Pydantic models.</p>
+<p>Inspect supports calling the batch processing APIs for <a href="https://platform.openai.com/docs/guides/batch">OpenAI</a>, <a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic</a>, <a href="https://ai.google.dev/gemini-api/docs/batch-mode">Google</a>, and <a href="https://docs.together.ai/docs/batch-inference">Together AI</a> models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times—batched generations typically complete within an hour but can take much longer (up to 24 hours).</p>
+<p>When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g.&nbsp;a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.</p>
+<p>On the other hand, evaluations with a large and/or variable number of generations (e.g.&nbsp;agentic tasks) can often take many hours or days due to both the large number of batches that must be waited on and the path dependency created between requests in a batch.</p>
+</div>
+</div>
 </section>
-<section id="typed-store" class="level2">
-<h2 class="anchored" data-anchor-id="typed-store">Typed Store</h2>
-<p>If you prefer a typesafe interface to the sample store, you can define a <a href="https://docs.pydantic.dev/latest/concepts/models/">Pydantic model</a> which reads and writes values into the store. There are several benefits to using Pydantic models for store access:</p>
-<ol type="1">
-<li>You can provide type annotations and validation rules for all fields.</li>
-<li>Default values for all fields are declared using standard Pydantic syntax.</li>
-<li>Store names are automatically namespaced (to prevent conflicts between multiple store accessors).</li>
-</ol>
-<section id="definition" class="level4">
-<h4 class="anchored" data-anchor-id="definition">Definition</h4>
-<p>First, derive a class from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> (which in turn derives from Pydantic <code>BaseModel</code>):</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel</span>
+<section id="enabling-batch-mode" class="level2">
+<h2 class="anchored" data-anchor-id="enabling-batch-mode">Enabling Batch Mode</h2>
+<p>Pass the <code>--batch</code> CLI option or <code>batch=True</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> in order to enable batch processing for providers that support it. The <code>--batch</code> option supports several formats:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Enable batching with default configuration</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Activity(StoreModel):</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    active: <span class="bu">bool</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    tries: <span class="bu">int</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    actions: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> Field(default_factory<span class="op">=</span><span class="bu">list</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that we define defaults for all fields. This is generally required so that you can initialise your Pydantic model from an empty store. For collections (<code>list</code> and <code>dict</code>) you should use <code>default_factory</code> so that each instance gets its own default.</p>
-<p>There are two special field names that you cannot use in your <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span>: the <code>store</code> field is used as a reference to the underlying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> and the optional <code>instance</code> field is used to provide a scope for use of multiple instances of a store model within a sample.</p>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Specify a batch size (e.g. 1000 requests per batch)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span> 1000</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Pass a YAML or JSON config file with batch configuration</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o <span class="at">--batch</span> batch.yml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or from Python:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, batch<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, batch<span class="op">=</span><span class="dv">1000</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If a provider does not support batch processing the <code>batch</code> option is ignored for that provider.</p>
 </section>
-<section id="usage" class="level4">
-<h4 class="anchored" data-anchor-id="usage">Usage</h4>
-<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function to get a typesafe interface to the store based on your model:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># typed interface to store from state</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> state.store_as(Activity)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>activity.active <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>activity.tries <span class="op">+=</span> <span class="dv">1</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># global store_as() function (e.g. for use from tools)</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> store_as</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> store_as(Activity)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that all instances of <code>Activity</code> created within a running sample share the same sample <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> so can see each other’s changes. For example, you can call <code>state.store_as()</code> in multiple solvers and/or scorers and it will resolve to the same sample-scoped instance.</p>
-<p>The names used in the underlying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> are namespaced to prevent collisions with other <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> accessors. For example, the <code>active</code> field in the <code>Activity</code> class is written to the store with the name <code>Activity:active</code>.</p>
+<section id="batch-configuration" class="level2">
+<h2 class="anchored" data-anchor-id="batch-configuration">Batch Configuration</h2>
+<p>For more advanced batch processing configuration, you can specify a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#batchconfig">BatchConfig</a></span> object in Python or pass a YAML/JSON config file via the <code>--batch</code> option. For example:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> BatchConfig</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>, </span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    batch<span class="op">=</span>BatchConfig(size<span class="op">=</span><span class="dv">200</span>, send_delay<span class="op">=</span><span class="dv">60</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Available <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#batchconfig">BatchConfig</a></span> options include:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 30%">
+<col style="width: 70%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>size</code></td>
+<td>Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits.</td>
+</tr>
+<tr class="even">
+<td><code>send_delay</code></td>
+<td>Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low.</td>
+</tr>
+<tr class="odd">
+<td><code>tick</code></td>
+<td>Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.</td>
+</tr>
+<tr class="even">
+<td><code>max_batches</code></td>
+<td>Maximum number of batches to have in flight at once for a provider (defaults to 100).</td>
+</tr>
+</tbody>
+</table>
 </section>
-<section id="namespaces" class="level4">
-<h4 class="anchored" data-anchor-id="namespaces">Namespaces</h4>
-<p>If you need to create multiple instances of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> within a sample, you can use the <code>instance</code> parameter to deliniate multiple named instances. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>red_activity <span class="op">=</span> state.store_as(Activity, instance<span class="op">=</span><span class="st">"red_team"</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>blue_activity <span class="op">=</span> state.store_as(Activity, instance<span class="op">=</span><span class="st">"blue_team"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="batch-processing-flow" class="level2">
+<h2 class="anchored" data-anchor-id="batch-processing-flow">Batch Processing Flow</h2>
+<p>When batch processing is enabled, the following steps are taken when handling generation requests:</p>
+<ol type="1">
+<li><p><strong>Request Queuing</strong>: Individual model requests are queued rather than sent immediately</p></li>
+<li><p><strong>Batch Formation</strong>: Requests are grouped into batches based on size limits and timeouts.</p></li>
+<li><p><strong>Batch Submission</strong>: Complete batches are submitted to the provider’s batch API.</p></li>
+<li><p><strong>Status Monitoring</strong>: Inspect periodically checks batch completion status.</p></li>
+<li><p><strong>Result Distribution</strong>: When batches complete, results are distributed back to the original requests</p></li>
+</ol>
+<p>These steps are transparent to the caller, however do have implications for total evaluation time as discussed above.</p>
 </section>
-<section id="explicit-store" class="level4">
-<h4 class="anchored" data-anchor-id="explicit-store">Explicit Store</h4>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function automatically binds to the current sample <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>. You can alternatively create an explicit <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> and pass it directly to the model (e.g.&nbsp;for testing purposes):</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> Store</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>store <span class="op">=</span> Store()</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> Activity(store<span class="op">=</span>store)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="typed-metadata" class="level2">
-<h2 class="anchored" data-anchor-id="typed-metadata">Typed Metadata</h2>
-<p>If you want a more strongly typed interface to sample metadata, you can define a <a href="https://docs.pydantic.dev/latest/concepts/models/">Pydantic model</a> and use it to both validate and read metadata.</p>
-<p>For validation, pass a <code>BaseModel</code> derived class in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span>. The interface to metadata is read-only so you must also specify <code>frozen=True</code>. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PopularityMetadata(BaseModel, frozen<span class="op">=</span><span class="va">True</span>):</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    category: <span class="bu">str</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    label_confidence: <span class="bu">float</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json_dataset(</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"popularity.jsonl"</span>,</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    FieldSpec(</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"question"</span>,</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"answer_matching_behavior"</span>,</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        <span class="bu">id</span><span class="op">=</span><span class="st">"question_id"</span>,</span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>PopularityMetadata,</span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>To read metadata in a typesafe fashion, use the <code>metadata_as()</code> method on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> state.metadata_as(PopularityMetadata)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note again that the intended semantics of <code>metadata</code> are read-only, so attempting to write into the returned metadata will raise a Pydantic <code>FrozenInstanceError</code>.</p>
-<p>If you need per-sample mutable data, use the <a href="./agent-custom.html#sample-store">sample store</a>, which also supports <a href="./agent-custom.html#store-typing">typing</a> using Pydantic models.</p>
-</section>
-<section id="log-samples" class="level2">
-<h2 class="anchored" data-anchor-id="log-samples">Log Samples</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> and <code>metadata_as()</code> typed accessors are also available when reading samples from the eval log. Continuing from the examples above, you access typed interfaces as follows from an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span>:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># typed store</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> log.samples[<span class="dv">0</span>].store_as(Activity)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># typed metadata</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> log.samples[<span class="dv">0</span>].metadata_as(PopularityMetadata)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="details-and-limitations" class="level2">
+<h2 class="anchored" data-anchor-id="details-and-limitations">Details and Limitations</h2>
+<p>See the following documentation for additional provider-specific details on batch processing, including token costs, rate limits, and limitations:</p>
+<ul>
+<li><p><a href="https://platform.openai.com/docs/guides/batch">Open AI Batch Processing</a></p></li>
+<li><p><a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic Batch Processing</a></p></li>
+<li><p><a href="https://ai.google.dev/gemini-api/docs/batch-mode">Google Batch Mode</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p></li>
+<li><p><a href="https://docs.together.ai/docs/batch-inference">Together AI Batch Inference</a></p></li>
+</ul>
+<p>In general, you should keep the following limitations in mind when using batch processing:</p>
+<ul>
+<li><p>Batches may take up to 24 hours to complete.</p></li>
+<li><p>Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.</p></li>
+<li><p>If you are using sandboxes then your machine’s resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.</p></li>
+</ul>
 
 
 </section>
 
-</main> <!-- /main -->
+
+<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>Web search and thinking are not currently supported by Google’s batch mode<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
@@ -1061,13 +1084,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Errors &amp; Limits</span>
+      <a href="./caching.html" class="pagination-link" aria-label="Caching">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Caching</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./tracing.html" class="pagination-link" aria-label="Tracing">
-        <span class="nav-page-text">Tracing</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./multimodal.html" class="pagination-link" aria-label="Multimodal">
+        <span class="nav-page-text">Multimodal</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

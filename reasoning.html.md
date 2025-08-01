@@ -42,7 +42,7 @@ The following reasoning options are available from the CLI and within
 
 | Option | Description | Default | Models |
 |----|----|----|----|
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o-series, Grok 3 |
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o-series, Grok 3+ |
 | `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7+ and Gemini 2.5+ |
 | `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use “auto” to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
@@ -119,15 +119,14 @@ For example, you might need to do this if you have a non-logging
 interface to OpenAI models (as `store` is incompatible with non-logging
 interfaces).
 
-## Claude 3.7 Sonnet
+## Claude 3.7 Sonnet and Claude 4
 
-Anthropic’s Claude 3.7 Sonnet model includes optional support for
-[extended
+Anthropic’s Claude 3.7 Sonnet and Claude 4 Sonnet/Opus models include
+optional support for [extended
 thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking).
-Unlike other reasoning models 3.7 Sonnet is a hybrid model that supports
-both normal and reasoning modes. This means that you need to explicitly
-request reasoning by specifying the `reasoning_tokens` option, for
-example:
+These are hybrid models that supports both normal and reasoning modes.
+This means that you need to explicitly request reasoning by specifying
+the `reasoning_tokens` option, for example:
 
 ``` bash
 inspect eval math.py \
@@ -166,7 +165,7 @@ Note that Anthropic requests that all reasoning blocks and played back
 to the model in chat conversations (although they will only use the last
 reasoning block and will not bill for tokens on previous ones).
 Consequently, the `reasoning_history` option has no effect for Claude
-3.7 models (it effectively always uses `last`).
+models (it effectively always uses `last`).
 
 #### Tools
 
@@ -185,11 +184,11 @@ most recent of which are:
 
 - [Gemini 2.5
   Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash):
-  `google/gemini-2.5-flash-preview-05-20`
+  `google/gemini-2.5-flash`
 
 - [Gemini 2.5
   Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro):
-  `google/gemini-2.5-pro-preview-05-06`
+  `google/gemini-2.5-pro`
 
 You can use the `--reasoning-tokens` option to control the amount of
 reasoning used by these models. For example:
@@ -207,9 +206,9 @@ reasoning summary in model output.
 
 Grok currently makes available two reasoning models:
 
+- `grok/grok-4`
 - `grok/grok-3-mini`
-
-- `grok/grok-3-fast`
+- `grok/grok-3-mini-fast`
 
 You can condition the amount of reasoning done by Grok using the
 \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option,

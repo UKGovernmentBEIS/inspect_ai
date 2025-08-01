@@ -10,7 +10,7 @@ providers is built in to Inspect:
 |  |  |
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
-| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
+| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock) and [Azure AI](providers.qmd#azure-ai) |
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [Fireworks AI](providers.qmd#fireworks-ai) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
@@ -474,38 +474,6 @@ inspect eval ctf.py -M emulate_tools=true
 You can also use this option to disable tool emulation for Llama models
 with `emulate_tools=false`.
 
-## Vertex AI
-
-> [!NOTE]
->
-> If you are using Gemini or Anthropic models on Vertex AI, we recommend
-> you use the Google and Anthropic providers (respectively) which both
-> support models hosted on Vertex:
->
-> - [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
-> - [Gemini on Vertex AI](#gemini-on-vertex-ai)
->
-> If you are using other models hosted on Vertex (e.g. Mistral, Llama,
-> Gemma, etc.) then you should instead use the `vertex` provider as
-> described below.
-
-To use the [Vertex AI](https://cloud.google.com/vertex-ai) provider,
-install the `google-cloud-aiplatform` package, [configure your
-environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1)
-for Vertex API access, and specify a model using the `--model` option:
-
-``` bash
-inspect eval eval.py --model vertex/mistral-large-2411
-```
-
-The core libraries for Vertex AI interact directly with Google Cloud
-Platform so this provider doesn’t use the standard `BASE_URL`/`API_KEY`
-approach that others do. Consequently you don’t need to set these
-environment variables.
-
-Vertex AI also provides the same `safety_settings` outlined in the
-[Google](#safety-settings) provider.
-
 ## Together AI
 
 To use the [Together AI](https://www.together.ai/) provider, install the
@@ -519,8 +487,10 @@ export TOGETHER_API_KEY=your-together-api-key
 inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
 ```
 
-For the `together` provider, custom model args (`-M`) are forwarded to
-the constructor of the `AsyncOpenAI` class.
+For the `together` provider, you can enable [Tool
+Emulation](#tool-emulation-openai) using the `emulate_tools` custom
+model arg (`-M`). Other custom model args are forwarded to the
+constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Together AI
 provider
@@ -565,8 +535,10 @@ export FIREWORKS_API_KEY=your-firewrks-api-key
 inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
 ```
 
-For the `fireworks` provider, custom model args (`-M`) are forwarded to
-the constructor of the `AsyncOpenAI` class.
+For the `fireworks` provider, you can enable [Tool
+Emulation](#tool-emulation-openai) using the `emulate_tools` custom
+model arg (`-M`). Other custom model args are forwarded to the
+constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Together AI
 provider
@@ -936,6 +908,9 @@ inspect eval arc.py --model ollama/llama3.1
 Note that you should be sure that Ollama is running on your system
 before using it with Inspect.
 
+You can enable [Tool Emulation](#tool-emulation-openai) for Ollama
+models using the `emulate_tools` custom model arg (`-M`).
+
 The following environment variables are supported by the Ollma provider
 
 | Variable | Description |
@@ -996,6 +971,33 @@ export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
 ```
 
+### Tool Emulation
+
+> [!NOTE]
+>
+> Emulated tool calling for OpenAI compatible model providers is
+> available only in the development version of Inspect. To install the
+> development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+When using OpenAI compatible model providers, tool calling support can
+be ‘emulated’ for models that don’t yet support it. Use the
+`emulate_tools` model arg to force tool emulation:
+
+``` bash
+inspect eval ctf.py -M emulate_tools=true
+```
+
+Tool calling emulation works by encoding tool JSON schema in an XML tag
+and asking the model to make tool calls using another XML tag. This
+works with varying degrees of efficacy depending on the model and the
+complexity of the tool schema. Before using tool emulation you should
+always check if your provider implements native support for tool calling
+on the model you are using, as that will generally work better.
+
 ## OpenRouter
 
 To use the [OpenRouter](https://openrouter.ai/) provider, install the
@@ -1018,6 +1020,9 @@ site):
 | [`models`](https://openrouter.ai/docs/features/model-routing#the-models-parameter) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
+
+In addition, [Tool Emulation](#tool-emulation-openai) is available for
+models that don’t yet support tool calling in their API.
 
 The following environment variables are supported by the OpenRouter AI
 provider

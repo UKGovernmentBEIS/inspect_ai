@@ -66,7 +66,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./reasoning.html" rel="next">
-<link href="./caching.html" rel="prev">
+<link href="./models-batch.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -291,6 +291,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./caching.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Caching</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -572,36 +578,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td style="text-align: center;">•</td>
 </tr>
 <tr class="even">
-<td>Vertex</td>
+<td>Mistral</td>
 <td style="text-align: center;">•</td>
 <td style="text-align: center;">•</td>
 <td style="text-align: center;"></td>
 </tr>
 <tr class="odd">
-<td>Mistral</td>
-<td style="text-align: center;">•</td>
-<td style="text-align: center;"></td>
-<td style="text-align: center;"></td>
-</tr>
-<tr class="even">
 <td>Grok</td>
 <td style="text-align: center;">•</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Bedrock</td>
 <td style="text-align: center;">•</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>AzureAI</td>
 <td style="text-align: center;">•</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Groq</td>
 <td style="text-align: center;">•</td>
 <td style="text-align: center;"></td>
@@ -613,15 +613,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="provider-notes" class="level2">
 <h2 class="anchored" data-anchor-id="provider-notes">Images</h2>
-<p>The following models currently support image inputs:</p>
+<p>Please see provider specific documentation on which models support image input:</p>
 <ul>
-<li>OpenAI: GPT-4o series and the full o1 model,</li>
-<li>Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.</li>
-<li>Google/Vertex: Gemini 1.5 and Gemini 2.0 models.</li>
-<li>Mistral: Pixstral models (e.g.&nbsp;<code>pixtral-12b-2409</code>)</li>
-<li>Grok: Vision models (e.g.&nbsp;<code>grok-vision-beta</code>)</li>
+<li><a href="https://platform.openai.com/docs/guides/images-vision">OpenAI Images and Vision</a></li>
+<li><a href="https://docs.anthropic.com/en/docs/build-with-claude/vision">Anthropic Vision</a></li>
+<li><a href="https://ai.google.dev/gemini-api/docs/image-understanding">Gemni Image Understanding</a></li>
+<li><a href="https://docs.mistral.ai/capabilities/vision/">Mistral Vision</a></li>
+<li><a href="https://docs.x.ai/docs/guides/image-understanding">Grok Image Understanding</a></li>
 </ul>
-<p>For Bedrock, AzureAI, and Groq, please consult model provider documentation for details on which models support image inputs.</p>
 <p>To include an image in a <a href="./datasets.html">dataset</a> you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  {</span>
@@ -651,7 +650,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The following models currently support audio inputs:</p>
 <ul>
 <li>Open AI: <code>gpt-4o-audio-preview</code></li>
-<li>Google/Vertex: Gemini 1.5 and 2.0 models</li>
+<li>Google: All Gemini models</li>
+<li>Mistral: All Voxtral models</li>
 </ul>
 <p>To include audio in a <a href="./datasets.html">dataset</a> you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
@@ -685,7 +685,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="video">Video</h2>
 <p>The following models currently support video inputs:</p>
 <ul>
-<li>Google: Gemini 1.5 and 2.0 models</li>
+<li>Google: All Gemini models.</li>
 </ul>
 <p>To include video in a <a href="./datasets.html">dataset</a> you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
@@ -1174,8 +1174,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./caching.html" class="pagination-link" aria-label="Caching">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Caching</span>
+      <a href="./models-batch.html" class="pagination-link" aria-label="Batch Mode">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Batch Mode</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
