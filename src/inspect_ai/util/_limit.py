@@ -354,6 +354,36 @@ def check_working_limit() -> None:
         raise error
 
 
+def monitor_working_limit(interval: float = 1) -> None:
+    from inspect_ai.log._samples import sample_active
+    from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+    # get the active sample
+    sample = sample_active()
+    if sample is None:
+        raise RuntimeError(
+            "monitor_working_limit() must be called from a running sample."
+        )
+
+    # check every second
+    async def run() -> None:
+        while True:
+            await anyio.sleep(interval)
+            error = working_limit_exceeded()
+            if error is not None:
+                # record event
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="working", message=error.message, limit=error.limit
+                    )
+                )
+                # interrupt sample
+                sample.limit_exceeded(error)
+
+    # kick it off
+    sample.tg.start_soon(run)
+
+
 def working_limit_exceeded() -> LimitExceededError | None:
     node = working_limit_tree.get()
     if node is None:

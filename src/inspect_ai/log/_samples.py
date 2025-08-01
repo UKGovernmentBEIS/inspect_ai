@@ -7,6 +7,7 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
 
@@ -49,6 +50,7 @@ class ActiveSample:
         self.transcript = transcript
         self.sandboxes = sandboxes
         self._interrupt_action: Literal["score", "error"] | None = None
+        self._limit_exceeded_error: LimitExceededError | None = None
         self.tg = tg
 
     @property
@@ -67,9 +69,17 @@ class ActiveSample:
         self._interrupt_action = action
         self.tg.cancel_scope.cancel()
 
+    def limit_exceeded(self, error: LimitExceededError) -> None:
+        self._limit_exceeded_error = error
+        self.tg.cancel_scope.cancel()
+
     @property
     def interrupt_action(self) -> Literal["score", "error"] | None:
         return self._interrupt_action
+
+    @property
+    def limit_exceeded_error(self) -> LimitExceededError | None:
+        return self._limit_exceeded_error
 
 
 def init_active_samples() -> None:

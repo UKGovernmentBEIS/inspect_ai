@@ -25,7 +25,6 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import (
     check_message_limit,
     check_token_limit,
-    check_working_limit,
 )
 from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
@@ -364,7 +363,6 @@ class TaskState:
         if self._completed:
             return True
         else:
-            check_working_limit()
             return self._completed
 
     @completed.setter

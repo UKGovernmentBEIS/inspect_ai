@@ -87,7 +87,7 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, monitor_working_limit
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -693,6 +693,9 @@ async def task_run_sample(
                     start_time = time.monotonic()
                     init_sample_working_time(start_time)
 
+                    # monitor working limit in the background
+                    monitor_working_limit()
+
                     # run sample w/ optional limits
                     with (
                         state._token_limit,
@@ -751,6 +754,15 @@ async def task_run_sample(
                             case "error":
                                 # default error handling
                                 error, raise_error = handle_error(ex)
+                    elif active.limit_exceeded_error:
+                        # capture most recent state for scoring
+                        state = sample_state() or state
+                        limit = EvalSampleLimit(
+                            type=active.limit_exceeded_error.type,
+                            limit=active.limit_exceeded_error.limit
+                            if active.limit_exceeded_error.limit is not None
+                            else -1,
+                        )
 
                     else:
                         # task group provided by tg_collect will automatically

@@ -1,7 +1,7 @@
 import time
 from contextvars import ContextVar
 
-from inspect_ai.util._limit import check_working_limit, record_waiting_time
+from inspect_ai.util._limit import record_waiting_time
 
 
 def init_sample_working_time(start_time: float) -> None:
@@ -20,7 +20,6 @@ def sample_working_time() -> float:
 def report_sample_waiting_time(waiting_time: float) -> None:
     # record and check for scoped limits
     record_waiting_time(waiting_time)
-    check_working_limit()
 
     # record sample-level limits
     _sample_waiting_time.set(_sample_waiting_time.get() + waiting_time)

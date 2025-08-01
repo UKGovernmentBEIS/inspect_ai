@@ -58,7 +58,6 @@ from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
     check_message_limit,
     check_token_limit,
-    check_working_limit,
     record_model_usage,
 )
 
@@ -583,8 +582,6 @@ class Model:
         async def generate() -> tuple[ModelOutput, BaseModel]:
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
-
-            check_working_limit()
 
             cache_entry: CacheEntry | None
             if cache:

@@ -11,7 +11,6 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.util._limit import check_working_limit
 
 from ._solver import Generate, Solver
 from ._task_state import TaskState
@@ -116,14 +115,12 @@ class Plan(Solver):
                 async with solver_transcript(self.finish, state) as st:
                     state = await self.finish(state, generate)
                     st.complete(state)
-                check_working_limit()
 
         finally:
             # always do cleanup if we have one
             if self.cleanup:
                 try:
                     await self.cleanup(state)
-                    check_working_limit()
                 except Exception as ex:
                     logger.warning(
                         f"Exception occurred during plan cleanup: {ex}", exc_info=ex
