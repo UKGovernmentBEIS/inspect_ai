@@ -94,6 +94,7 @@ export type SampleId =
   | number[]
   | (string | number)[]
   | null;
+export type SampleShuffle = boolean | number | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
 export type Name2 = string;
@@ -921,6 +922,7 @@ export interface Args {
 export interface EvalConfig {
   limit: Limit;
   sample_id: SampleId;
+  sample_shuffle: SampleShuffle;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
   approval: ApprovalPolicyConfig | null;
