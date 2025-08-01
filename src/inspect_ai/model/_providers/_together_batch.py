@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import functools
 import sys
-from typing import IO, Literal, TypedDict, cast
+from typing import IO, TypedDict, cast
 
 from anyio import to_thread
 from openai import AsyncOpenAI
@@ -47,6 +47,38 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
             api_key=client.api_key, base_url=str(client.base_url)
         )
 
+    # OpenAIBatcher overrides
+
+    @override
+    def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
+        # Together.ai's response for polling batches is NOT compatible with
+        # OpenAI. In order to share the OpenAI base class, we need to coerce
+        # the Together.ai response into a valid OpenAI one.
+        return OpenAIBatch.model_validate(
+            {
+                **input.model_dump(exclude_none=True, warnings=False),
+                "completion_window": "24h",
+                "object": "batch",
+                "status": str(input.status).lower(),
+                **{
+                    field: _iso_to_unix(input, field)
+                    for field in [
+                        "created_at",
+                        "cancelled_at",
+                        "cancelling_at",
+                        "completed_at",
+                        "expired_at",
+                        "expires_at",
+                        "failed_at",
+                        "finalizing_at",
+                        "in_progress_at",
+                    ]
+                },
+            }
+        )
+
+    # FileBatcher overrides
+
     @override
     async def _upload_batch_file(
         self, temp_file: IO[bytes], extra_headers: dict[str, str]
@@ -78,7 +110,6 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
     async def _submit_batch_for_file(
         self,
         file_id: str,
-        endpoint: Literal["/v1/chat/completions", "/v1/responses"],
         extra_headers: dict[str, str],
     ) -> str:
         from together import AsyncTogether  # type: ignore
@@ -91,35 +122,7 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
             supplied_headers=extra_headers,
         )
 
-        return str((await client.batches.create_batch(file_id, endpoint)).id)
-
-    @override
-    def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
-        # Together.ai's response for polling batches is NOT compatible with
-        # OpenAI. In order to share the OpenAI base class, we need to coerce
-        # the Together.ai response into a valid OpenAI one.
-        return OpenAIBatch.model_validate(
-            {
-                **input.model_dump(exclude_none=True, warnings=False),
-                "completion_window": "24h",
-                "object": "batch",
-                "status": str(input.status).lower(),
-                **{
-                    field: _iso_to_unix(input, field)
-                    for field in [
-                        "created_at",
-                        "cancelled_at",
-                        "cancelling_at",
-                        "completed_at",
-                        "expired_at",
-                        "expires_at",
-                        "failed_at",
-                        "finalizing_at",
-                        "in_progress_at",
-                    ]
-                },
-            }
-        )
+        return str((await client.batches.create_batch(file_id, self.endpoint)).id)
 
 
 def _iso_to_unix(input: OpenAIBatch, field: str) -> int | None:

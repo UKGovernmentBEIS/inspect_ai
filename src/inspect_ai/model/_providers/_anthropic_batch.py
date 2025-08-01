@@ -58,6 +58,8 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
         )
         self._client = client
 
+    # Batcher overrides
+
     @override
     async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
         requests: list[AnthropicBatchRequest] = []
