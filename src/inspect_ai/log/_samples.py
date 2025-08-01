@@ -65,6 +65,7 @@ class ActiveSample:
 
     def interrupt(self, action: Literal["score", "error"]) -> None:
         self._interrupt_action = action
+        self.tg.cancel_scope.cancel()
 
     @property
     def interrupt_action(self) -> Literal["score", "error"] | None:
