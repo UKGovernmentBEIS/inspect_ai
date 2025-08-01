@@ -92,6 +92,7 @@ def eval(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     retry_on_error: int | None = None,
@@ -152,7 +153,8 @@ def eval(
             to "eval", the native high-performance format).
         limit: Limit evaluated samples
             (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`)..
+        sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -227,6 +229,7 @@ def eval(
                 log_format=log_format,
                 limit=limit,
                 sample_id=sample_id,
+                sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
                 retry_on_error=retry_on_error,
@@ -283,6 +286,7 @@ async def eval_async(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     retry_on_error: int | None = None,
@@ -333,6 +337,7 @@ async def eval_async(
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
         limit: Limit evaluated samples (defaults to all samples).
         sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -395,6 +400,7 @@ async def eval_async(
                 log_format=log_format,
                 limit=limit,
                 sample_id=sample_id,
+                sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
                 retry_on_error=retry_on_error,
@@ -455,6 +461,7 @@ async def _eval_async_inner(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     retry_on_error: int | None = None,
@@ -523,6 +530,7 @@ async def _eval_async_inner(
             GenerateConfig(**kwargs),
             approval,
             sandbox,
+            sample_shuffle,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -580,9 +588,11 @@ async def _eval_async_inner(
         else:
             solver = cast(Solver | SolverSpec | None, solver)
 
-        # ensure consistency of limit and sample_id
+        # ensure consistency of limit and sample_id/sample_shuffe
         if sample_id is not None and limit is not None:
             raise ValueError("You cannot specify both sample_id and limit.")
+        if sample_id is not None and sample_shuffle is not None:
+            raise ValueError("You cannot specify both sample_id and sample_shuffle")
 
         # resolve epochs
         if isinstance(epochs, int):
@@ -595,6 +605,7 @@ async def _eval_async_inner(
         eval_config = EvalConfig(
             limit=limit,
             sample_id=sample_id,
+            sample_shuffle=sample_shuffle,
             epochs=epochs.epochs if epochs else None,
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
@@ -1099,6 +1110,7 @@ def eval_resolve_tasks(
     config: GenerateConfig,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
+    sample_shuffle: bool | int | None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     resolved_model_roles = resolve_model_roles(model_roles)
     task_args = resolve_args(task_args)
@@ -1107,7 +1119,9 @@ def eval_resolve_tasks(
         for m in models:
             init_active_model(m, config)
             resolved_tasks.extend(
-                resolve_tasks(tasks, task_args, m, resolved_model_roles, sandbox)
+                resolve_tasks(
+                    tasks, task_args, m, resolved_model_roles, sandbox, sample_shuffle
+                )
             )
 
     if isinstance(approval, str | ApprovalPolicyConfig):

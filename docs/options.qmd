@@ -44,11 +44,12 @@ Note that `.env` files are searched for in parent directories, so if you run an 
 
 Below are sections for the various categories of options supported by `inspect eval`. Note that all of these options are also available for the `eval()` function and settable by environment variables. For example:
 
-| CLI           | eval()      | Environment              |
-|---------------|-------------|--------------------------|
-| `--model`     | `model`     | `INSPECT_EVAL_MODEL`     |
-| `--sample-id` | `sample_id` | `INSPECT_EVAL_SAMPLE_ID` |
-| `--limit`     | `limit`     | `INSPECT_EVAL_LIMIT`     |
+| CLI                | eval()           | Environment                   |
+|--------------------|------------------|-------------------------------|
+| `--model`          | `model`          | `INSPECT_EVAL_MODEL`          |
+| `--sample-id`      | `sample_id`      | `INSPECT_EVAL_SAMPLE_ID`      |
+| `--sample-shuffle` | `sample_shuffle` | `INSPECT_EVAL_SAMPLE_SHUFFLE` |
+| `--limit`          | `limit`          | `INSPECT_EVAL_LIMIT`          |
 
 : {tbl-colwidths=\[33,33,33\]}
 
@@ -64,7 +65,7 @@ Below are sections for the various categories of options supported by `inspect e
 ## Model Generation
 
 |  |  |
-|------------------------|-----------------------------------------------|
+|-------------------------|-----------------------------------------------|
 | `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
@@ -139,7 +140,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--no-log-images` | Do not log images and other media. |
 | `--no-log-realtime` | Do not log events in realtime (affects live viewing of logs) |
 | `--log-buffer` | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
-| `--log-shared`           | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify `True` to sync every 10 seconds, otherwise an integer to sync every `n` seconds. |
+| `--log-shared` | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify `True` to sync every 10 seconds, otherwise an integer to sync every `n` seconds. |
 | `--log-format` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
 | `--log-level` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
 | `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
@@ -175,5 +176,5 @@ Below are sections for the various categories of options supported by `inspect e
 | `--approval` | Config file for tool call approval. |
 | `--env` | Set an environment variable (multiple instances of `--env` are permitted). |
 | `--tags` | Tags to associate with this evaluation run. |
-| `--metadata` | Metadata to associate with this evaluation run (`key=value`)  |
+| `--metadata` | Metadata to associate with this evaluation run (`key=value`) |
 | `--help` | Display help for command options. |

@@ -80,6 +80,7 @@ def eval_set(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     retry_on_error: int | None = None,
@@ -149,6 +150,7 @@ def eval_set(
         limit: Limit evaluated samples
             (defaults to all samples).
         sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -217,6 +219,7 @@ def eval_set(
             log_format=log_format,
             limit=limit,
             sample_id=sample_id,
+            sample_shuffle=sample_shuffle,
             epochs=epochs,
             fail_on_error=fail_on_error,
             retry_on_error=retry_on_error,
@@ -322,6 +325,7 @@ def eval_set(
             GenerateConfig(**kwargs),
             approval,
             sandbox,
+            sample_shuffle,
         )
 
         # list all logs currently in the log directory (update manifest if there are some)

@@ -185,6 +185,15 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SAMPLE_ID",
     )
     @click.option(
+        "--sample-shuffle",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=int_or_bool_flag_callback(-1),
+        help="Shuffle order of samples (pass a seed to make the order deterministic)",
+        envvar=["INSPECT_EVAL_SAMPLE_SHUFFLE"],
+    )
+    @click.option(
         "--epochs",
         type=int,
         help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
@@ -529,6 +538,7 @@ def eval_command(
     epochs_reducer: str | None,
     limit: str | None,
     sample_id: str | None,
+    sample_shuffle: int | None,
     max_retries: int | None,
     timeout: int | None,
     max_connections: int | None,
@@ -612,6 +622,7 @@ def eval_command(
         epochs_reducer=epochs_reducer,
         limit=limit,
         sample_id=sample_id,
+        sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
@@ -706,6 +717,7 @@ def eval_set_command(
     epochs_reducer: str | None,
     limit: str | None,
     sample_id: str | None,
+    sample_shuffle: int | None,
     max_retries: int | None,
     timeout: int | None,
     max_connections: int | None,
@@ -794,6 +806,7 @@ def eval_set_command(
         epochs_reducer=epochs_reducer,
         limit=limit,
         sample_id=sample_id,
+        sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
@@ -853,6 +866,7 @@ def eval_exec(
     epochs_reducer: str | None,
     limit: str | None,
     sample_id: str | None,
+    sample_shuffle: int | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -906,6 +920,15 @@ def eval_exec(
     eval_limit = parse_samples_limit(limit)
     eval_sample_id = parse_sample_id(sample_id)
 
+    # resolve sample_shuffle
+    eval_sample_shuffle = (
+        False
+        if sample_shuffle is None
+        else True
+        if sample_shuffle == -1
+        else sample_shuffle
+    )
+
     # resolve fail_on_error
     if no_fail_on_error is True:
         fail_on_error = False
@@ -947,6 +970,7 @@ def eval_exec(
             log_format=log_format,
             limit=eval_limit,
             sample_id=eval_sample_id,
+            sample_shuffle=eval_sample_shuffle,
             epochs=eval_epochs,
             fail_on_error=fail_on_error,
             retry_on_error=retry_on_error,

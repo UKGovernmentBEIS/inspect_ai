@@ -1480,6 +1480,21 @@
           "default": null,
           "title": "Sample Id"
         },
+        "sample_shuffle": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Shuffle"
+        },
         "epochs": {
           "anyOf": [
             {
@@ -1731,6 +1746,7 @@
       "required": [
         "limit",
         "sample_id",
+        "sample_shuffle",
         "epochs",
         "epochs_reducer",
         "approval",
