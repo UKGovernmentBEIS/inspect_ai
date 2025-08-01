@@ -369,6 +369,11 @@ def monitor_working_limit(interval: float = 1) -> None:
     async def run() -> None:
         while True:
             await anyio.sleep(interval)
+
+            # don't continue after the sample is completed
+            if sample.completed:
+                return
+
             error = working_limit_exceeded()
             if error is not None:
                 # record event
@@ -377,8 +382,9 @@ def monitor_working_limit(interval: float = 1) -> None:
                         type="working", message=error.message, limit=error.limit
                     )
                 )
-                # interrupt sample
+                # interrupt sample and stop monitoring
                 sample.limit_exceeded(error)
+                return
 
     # kick it off
     sample.tg.start_soon(run)
