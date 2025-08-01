@@ -72,11 +72,12 @@ Below are sections for the various categories of options supported by
 the `eval()` function and settable by environment variables. For
 example:
 
-| CLI           | eval()      | Environment              |
-|---------------|-------------|--------------------------|
-| `--model`     | `model`     | `INSPECT_EVAL_MODEL`     |
-| `--sample-id` | `sample_id` | `INSPECT_EVAL_SAMPLE_ID` |
-| `--limit`     | `limit`     | `INSPECT_EVAL_LIMIT`     |
+| CLI                | eval()           | Environment                   |
+|--------------------|------------------|-------------------------------|
+| `--model`          | `model`          | `INSPECT_EVAL_MODEL`          |
+| `--sample-id`      | `sample_id`      | `INSPECT_EVAL_SAMPLE_ID`      |
+| `--sample-shuffle` | `sample_shuffle` | `INSPECT_EVAL_SAMPLE_SHUFFLE` |
+| `--limit`          | `limit`          | `INSPECT_EVAL_LIMIT`          |
 
 ## Model Provider
 

@@ -39,6 +39,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |
 | `--limit` | text | Limit samples to evaluate e.g. 10 or 10-20 | None |
 | `--sample-id` | text | Evaluate specific sample(s) (comma separated list of ids) | None |
+| `--sample-shuffle` | text | Shuffle order of samples (pass a seed to make the order deterministic) | None |
 | `--epochs` | integer | Number of times to repeat dataset (defaults to 1) | None |
 | `--epochs-reducer` | text | Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least\_{n}’. | None |
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |

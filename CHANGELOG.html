@@ -278,6 +278,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Remove support for <code>vertex</code> provider as the google-cloud-aiplatform package has <a href="https://pypi.org/project/google-cloud-aiplatform/">deprecated</a> its support for Vertex generative models. Vertex can still be used via the native <code>google</code> and <code>anthropic</code> providers.</li>
 <li>Tool calling: Added support for emulated tool calling (<code>emulate_tools</code> model arg) to OpenAI API compatible providers.</li>
 <li>Scoring: Improved error message for scorers missing a return type annotation.</li>
+<li>Datasets: Added <code>--sample-shuffle</code> eval option to control sample shuffling (takes an optional seed for determinism).</li>
 <li>Batch Processing: Enable batch support when using Google model provider.</li>
 </ul>
 </section>

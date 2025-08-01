@@ -215,9 +215,35 @@ select multiple samples with a single expression.
 
 ## Shuffling
 
+> [!NOTE]
+>
+> The `--sample-shuffle` option described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
 Shuffling is often helpful when you want to vary the samples used during
-evaluation development. To do this, either use the `shuffle()` method or
-the `shuffle` parameter of the dataset loading functions:
+evaluation development. Use the `--sample-shuffle` option to perform
+shuffling. For example:
+
+``` bash
+inspect eval ctf.py --sample-shuffle
+inspect eval ctf.py --sample-shuffle 42
+```
+
+Or from Python:
+
+``` python
+eval("ctf.py", sample_shuffle=True)
+eval("ctf.py", sample_shuffle=42)
+```
+
+You can also shuffle datasets directly within a task definition. To do
+this, either use the `shuffle()` method or the `shuffle` parameter of
+the dataset loading functions:
 
 ``` python
 # shuffle method

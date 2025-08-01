@@ -7,7 +7,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/eval.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/eval.py#L74)
 
 ``` python
 def eval(
@@ -31,6 +31,7 @@ def eval(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     retry_on_error: int | None = None,
@@ -126,7 +127,10 @@ Limit evaluated samples (defaults to all samples).
 `sample_id` str \| int \| list\[str\] \| list\[int\] \| list\[str \| int\] \| None  
 Evaluate specific sample(s) from the dataset. Use plain ids or preface
 with task names as required to disambiguate ids across tasks
-(e.g. `popularity:10`).
+(e.g. `popularity:10`)..
+
+`sample_shuffle` bool \| int \| None  
+Shuffle order of samples (pass a seed to make the order deterministic).
 
 `epochs` int \| [Epochs](inspect_ai.qmd#epochs) \| None  
 Epochs to repeat samples for and optional score reducer function(s) used
@@ -217,7 +221,7 @@ Model generation options.
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/eval.py#L701)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/eval.py#L712)
 
 ``` python
 def eval_retry(
@@ -346,7 +350,7 @@ Model API)
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/evalset.py#L57)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/evalset.py#L57)
 
 ``` python
 def eval_set(
@@ -375,6 +379,7 @@ def eval_set(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     retry_on_error: int | None = None,
@@ -489,6 +494,9 @@ Evaluate specific sample(s) from the dataset. Use plain ids or preface
 with task names as required to disambiguate ids across tasks
 (e.g. `popularity:10`).
 
+`sample_shuffle` bool \| int \| None  
+Shuffle order of samples (pass a seed to make the order deterministic).
+
 `epochs` int \| [Epochs](inspect_ai.qmd#epochs) \| None  
 Epochs to repeat samples for and optional score reducer function(s) used
 to combine sample scores (defaults to “mean”)
@@ -571,7 +579,7 @@ Model generation options.
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/score.py#L42)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/score.py#L42)
 
 ``` python
 def score(
@@ -607,7 +615,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/task/task.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/task/task.py#L45)
 
 ``` python
 class Task
@@ -618,7 +626,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/task/task.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/task/task.py#L51)
 
 ``` python
 def __init__(
@@ -737,7 +745,7 @@ This function modifies the passed task in place and returns it. If you
 want to create multiple variations of a single task using `task_with()`
 you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/task/task.py#L196)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/task/task.py#L196)
 
 ``` python
 def task_with(
@@ -852,7 +860,7 @@ Number of epochs to repeat samples over and optionally one or more
 reducers used to combine scores from samples across epochs. If not
 specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -863,7 +871,7 @@ class Epochs
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -880,7 +888,7 @@ One or more reducers used to combine scores from samples across epochs
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/task/task.py#L312)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/task/task.py#L312)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -906,7 +914,7 @@ including directory names, task functions, task classes, and task
 instances (a single task or list of tasks can be specified). None is a
 request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -934,7 +942,7 @@ Tasks: TypeAlias = (
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_view/view.py#L24)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_view/view.py#L24)
 
 ``` python
 def view(
@@ -978,7 +986,7 @@ public S3 bucket with no credentials.
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/49d9434e8d0c87d3c83132efb3cbf3dd2137b3c1/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/ec984508937238e3dd278ff879489b514498f99c/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any
