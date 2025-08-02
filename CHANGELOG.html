@@ -146,7 +146,7 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#august-2025" id="toc-august-2025" class="nav-link active" data-scroll-target="#august-2025">0.3.118 (02 August 2025)</a></li>
   <li><a href="#july-2025" id="toc-july-2025" class="nav-link" data-scroll-target="#july-2025">0.3.117 (31 July 2025)</a></li>
   <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.116 (27 July 2025)</a></li>
   <li><a href="#july-2025-2" id="toc-july-2025-2" class="nav-link" data-scroll-target="#july-2025-2">0.3.115 (26 July 2025)</a></li>
@@ -272,11 +272,12 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="august-2025" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025">0.3.118 (02 August 2025)</h2>
 <ul>
 <li>Remove support for <code>vertex</code> provider as the google-cloud-aiplatform package has <a href="https://pypi.org/project/google-cloud-aiplatform/">deprecated</a> its support for Vertex generative models. Vertex can still be used via the native <code>google</code> and <code>anthropic</code> providers.</li>
 <li>Tool calling: Added support for emulated tool calling (<code>emulate_tools</code> model arg) to OpenAI API compatible providers.</li>
+<li>Task display: Improved display for multiple scorers/metrics in task results summary.</li>
 <li>Scoring: Improved error message for scorers missing a return type annotation.</li>
 <li>Datasets: Added <code>--sample-shuffle</code> eval option to control sample shuffling (takes an optional seed for determinism).</li>
 <li>Batch Processing: Enable batch support when using Google model provider.</li>

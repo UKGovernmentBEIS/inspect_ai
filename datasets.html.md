@@ -215,16 +215,6 @@ select multiple samples with a single expression.
 
 ## Shuffling
 
-> [!NOTE]
->
-> The `--sample-shuffle` option described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Shuffling is often helpful when you want to vary the samples used during
 evaluation development. Use the `--sample-shuffle` option to perform
 shuffling. For example:
