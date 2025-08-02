@@ -16,7 +16,6 @@ from typing import (
 from typing_extensions import Unpack
 
 from inspect_ai._util._async import is_callable_coroutine
-from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -211,7 +210,6 @@ def solver(
                     state: TaskState, generate: Generate
                 ) -> TaskState:
                     state = await original_call(state, generate)
-                    check_sample_interrupt()
                     set_sample_state(state)
                     return state
 
@@ -227,7 +225,6 @@ def solver(
                     state: TaskState, generate: Generate
                 ) -> TaskState:
                     state = await solver(state, generate)
-                    check_sample_interrupt()
                     set_sample_state(state)
                     return state
 

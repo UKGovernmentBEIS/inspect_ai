@@ -352,7 +352,7 @@ async def call_tool(
     conversation: list[ChatMessage],
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
-    from inspect_ai.log._transcript import SampleLimitEvent, ToolEvent, transcript
+    from inspect_ai.log._transcript import ToolEvent, transcript
 
     # dodge circular import
     assert isinstance(event, ToolEvent)
@@ -383,9 +383,6 @@ async def call_tool(
     if not approved:
         if approval and approval.decision == "terminate":
             message = "Tool call approver requested termination."
-            transcript()._event(
-                SampleLimitEvent(type="operator", limit=1, message=message)
-            )
             raise TerminateSampleError(message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)

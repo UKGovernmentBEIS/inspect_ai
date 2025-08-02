@@ -68,7 +68,7 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
     if success.samples_completed < profile.samples:
         sample_errors = profile.samples - success.samples_completed
         sample_error_pct = int(float(sample_errors) / float(profile.samples) * 100)
-        message = f"\n[{theme.warning}]WARNING: {sample_errors} of {profile.samples} samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]"
+        message = f"\n[{theme.warning}]WARNING: {sample_errors} of {profile.samples} samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]\n"
         return Group(grid, message)
     else:
         return grid

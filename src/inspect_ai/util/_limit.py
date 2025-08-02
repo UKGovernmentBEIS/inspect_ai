@@ -343,10 +343,54 @@ def record_waiting_time(waiting_time: float) -> None:
 
 
 def check_working_limit() -> None:
+    from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+    error = working_limit_exceeded()
+    if error is not None:
+        transcript()._event(
+            SampleLimitEvent(type="working", message=error.message, limit=error.limit)
+        )
+
+        raise error
+
+
+def monitor_working_limit(interval: float = 1) -> None:
+    from inspect_ai.log._samples import sample_active
+
+    # get the active sample
+    sample = sample_active()
+    if sample is None:
+        raise RuntimeError(
+            "monitor_working_limit() must be called from a running sample."
+        )
+    if sample.tg is None:
+        raise RuntimeError(
+            "monitor_working_limit() must be called after sample has been started."
+        )
+
+    # check every second
+    async def run() -> None:
+        while True:
+            await anyio.sleep(interval)
+
+            # don't continue after the sample is completed
+            if sample.completed:
+                return
+
+            error = working_limit_exceeded()
+            if error is not None:
+                sample.limit_exceeded(error)
+                return
+
+    # kick it off
+    sample.tg.start_soon(run)
+
+
+def working_limit_exceeded() -> LimitExceededError | None:
     node = working_limit_tree.get()
     if node is None:
-        return
-    node.check()
+        return None
+    return node.check()
 
 
 class _Tree(Generic[TNode]):
@@ -656,7 +700,7 @@ class _WorkingLimit(Limit, _Node):
             self.parent.record_waiting_time(waiting_time)
         self._waiting_time += waiting_time
 
-    def check(self) -> None:
+    def check(self) -> LimitExceededError | None:
         """Check if this working time limit or any ancestor limits have been exceeded.
 
         The checks occur from root to leaf. This is so that if multiple limits are
@@ -664,26 +708,25 @@ class _WorkingLimit(Limit, _Node):
         preventing certain sub-agent architectures from ending up in an infinite loop.
         """
         if self.parent is not None:
-            self.parent.check()
-        self._check_self()
+            error = self.parent.check()
+            if error is not None:
+                return error
+        return self._check_self()
 
-    def _check_self(self) -> None:
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
-
+    def _check_self(self) -> LimitExceededError | None:
         if self._limit is None:
-            return
+            return None
         if self.usage > self._limit:
             message = f"Working time limit exceeded. limit: {self._limit} seconds"
-            transcript()._event(
-                SampleLimitEvent(type="working", message=message, limit=self._limit)
-            )
-            raise LimitExceededError(
+            return LimitExceededError(
                 "working",
                 value=self.usage,
                 limit=self._limit,
                 message=message,
                 source=self,
             )
+        else:
+            return None
 
 
 def _validate_time_limit(name: str, value: float | None) -> None:
