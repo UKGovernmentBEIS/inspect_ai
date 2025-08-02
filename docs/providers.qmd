@@ -748,14 +748,6 @@ inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 
 ### Tool Emulation {#tool-emulation-openai}
 
-::: {.callout-note}
-Emulated tool calling for OpenAI compatible model providers is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 When using OpenAI compatible model providers, tool calling support can be 'emulated' for models that don't yet support it. Use the `emulate_tools` model arg to force tool emulation:
 
 ``` bash
