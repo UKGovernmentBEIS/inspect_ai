@@ -3,6 +3,7 @@
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
 - Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
+- Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
 
 ## 0.3.118 (02 August 2025)
 
