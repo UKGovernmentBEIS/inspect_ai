@@ -30,10 +30,10 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
-        tg: TaskGroup,
     ) -> None:
         self.id = uuid()
         self.started: float | None = None
+        self.tg: TaskGroup | None = None
         self.completed: float | None = None
         self.task = task
         self.log_location = log_location
@@ -51,7 +51,13 @@ class ActiveSample:
         self.sandboxes = sandboxes
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
+
+    def start(self, tg: TaskGroup) -> None:
+        self.started = datetime.now().timestamp()
         self.tg = tg
+
+    def complete(self) -> None:
+        self.completed = datetime.now().timestamp()
 
     @property
     def running_time(self) -> float:
@@ -67,10 +73,18 @@ class ActiveSample:
 
     def interrupt(self, action: Literal["score", "error"]) -> None:
         self._interrupt_action = action
+        if self.tg is None:
+            raise RuntimeError(
+                "Attempted to interrupt sample without enclosing task group."
+            )
         self.tg.cancel_scope.cancel()
 
     def limit_exceeded(self, error: LimitExceededError) -> None:
         self._limit_exceeded_error = error
+        if self.tg is None:
+            raise RuntimeError(
+                "Attempted to interrupt sample for limit without enclosing task group."
+            )
         self.tg.cancel_scope.cancel()
 
     @property
@@ -100,7 +114,6 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
-    tg: TaskGroup,
 ) -> AsyncGenerator[ActiveSample, None]:
     # create the sample
     active = ActiveSample(
@@ -116,7 +129,6 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
-        tg=tg,
     )
 
     _active_samples.append(active)
@@ -124,7 +136,7 @@ async def active_sample(
     try:
         yield active
     finally:
-        active.completed = datetime.now().timestamp()
+        active.complete()
         _active_samples.remove(active)
         _sample_active.set(None)
 

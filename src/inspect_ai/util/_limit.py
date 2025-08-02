@@ -356,13 +356,16 @@ def check_working_limit() -> None:
 
 def monitor_working_limit(interval: float = 1) -> None:
     from inspect_ai.log._samples import sample_active
-    from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
     # get the active sample
     sample = sample_active()
     if sample is None:
         raise RuntimeError(
             "monitor_working_limit() must be called from a running sample."
+        )
+    if sample.tg is None:
+        raise RuntimeError(
+            "monitor_working_limit() must be called after sample has been started."
         )
 
     # check every second
@@ -376,13 +379,6 @@ def monitor_working_limit(interval: float = 1) -> None:
 
             error = working_limit_exceeded()
             if error is not None:
-                # record event
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="working", message=error.message, limit=error.limit
-                    )
-                )
-                # interrupt sample and stop monitoring
                 sample.limit_exceeded(error)
                 return
 
