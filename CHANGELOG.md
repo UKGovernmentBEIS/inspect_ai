@@ -1,3 +1,9 @@
+## Unreleased
+
+- Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
+- Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
+- Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
+
 ## 0.3.118 (02 August 2025)
 
 - Remove support for `vertex` provider as the google-cloud-aiplatform package has [deprecated](https://pypi.org/project/google-cloud-aiplatform/) its support for Vertex generative models. Vertex can still be used via the native `google` and `anthropic` providers.
