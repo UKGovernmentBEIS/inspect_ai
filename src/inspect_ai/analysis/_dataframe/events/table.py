@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, TypeAlias
 
 from inspect_ai._util.platform import running_in_notebook
-from inspect_ai.analysis.beta._dataframe.events.columns import EventInfo
+from inspect_ai.analysis._dataframe.events.columns import EventInfo
 from inspect_ai.log._file import list_eval_logs
 from inspect_ai.log._transcript import Event
 

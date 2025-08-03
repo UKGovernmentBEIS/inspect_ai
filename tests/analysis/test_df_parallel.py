@@ -1,15 +1,15 @@
 from pathlib import Path
 
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     events_df,
     messages_df,
     samples_df,
 )
-from inspect_ai.analysis.beta._dataframe.samples.columns import (
+from inspect_ai.analysis._dataframe.samples.columns import (
     SampleMessages,
     SampleSummary,
 )
-from inspect_ai.analysis.beta._dataframe.samples.table import SAMPLE_ID
+from inspect_ai.analysis._dataframe.samples.table import SAMPLE_ID
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 

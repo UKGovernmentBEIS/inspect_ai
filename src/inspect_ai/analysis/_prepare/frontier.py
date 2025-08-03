@@ -1,4 +1,4 @@
-from inspect_ai.analysis.beta._prepare.operation import Operation
+from inspect_ai.analysis._prepare.operation import Operation
 
 
 def frontier(

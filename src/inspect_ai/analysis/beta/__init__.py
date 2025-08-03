@@ -1,81 +1,226 @@
-from ._dataframe.columns import (
-    Column,
-    ColumnError,
-    ColumnType,
-)
-from ._dataframe.evals.columns import (
-    EvalColumn,
-    EvalColumns,
-    EvalConfiguration,
-    EvalDataset,
-    EvalInfo,
-    EvalModel,
-    EvalResults,
-    EvalScores,
-    EvalTask,
-)
-from ._dataframe.evals.table import evals_df
-from ._dataframe.events.columns import (
-    EventColumn,
-    EventInfo,
-    EventTiming,
-    ModelEventColumns,
-    ToolEventColumns,
-)
-from ._dataframe.events.table import events_df
-from ._dataframe.messages.columns import (
-    MessageColumn,
-    MessageColumns,
-    MessageContent,
-    MessageToolCalls,
-)
-from ._dataframe.messages.table import MessageFilter, messages_df
-from ._dataframe.samples.columns import SampleColumn, SampleMessages, SampleSummary
-from ._dataframe.samples.table import samples_df
-from ._prepare.frontier import frontier
-from ._prepare.log_viewer import log_viewer
-from ._prepare.model_data.model_data import ModelInfo
-from ._prepare.model_info import model_info
-from ._prepare.operation import Operation
-from ._prepare.prepare import prepare
-from ._prepare.task_info import task_info
+from inspect_ai._util.deprecation import relocated_module_attribute
 
-__all__ = [
+_ANALYSIS_MODULE_VERSION_3_18 = "0.3.119"
+_REMOVED_IN = "0.4"
+relocated_module_attribute(
     "evals_df",
+    "inspect_ai.analysis.evals_df",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalColumn",
+    "inspect_ai.analysis.EvalColumn",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalColumns",
+    "inspect_ai.analysis.EvalColumns",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalInfo",
+    "inspect_ai.analysis.EvalInfo",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalTask",
+    "inspect_ai.analysis.EvalTask",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalModel",
+    "inspect_ai.analysis.EvalModel",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalColumns",
+    "inspect_ai.analysis.EvalColumns",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalConfiguration",
+    "inspect_ai.analysis.EvalConfiguration",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "EvalTask",
+    "inspect_ai.analysis.EvalTask",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalDataset",
+    "inspect_ai.analysis.EvalDataset",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalResults",
+    "inspect_ai.analysis.EvalResults",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EvalScores",
+    "inspect_ai.analysis.EvalScores",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "samples_df",
+    "inspect_ai.analysis.samples_df",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "SampleColumn",
+    "inspect_ai.analysis.SampleColumn",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "SampleSummary",
+    "inspect_ai.analysis.SampleSummary",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "SampleMessages",
+    "inspect_ai.analysis.SampleMessages",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "messages_df",
+    "inspect_ai.analysis.messages_df",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "MessageColumn",
+    "inspect_ai.analysis.MessageColumn",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "MessageContent",
+    "inspect_ai.analysis.MessageContent",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "MessageToolCalls",
+    "inspect_ai.analysis.MessageToolCalls",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "MessageColumns",
+    "inspect_ai.analysis.MessageColumns",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "MessageFilter",
+    "inspect_ai.analysis.MessageFilter",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "events_df",
+    "inspect_ai.analysis.events_df",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EventColumn",
-    "EventInfo",
+    "inspect_ai.analysis.EventColumn",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "EventTiming",
+    "inspect_ai.analysis.EventTiming",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "ModelEventColumns",
+    "inspect_ai.analysis.ModelEventColumns",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "ToolEventColumns",
+    "inspect_ai.analysis.ToolEventColumns",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "Column",
+    "inspect_ai.analysis.Column",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "ColumnType",
+    "inspect_ai.analysis.ColumnType",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "ColumnError",
+    "inspect_ai.analysis.ColumnError",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "prepare",
+    "inspect_ai.analysis.prepare",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "log_viewer",
+    "inspect_ai.analysis.log_viewer",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "Operation",
+    "inspect_ai.analysis.Operation",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "model_info",
+    "inspect_ai.analysis.model_info",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "task_info",
+    "inspect_ai.analysis.task_info",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "ModelInfo",
+    "inspect_ai.analysis.ModelInfo",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
     "frontier",
-]
+    "inspect_ai.analysis.frontier",
+    _ANALYSIS_MODULE_VERSION_3_18,
+    _REMOVED_IN,
+)

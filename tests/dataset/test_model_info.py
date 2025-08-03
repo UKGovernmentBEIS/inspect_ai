@@ -1,6 +1,6 @@
 from datetime import date
 
-from inspect_ai.analysis.beta._prepare.model_data.model_data import read_model_info
+from inspect_ai.analysis._prepare.model_data.model_data import read_model_info
 
 
 def test_read_model_info():
