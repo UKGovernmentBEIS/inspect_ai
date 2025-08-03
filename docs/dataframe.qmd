@@ -2,10 +2,6 @@
 title: Log Dataframes
 ---
 
-::: callout-note
-Dataframe functions are currently in beta and are exported from the **inspect_ai.analysis.beta** module. The beta module will be preserved after final release so that code written against it now will continue to work after the beta.
-:::
-
 ## Overview {#overview}
 
 ```{=html}
@@ -43,11 +39,11 @@ Below we'll walk through a few examples, then after that provide more in-depth d
 
 ### Reading Data
 
-Use the `evals_df()` function to read a dataframe containing a row for each log file (note that we import from `inspect_ai.analysis.beta` since the dataframe functions are currently in beta):
+Use the `evals_df()` function to read a dataframe containing a row for each log file:
 
 ``` python
 # read logs from a given log directory
-from inspect_ai.analysis.beta import evals_df
+from inspect_ai.analysis import evals_df
 evals_df("logs")   
 ```
 
@@ -62,7 +58,7 @@ The default configuration for `evals_df()` reads a predefined set of columns. Yo
 Use the `samples_df()` function to read a dataframe with a record for each sample across a set of log files. For example, here we read all of the samples in the "logs" directory:
 
 ``` python
-from inspect_ai.analysis.beta import samples_df
+from inspect_ai.analysis import samples_df
 
 samples_df("logs")
 ```
@@ -80,7 +76,7 @@ By default, `sample_df()` reads all of the columns in the `EvalSampleSummary` da
 When reading dataframes, there are a number of pre-built column groups you can use to read various subsets of columns. For example:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     EvalInfo, EvalModel, EvalResults, evals_df
 )
 
@@ -101,7 +97,7 @@ This dataframe has 23 columns rather than the 51 we saw when using the default `
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     EvalInfo, EvalModel, SampleSummary, samples_df
 )
 
@@ -159,7 +155,7 @@ One easy mitigation when using `samples_df()` is to stick with the default `Samp
 If you need to read full samples, events, or messages and the read is taking longer than you'd like, you can enable parallel reading using the `parallel` option:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     SampleMessages, SampleSummary samples_df, events_df
 )
 
@@ -196,7 +192,7 @@ For example, here we read eval and sample level data from a log directory and im
 
 ``` python
 import duckdb
-from inspect_ai.analysis.beta import evals_df, samples_df
+from inspect_ai.analysis import evals_df, samples_df
 
 con = duckdb.connect()
 con.register('evals', evals_df("logs"))
@@ -221,7 +217,7 @@ After reading data frames from log files, there will often be additional data pr
 For example, if you have used the [`inspect view bundle`](log-viewer.qmd#sec-publishing) command to publish logs to a website, you can use the `log_viewer()` operation to map log file paths to their published URLs:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     evals_df, log_viewer, model_info, prepare
 )
 
@@ -295,7 +291,7 @@ Adds a "frontier" column to each task. The value of the "frontier" column will b
 The `frontier()` requires scores and model release dates, so must be run after the `model_info()` operation.
 
 ```{python}
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     evals_df, frontier, log_viewer, model_info, prepare
 )
 
@@ -382,7 +378,7 @@ If a column is name is repeated within a list of columns then the column definit
 By default, dataframes are read in `strict` mode, which means that if fields are missing or paths are invalid an error is raised and the import is aborted. You can optionally set `strict=False`, in which case importing will proceed and a tuple containing `pd.DataFrame` and a list of any errors encountered is returned. For example:
 
 ``` python
-from inspect_ai.analysis.beta import evals_df
+from inspect_ai.analysis import evals_df
 
 evals, errors = evals_df("logs", strict=False)
 if len(errors) > 0:
@@ -490,7 +486,7 @@ SampleSummary: list[Column] = [
 If you want to read all of the messages contained in a sample into a string column, use the `SampleMessages` column group. For example, here we read the summary field and the messages:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     SampleMessages, SampleSummary, samples_df
 )
 
@@ -692,7 +688,7 @@ from typing import Callable
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai.log import EvalLog
-from inspect_ai.analysis.beta import EvalColumn
+from inspect_ai.analysis import EvalColumn
 
 class ReportConfig(BaseModel):
     # config fields

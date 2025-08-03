@@ -1,10 +1,10 @@
 from typing import Dict
 
-from inspect_ai.analysis.beta._prepare.model_data.model_data import (
+from inspect_ai.analysis._prepare.model_data.model_data import (
     ModelInfo,
     read_model_info,
 )
-from inspect_ai.analysis.beta._prepare.operation import Operation
+from inspect_ai.analysis._prepare.operation import Operation
 
 
 def model_info(

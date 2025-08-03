@@ -6,9 +6,9 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai.analysis.beta._dataframe.events.columns import EventColumn
-from inspect_ai.analysis.beta._dataframe.messages.columns import MessageColumn
-from inspect_ai.analysis.beta._dataframe.samples.columns import SampleColumn
+from inspect_ai.analysis._dataframe.events.columns import EventColumn
+from inspect_ai.analysis._dataframe.messages.columns import MessageColumn
+from inspect_ai.analysis._dataframe.samples.columns import SampleColumn
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.log._transcript import BaseEvent, Event
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase

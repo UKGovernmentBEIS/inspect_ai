@@ -3,7 +3,7 @@ from pathlib import Path
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     EvalInfo,
     EvalModel,
     EvalResults,
@@ -16,7 +16,7 @@ from inspect_ai.analysis.beta import (
     messages_df,
     samples_df,
 )
-from inspect_ai.analysis.beta._dataframe.evals.columns import EvalTask
+from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.log import EvalLog, list_eval_logs
 
 LOGS_DIR = Path(__file__).parent / "test_logs"

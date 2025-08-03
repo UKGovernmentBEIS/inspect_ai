@@ -1,6 +1,6 @@
 from pydantic import JsonValue
 
-from inspect_ai.analysis.beta._dataframe.record import _expand_fields
+from inspect_ai.analysis._dataframe.record import _expand_fields
 
 
 def test_single_level_expansion() -> None:
