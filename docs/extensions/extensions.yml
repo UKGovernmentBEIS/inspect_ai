@@ -16,6 +16,12 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/control-arena)"
   categories: ["Framework"]
 
+- name: "[Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/)"
+  description: |
+    Interactive data visualization for Inspect evalutions.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_viz)"
+  categories: ["Framework"]
+
 - name: "[Docent](https://docs.transluce.org/)"
   description: |
     Docent provides tools to summarize, cluster, and search over agent transcripts.
