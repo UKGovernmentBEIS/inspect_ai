@@ -33,6 +33,7 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
+from inspect_ai.util._store import init_subtask_store
 
 from .task.results import eval_results
 
@@ -127,6 +128,7 @@ async def score_async(
             output=sample.output,
             completed=True,
             metadata=sample.metadata,
+            store=sample.store,
         )
         for sample in log.samples
     ]
@@ -251,8 +253,9 @@ async def run_score_task(
     # get the model roles
     model_roles = model_roles_config_to_model_roles(log.eval.model_roles)
 
-    # initialize active model
+    # initialize active model and store
     init_task_context(model, model_roles)
+    init_subtask_store(state.store)
 
     results: dict[str, SampleScore] = {}
     for scorer in scorers:
