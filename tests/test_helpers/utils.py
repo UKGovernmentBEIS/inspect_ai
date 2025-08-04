@@ -137,6 +137,8 @@ def skip_if_no_together_base_url(func):
 def skip_if_no_fireworks(func):
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
 
+def skip_if_no_sambanova(func):
+    return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
 
 def skip_if_no_perplexity(func):
     missing_requirements = []
