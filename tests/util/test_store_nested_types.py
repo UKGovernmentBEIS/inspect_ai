@@ -85,15 +85,18 @@ def test_nested_pydantic_model_coercion():
     """Test that nested Pydantic models are properly coerced from dicts."""
     # Create a store with dict data
     store = Store()
-    store.set("NestedPydanticStore:person", {
-        "name": "Alice",
-        "age": 30,
-        "address": {
-            "street": "123 Main St",
-            "city": "Springfield",
-            "zip_code": "12345"
-        }
-    })
+    store.set(
+        "NestedPydanticStore:person",
+        {
+            "name": "Alice",
+            "age": 30,
+            "address": {
+                "street": "123 Main St",
+                "city": "Springfield",
+                "zip_code": "12345",
+            },
+        },
+    )
 
     # Access through StoreModel
     model = NestedPydanticStore(store=store)
@@ -112,10 +115,21 @@ def test_nested_pydantic_model_coercion():
 def test_list_of_pydantic_models_coercion():
     """Test that lists of Pydantic models are properly coerced."""
     store = Store()
-    store.set("NestedPydanticStore:people", [
-        {"name": "Bob", "age": 25, "address": None},
-        {"name": "Carol", "age": 28, "address": {"street": "456 Oak Ave", "city": "Portland", "zip_code": "67890"}}
-    ])
+    store.set(
+        "NestedPydanticStore:people",
+        [
+            {"name": "Bob", "age": 25, "address": None},
+            {
+                "name": "Carol",
+                "age": 28,
+                "address": {
+                    "street": "456 Oak Ave",
+                    "city": "Portland",
+                    "zip_code": "67890",
+                },
+            },
+        ],
+    )
 
     model = NestedPydanticStore(store=store)
 
@@ -134,10 +148,13 @@ def test_list_of_pydantic_models_coercion():
 def test_dict_of_pydantic_models_coercion():
     """Test that dicts with Pydantic model values are properly coerced."""
     store = Store()
-    store.set("NestedPydanticStore:person_dict", {
-        "alice": {"name": "Alice", "age": 30, "address": None},
-        "bob": {"name": "Bob", "age": 25, "address": None}
-    })
+    store.set(
+        "NestedPydanticStore:person_dict",
+        {
+            "alice": {"name": "Alice", "age": 30, "address": None},
+            "bob": {"name": "Bob", "age": 25, "address": None},
+        },
+    )
 
     model = NestedPydanticStore(store=store)
 
@@ -154,15 +171,17 @@ def test_dict_of_pydantic_models_coercion():
 def test_typeddict_coercion():
     """Test that TypedDict types are properly handled."""
     store = Store()
-    store.set("TypedDictStore:user", {
-        "username": "johndoe",
-        "email": "john@example.com",
-        "is_active": True
-    })
-    store.set("TypedDictStore:users", [
-        {"username": "alice", "email": "alice@example.com", "is_active": True},
-        {"username": "bob", "email": "bob@example.com", "is_active": False}
-    ])
+    store.set(
+        "TypedDictStore:user",
+        {"username": "johndoe", "email": "john@example.com", "is_active": True},
+    )
+    store.set(
+        "TypedDictStore:users",
+        [
+            {"username": "alice", "email": "alice@example.com", "is_active": True},
+            {"username": "bob", "email": "bob@example.com", "is_active": False},
+        ],
+    )
 
     model = TypedDictStore(store=store)
 
@@ -180,15 +199,14 @@ def test_typeddict_coercion():
 def test_dataclass_coercion():
     """Test that dataclass types are properly coerced."""
     store = Store()
-    store.set("DataclassStore:product", {
-        "id": 1,
-        "name": "Laptop",
-        "price": 999.99
-    })
-    store.set("DataclassStore:products", [
-        {"id": 2, "name": "Mouse", "price": 29.99},
-        {"id": 3, "name": "Keyboard", "price": 79.99}
-    ])
+    store.set("DataclassStore:product", {"id": 1, "name": "Laptop", "price": 999.99})
+    store.set(
+        "DataclassStore:products",
+        [
+            {"id": 2, "name": "Mouse", "price": 29.99},
+            {"id": 3, "name": "Keyboard", "price": 79.99},
+        ],
+    )
 
     model = DataclassStore(store=store)
 
@@ -206,14 +224,16 @@ def test_dataclass_coercion():
 def test_union_type_coercion():
     """Test that Union types are properly coerced."""
     store = Store()
-    store.set("UnionTypeStore:message", {
-        "content": "System starting",
-        "type": "system"
-    })
-    store.set("UnionTypeStore:messages", [
-        {"content": "Hello", "type": "user"},
-        {"content": "Hi there", "type": "system"}
-    ])
+    store.set(
+        "UnionTypeStore:message", {"content": "System starting", "type": "system"}
+    )
+    store.set(
+        "UnionTypeStore:messages",
+        [
+            {"content": "Hello", "type": "user"},
+            {"content": "Hi there", "type": "system"},
+        ],
+    )
 
     model = UnionTypeStore(store=store)
 
@@ -234,10 +254,7 @@ def test_tuple_coercion():
     """Test that tuple types are properly coerced."""
     store = Store()
     store.set("TupleStore:coords", [1.5, 2.5])  # Lists are coerced to tuples
-    store.set("TupleStore:matrix", [
-        [1, 2, 3],
-        [4, 5, 6]
-    ])
+    store.set("TupleStore:matrix", [[1, 2, 3], [4, 5, 6]])
 
     model = TupleStore(store=store)
 
@@ -253,16 +270,22 @@ def test_tuple_coercion():
 def test_mixed_nested_types():
     """Test complex mixed nested type scenarios."""
     store = Store()
-    store.set("MixedStore:data", {
-        "person": {"name": "Alice", "age": 30, "address": None},
-        "product": {"id": 1, "name": "Widget", "price": 19.99},
-        "list": [1, 2, 3],
-        "scalar": "hello"
-    })
-    store.set("MixedStore:items", [
-        {"name": "Bob", "age": 25, "address": None},  # Person
-        {"id": 2, "name": "Gadget", "price": 29.99}   # Product
-    ])
+    store.set(
+        "MixedStore:data",
+        {
+            "person": {"name": "Alice", "age": 30, "address": None},
+            "product": {"id": 1, "name": "Widget", "price": 19.99},
+            "list": [1, 2, 3],
+            "scalar": "hello",
+        },
+    )
+    store.set(
+        "MixedStore:items",
+        [
+            {"name": "Bob", "age": 25, "address": None},  # Person
+            {"id": 2, "name": "Gadget", "price": 29.99},  # Product
+        ],
+    )
 
     model = MixedStore(store=store)
 
@@ -278,6 +301,7 @@ def test_mixed_nested_types():
 
 def test_scalar_values_not_coerced():
     """Test that scalar values are not unnecessarily coerced."""
+
     class ScalarStore(StoreModel):
         text: str = "default"
         number: int = 0
@@ -308,11 +332,9 @@ def test_scalar_values_not_coerced():
 def test_coercion_caching():
     """Test that coerced values are cached in the store."""
     store = Store()
-    store.set("NestedPydanticStore:person", {
-        "name": "Alice",
-        "age": 30,
-        "address": None
-    })
+    store.set(
+        "NestedPydanticStore:person", {"name": "Alice", "age": 30, "address": None}
+    )
 
     model = NestedPydanticStore(store=store)
 
@@ -332,6 +354,7 @@ def test_coercion_caching():
 
 def test_invalid_data_returns_raw():
     """Test that invalid data that can't be coerced returns raw value."""
+
     class StrictStore(StoreModel):
         person: Person = Field(default_factory=lambda: Person(name="", age=0))
 
@@ -370,6 +393,7 @@ def test_multiple_instances_with_nested_types():
 
 def test_deeply_nested_structures():
     """Test deeply nested structures are properly coerced."""
+
     class DeeplyNested(BaseModel):
         value: str
 
@@ -380,19 +404,15 @@ def test_deeply_nested_structures():
         level2: NestedLevel2
 
     class DeepStore(StoreModel):
-        root: NestedLevel1 = Field(default_factory=lambda: NestedLevel1(
-            level2=NestedLevel2(items=[])
-        ))
+        root: NestedLevel1 = Field(
+            default_factory=lambda: NestedLevel1(level2=NestedLevel2(items=[]))
+        )
 
     store = Store()
-    store.set("DeepStore:root", {
-        "level2": {
-            "items": [
-                {"value": "first"},
-                {"value": "second"}
-            ]
-        }
-    })
+    store.set(
+        "DeepStore:root",
+        {"level2": {"items": [{"value": "first"}, {"value": "second"}]}},
+    )
 
     model = DeepStore(store=store)
 
@@ -405,4 +425,3 @@ def test_deeply_nested_structures():
     # Verify mutations work at depth
     model.root.level2.items.append(DeeplyNested(value="third"))
     assert len(store.get("DeepStore:root").level2.items) == 3
-
