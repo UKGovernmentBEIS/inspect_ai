@@ -1,4 +1,4 @@
-from pydantic import Field, TypeAdapter
+from pydantic import Field
 
 from inspect_ai import Task, eval, score
 from inspect_ai.log import read_eval_log
@@ -38,8 +38,7 @@ def test_score_store_access() -> None:
             # read from typed store
             my_store = store_as(MyStore)
 
-            adapter = TypeAdapter(list[ChatMessageBase])
-            messages = adapter.validate_python(my_store.messages)
+            messages = my_store.messages
             assert isinstance(messages[0], ChatMessageBase)
 
             # read raw store value and validate answer
