@@ -4,6 +4,7 @@
 - [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
+- Store: Support for serializing complex nested types (e.g. to read in an offline scorer).
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Tests: Added the ability to provide a generator like callback function for `MockLLM`.

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import TypedDict
 
 import numpy as np
 from pydantic import BaseModel
@@ -9,6 +8,7 @@ from test_helpers.utils import (
     skip_if_no_mistral,
     skip_if_no_openai,
 )
+from typing_extensions import TypedDict
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
