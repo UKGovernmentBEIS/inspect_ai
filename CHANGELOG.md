@@ -1,8 +1,13 @@
 ## Unreleased
 
 - [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
+- Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
+- Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
-- MockLLM: Added the ability to provide a generator like callback function to enable providing dynamic model responses.
+- Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
+- Tests: Added the ability to provide a generator like callback function for `MockLLM`.
+- Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
+- Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
 
 ## 0.3.119 (04 August 2025)
