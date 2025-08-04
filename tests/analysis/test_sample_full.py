@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from inspect_ai.analysis.beta._dataframe.samples.columns import (
+from inspect_ai.analysis._dataframe.samples.columns import (
     SampleColumn,
     SampleSummary,
 )
-from inspect_ai.analysis.beta._dataframe.samples.table import samples_df
+from inspect_ai.analysis._dataframe.samples.table import samples_df
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 

@@ -18,7 +18,7 @@ from typing import (
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.platform import running_in_notebook
-from inspect_ai.analysis.beta._dataframe.progress import import_progress, no_progress
+from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
 from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log_sample_summaries,

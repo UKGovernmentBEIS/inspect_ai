@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from inspect_ai.analysis.beta import evals_df, log_viewer, prepare, task_info
+from inspect_ai.analysis import evals_df, log_viewer, prepare, task_info
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 

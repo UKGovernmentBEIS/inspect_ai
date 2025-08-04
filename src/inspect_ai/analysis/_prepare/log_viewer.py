@@ -2,7 +2,7 @@ import os
 from typing import Literal
 
 from inspect_ai._util.file import absolute_file_path
-from inspect_ai.analysis.beta._prepare.operation import Operation
+from inspect_ai.analysis._prepare.operation import Operation
 
 
 def log_viewer(

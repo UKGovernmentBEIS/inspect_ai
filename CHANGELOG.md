@@ -2,8 +2,14 @@
 
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
+- Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
 - Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
+
+## 0.3.119 (04 August 2025)
+
+- Analysis functions are out of beta (`inspect_ai.analysis.beta` is deprecated in favor of `inspect_ai.analysis`).
+- Scoring: Provide access to sample `store` for scorers run on existing log files.
 
 ## 0.3.118 (02 August 2025)
 
