@@ -1,12 +1,10 @@
 from typing import Dict
 
-import pandas as pd
-
-from inspect_ai.analysis.beta._prepare.model_data.model_data import (
+from inspect_ai.analysis._prepare.model_data.model_data import (
     ModelInfo,
     read_model_info,
 )
-from inspect_ai.analysis.beta._prepare.operation import Operation
+from inspect_ai.analysis._prepare.operation import Operation
 
 
 def model_info(
@@ -36,6 +34,8 @@ def model_info(
     Args:
         model_info: Additional model info for models not supported directly by Inspect's internal database.
     """
+    import pandas as pd
+
     # Read built in model info
     builtin_model_info = read_model_info()
 
@@ -45,8 +45,8 @@ def model_info(
     def transform(df: pd.DataFrame) -> pd.DataFrame:
         # Column mapping from DataFrame to ModelInfo field to read
         fields = {
-            "model_organization_name": "organization_name",
-            "model_display_name": "model_name",
+            "model_organization_name": "organization",
+            "model_display_name": "model",
             "model_snapshot": "snapshot",
             "model_release_date": "release_date",
             "model_knowledge_cutoff_date": "knowledge_cutoff_date",

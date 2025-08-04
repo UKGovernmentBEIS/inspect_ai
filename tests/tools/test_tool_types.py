@@ -8,7 +8,6 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_mistral,
     skip_if_no_openai,
-    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval
@@ -283,11 +282,6 @@ def test_anthropoic_tool_types() -> None:
 @skip_if_no_google
 def test_google_tool_types() -> None:
     check_tool_types("google/gemini-1.5-pro")
-
-
-@skip_if_no_vertex
-def test_vertex_tool_types():
-    check_tool_types("vertex/gemini-1.5-flash")
 
 
 @skip_if_no_mistral

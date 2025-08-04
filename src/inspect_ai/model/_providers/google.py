@@ -75,8 +75,12 @@ from inspect_ai.model import (
     StopReason,
     TopLogprob,
 )
+from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._providers._google_batch import GoogleBatcher
 from inspect_ai.model._providers._google_citations import get_candidate_citations
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -223,6 +227,9 @@ class GoogleGenAIAPI(ModelAPI):
         # save model args
         self.model_args = model_args
 
+        # initialize batcher
+        self._batcher: GoogleBatcher | None = None
+
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
@@ -244,6 +251,7 @@ class GoogleGenAIAPI(ModelAPI):
             **self.model_args,
         )
 
+        self._resolve_batcher(config, client)
         # create hooks and allocate request
         http_hooks = HttpxHooks(client._api_client._async_httpx_client)
         request_id = http_hooks.start_request()
@@ -288,10 +296,22 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         try:
-            response = await client.aio.models.generate_content(
-                model=self.service_model_name(),
-                contents=gemini_contents,  # type: ignore[arg-type]
-                config=parameters,
+            response = await (
+                self._batcher.generate_for_request(
+                    {
+                        "contents": [
+                            content.model_dump(exclude_none=True)
+                            for content in gemini_contents
+                        ],
+                        **parameters.model_dump(exclude_none=True),
+                    }
+                )
+                if self._batcher
+                else client.aio.models.generate_content(
+                    model=self.service_model_name(),
+                    contents=gemini_contents,  # type: ignore[arg-type]
+                    config=parameters,
+                )
             )
         except ClientError as ex:
             return self.handle_client_error(ex), model_call()
@@ -319,7 +339,7 @@ class GoogleGenAIAPI(ModelAPI):
         return "gemini-2.0" in self.service_model_name()
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
             return is_retryable_http_status(ex.code)
         else:
@@ -418,6 +438,22 @@ class GoogleGenAIAPI(ModelAPI):
             [Tool(google_search=GoogleSearch())]
             if has_native_search
             else [Tool(function_declarations=function_declarations)]
+        )
+
+    def _resolve_batcher(self, config: GenerateConfig, client: Client) -> None:
+        if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
+            return
+        self._batcher = GoogleBatcher(
+            client,
+            batch_config,
+            model_retry_config(
+                self.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                log_model_retry,
+            ),
+            self.service_model_name(),
         )
 
 

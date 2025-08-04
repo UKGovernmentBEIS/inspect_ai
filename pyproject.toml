@@ -65,7 +65,7 @@ norecursedirs = [
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-log_level = "warning"
+log_level = "WARNING"
 
 [tool.mypy]
 exclude = [
@@ -142,7 +142,6 @@ dev = [
   "azure-identity",
   "azure-ai-inference",
   "goodfire",
-  "google-cloud-aiplatform",
   "google-genai",
   "griffe",
   "groq",
@@ -168,7 +167,8 @@ dev = [
   "pytest-mock",
   "pytest-watcher",
   "pytest-xdist",
-  "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
+  "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
+  "together",
   "textual-dev>=0.86.2",
   "transformer-lens",
   "trio",
@@ -187,7 +187,7 @@ dev = [
   "types-python-dateutil",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
+doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]
 
 [tool.typos.default.extend-words]

@@ -8,6 +8,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/humaneval
   tasks:
   - humaneval
@@ -22,6 +25,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/mbpp
   tasks:
   - mbpp
@@ -39,6 +45,10 @@
 
     '
   group: Coding
+  metadata:
+    requires_internet: true
+    sandbox:
+    - solver
   path: src/inspect_evals/swe_bench
   tags:
   - Agent
@@ -57,6 +67,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - solver
   path: src/inspect_evals/mle_bench
   tags:
   - Agent
@@ -73,6 +86,9 @@
   description: Code generation benchmark with a thousand data science problems spanning
     seven Python libraries.
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/ds1000
   tasks:
   - ds1000
@@ -87,6 +103,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/bigcodebench
   tasks:
   - bigcodebench
@@ -103,6 +122,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/class_eval
   tasks:
   - class_eval
@@ -120,6 +142,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/scicode
   tasks:
   - scicode
@@ -138,6 +163,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/apps
   tasks:
   - apps
@@ -152,6 +180,10 @@
   description: Evaluate how well an LLM Agent is at computationally reproducing the
     results of a set of scientific papers.
   group: Coding
+  metadata:
+    sandbox:
+    - solver
+    - scorer
   path: src/inspect_evals/core_bench
   tags:
   - Agent
@@ -168,6 +200,9 @@
 
     '
   group: Coding
+  metadata:
+    sandbox:
+    - scorer
   path: src/inspect_evals/usaco
   tasks:
   - usaco
@@ -185,6 +220,10 @@
 
     '
   group: Assistants
+  metadata:
+    requires_internet: true
+    sandbox:
+    - solver
   path: src/inspect_evals/gaia
   tags:
   - Agent
@@ -206,6 +245,11 @@
 
     '
   group: Assistants
+  metadata:
+    requires_internet: true
+    sandbox:
+    - scorer
+    - solver
   path: src/inspect_evals/osworld
   tags:
   - Agent
@@ -225,6 +269,10 @@
 
     '
   group: Assistants
+  metadata:
+    requires_internet: true
+    sandbox:
+    - solver
   path: src/inspect_evals/assistant_bench
   tags:
   - Agent
@@ -264,6 +312,29 @@
   tasks:
   - mind2web
   title: 'Mind2Web: Towards a Generalist Agent for the Web'
+- arxiv: https://arxiv.org/pdf/2504.12516
+  categories:
+  - Assistants
+  - Agent
+  contributors:
+  - AnselmC
+  description: 'A benchmark for evaluating agents'' ability to browse the web.
+
+    The dataset consists of challenging questions that generally require web-access
+    to answer correctly.
+
+    '
+  group: Assistants
+  metadata:
+    requires_internet: true
+    sandbox:
+    - solver
+  path: src/inspect_evals/browse_comp
+  tags:
+  - Agent
+  tasks:
+  - browse_comp
+  title: 'BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents'
 - arxiv: https://arxiv.org/abs/2408.08926
   categories:
   - Cybersecurity
@@ -273,12 +344,18 @@
   - sam-deverett-dsit
   - kola-aisi
   - pgiav
+  dependency: cybench
   description: 'Tests language models on cybersecurity skills using 40 practical,
     professional-level challenges taken from cybersecurity competitions, designed
     to cover various difficulty levels and security concepts.
 
     '
   group: Cybersecurity
+  metadata:
+    environment: Kali-Linux
+    requires_internet: true
+    sandbox:
+    - solver
   path: src/inspect_evals/cybench
   tags:
   - Agent
@@ -296,6 +373,9 @@
 
     '
   group: Cybersecurity
+  metadata:
+    sandbox:
+    - solver
   path: src/inspect_evals/cybermetric
   tags:
   - Agent
@@ -317,6 +397,10 @@
 
     '
   group: Cybersecurity
+  metadata:
+    sandbox:
+    - scorer
+    - solver
   path: src/inspect_evals/cyberseceval_2
   tasks:
   - cyse2_interpreter_abuse
@@ -350,6 +434,9 @@
 
     '
   group: Cybersecurity
+  metadata:
+    sandbox:
+    - solver
   path: src/inspect_evals/gdm_capabilities/intercode_ctf
   tags:
   - Agent
@@ -368,6 +455,11 @@
 
     '
   group: Cybersecurity
+  metadata:
+    environment: Kali-Linux
+    sandbox:
+    - solver
+    - scorer
   path: src/inspect_evals/gdm_capabilities/in_house_ctf
   tags:
   - Agent
@@ -415,6 +507,20 @@
   - sec_qa_v2_5_shot
   title: 'SecQA: A Concise Question-Answering Dataset for Evaluating Large Language
     Models in Computer Security'
+- arxiv: https://arxiv.org/abs/2503.03750?
+  categories:
+  - Safeguards
+  contributors:
+  - Scott-Simmons
+  description: 'Evaluates honesty in large language models by testing whether they
+    contradict their own beliefs when pressured to lie.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/mask
+  tasks:
+  - mask
+  title: 'MASK: Disentangling Honesty from Accuracy in AI Systems'
 - arxiv: https://arxiv.org/abs/2407.10362
   categories:
   - Safeguards
@@ -437,13 +543,36 @@
   - lab_bench_seqqa
   - lab_bench_cloning_scenarios
   title: 'LAB-Bench: Measuring Capabilities of Language Models for Biology Research'
+- arxiv: https://arxiv.org/abs/2406.13352
+  categories:
+  - Safeguards
+  - Agent
+  contributors:
+  - eric-aisi
+  dependency: agentdojo
+  description: 'Assesses whether AI agents can be hijacked by malicious third parties
+    using prompt injections in simple environments such as a workspace or travel booking
+    app.
+
+    '
+  group: Safeguards
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/agentdojo
+  tags:
+  - Agent
+  tasks:
+  - agentdojo
+  title: 'AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and
+    Defenses for LLM Agents'
 - arxiv: https://arxiv.org/abs/2410.09024
   categories:
   - Safeguards
   - Agent
   contributors:
   - alexandrasouly-aisi
-  - EricWinsorDSIT
+  - eric-aisi
   - max-andr
   - xanderdavies
   description: 'Assesses whether AI agents might engage in harmful activities by testing
@@ -490,6 +619,23 @@
   tasks:
   - strong_reject
   title: 'StrongREJECT: Measuring LLM susceptibility to jailbreak attacks'
+- arxiv: https://arxiv.org/abs/2004.09456
+  categories:
+  - Safeguards
+  contributors:
+  - Xodarap
+  description: 'A dataset that measures stereotype bias in language models across
+    gender, race, religion, and profession domains.
+
+    Models choose between stereotype, anti-stereotype, and unrelated completions to
+    sentences.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/stereoset
+  tasks:
+  - stereoset
+  title: 'StereoSet: Measuring stereotypical bias in pretrained language models'
 - arxiv: https://arxiv.org/abs/2103.03874
   categories:
   - Mathematics
@@ -566,25 +712,6 @@
   tasks:
   - aime2024
   title: 'AIME 2024: Problems from the American Invitational Mathematics Examination'
-- arxiv: https://arxiv.org/abs/2312.14135
-  categories:
-  - Reasoning
-  - Multimodal
-  contributors:
-  - bienehito
-  description: 'V*Bench is a visual question & answer benchmark that evaluates MLLMs
-    in their ability to process high-resolution and visually crowded images to find
-    and focus on small details.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/vstar_bench
-  tags:
-  - Multimodal
-  tasks:
-  - vstar_bench_attribute_recognition
-  - vstar_bench_spatial_relationship_reasoning
-  title: 'V*Bench: A Visual QA Benchmark with Detailed High-resolution Images'
 - arxiv: https://arxiv.org/abs/1803.05457
   categories:
   - Reasoning
@@ -679,24 +806,6 @@
   tasks:
   - boolq
   title: 'BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions'
-- arxiv: https://arxiv.org/abs/2007.00398
-  categories:
-  - Reasoning
-  - Multimodal
-  contributors:
-  - evanmiller-anthropic
-  description: 'DocVQA is a Visual Question Answering benchmark that consists of 50,000
-    questions covering 12,000+ document images. This implementation solves and scores
-    the "validation" split.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/docvqa
-  tags:
-  - Multimodal
-  tasks:
-  - docvqa
-  title: 'DocVQA: A Dataset for VQA on Document Images'
 - arxiv: https://arxiv.org/abs/1903.00161
   categories:
   - Reasoning
@@ -836,24 +945,6 @@
   tasks:
   - paws
   title: 'PAWS: Paraphrase Adversaries from Word Scrambling'
-- arxiv: https://arxiv.org/pdf/2408.02718
-  categories:
-  - Reasoning
-  - Multimodal
-  contributors:
-  - Esther-Guo
-  description: A comprehensive dataset designed to evaluate Large Vision-Language
-    Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses
-    7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously
-    curated multiple-choice questions.
-  group: Reasoning
-  path: src/inspect_evals/mmiu
-  tags:
-  - Multimodal
-  tasks:
-  - mmiu
-  title: 'MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language
-    Models'
 - arxiv: https://arxiv.org/abs/2009.03300
   categories:
   - Knowledge
@@ -1076,6 +1167,57 @@
   tasks:
   - air_bench
   title: 'AIR Bench: AI Risk Benchmark'
+- arxiv: https://arxiv.org/pdf/2505.21605
+  categories:
+  - Knowledge
+  contributors:
+  - Esther-Guo
+  description: 'A regulation-grounded, hazard-focused benchmark encompassing six high-risk
+    scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology.
+    The benchmark comprises 3,000 prompts derived from real-world regulations and
+    laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces
+    diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions
+    involving advanced chemical formulas).
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/sosbench
+  tasks:
+  - sosbench
+  title: 'SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge'
+- arxiv: https://arxiv.org/abs/2009.13081
+  categories:
+  - Knowledge
+  contributors:
+  - bunny-baxter
+  - JasonBenn
+  description: 'A Q&A benchmark with questions collected from professional medical
+    board exams. Only includes the English subset of the dataset (which also contains
+    Mandarin Chinese and Taiwanese questions).
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/medqa
+  tasks:
+  - medqa
+  title: 'MedQA: Medical exam Q&A benchmark'
+- arxiv: https://arxiv.org/pdf/2503.05244
+  categories:
+  - Writing
+  contributors:
+  - jtv199
+  description: 'A comprehensive evaluation benchmark designed to assess large language
+    models'' capabilities across diverse writing tasks. The benchmark evaluates models
+    on various writing domains including academic papers, business documents, creative
+    writing, and technical documentation, with multi-dimensional scoring based on
+    domain-specific criteria.
+
+    '
+  group: Writing
+  path: src/inspect_evals/writingbench
+  tasks:
+  - writingbench
+  title: 'WritingBench: A Comprehensive Benchmark for Generative Writing'
 - arxiv: https://arxiv.org/abs/2505.01420
   categories:
   - Scheming
@@ -1102,7 +1244,7 @@
   - gdm_oversight_frequency
   - gdm_read_logs
   - gdm_turn_off_filters
-  title: 'GDM Dangerous Capabilities: Self-Reasoning'
+  title: 'GDM Dangerous Capabilities: Self-reasoning'
 - arxiv: https://arxiv.org/abs/2505.01420
   categories:
   - Scheming
@@ -1139,3 +1281,71 @@
   - personality_TRAIT
   - personality_PRIME
   title: Personality
+- arxiv: https://arxiv.org/abs/2312.14135
+  categories:
+  - Multimodal
+  - Multimodal
+  contributors:
+  - bienehito
+  description: 'V*Bench is a visual question & answer benchmark that evaluates MLLMs
+    in their ability to process high-resolution and visually crowded images to find
+    and focus on small details.
+
+    '
+  group: Multimodal
+  path: src/inspect_evals/vstar_bench
+  tags:
+  - Multimodal
+  tasks:
+  - vstar_bench_attribute_recognition
+  - vstar_bench_spatial_relationship_reasoning
+  title: 'V*Bench: A Visual QA Benchmark with Detailed High-resolution Images'
+- arxiv: https://arxiv.org/abs/2007.00398
+  categories:
+  - Multimodal
+  - Multimodal
+  contributors:
+  - evanmiller-anthropic
+  description: 'DocVQA is a Visual Question Answering benchmark that consists of 50,000
+    questions covering 12,000+ document images. This implementation solves and scores
+    the "validation" split.
+
+    '
+  group: Multimodal
+  path: src/inspect_evals/docvqa
+  tags:
+  - Multimodal
+  tasks:
+  - docvqa
+  title: 'DocVQA: A Dataset for VQA on Document Images'
+- arxiv: https://arxiv.org/pdf/2408.02718
+  categories:
+  - Multimodal
+  contributors:
+  - Esther-Guo
+  description: A comprehensive dataset designed to evaluate Large Vision-Language
+    Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses
+    7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously
+    curated multiple-choice questions.
+  group: Multimodal
+  path: src/inspect_evals/mmiu
+  tasks:
+  - mmiu
+  title: 'MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language
+    Models'
+- arxiv: https://arxiv.org/abs/2502.09696
+  categories:
+  - Multimodal
+  - Multimodal
+  contributors:
+  - ItsTania
+  description: A lightweight visual reasoning benchmark that is (1) Challenging, (2)
+    Lightweight, (3) Diverse, and (4) High-quality.
+  group: Multimodal
+  path: src/inspect_evals/zerobench
+  tags:
+  - Multimodal
+  tasks:
+  - Zerobench
+  - Zerobench Subquestions
+  title: ZeroBench

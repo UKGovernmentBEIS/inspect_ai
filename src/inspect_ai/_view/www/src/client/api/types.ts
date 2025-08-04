@@ -117,6 +117,7 @@ export interface EvalLogHeader {
 }
 
 export interface SampleSummary {
+  uuid?: string;
   id: number | string;
   epoch: number;
   input: Input;

@@ -7,16 +7,18 @@ from typing import TypedDict
 
 import anyio
 import pytest
+from tenacity import RetryError
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 
-from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.util.batch import (
     Batcher,
     BatchRequest,
 )
+from inspect_ai.model._retry import model_retry_config
 
 
 class FakeCompletionInfo(TypedDict):
@@ -48,6 +50,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         """
         super().__init__(
             config or BatchConfig(size=3, send_delay=0.01, tick=0.001),
+            model_retry_config("test", 3, None, lambda e: True, lambda m, s: None),
             max_batch_request_count=10,
             max_batch_size_mb=1,
         )
@@ -149,9 +152,7 @@ class TestBatcher:
             batcher = FakeBatcher()
 
             # Make a request
-            result = await batcher.generate(
-                request={"prompt": "test"}, config=GenerateConfig()
-            )
+            result = await batcher.generate_for_request(request={"prompt": "test"})
 
             # Should get back a successful result
             assert result.startswith("result-for-")
@@ -168,8 +169,7 @@ class TestBatcher:
 
             # Make multiple requests concurrently
             tasks = [
-                batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
-                for i in range(5)
+                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(5)
             ]
 
             results = await asyncio.gather(*tasks)
@@ -193,22 +193,21 @@ class TestBatcher:
 
             batcher._create_batch = failing_create_batch
 
-            # Request should fail with the creation error
-            with pytest.raises(Exception, match="Batch creation failed"):
-                await batcher.generate({"prompt": "test"}, GenerateConfig())
+            # Request should fail with the creation error wrapped in RetryError
+            with pytest.raises(RetryError):
+                await batcher.generate_for_request({"prompt": "test"})
 
-        # For this test, we need to catch the ExceptionGroup that wraps the error
+        # Run the test within task group context, expecting ExceptionGroup
         try:
             await self._run_with_task_group(test_logic)
         except ExceptionGroup as eg:
-            # The TaskGroup wraps the exception in an ExceptionGroup
-            # We need to check if the underlying exception is what we expect
+            # Should contain a RetryError wrapped in the ExceptionGroup
             exceptions = eg.exceptions
-            assert len(exceptions) == 1
-            assert "Batch creation failed" in str(exceptions[0])
-        except Exception as e:
-            # If it's not an ExceptionGroup, check if it's the expected error
-            assert "Batch creation failed" in str(e)
+            assert len(exceptions) >= 1
+            assert any(isinstance(exc, RetryError) for exc in exceptions)
+        except RetryError:
+            # Direct RetryError is also acceptable
+            pass
 
     async def test_batch_check_failure_retry(self):
         """Test that batch check failures are retried appropriately."""
@@ -218,9 +217,7 @@ class TestBatcher:
             batcher = FakeBatcher(fail_batch_ids={"batch-0"})
 
             # Start a request
-            task = asyncio.create_task(
-                batcher.generate({"prompt": "test"}, GenerateConfig())
-            )
+            task = asyncio.create_task(batcher.generate_for_request({"prompt": "test"}))
 
             # Let it fail a few times
             await asyncio.sleep(0.01)
@@ -241,9 +238,9 @@ class TestBatcher:
             handle_error = Exception("Result handling failed")
             batcher = FakeBatcher(handle_batch_error=handle_error)
 
-            # Request should fail with the handling error
-            with pytest.raises(Exception, match="Result handling failed"):
-                await batcher.generate({"prompt": "test"}, GenerateConfig())
+            # Request should fail with the handling error wrapped in RetryError
+            with pytest.raises(RetryError):
+                await batcher.generate_for_request({"prompt": "test"})
 
         await self._run_with_task_group(test_logic)
 
@@ -259,8 +256,7 @@ class TestBatcher:
 
             # Send exactly 3 requests - should trigger batch send due to minimum size being reached
             tasks = [
-                batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
-                for i in range(3)
+                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(3)
             ]
 
             # All should complete successfully
@@ -286,8 +282,7 @@ class TestBatcher:
 
             # Send fewer requests than batch size
             tasks = [
-                batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
-                for i in range(3)
+                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(3)
             ]
 
             # Should complete due to timeout, not batch size
@@ -311,8 +306,7 @@ class TestBatcher:
             # Send many requests to force multiple concurrent batches
             # With max_size=2, 8 requests will require at least 4 batches
             tasks = [
-                batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
-                for i in range(8)
+                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(8)
             ]
 
             results = await asyncio.gather(*tasks)
@@ -341,7 +335,7 @@ class TestBatcher:
             # Create many concurrent requests
             num_requests = 20
             tasks = [
-                batcher.generate({"prompt": f"stress-test-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"stress-test-{i}"})
                 for i in range(num_requests)
             ]
 
@@ -383,7 +377,7 @@ class TestBatcher:
 
             # Make requests that should succeed
             tasks = [
-                batcher.generate({"prompt": f"test-success-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"test-success-{i}"})
                 for i in range(3)
             ]
 
@@ -400,9 +394,9 @@ class TestBatcher:
                 handle_batch_error=Exception("Batch result handling failed"),
             )
 
-            # All requests in the failing batch should get the error
-            with pytest.raises(Exception, match="Batch result handling failed"):
-                await batcher_fail.generate({"prompt": "test-fail"}, GenerateConfig())
+            # All requests in the failing batch should get the error wrapped in RetryError
+            with pytest.raises(RetryError):
+                await batcher_fail.generate_for_request({"prompt": "test-fail"})
 
             # Test 3: Individual request failures within a successful batch
             batcher_mixed = FakeBatcher(
@@ -463,8 +457,7 @@ class TestBatcher:
 
             # Send more requests than the maximum batch size
             tasks = [
-                batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
-                for i in range(5)
+                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(5)
             ]
 
             # All should complete successfully
@@ -494,8 +487,7 @@ class TestBatcher:
 
             # Send fewer requests than minimum batch size
             tasks = [
-                batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
-                for i in range(2)
+                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(2)
             ]
 
             # Should complete due to timeout, not minimum size
@@ -521,8 +513,7 @@ class TestBatcher:
 
             # Send 4 requests (between min and max)
             tasks = [
-                batcher.generate({"prompt": f"test-{i}"}, GenerateConfig())
-                for i in range(4)
+                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(4)
             ]
 
             # Should complete immediately (since 4 >= 3 min_size)
@@ -540,7 +531,7 @@ class TestBatcher:
             )
 
             tasks2 = [
-                batcher2.generate({"prompt": f"test2-{i}"}, GenerateConfig())
+                batcher2.generate_for_request({"prompt": f"test2-{i}"})
                 for i in range(6)
             ]
 
@@ -572,9 +563,7 @@ class TestBatcher:
             )
 
             # Start a request that will be in the failing batch
-            task = asyncio.create_task(
-                batcher.generate({"prompt": "test"}, GenerateConfig())
-            )
+            task = asyncio.create_task(batcher.generate_for_request({"prompt": "test"}))
 
             # Wait for the batch to fail after the configured number of failures
             with pytest.raises(Exception, match="Simulated batch failure for batch-0"):
@@ -634,9 +623,7 @@ class TestBatcher:
             )
 
             # Start a request
-            task = asyncio.create_task(
-                batcher.generate({"prompt": "test"}, GenerateConfig())
-            )
+            task = asyncio.create_task(batcher.generate_for_request({"prompt": "test"}))
 
             # Let it fail a few times
             await asyncio.sleep(0.01)
@@ -667,9 +654,7 @@ class TestBatcher:
 
             # Create a request that's close to but under the limit
             large_data = "x" * 800  # Should fit
-            result = await batcher.generate(
-                {"large_payload": large_data}, GenerateConfig()
-            )
+            result = await batcher.generate_for_request({"large_payload": large_data})
             assert result.startswith("result-for-")
 
             # Verify exactly one batch was created
@@ -692,7 +677,7 @@ class TestBatcher:
 
             # Send more requests than the effective limit
             tasks = [
-                batcher.generate({"prompt": f"constrained-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"constrained-{i}"})
                 for i in range(8)
             ]
 
@@ -721,7 +706,7 @@ class TestBatcher:
 
             # Should still work - implementation should handle this gracefully
             tasks = [
-                batcher.generate({"prompt": f"invalid-config-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"invalid-config-{i}"})
                 for i in range(4)
             ]
 
@@ -752,9 +737,8 @@ class TestBatcher:
 
             # Create requests that will hit byte limit before count limit
             tasks = [
-                batcher.generate(
-                    {"data": f"medium-sized-request-{i:03d}-{'x' * 20}"},
-                    GenerateConfig(),
+                batcher.generate_for_request(
+                    {"data": f"medium-sized-request-{i:03d}-{'x' * 20}"}
                 )
                 for i in range(8)
             ]
@@ -785,7 +769,7 @@ class TestBatcher:
 
             # Send fewer requests than minimum size
             tasks = [
-                batcher.generate({"prompt": f"fast-tick-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"fast-tick-{i}"})
                 for i in range(3)
             ]
 
@@ -816,7 +800,7 @@ class TestBatcher:
 
             # Send requests that should complete between ticks
             tasks = [
-                batcher.generate({"prompt": f"slow-tick-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"slow-tick-{i}"})
                 for i in range(3)
             ]
 
@@ -849,7 +833,7 @@ class TestBatcher:
 
             # Send many requests that would normally create more batches
             tasks = [
-                batcher.generate({"prompt": f"limited-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"limited-{i}"})
                 for i in range(10)
             ]
 
@@ -879,7 +863,7 @@ class TestBatcher:
 
             # Send multiple requests
             tasks = [
-                batcher.generate({"prompt": f"zero-config-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"zero-config-{i}"})
                 for i in range(3)
             ]
 
@@ -907,7 +891,7 @@ class TestBatcher:
 
             # Send a moderate number of requests
             tasks = [
-                batcher.generate({"prompt": f"extreme-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"extreme-{i}"})
                 for i in range(5)
             ]
 
@@ -937,7 +921,7 @@ class TestBatcher:
 
             # Send fewer requests than minimum size
             tasks = [
-                batcher.generate({"prompt": f"precision-{i}"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": f"precision-{i}"})
                 for i in range(3)
             ]
 
@@ -968,7 +952,7 @@ class TestBatcher:
 
             # Start a request that will fail
             task = asyncio.create_task(
-                batcher.generate({"prompt": "timing-failure"}, GenerateConfig())
+                batcher.generate_for_request({"prompt": "timing-failure"})
             )
 
             # Should fail after 2 failures * ~20ms tick = ~40ms + some overhead

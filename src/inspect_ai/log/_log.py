@@ -22,9 +22,10 @@ from shortuuid import uuid
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, DESERIALIZING, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.hash import base57_id_hash
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.approval._policy import ApprovalPolicyConfig
-from inspect_ai.dataset._dataset import MT, metadata_as
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -73,6 +74,9 @@ class EvalConfig(BaseModel):
         default=None
     )
     """Evaluate specific sample(s)."""
+
+    sample_shuffle: bool | int | None = Field(default=None)
+    """Shuffle order of samples."""
 
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
@@ -706,6 +710,9 @@ class EvalSpec(BaseModel):
     task_file: str | None = Field(default=None)
     """Task source file."""
 
+    task_display_name: str | None = Field(default=None)
+    """Task display name."""
+
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""
 
@@ -972,6 +979,15 @@ class EvalLog(BaseModel):
         elif has_reductions and (has_results and not has_sample_reductions):
             values["results"]["sample_reductions"] = values["reductions"]
         return values
+
+    def __repr__(self) -> str:
+        return to_json_str_safe(
+            self.model_dump(
+                exclude={"samples", "reductions"},
+                exclude_none=True,
+                fallback=lambda _: None,
+            )
+        )
 
 
 def sort_samples(samples: list[EvalSample]) -> None:

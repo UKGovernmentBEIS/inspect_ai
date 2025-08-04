@@ -1,6 +1,52 @@
 ## Unreleased
 
-[Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
+- [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
+- Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
+- MockLLM: Added the ability to provide a generator like callback function to enable providing dynamic model responses.
+- Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
+
+## 0.3.119 (04 August 2025)
+
+- Analysis functions are out of beta (`inspect_ai.analysis.beta` is deprecated in favor of `inspect_ai.analysis`).
+- Scoring: Provide access to sample `store` for scorers run on existing log files.
+
+## 0.3.118 (02 August 2025)
+
+- Remove support for `vertex` provider as the google-cloud-aiplatform package has [deprecated](https://pypi.org/project/google-cloud-aiplatform/) its support for Vertex generative models. Vertex can still be used via the native `google` and `anthropic` providers.
+- Tool calling: Added support for emulated tool calling (`emulate_tools` model arg) to OpenAI API compatible providers.
+- Task display: Improved display for multiple scorers/metrics in task results summary.
+- Scoring: Improved error message for scorers missing a return type annotation.
+- Datasets: Added `--sample-shuffle` eval option to control sample shuffling (takes an optional seed for determinism).
+- Batch Processing: Enable batch support when using Google model provider.
+
+## 0.3.117 (31 July 2025)
+
+- Added [Fireworks AI](https://inspect.aisi.org.uk/providers.html#fireworks-ai) model provider.
+- OpenAI: Add `user` and `http_client` custom model arguments.
+- vLLM: Add `is_mistral` model arg for mistral compatible tool calling.
+- Hugging Face: Add `hidden_states` model arg to get model activations.
+- Model API: `--max-connections`, `--max-retries`, and `--timeout` now provide defaults for all models rather than only the main model being evaluated.
+- Tool calling: Do middle truncation when enforcing `max_tool_output`.
+- Datasets: Support for directories in sample `files` field.
+- Added sample, message, and event linking to `log_viewer()` data preparation function.
+- Analysis: Added `full` option to `samples_df()` for reading full sample metadata.
+- Analysis: Renamed `EvalConfig` column defs to `EvalConfiguration`.
+- Improved `_repr_` for `EvalLog` (print JSON representation of log header).
+- Added `metadata_as()` typesafe `metadata` accessor to `ChatMessageBase`.
+- Hooks: Emit run end hook when unhandled exceptions occur.
+- Batch Processing: Add batch processing support for Together AI
+- Batch Processing: Improve batch processing scalability when handling very large concurrent batch counts.
+- Batch Processing: Log retry attempts to the task display console.
+- Batch Processing: Move batch retry logic to base class to reduce logic duplication and simplify provider implementations.
+- Batch Processing: Enable batch support when using OpenAI Responses API.
+- Inspect View: Do not use instance cache for S3FileSystem (eliminates some errors with large eval sets)
+- Bugfix: Correct mapping for organization and model name in `model_info()` operation.
+- Bugfix: Fix bug that failed to detect when an entire batch gets rejected by OpenAI.
+
+## 0.3.116 (27 July 2025)
+
+- Added `display_name` property to `Task` (e.g. for plotting).
+- Analysis: `task_info()` operation for data frame preparation.
 
 ## 0.3.115 (26 July 2025)
 
@@ -27,7 +73,7 @@
 
 ## 0.3.113 (16 July 2025)
 
-- [Batch processing](https://inspect.aisi.org.uk/models.html#batch-processing) API support for OpenAI and Anthropic models.
+- [Batch processing](https://inspect.aisi.org.uk/models-batch.html) API support for OpenAI and Anthropic models.
 - [TransformerLens](https://inspect.aisi.org.uk/providers.html#transformer-lens) model provider enabling use of `HookedTransformer` models with Inspect.
 - Web search: Added support for Grok as an internal search provider.
 - Google: Set `thought=True` on content when replaying `ContentReasoning` back to the model.

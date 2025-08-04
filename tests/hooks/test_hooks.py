@@ -227,6 +227,19 @@ def test_hooks_with_error_and_no_retries(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.sample_end_events) == 1
 
 
+def test_hooks_with_error_passes_exception_to_run_end(mock_hooks: MockHooks) -> None:
+    with pytest.raises(RuntimeError, match="test"):
+        with patch("inspect_ai._eval.eval.eval_init", side_effect=RuntimeError("test")):
+            eval(
+                Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(1)),
+                model="mockllm/model",
+                retry_on_error=0,
+            )
+
+    assert len(mock_hooks.run_end_events) == 1
+    assert mock_hooks.run_end_events[0].exception is not None
+
+
 def test_hooks_do_not_need_to_subscribe_to_all_events(
     hooks_minimal: MockMinimalHooks,
 ) -> None:

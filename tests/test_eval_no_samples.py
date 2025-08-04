@@ -1,10 +1,9 @@
-from inspect_ai import Task, eval, score, task
+from test_helpers.tasks import popularity
+
+from inspect_ai import eval, score
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai.dataset import FieldSpec, example_dataset
 from inspect_ai.log import EvalSample, read_eval_log, write_eval_log
 from inspect_ai.model import ChatMessageUser, ModelOutput
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate
 
 TEST_MODEL = "mockllm/model"
 
@@ -66,21 +65,3 @@ def test_eval_log_no_samples_ammend_and_score():
     assert len(log.samples) == (task.epochs or 1) * len(task.dataset)
     assert log.results
     assert log.results.scores[0].metrics["accuracy"].value > 0
-
-
-@task
-def popularity():
-    dataset = example_dataset(
-        name="popularity",
-        sample_fields=FieldSpec(
-            input="question",
-            target="answer_matching_behavior",
-            metadata=["label_confidence"],
-        ),
-    )
-
-    return Task(
-        dataset=dataset,
-        solver=[generate()],
-        scorer=[match()],
-    )

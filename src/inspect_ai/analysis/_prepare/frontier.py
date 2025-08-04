@@ -1,6 +1,4 @@
-import pandas as pd
-
-from inspect_ai.analysis.beta._prepare.operation import Operation
+from inspect_ai.analysis._prepare.operation import Operation
 
 
 def frontier(
@@ -21,6 +19,7 @@ def frontier(
         score_column: The column in the data frame containing the score (defaults to "score_headline_value").
         frontier_column: The column to create with the frontier value (defaults to "frontier").
     """
+    import pandas as pd
 
     def transform(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:

@@ -19,6 +19,7 @@
 - [Caching](https://inspect.aisi.org.uk/caching.html.md): Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 - [Multimodal](https://inspect.aisi.org.uk/multimodal.html.md) This article describes how to use images, audio, and video in evaluations.
 - [Reasoning](https://inspect.aisi.org.uk/reasoning.html.md) documents the additional options and data available for reasoning models.
+- [Batch Mode](https://inspect.aisi.org.uk/models-batch.html.md) covers using batch processing APIs for model inference.
 - [JSON Output](https://inspect.aisi.org.uk/structured.html.md) explains how to constrain model output to a particular JSON schema.
 
 - [Tool Basics](https://inspect.aisi.org.uk/tools.html.md): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.

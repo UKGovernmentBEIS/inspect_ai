@@ -22,10 +22,16 @@ async def check_test_fn(
     fn: Callable[[SandboxEnvironment], Coroutine[Any, Any, None]],
     sandbox_env: SandboxEnvironment,
 ) -> bool | str:
+    # Import this here rather than in module header in case of breakages because
+    # it's internal
+    from _pytest.outcomes import Failed
+
     try:
         await fn(sandbox_env)
         return True
     except AssertionError as e:
+        return f"FAILED: [{str(e)}]"
+    except Failed as e:
         return f"FAILED: [{str(e)}]"
     except Exception as e:
         return f"ERROR: [{repr(e)}]"
@@ -65,6 +71,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_exec_returncode,
         test_exec_timeout,
         test_exec_permission_error,
+        test_exec_env_vars,
         test_exec_as_user,
         test_exec_as_nonexistent_user,
         test_cwd_unspecified,
@@ -412,6 +419,19 @@ async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
     with Raises(PermissionError):
         # /etc/password is not an executable file so this should fail
         await sandbox_env.exec(["/etc/passwd"])
+
+
+async def test_exec_env_vars(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(
+        cmd=["sh", "-c", "echo $CUSTOM_ENV_VAR_1; echo $CUSTOM_ENV_VAR_2"],
+        env={
+            "CUSTOM_ENV_VAR_1": "chonko zamboodle",
+            "CUSTOM_ENV_VAR_2": "zeddle_zom",
+        },
+    )
+    assert exec_result.stdout == "chonko zamboodle\nzeddle_zom\n", (
+        f"env var not passed to script; got {exec_result.stdout=}"
+    )
 
 
 async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:

@@ -1,9 +1,20 @@
+from typing import cast
+
 from inspect_ai._util.path import native_path
 from inspect_ai.log._log import EvalLog
+
+from ..extract import remove_namespace
 
 
 def eval_log_location(log: EvalLog) -> str:
     return native_path(log.location)
+
+
+def eval_log_task_display_name(log: EvalLog) -> str:
+    if log.eval.task_display_name is not None:
+        return log.eval.task_display_name
+    else:
+        return cast(str, remove_namespace(log.eval.task))
 
 
 def eval_log_scores_dict(

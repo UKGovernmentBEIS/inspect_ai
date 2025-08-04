@@ -1480,6 +1480,21 @@
           "default": null,
           "title": "Sample Id"
         },
+        "sample_shuffle": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Shuffle"
+        },
         "epochs": {
           "anyOf": [
             {
@@ -1731,6 +1746,7 @@
       "required": [
         "limit",
         "sample_id",
+        "sample_shuffle",
         "epochs",
         "epochs_reducer",
         "approval",
@@ -2891,6 +2907,18 @@
           "default": null,
           "title": "Task File"
         },
+        "task_display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Display Name"
+        },
         "task_registry_name": {
           "anyOf": [
             {
@@ -3093,6 +3121,7 @@
         "task_id",
         "task_version",
         "task_file",
+        "task_display_name",
         "task_registry_name",
         "task_attribs",
         "task_args",
