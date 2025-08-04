@@ -1,7 +1,7 @@
 import re
 from itertools import count
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 import pytest
 from test_helpers.tool_call_utils import get_tool_call, get_tool_response
@@ -13,7 +13,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import web_browser
 from inspect_ai.tool._tool_choice import ToolChoice
