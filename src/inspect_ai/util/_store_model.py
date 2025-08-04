@@ -143,7 +143,7 @@ class StoreModel(BaseModel):
         if field_name not in self.__class__.model_fields or value is None:
             return value
 
-        field_info = self.__class__.model_fields[field_name]
+        field_info = self.__class__.model_fields[field_name]  # pylint: disable=unsubscriptable-object
         field_type = field_info.annotation
 
         # Skip coercion for scalar types (they don't need it)
