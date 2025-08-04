@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import sys
 import time
-from typing import TypedDict
 
 import anyio
 import pytest
 from tenacity import RetryError
+from typing_extensions import TypedDict
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup

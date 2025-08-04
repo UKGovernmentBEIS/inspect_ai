@@ -1,9 +1,10 @@
 """Tests for StoreModel with nested types (Pydantic models, TypedDicts, dataclasses, etc.)"""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
 
 from inspect_ai.util import Store, StoreModel
 
@@ -56,7 +57,9 @@ class NestedPydanticStore(StoreModel):
 
 class TypedDictStore(StoreModel):
     user: UserTypedDict = Field(
-        default_factory=lambda: {"username": "", "email": "", "is_active": False}
+        default_factory=lambda: cast(
+            UserTypedDict, {"username": "", "email": "", "is_active": False}
+        )
     )
     users: List[UserTypedDict] = Field(default_factory=list)
 
@@ -299,7 +302,7 @@ def test_mixed_nested_types():
     assert isinstance(model.items[0], Person | Product)
 
 
-def test_scalar_values_not_coerced():
+def test_scalar_values_not_coerced() -> None:
     """Test that scalar values are not unnecessarily coerced."""
 
     class ScalarStore(StoreModel):
@@ -352,7 +355,7 @@ def test_coercion_caching():
     assert stored_value is person1
 
 
-def test_invalid_data_returns_raw():
+def test_invalid_data_returns_raw() -> None:
     """Test that invalid data that can't be coerced returns raw value."""
 
     class StrictStore(StoreModel):
@@ -391,7 +394,7 @@ def test_multiple_instances_with_nested_types():
     assert "NestedPydanticStore:user2:person" in store.keys()
 
 
-def test_deeply_nested_structures():
+def test_deeply_nested_structures() -> None:
     """Test deeply nested structures are properly coerced."""
 
     class DeeplyNested(BaseModel):
