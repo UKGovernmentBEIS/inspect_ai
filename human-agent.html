@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.32">
+<meta name="generator" content="quarto-99.9.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -69,14 +69,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./agent-bridge.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-3aa970819e70fbc78806154e5a1fcd28.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-871b74c1c552ddee99e75c490274fea0.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-97528fa06055cec07c0063956ced4fc7.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
 <link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
 <link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
@@ -131,7 +132,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
-    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo light-content">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="./index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -152,8 +154,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./integrations/index.html"> 
-<span class="menu-text">Integrations</span></a>
+    <a class="nav-link" href="./extensions/index.html"> 
+<span class="menu-text">Extensions</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link" href="./evals/index.html"> 
@@ -191,6 +193,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
+      <a href="./index.html" class="sidebar-logo-link">
+      </a>
+      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
@@ -553,25 +559,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="example" class="level2">
 <h2 class="anchored" data-anchor-id="example">Example</h2>
 <p>Here, we run a human baseline on an <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/">Intercode CTF</a> sample. We use the <code>--solver</code> option to use the <code>human_cli</code> agent rather than the task’s default solver:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The evaluation runs as normal, and a <strong>Human Agent</strong> panel appears in the task UI to orient the human baseliner to the task and provide instructions for accessing the container. The user clicks the <strong>VS Code Terminal</strong> link and a terminal interface to the container is provided within VS Code:</p>
 <p><a href="images/inspect-human-agent.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-human-agent.png" class="img-fluid"></a></p>
 <p>Note that while this example makes use of VS Code, it is in no way required. Baseliners can use their preferred editor and terminal environment using the <code>docker exec</code> command provided at the bottom. Human baselining can also be done in a “headless” fashion without the task display (see the <a href="#headless">Headless</a> section below for details).</p>
 <p>Once the user discovers the flag, they can submit it using the <code>task submit</code> command. For example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> submit picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> submit picoCTF{73bfc85c1ba7}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="usage" class="level2">
 <h2 class="anchored" data-anchor-id="usage">Usage</h2>
 <p>Using the <code>human_cli</code> agent is as straightforward as specifying it as the <code>--solver</code> for any existing task. Repeating the example above:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or alternatively from within Python:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> human_cli</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_evals <span class="im">import</span> gdm_intercode_ctf</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(gdm_intercode_ctf(), sample_id<span class="op">=</span><span class="dv">44</span>, solver<span class="op">=</span>human_cli())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(gdm_intercode_ctf(), sample_id<span class="op">=</span><span class="dv">44</span>, solver<span class="op">=</span>human_cli())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>There are however some requirements that should be met by your task before using it with the human CLI agent:</p>
 <ol type="1">
 <li><p>It should be solvable by using the tools available in a Linux environment (plus potentially access to the web, which the baseliner can do using an external web browser).</p></li>
@@ -580,7 +586,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="container-access" class="level3">
 <h3 class="anchored" data-anchor-id="container-access">Container Access</h3>
 <p>The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the <strong>Human Agent</strong> panel. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-itmzq4e-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-itmzq4e-default-1 bash <span class="at">-l</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:</p>
 <ul>
 <li><p><strong>VS Code Window</strong> opens a new VS Code window logged in to the container. The human agent can than create terminals, browse the file system, etc. using the VS Code interface.</p></li>
@@ -638,11 +644,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="answer-submission">Answer Submission</h3>
 <p>When the human agent has completed the task, they submit their answer using the <code>task submit</code>command. By default, the <code>task submit</code> command requires that an explicit answer be given (e.g.&nbsp;<code>task submit picoCTF{73bfc85c1ba7}</code>).</p>
 <p>However, if your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing <code>answer=False</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#human_cli">human_cli()</a></span>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(answer<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(answer<span class="op">=</span><span class="va">False</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> answer=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> answer=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also specify a regex to match the answer against for validation, for example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(answer<span class="op">=</span><span class="vs">r"picoCTF{</span><span class="dv">\w</span><span class="op">+</span><span class="vs">}"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(answer<span class="op">=</span><span class="vs">r"picoCTF{</span><span class="dv">\w</span><span class="op">+</span><span class="vs">}"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="quitting" class="level3">
 <h3 class="anchored" data-anchor-id="quitting">Quitting</h3>
@@ -651,18 +657,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="intermediate-scoring" class="level3">
 <h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
 <p>You can optionally make intermediate scoring available to human baseliners so that they can check potential answers as they work. Use the <code>intermediate_scoring</code> option (which defaults to <code>False</code>) to do this:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(intermediate_scoring<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(intermediate_scoring<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> intermediate_scoring=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> intermediate_scoring=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>With this option enabled, the human agent can check their potential score on the task for a given answer using the <code>task score</code> command. For example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> score picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> score picoCTF{73bfc85c1ba7}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="container-user" class="level3">
 <h3 class="anchored" data-anchor-id="container-user">Container User</h3>
 <p>By default, the human agent will login to the container using its default user. You can specify an alternate user via the <code>user</code> option. For example:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(user<span class="op">=</span><span class="st">"myuser"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(user<span class="op">=</span><span class="st">"myuser"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> user=myuser</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> user=myuser</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="recording" class="level2">
@@ -670,19 +676,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>By default, human agent terminal sessions are recorded using the LInux <a href="https://www.redhat.com/en/blog/linux-script-command">script command</a>. Recorded sessions are saved in the sample store and available for playback within the Inspect View:</p>
 <p><a href="images/inspect-terminal-transcript.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-terminal-transcript.png" class="img-fluid"></a></p>
 <p>You can disable session recording with the <code>record_session</code> option:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> record_session=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> record_session=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="headless" class="level2">
 <h2 class="anchored" data-anchor-id="headless">Headless</h2>
 <p>The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the <code>--display=plain</code> CLI option:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli <span class="at">--display</span> plain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli <span class="at">--display</span> plain</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Which will print the following to the terminal:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">You</span> are completing a task on a Linux system <span class="er">(</span><span class="ex">task</span> instructions will be presented when you login<span class="kw">)</span><span class="bu">.</span> Login to the system with the following command:</span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

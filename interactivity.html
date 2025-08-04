@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.32">
+<meta name="generator" content="quarto-99.9.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -69,14 +69,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./parallelism.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-3aa970819e70fbc78806154e5a1fcd28.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-871b74c1c552ddee99e75c490274fea0.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-97528fa06055cec07c0063956ced4fc7.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -128,7 +129,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
-    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo light-content">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="./index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -149,8 +151,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./integrations/index.html"> 
-<span class="menu-text">Integrations</span></a>
+    <a class="nav-link" href="./extensions/index.html"> 
+<span class="menu-text">Extensions</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link" href="./evals/index.html"> 
@@ -188,6 +190,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
+      <a href="./index.html" class="sidebar-logo-link">
+      </a>
+      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
@@ -558,17 +564,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="input-screen" class="level2">
 <h2 class="anchored" data-anchor-id="input-screen">Input Screen</h2>
 <p>You can prompt the user for input at any point in an evaluation using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#input_screen">input_screen()</a></span> context manager, which clears the normal task display and provides access to a <a href="https://rich.readthedocs.io/en/stable/console.html">Console</a> object for presenting content and asking for user input. For example:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"Some preamble text"</span>)</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>console</code> object provided by the context manager is from the <a href="https://rich.readthedocs.io/">Rich</a> Python library used by Inspect, and has many other capabilities beyond simple text input. Read on to learn more.</p>
 </section>
 <section id="prompts" class="level2">
 <h2 class="anchored" data-anchor-id="prompts">Prompts</h2>
 <p>Rich includes <a href="https://rich.readthedocs.io/en/stable/prompt.html">Prompt</a> and <a href="https://rich.readthedocs.io/en/stable/reference/prompt.html#rich.prompt.Confirm">Confirm</a> classes with additional capabilities including default values, choice lists, and re-prompting. For example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.prompt <span class="im">import</span> Prompt</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
@@ -576,13 +582,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Enter your name"</span>, </span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        choices<span class="op">=</span>[<span class="st">"Paul"</span>, <span class="st">"Jessica"</span>, <span class="st">"Duncan"</span>], </span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        default<span class="op">=</span><span class="st">"Paul"</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>Prompt</code> class is designed to be subclassed for more specialized inputs. The <code>IntPrompt</code> and <code>FloatPrompt</code> classes are built-in, but you can also create your own more customised prompts (the <code>Confirm</code> class is another example of this). See the <a href="https://github.com/Textualize/rich/blob/master/rich/prompt.py">prompt.py</a> source code for additional details.</p>
 </section>
 <section id="sec-conversation-display" class="level2">
 <h2 class="anchored" data-anchor-id="sec-conversation-display">Conversation Display</h2>
 <p>When introducing interactions it’s often useful to see the full chat conversation printed for additional context. You can do this via the <code>--display=conversation</code> CLI option, for example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--display</span> conversation</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--display</span> conversation</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>In conversation display mode, all messages exchanged with the model are printed to the terminal (tool output is truncated at 100 lines).</p>
 <p>Note that enabling conversation display automatically sets <code>max_tasks</code> and <code>max_samples</code> to 1, as otherwise messages from concurrently running samples would be interleaved together in an incoherent jumble.</p>
 </section>
@@ -590,37 +596,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="progress">Progress</h2>
 <p>Evaluations with user input alternate between asking for input and displaying task progress. By default, the normal task status display is shown when a user input screen is not active.</p>
 <p>However, if your evaluation is dominated by user input with very short model interactions in between, the task display flashing on and off might prove distracting. For these cases, you can specify the <code>transient=False</code> option, to indicate that the input screen should be shown at all times. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(transient<span class="op">=</span><span class="va">False</span>) <span class="im">as</span> console:</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(transient<span class="op">=</span><span class="va">False</span>) <span class="im">as</span> console:</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"Some preamble text"</span>)</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This will result in the input screen staying active throughout the evaluation. A small progress indicator will be shown whenever user input isn’t being requested so that the user knows that the evaluation is still running.</p>
 </section>
 <section id="header" class="level2">
 <h2 class="anchored" data-anchor-id="header">Header</h2>
 <p>You can add a header to your console input via the <code>header</code> parameter. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(header<span class="op">=</span><span class="st">"Input Request"</span>) <span class="im">as</span> console:</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(header<span class="op">=</span><span class="st">"Input Request"</span>) <span class="im">as</span> console:</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>header</code> option is a useful way to delineate user input requests (especially when switching between input display and the normal task display). You might also prefer to create your own heading treatments–under the hood, the <code>header</code> option calls <code>console.rule()</code> with a blue bold treatment:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>console.rule(<span class="ss">f"[blue bold]</span><span class="sc">{</span>header<span class="sc">}</span><span class="ss">[/blue bold]"</span>, style<span class="op">=</span><span class="st">"blue bold"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>console.rule(<span class="ss">f"[blue bold]</span><span class="sc">{</span>header<span class="sc">}</span><span class="ss">[/blue bold]"</span>, style<span class="op">=</span><span class="st">"blue bold"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also use the <a href="#sec-layout">Layout</a> primitives (columns, panels, and tables) to present your input user interface.</p>
 </section>
 <section id="formatting" class="level2">
 <h2 class="anchored" data-anchor-id="formatting">Formatting</h2>
 <p>The <code>console.print()</code> method supports <a href="(https://rich.readthedocs.io/en/stable/console.html)">formatting</a> using simple markup. For example:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"[bold red]alert![/bold red] Something happened"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"[bold red]alert![/bold red] Something happened"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>See the documentation on <a href="https://rich.readthedocs.io/en/stable/markup.html">console markup</a> for additional details.</p>
 <p>You can also render <a href="https://rich.readthedocs.io/en/stable/markdown.html">markdown</a> directly, for example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.markdown <span class="im">import</span> Markdown</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(Markdown(<span class="st">'The _quick_ brown **fox**'</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(Markdown(<span class="st">'The _quick_ brown **fox**'</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="sec-layout" class="level2">
 <h2 class="anchored" data-anchor-id="sec-layout">Layout</h2>
 <p>Rich includes <a href="https://rich.readthedocs.io/en/stable/columns.html">Columns</a>, <a href="https://rich.readthedocs.io/en/stable/tables.html">Table</a> and <a href="https://rich.readthedocs.io/en/stable/panel.html">Panel</a> classes for more advanced layout. For example, here is a simple table:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.table <span class="im">import</span> Table</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
@@ -629,7 +635,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Parameters"</span>, style<span class="op">=</span><span class="st">"magenta"</span>)</span>
 <span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"bash"</span>, <span class="st">"ls /usr/bin"</span>)</span>
 <span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"python"</span>, <span class="st">"print('foo')"</span>)</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(table)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(table)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

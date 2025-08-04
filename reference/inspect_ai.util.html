@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.32">
+<meta name="generator" content="quarto-99.9.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -69,14 +69,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../reference/inspect_ai.analysis.qmd#columnerror" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-3aa970819e70fbc78806154e5a1fcd28.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-871b74c1c552ddee99e75c490274fea0.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-97528fa06055cec07c0063956ced4fc7.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -128,7 +129,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
-    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo">
+    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo light-content">
+    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -141,16 +143,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link" href="../index.html"> 
+    <a class="nav-link active" href="../index.html" aria-current="page"> 
 <span class="menu-text">User Guide</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link active" href="../reference/index.html" aria-current="page"> 
+    <a class="nav-link" href="../reference/index.html"> 
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../integrations/index.html"> 
-<span class="menu-text">Integrations</span></a>
+    <a class="nav-link" href="../extensions/index.html"> 
+<span class="menu-text">Extensions</span></a>
   </li>  
   <li class="nav-item">
     <a class="nav-link" href="../evals/index.html"> 
@@ -188,6 +190,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
+      <a href="../index.html" class="sidebar-logo-link">
+      </a>
+      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
@@ -2358,9 +2364,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> for each sample has a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span> which can be used when solvers and/or tools need to coordinate changes to shared state. The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span> can be accessed directly from the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> via <code>state.store</code> or can be accessed using the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">store()</a></span> global function.</p>
 <p>Note that changes to the store that occur are automatically recorded to transcript as a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#storeevent">StoreEvent</a></span>. In order to be serialised to the transcript, values and objects must be JSON serialisable (you can make objects with several fields serialisable using the <code>@dataclass</code> decorator or by inheriting from Pydantic <code>BaseModel</code>)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L20">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L20">Source</a>
 </div>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Store</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Store</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
 <h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
 <dl>
@@ -2369,9 +2375,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Get a value from the store.</p>
 <p>Provide a <code>default</code> to automatically initialise a named store value with the default when it does not yet exist.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L46">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L46">Source</a>
 </div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get(<span class="va">self</span>, key: <span class="bu">str</span>, default: VT <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> VT <span class="op">|</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get(<span class="va">self</span>, key: <span class="bu">str</span>, default: VT <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> VT <span class="op">|</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">key</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -2387,9 +2393,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Set a value into the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L64">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L64">Source</a>
 </div>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">set</span>(<span class="va">self</span>, key: <span class="bu">str</span>, value: Any) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">set</span>(<span class="va">self</span>, key: <span class="bu">str</span>, value: Any) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">key</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -2405,9 +2411,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Remove a value from the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L73">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L73">Source</a>
 </div>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> delete(<span class="va">self</span>, key: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> delete(<span class="va">self</span>, key: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">key</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -2419,9 +2425,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>View of keys within the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L81">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L81">Source</a>
 </div>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> keys(<span class="va">self</span>) <span class="op">-&gt;</span> KeysView[<span class="bu">str</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> keys(<span class="va">self</span>) <span class="op">-&gt;</span> KeysView[<span class="bu">str</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
 
 </div>
@@ -2430,9 +2436,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>View of values within the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L85">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L85">Source</a>
 </div>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> values(<span class="va">self</span>) <span class="op">-&gt;</span> ValuesView[Any]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> values(<span class="va">self</span>) <span class="op">-&gt;</span> ValuesView[Any]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
 
 </div>
@@ -2441,9 +2447,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>View of items within the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L89">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L89">Source</a>
 </div>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> items(<span class="va">self</span>) <span class="op">-&gt;</span> ItemsView[<span class="bu">str</span>, Any]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> items(<span class="va">self</span>) <span class="op">-&gt;</span> ItemsView[<span class="bu">str</span>, Any]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
 
 </div>
@@ -2455,17 +2461,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="store-2">store</h3>
 <p>Get the currently active <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store.py#L103">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store.py#L103">Source</a>
 </div>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store() <span class="op">-&gt;</span> Store</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store() <span class="op">-&gt;</span> Store</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="store_as" class="level3">
 <h3 class="anchored" data-anchor-id="store_as">store_as</h3>
 <p>Get a Pydantic model interface to the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store_model.py#L121">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store_model.py#L121">Source</a>
 </div>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(model_cls: Type[SMT], instance: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SMT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(model_cls: Type[SMT], instance: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SMT</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">model_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">SMT</span>]</span></dt>
 <dd>
@@ -2482,9 +2488,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Store backed Pydandic BaseModel.</p>
 <p>The model is initialised from a Store, so that Store should either already satisfy the validation constraints of the model OR you should provide Field(default=) annotations for all of your model fields (the latter approach is recommended).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_store_model.py#L8">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_store_model.py#L8">Source</a>
 </div>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StoreModel(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StoreModel(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="limits" class="level2">
@@ -2497,9 +2503,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This relies on “cooperative” checking - consumers must call check_message_limit() themselves whenever the message count is updated.</p>
 <p>When a limit is exceeded, a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span> is raised.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L259">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L259">Source</a>
 </div>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> message_limit(limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _MessageLimit</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> message_limit(limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _MessageLimit</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -2515,9 +2521,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This relies on “cooperative” checking - consumers must call <code>check_token_limit()</code> themselves whenever tokens are consumed.</p>
 <p>When a limit is exceeded, a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span> is raised.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L215">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L215">Source</a>
 </div>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> token_limit(limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _TokenLimit</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> token_limit(limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _TokenLimit</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -2533,9 +2539,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>When a limit is exceeded, the code block is cancelled and a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span> is raised.</p>
 <p>Uses anyio’s cancellation scopes meaning that the operations within the context manager block are cancelled if the limit is exceeded. The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span> is therefore raised at the level that the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#time_limit">time_limit()</a></span> context manager was opened, not at the level of the operation which caused the limit to be exceeded (e.g.&nbsp;a call to <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span>). Ensure you handle <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span> at the level of opening the context manager.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L296">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L296">Source</a>
 </div>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> time_limit(limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _TimeLimit</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> time_limit(limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _TimeLimit</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -2551,9 +2557,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>These limits can be stacked.</p>
 <p>When a limit is exceeded, a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span> is raised.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L319">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L319">Source</a>
 </div>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> working_limit(limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _WorkingLimit</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> working_limit(limit: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> _WorkingLimit</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -2567,12 +2573,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Optionally catches any <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span> raised by the applied limits, while allowing other limit errors from any other scope (e.g.&nbsp;the Sample level) to propagate.</p>
 <p>Yields a <code>LimitScope</code> object which can be used once the context manager is closed to determine which, if any, limits were exceeded.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L126">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L126">Source</a>
 </div>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> apply_limits(</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    limits: <span class="bu">list</span>[Limit], catch_errors: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Iterator[LimitScope]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Iterator[LimitScope]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">limits</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.util.html#limit">Limit</a></span>]</span></dt>
 <dd>
@@ -2588,19 +2594,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sample_limits">sample_limits</h3>
 <p>Get the top-level limits applied to the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L195">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L195">Source</a>
 </div>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sample_limits() <span class="op">-&gt;</span> SampleLimits</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sample_limits() <span class="op">-&gt;</span> SampleLimits</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="samplelimits" class="level3">
 <h3 class="anchored" data-anchor-id="samplelimits">SampleLimits</h3>
 <p>Data class to hold the limits applied to a Sample.</p>
 <p>This is used to return the limits from <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#sample_limits">sample_limits()</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L175">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L175">Source</a>
 </div>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleLimits</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleLimits</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -2627,9 +2633,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="limit">Limit</h3>
 <p>Base class for all limit context managers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L73">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L73">Source</a>
 </div>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Limit(abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Limit(abc.ABC)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -2655,9 +2661,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Exception raised when a limit is exceeded.</p>
 <p>In some scenarios this error may be raised when <code>value &gt;= limit</code> to prevent another operation which is guaranteed to exceed the limit from being wastefully performed.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_limit.py#L26">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_limit.py#L26">Source</a>
 </div>
-<div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LimitExceededError(<span class="pp">Exception</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LimitExceededError(<span class="pp">Exception</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="concurrency" class="level2">
@@ -2666,18 +2672,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="concurrency-1">concurrency</h3>
 <p>Concurrency context manager.</p>
 <p>A concurrency context can be used to limit the number of coroutines executing a block of code (e.g calling an API). For example, here we limit concurrent calls to an api (‘api-name’) to 10:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> concurrency(<span class="st">"api-name"</span>, <span class="dv">10</span>):</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># call the api</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> concurrency(<span class="st">"api-name"</span>, <span class="dv">10</span>):</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># call the api</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that concurrency for model API access is handled internally via the <code>max_connections</code> generation config option. Concurrency for launching subprocesses is handled via the <code>subprocess</code> function.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_concurrency.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_concurrency.py#L11">Source</a>
 </div>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.asynccontextmanager</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.asynccontextmanager</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> concurrency(</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span>,</span>
 <span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    concurrency: <span class="bu">int</span>,</span>
 <span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> AsyncIterator[<span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> AsyncIterator[<span class="va">None</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -2698,9 +2704,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Execute and wait for a subprocess.</p>
 <p>Convenience method for solvers, scorers, and tools to launch subprocesses. Automatically enforces a limit on concurrent subprocesses (defaulting to os.cpu_count() but controllable via the <code>max_subprocesses</code> eval config option).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_subprocess.py#L70">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_subprocess.py#L70">Source</a>
 </div>
-<div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> subprocess(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> subprocess(</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    args: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>],</span>
 <span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
 <span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="bu">memoryview</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -2709,7 +2715,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    capture_output: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
 <span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    output_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Union[ExecResult[<span class="bu">str</span>], ExecResult[<span class="bu">bytes</span>]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Union[ExecResult[<span class="bu">str</span>], ExecResult[<span class="bu">bytes</span>]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">args</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>]</span></dt>
 <dd>
@@ -2749,10 +2755,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="execresult">ExecResult</h3>
 <p>Execution result from call to <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#subprocess">subprocess()</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_subprocess.py#L26">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_subprocess.py#L26">Source</a>
 </div>
-<div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ExecResult(Generic[T])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ExecResult(Generic[T])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -2782,9 +2788,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="display_counter">display_counter</h3>
 <p>Display a counter in the UI.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_display.py#L74">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_display.py#L74">Source</a>
 </div>
-<div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> display_counter(caption: <span class="bu">str</span>, value: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> display_counter(caption: <span class="bu">str</span>, value: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">caption</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -2800,31 +2806,31 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="display_type">display_type</h3>
 <p>Get the current console display type.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_display.py#L47">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_display.py#L47">Source</a>
 </div>
-<div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> display_type() <span class="op">-&gt;</span> DisplayType</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> display_type() <span class="op">-&gt;</span> DisplayType</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="displaytype" class="level3">
 <h3 class="anchored" data-anchor-id="displaytype">DisplayType</h3>
 <p>Console display type.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_display.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_display.py#L11">Source</a>
 </div>
-<div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>DisplayType <span class="op">=</span> Literal[<span class="st">"full"</span>, <span class="st">"conversation"</span>, <span class="st">"rich"</span>, <span class="st">"plain"</span>, <span class="st">"log"</span>, <span class="st">"none"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>DisplayType <span class="op">=</span> Literal[<span class="st">"full"</span>, <span class="st">"conversation"</span>, <span class="st">"rich"</span>, <span class="st">"plain"</span>, <span class="st">"log"</span>, <span class="st">"none"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="input_screen" class="level3">
 <h3 class="anchored" data-anchor-id="input_screen">input_screen</h3>
 <p>Input screen for receiving user input.</p>
 <p>Context manager that clears the task display and provides a screen for receiving console input.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_console.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_console.py#L13">Source</a>
 </div>
-<div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> input_screen(</span>
 <span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    header: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    transient: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    width: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Iterator[Console]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Iterator[Console]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">header</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -2847,10 +2853,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="span">span</h3>
 <p>Context manager for establishing a transcript span.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_span.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_span.py#L11">Source</a>
 </div>
-<div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.asynccontextmanager</span></span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> span(name: <span class="bu">str</span>, <span class="op">*</span>, <span class="bu">type</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> AsyncIterator[<span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.asynccontextmanager</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> span(name: <span class="bu">str</span>, <span class="op">*</span>, <span class="bu">type</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> AsyncIterator[<span class="va">None</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -2869,9 +2875,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Automatically includes each task in a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#span">span()</a></span>, which ensures that its events are grouped together in the transcript.</p>
 <p>Using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#collect">collect()</a></span> in preference to <code>asyncio.gather()</code> is highly recommended for both Trio compatibility and more legible transcript output.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_collect.py#L15">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_collect.py#L15">Source</a>
 </div>
-<div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> collect(<span class="op">*</span>tasks: Awaitable[T]) <span class="op">-&gt;</span> <span class="bu">list</span>[T]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> collect(<span class="op">*</span>tasks: Awaitable[T]) <span class="op">-&gt;</span> <span class="bu">list</span>[T]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">*tasks</code> <span class="element-type"><span class="element-type-name">Awaitable</span>[<span class="element-type-name">T</span>]</span></dt>
 <dd>
@@ -2886,13 +2892,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#resource">resource()</a></span> function will resolve its argument to a resource string. If a protocol-prefixed file name (e.g.&nbsp;s3://) or the path to a local file that exists is passed then it will be read and its contents returned. Otherwise, it will return the passed <code>str</code> directly This function is mostly intended as a helper for other functions that take either a string or a resource path as an argument, and want to easily resolve them to the underlying content.</p>
 <p>If you want to ensure that only local or remote files are consumed, specify <code>type="file"</code>. For example: <code>resource("templates/prompt.txt", type="file")</code></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_resource.py#L9">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_resource.py#L9">Source</a>
 </div>
-<div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> resource(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> resource(</span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    resource: <span class="bu">str</span>,</span>
 <span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">type</span>: Literal[<span class="st">"auto"</span>, <span class="st">"file"</span>] <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">resource</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -2912,9 +2918,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="throttle">throttle</h3>
 <p>Throttle a function to ensure it is called no more than every n seconds.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_throttle.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_throttle.py#L6">Source</a>
 </div>
-<div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> throttle(seconds: <span class="bu">float</span>) <span class="op">-&gt;</span> Callable[..., Any]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> throttle(seconds: <span class="bu">float</span>) <span class="op">-&gt;</span> Callable[..., Any]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">seconds</code> <span class="element-type"><span class="element-type-name">float</span></span></dt>
 <dd>
@@ -2927,20 +2933,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Run an async function in the background of the current sample.</p>
 <p>Background functions must be run from an executing sample. The function will run as long as the current sample is running.</p>
 <p>When the sample terminates, an anyio cancelled error will be raised in the background function. To catch this error and cleanup:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> anyio</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> anyio</span>
 <span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> run():</span>
 <span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
 <span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># background code</span></span>
 <span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> anyio.get_cancelled_exc_class():</span>
-<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_background.py#L19">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_background.py#L19">Source</a>
 </div>
-<div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> background(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> background(</span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],</span>
 <span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>args: Unpack[PosArgsT],</span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">func</code> <span class="element-type"><span class="element-type-name">Callable</span>[[<span class="element-type-name">Unpack</span>[<span class="element-type-name">PosArgsT</span>]], <span class="element-type-name">Awaitable</span>[<span class="element-type-name">Any</span>]]</span></dt>
 <dd>
@@ -2958,12 +2964,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Trace actions for which you want to collect data on the resolution (e.g.&nbsp;succeeded, cancelled, failed, timed out, etc.) and duration of.</p>
 <p>Traces are written to the <code>TRACE</code> log level (which is just below <code>HTTP</code> and <code>INFO</code>). List and read trace logs with <code>inspect trace list</code> and related commands (see <code>inspect trace --help</code> for details).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/_util/trace.py#L32">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/_util/trace.py#L32">Source</a>
 </div>
-<div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
 <span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> trace_action(</span>
 <span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    logger: Logger, action: <span class="bu">str</span>, message: <span class="bu">str</span>, <span class="op">*</span>args: Any, <span class="op">**</span>kwargs: Any</span>
-<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Generator[<span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Generator[<span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">logger</code> <span class="element-type"><span class="element-type-name">Logger</span></span></dt>
 <dd>
@@ -2992,11 +2998,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Log a message using the TRACE log level.</p>
 <p>The <code>TRACE</code> log level is just below <code>HTTP</code> and <code>INFO</code>). List and read trace logs with <code>inspect trace list</code> and related commands (see <code>inspect trace --help</code> for details).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/_util/trace.py#L133">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/_util/trace.py#L133">Source</a>
 </div>
-<div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> trace_message(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> trace_message(</span>
 <span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>    logger: Logger, category: <span class="bu">str</span>, message: <span class="bu">str</span>, <span class="op">*</span>args: Any, <span class="op">**</span>kwargs: Any</span>
-<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">logger</code> <span class="element-type"><span class="element-type-name">Logger</span></span></dt>
 <dd>
@@ -3027,9 +3033,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sandbox-1">sandbox</h3>
 <p>Get the SandboxEnvironment for the current sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/context.py#L23">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/context.py#L23">Source</a>
 </div>
-<div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandbox(name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SandboxEnvironment</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandbox(name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SandboxEnvironment</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3041,11 +3047,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sandbox_with">sandbox_with</h3>
 <p>Get the SandboxEnvironment for the current sample that has the specified file.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/context.py#L53">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/context.py#L53">Source</a>
 </div>
-<div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sandbox_with(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sandbox_with(</span>
 <span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">file</span>: <span class="bu">str</span>, on_path: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>, <span class="op">*</span>, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> SandboxEnvironment <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> SandboxEnvironment <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">file</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3065,10 +3071,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sandbox_default">sandbox_default</h3>
 <p>Set the default sandbox environment for the current context.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/context.py#L276">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/context.py#L276">Source</a>
 </div>
-<div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandbox_default(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Iterator[<span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandbox_default(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Iterator[<span class="va">None</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3081,9 +3087,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Environment for executing arbitrary code from tools.</p>
 <p>Sandbox environments provide both an execution environment as well as a per-sample filesystem context to copy samples files into and resolve relative paths to.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L84">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L84">Source</a>
 </div>
-<div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxEnvironment(abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxEnvironment(abc.ABC)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
 <h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
 <dl>
@@ -3093,9 +3099,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The current working directory for execution will be the per-sample filesystem context.</p>
 <p>Each output stream (stdout and stderr) is limited to 10 MiB. If exceeded, an <code>OutputLimitExceededError</code> will be raised.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L91">Source</a>
 </div>
-<div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> <span class="bu">exec</span>(</span>
 <span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
 <span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>    cmd: <span class="bu">list</span>[<span class="bu">str</span>],</span>
@@ -3105,7 +3111,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>    user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>    timeout_retry: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">cmd</code> <span class="element-type">list[<span class="element-type-name">str</span>]</span></dt>
 <dd>
@@ -3142,10 +3148,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Write a file into the sandbox environment.</p>
 <p>If the parent directories of the file path do not exist they should be automatically created.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L137">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L137">Source</a>
 </div>
-<div class="sourceCode" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> write_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> write_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">file</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3163,10 +3169,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>File size is limited to 100 MiB.</p>
 <p>When reading text files, implementations should preserve newline constructs (e.g.&nbsp;crlf should be preserved not converted to lf). This is equivalent to specifying <code>newline=""</code> in a call to the Python <code>open()</code> function.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L163">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L163">Source</a>
 </div>
-<div class="sourceCode" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> read_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> read_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">file</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3182,9 +3188,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Information required to connect to sandbox environment.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L194">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L194">Source</a>
 </div>
-<div class="sourceCode" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> connection(<span class="va">self</span>, <span class="op">*</span>, user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SandboxConnection</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> connection(<span class="va">self</span>, <span class="op">*</span>, user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SandboxConnection</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">user</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3196,9 +3202,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Verify and return a reference to a subclass of SandboxEnvironment.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L209">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L209">Source</a>
 </div>
-<div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_type(<span class="va">self</span>, sandbox_cls: Type[ST]) <span class="op">-&gt;</span> ST</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_type(<span class="va">self</span>, sandbox_cls: Type[ST]) <span class="op">-&gt;</span> ST</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">sandbox_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">ST</span>]</span></dt>
 <dd>
@@ -3210,10 +3216,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Default max_sandboxes for this provider (<code>None</code> means no maximum)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L228">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L228">Source</a>
 </div>
-<div class="sourceCode" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> default_concurrency(cls) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> default_concurrency(cls) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
 
 </div>
@@ -3222,12 +3228,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Called at task startup initialize resources.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L233">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L233">Source</a>
 </div>
-<div class="sourceCode" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_init(</span>
 <span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>    cls, task_name: <span class="bu">str</span>, config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span></span>
-<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">task_name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3245,12 +3251,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Return 1 or more environment variables to request a dedicated call to task_init for samples that have exactly these environment variables (by default there is only one call to task_init for all of the samples in a task if they share a sandbox configuration).</p>
 <p>This is useful for situations where config files are dynamic (e.g.&nbsp;through sample metadata variable interpolation) and end up yielding different images that need their own init (e.g.&nbsp;‘docker pull’).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L245">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L245">Source</a>
 </div>
-<div class="sourceCode" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_init_environment(</span>
 <span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    cls, config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span>, metadata: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>]</span>
-<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">config</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentConfigType</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3266,15 +3272,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Initialize sandbox environments for a sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L269">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L269">Source</a>
 </div>
-<div class="sourceCode" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_init(</span>
 <span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>    cls,</span>
 <span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>    task_name: <span class="bu">str</span>,</span>
 <span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>    config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span>,</span>
 <span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>],</span>
-<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="st">"SandboxEnvironment"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="st">"SandboxEnvironment"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">task_name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3294,9 +3300,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Cleanup sandbox environments.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L290">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L290">Source</a>
 </div>
-<div class="sourceCode" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_cleanup(</span>
 <span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>    cls,</span>
@@ -3304,7 +3310,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>    config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span>,</span>
 <span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>    environments: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="st">"SandboxEnvironment"</span>],</span>
 <span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>    interrupted: <span class="bu">bool</span>,</span>
-<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">task_name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3328,12 +3334,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Called at task exit as a last chance to cleanup resources.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L309">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L309">Source</a>
 </div>
-<div class="sourceCode" id="cb50"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb50"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_cleanup(</span>
 <span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>    cls, task_name: <span class="bu">str</span>, config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span>, cleanup: <span class="bu">bool</span></span>
-<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">task_name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3353,10 +3359,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Handle a cleanup invoked from the CLI (e.g.&nbsp;inspect sandbox cleanup).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L323">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L323">Source</a>
 </div>
-<div class="sourceCode" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
-<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> cli_cleanup(cls, <span class="bu">id</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> cli_cleanup(cls, <span class="bu">id</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3368,10 +3374,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Standard config files for this provider (used for automatic discovery)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L332">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L332">Source</a>
 </div>
-<div class="sourceCode" id="cb52"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
-<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> config_files(cls) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb52"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> config_files(cls) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
 
 </div>
@@ -3382,10 +3388,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Override this method if you support a custom configuration model.</p>
 <p>A basic implementation would be: <code>return MySandboxEnvironmentConfig(**config)</code></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L337">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L337">Source</a>
 </div>
-<div class="sourceCode" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
-<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> config_deserialize(cls, config: <span class="bu">dict</span>[<span class="bu">str</span>, Any]) <span class="op">-&gt;</span> BaseModel</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> config_deserialize(cls, config: <span class="bu">dict</span>[<span class="bu">str</span>, Any]) <span class="op">-&gt;</span> BaseModel</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">config</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
@@ -3400,9 +3406,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sandboxconnection">SandboxConnection</h3>
 <p>Information required to connect to sandbox.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/environment.py#L65">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/environment.py#L65">Source</a>
 </div>
-<div class="sourceCode" id="cb54"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxConnection(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb54"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxConnection(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3433,9 +3439,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sandboxenv">sandboxenv</h3>
 <p>Decorator for registering sandbox environments.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/registry.py#L16">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/registry.py#L16">Source</a>
 </div>
-<div class="sourceCode" id="cb55"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandboxenv(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., Type[T]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb55"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandboxenv(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., Type[T]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3448,26 +3454,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Run a service that is callable from within a sandbox.</p>
 <p>The service makes available a set of methods to a sandbox for calling back into the main Inspect process.</p>
 <p>To use the service from within a sandbox, either add it to the sys path or use importlib. For example, if the service is named ‘foo’:</p>
-<div class="sourceCode" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
 <span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a>sys.path.append(<span class="st">"/var/tmp/sandbox-services/foo"</span>)</span>
-<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> foo</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> foo</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or:</p>
-<div class="sourceCode" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> importlib.util</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> importlib.util</span>
 <span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>spec <span class="op">=</span> importlib.util.spec_from_file_location(</span>
 <span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"foo"</span>, <span class="st">"/var/tmp/sandbox-services/foo/foo.py"</span></span>
 <span id="cb57-4"><a href="#cb57-4" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb57-5"><a href="#cb57-5" aria-hidden="true" tabindex="-1"></a>foo <span class="op">=</span> importlib.util.module_from_spec(spec)</span>
-<span id="cb57-6"><a href="#cb57-6" aria-hidden="true" tabindex="-1"></a>spec.loader.exec_module(foo)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb57-6"><a href="#cb57-6" aria-hidden="true" tabindex="-1"></a>spec.loader.exec_module(foo)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_sandbox/service.py#L38">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_sandbox/service.py#L38">Source</a>
 </div>
-<div class="sourceCode" id="cb58"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sandbox_service(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb58"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sandbox_service(</span>
 <span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span>,</span>
 <span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a>    methods: <span class="bu">list</span>[SandboxServiceMethod] <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, SandboxServiceMethod],</span>
 <span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a>    until: Callable[[], <span class="bu">bool</span>],</span>
 <span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironment,</span>
 <span id="cb58-6"><a href="#cb58-6" aria-hidden="true" tabindex="-1"></a>    user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb58-7"><a href="#cb58-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb58-7"><a href="#cb58-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -3498,12 +3504,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="registry_create">registry_create</h3>
 <p>Create a registry object.</p>
 <p>Creates objects registered via decorator (e.g.&nbsp;<code>@task</code>, <code>@solver</code>). Note that this can also create registered objects within Python packages, in which case the name of the package should be used a prefix, e.g.</p>
-<div class="sourceCode" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>registry_create(<span class="st">"scorer"</span>, <span class="st">"mypackage/myscorer"</span>, ...)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>registry_create(<span class="st">"scorer"</span>, <span class="st">"mypackage/myscorer"</span>, ...)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Object within the Inspect package do not require a prefix, nor do objects from imported modules that aren’t in a package.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/_util/registry.py#L289">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/_util/registry.py#L289">Source</a>
 </div>
-<div class="sourceCode" id="cb60"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> registry_create(<span class="bu">type</span>: RegistryType, name: <span class="bu">str</span>, <span class="op">**</span>kwargs: Any) <span class="op">-&gt;</span> <span class="bu">object</span>:  <span class="co"># type: ignore[return]</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb60"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> registry_create(<span class="bu">type</span>: RegistryType, name: <span class="bu">str</span>, <span class="op">**</span>kwargs: Any) <span class="op">-&gt;</span> <span class="bu">object</span>:  <span class="co"># type: ignore[return]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.util.html#registrytype">RegistryType</a></span></span></dt>
 <dd>
@@ -3524,9 +3530,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Enumeration of registry object types.</p>
 <p>These are the types of objects in this system that can be registered using a decorator (e.g.&nbsp;<code>@task</code>, <code>@solver</code>). Registered objects can in turn be created dynamically using the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#registry_create">registry_create()</a></span> function.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/_util/registry.py#L38">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/_util/registry.py#L38">Source</a>
 </div>
-<div class="sourceCode" id="cb61"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>RegistryType <span class="op">=</span> Literal[</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb61"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>RegistryType <span class="op">=</span> Literal[</span>
 <span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"agent"</span>,</span>
 <span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"approver"</span>,</span>
 <span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"hooks"</span>,</span>
@@ -3539,7 +3545,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb61-11"><a href="#cb61-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"solver"</span>,</span>
 <span id="cb61-12"><a href="#cb61-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"task"</span>,</span>
 <span id="cb61-13"><a href="#cb61-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tool"</span>,</span>
-<span id="cb61-14"><a href="#cb61-14" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb61-14"><a href="#cb61-14" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="json" class="level2">
@@ -3548,17 +3554,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="jsontype">JSONType</h3>
 <p>Valid types within JSON schema.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_json.py#L26">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_json.py#L26">Source</a>
 </div>
-<div class="sourceCode" id="cb62"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a>JSONType <span class="op">=</span> Literal[<span class="st">"string"</span>, <span class="st">"integer"</span>, <span class="st">"number"</span>, <span class="st">"boolean"</span>, <span class="st">"array"</span>, <span class="st">"object"</span>, <span class="st">"null"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb62"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a>JSONType <span class="op">=</span> Literal[<span class="st">"string"</span>, <span class="st">"integer"</span>, <span class="st">"number"</span>, <span class="st">"boolean"</span>, <span class="st">"array"</span>, <span class="st">"object"</span>, <span class="st">"null"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="jsonschema" class="level3">
 <h3 class="anchored" data-anchor-id="jsonschema">JSONSchema</h3>
 <p>JSON Schema for type.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_json.py#L30">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_json.py#L30">Source</a>
 </div>
-<div class="sourceCode" id="cb63"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> JSONSchema(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb63"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> JSONSchema(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3610,9 +3616,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Provide a JSON Schema for the specified type.</p>
 <p>Schemas can be automatically inferred for a wide variety of Python class types including Pydantic BaseModel, dataclasses, and typed dicts.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/08e3a65985f7ca25ddad0f4a762708b063b34c13/src/inspect_ai/util/_json.py#L64">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/29b6fc4c02eba58d77a46d5ef2ce96808fa620d8/src/inspect_ai/util/_json.py#L64">Source</a>
 </div>
-<div class="sourceCode" id="cb64"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> json_schema(t: Type[Any]) <span class="op">-&gt;</span> JSONSchema</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb64"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> json_schema(t: Type[Any]) <span class="op">-&gt;</span> JSONSchema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">t</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">Any</span>]</span></dt>
 <dd>

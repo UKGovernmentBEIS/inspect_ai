@@ -1,13 +1,6 @@
 # Log Dataframes
 
 
-> [!NOTE]
->
-> Dataframe functions are currently in beta and are exported from the
-> **inspect_ai.analysis.beta** module. The beta module will be preserved
-> after final release so that code written against it now will continue
-> to work after the beta.
-
 ## Overview
 
 <style type="text/css">
@@ -52,12 +45,11 @@ various scenarios.
 ### Reading Data
 
 Use the `evals_df()` function to read a dataframe containing a row for
-each log file (note that we import from `inspect_ai.analysis.beta` since
-the dataframe functions are currently in beta):
+each log file:
 
 ``` python
 # read logs from a given log directory
-from inspect_ai.analysis.beta import evals_df
+from inspect_ai.analysis import evals_df
 evals_df("logs")   
 ```
 
@@ -76,7 +68,7 @@ each sample across a set of log files. For example, here we read all of
 the samples in the “logs” directory:
 
 ``` python
-from inspect_ai.analysis.beta import samples_df
+from inspect_ai.analysis import samples_df
 
 samples_df("logs")
 ```
@@ -97,7 +89,7 @@ When reading dataframes, there are a number of pre-built column groups
 you can use to read various subsets of columns. For example:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     EvalInfo, EvalModel, EvalResults, evals_df
 )
 
@@ -122,7 +114,7 @@ plotting. For example, here we include eval level data along with each
 sample:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     EvalInfo, EvalModel, SampleSummary, samples_df
 )
 
@@ -193,7 +185,7 @@ taking longer than you’d like, you can enable parallel reading using the
 `parallel` option:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     SampleMessages, SampleSummary samples_df, events_df
 )
 
@@ -241,7 +233,7 @@ directory and import both tables into a DuckDb database:
 
 ``` python
 import duckdb
-from inspect_ai.analysis.beta import evals_df, samples_df
+from inspect_ai.analysis import evals_df, samples_df
 
 con = duckdb.connect()
 con.register('evals', evals_df("logs"))
@@ -274,7 +266,7 @@ publish logs to a website, you can use the `log_viewer()` operation to
 map log file paths to their published URLs:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     evals_df, log_viewer, model_info, prepare
 )
 
@@ -362,7 +354,7 @@ The `frontier()` requires scores and model release dates, so must be run
 after the `model_info()` operation.
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     evals_df, frontier, log_viewer, model_info, prepare
 )
 
@@ -462,7 +454,7 @@ importing will proceed and a tuple containing `pd.DataFrame` and a list
 of any errors encountered is returned. For example:
 
 ``` python
-from inspect_ai.analysis.beta import evals_df
+from inspect_ai.analysis import evals_df
 
 evals, errors = evals_df("logs", strict=False)
 if len(errors) > 0:
@@ -578,7 +570,7 @@ string column, use the `SampleMessages` column group. For example, here
 we read the summary field and the messages:
 
 ``` python
-from inspect_ai.analysis.beta import (
+from inspect_ai.analysis import (
     SampleMessages, SampleSummary, samples_df
 )
 
@@ -820,7 +812,7 @@ from typing import Callable
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai.log import EvalLog
-from inspect_ai.analysis.beta import EvalColumn
+from inspect_ai.analysis import EvalColumn
 
 class ReportConfig(BaseModel):
     # config fields
