@@ -296,7 +296,7 @@ def goodfire() -> type[ModelAPI]:
 
     # verify we have the package
     try:
-        import goodfire  # noqa: F401
+        import goodfire  # type: ignore # noqa: F401
     except ImportError:
         raise pip_dependency_error(FEATURE, [PACKAGE])
 
@@ -304,9 +304,9 @@ def goodfire() -> type[ModelAPI]:
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
 
     # in the clear
-    from .goodfire import GoodfireAPI
+    from .goodfire import GoodfireAPI  # type: ignore[attr-defined]
 
-    return GoodfireAPI
+    return GoodfireAPI  # type: ignore[no-any-return]
 
 
 def validate_openai_client(feature: str) -> None:

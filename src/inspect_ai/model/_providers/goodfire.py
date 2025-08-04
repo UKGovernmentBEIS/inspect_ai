@@ -1,3 +1,10 @@
+# type: ignore
+
+# NOTE: We need to type: ignore above because Goodfire has pinned all
+# of its dependencies to exact versions, which means that when we
+# install it in CI it breaks other packages (e.g. mistralai, google-genai)
+# we have a PR to resolve this here: https://github.com/goodfire-ai/goodfire-sdk/pull/8
+
 import os
 from typing import Any, List, Literal, get_args
 
