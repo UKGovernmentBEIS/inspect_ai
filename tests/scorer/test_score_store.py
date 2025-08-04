@@ -1,11 +1,11 @@
-from pydantic import Field
+from pydantic import Field, TypeAdapter
 
 from inspect_ai import Task, eval, score
 from inspect_ai.log import read_eval_log
 from inspect_ai.model import ChatMessage, ChatMessageBase
 from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import StoreModel, store
+from inspect_ai.util import StoreModel, store, store_as
 
 
 def test_score_store_access() -> None:
@@ -16,11 +16,11 @@ def test_score_store_access() -> None:
     def store_writer() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # typed store value
-            my_store = state.store_as(MyStore)
+            my_store = store_as(MyStore)
             my_store.messages = state.messages
 
             # raw store value
-            state.store.set("answer", 42)
+            store().set("answer", 42)
 
             return state
 
@@ -36,13 +36,14 @@ def test_score_store_access() -> None:
     def store_reader() -> Scorer:
         async def score(state: TaskState, target: Target) -> Score:
             # read from typed store
-            my_store = state.store_as(MyStore)
-            assert isinstance(my_store.messages[0], ChatMessageBase)
+            my_store = store_as(MyStore)
+
+            adapter = TypeAdapter(list[ChatMessageBase])
+            messages = adapter.validate_python(my_store.messages)
+            assert isinstance(messages[0], ChatMessageBase)
 
             # read raw store value and validate answer
-            return Score(
-                value=state.store.get("answer") == 42 and store().get("answer") == 42
-            )
+            return Score(value=store().get("answer") == 42)
 
         return score
 
