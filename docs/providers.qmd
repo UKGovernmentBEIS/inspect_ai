@@ -457,6 +457,33 @@ The following environment variables are supported by the Perplexity provider
 
 Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
 
+## Goodfire {#goodfire}
+
+::: callout-note
+The Goodfire provider is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+To use the [Goodfire](https://platform.goodfire.ai/) provider, install the `goodfire` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install goodfire
+export GOODFIRE_API_KEY=your-goodfire-api-key
+inspect eval arc.py --model goodfire/meta-llama/Meta-Llama-3.1-8B-Instruct
+```
+
+For the `goodfire` provider, custom model args (`-M`) are forwarded to `chat.completions.create` method of the `AsyncClient` class.
+
+The following environment variables are supported by the Goodfire provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `GOODFIRE_API_KEY` | API key credentials (required). |
+| `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
+
 ## Hugging Face {#hugging-face}
 
 The [Hugging Face](https://huggingface.co/models) provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. To use the Hugging Face provider, install the `torch`, `transformers`, and `accelerate` packages and specify a model using the `--model` option:
