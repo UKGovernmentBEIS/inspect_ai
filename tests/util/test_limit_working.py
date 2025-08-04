@@ -4,7 +4,15 @@ from typing import Generator
 from unittest.mock import patch
 
 import pytest
+from test_helpers.utils import skip_if_no_docker
 
+from inspect_ai import eval
+from inspect_ai._eval.task.task import Task
+from inspect_ai.model._model import get_model
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.solver._solver import generate
+from inspect_ai.solver._use_tools import use_tools
+from inspect_ai.tool._tools._execute import bash
 from inspect_ai.util._limit import (
     LimitExceededError,
     check_working_limit,
@@ -254,6 +262,41 @@ async def test_cannot_reuse_context_manager_in_stack() -> None:
     assert "Each Limit may only be used once in a single 'with' block" in str(
         exc_info.value
     )
+
+
+def test_working_limit_interrupts_local_sandbox_exec():
+    check_working_limit_interrupts_sandbox_exec("local")
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_working_limit_interrupts_docker_sandbox_exec():
+    check_working_limit_interrupts_sandbox_exec("docker")
+
+
+def check_working_limit_interrupts_sandbox_exec(sandbox: str):
+    task = Task(
+        solver=[use_tools([bash()]), generate()],
+        sandbox=sandbox,
+    )
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="bash",
+                    tool_arguments={"cmd": "sleep 100"},
+                )
+            ],
+        ),
+        working_limit=1,
+    )[0]
+
+    assert log.samples
+    assert log.samples[0].limit
+    assert log.samples[0].limit.type == "working"
 
 
 class _MockTime:
