@@ -1,5 +1,6 @@
 ## Unreleased
 
+- [SambaNova](https://inspect.aisi.org.uk/providers.html#sambanova) model provider.
 - [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
