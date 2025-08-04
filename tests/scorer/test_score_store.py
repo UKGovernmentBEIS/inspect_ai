@@ -1,27 +1,45 @@
-from inspect_ai import eval
-from inspect_ai._eval.score import score
-from inspect_ai._eval.task.task import Task
-from inspect_ai.scorer._metric import Score
-from inspect_ai.scorer._metrics.accuracy import accuracy
-from inspect_ai.scorer._scorer import scorer
-from inspect_ai.solver._solver import solver
-from inspect_ai.util._store import store
+from pydantic import Field
+
+from inspect_ai import Task, eval, score
+from inspect_ai.log import read_eval_log
+from inspect_ai.model import ChatMessage, ChatMessageBase
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import StoreModel, store
 
 
-def test_score_store_access():
+def test_score_store_access() -> None:
+    class MyStore(StoreModel):
+        messages: list[ChatMessage] = Field(default_factory=list)
+
     @solver
-    def store_writer():
-        async def solve(state, generate):
+    def store_writer() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # typed store value
+            my_store = state.store_as(MyStore)
+            my_store.messages = state.messages
+
+            # raw store value
             state.store.set("answer", 42)
+
             return state
 
         return solve
 
+    # run eval
     log = eval(Task(solver=store_writer(), model="mockllm/model"))[0]
 
+    # re-read log from disk
+    log = read_eval_log(log.location)
+
     @scorer(metrics=[accuracy()])
-    def store_reader():
-        async def score(state, target):
+    def store_reader() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            # read from typed store
+            my_store = state.store_as(MyStore)
+            assert isinstance(my_store.messages[0], ChatMessageBase)
+
+            # read raw store value and validate answer
             return Score(
                 value=state.store.get("answer") == 42 and store().get("answer") == 42
             )
