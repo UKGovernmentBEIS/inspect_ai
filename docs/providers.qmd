@@ -272,7 +272,7 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
 
 ## Grok {#grok}
@@ -367,7 +367,7 @@ export TOGETHER_API_KEY=your-together-api-key
 inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
 ```
 
-For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class. 
+For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Together AI provider
 
@@ -407,7 +407,7 @@ export FIREWORKS_API_KEY=your-firewrks-api-key
 inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
 ```
 
-For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class. 
+For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Together AI provider
 
@@ -416,6 +416,25 @@ The following environment variables are supported by the Together AI provider
 | `FIREWORKS_API_KEY` | API key credentials (required). |
 | `FIREWORKS_BASE_URL` | Base URL for requests (optional, defaults to `https://api.fireworks.ai/inference/v1`) |
 
+
+## SambaNova {#sambanova}
+
+To use the [SambaNova](https://sambanova.ai/) provider, install the `openai` package (which the SambaNova service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export SAMABANOVA_API_KEY=your-sambanova-api-key
+inspect eval arc.py --model sambanova/DeepSeek-V1-0324
+```
+
+For the `sambanova` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the SambaNova provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `SAMBANOVA_API_KEY` | API key credentials (required). |
+| `SAMBANOVA_BASE_URL` | Base URL for requests (optional, defaults to `https://api.sambanova.ai/v1`) |
 
 
 ## Cloudflare {#cloudflare}
@@ -520,7 +539,7 @@ model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
 
-### Hidden States 
+### Hidden States
 
 If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
 
@@ -531,8 +550,8 @@ $ inspect eval arc.py --model hf/openai-community/gpt2 -M hidden_states=true
 Or from Python:
 
 ```python
-model = get_model( 
-    model="hf/meta-llama/Llama-3.1-8B-Instruct", 
+model = get_model(
+    model="hf/meta-llama/Llama-3.1-8B-Instruct",
     hidden_states=True
 )
 ```
@@ -750,13 +769,13 @@ The following environment variables are supported by the llama-cpp-python provid
 
 If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the `openai-api` provider, which uses the following model naming convention:
 
-```         
+```
 openai-api/<provider-name>/<model-name>
 ```
 
 Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):
 
-```         
+```
 <PROVIDER_NAME>_API_KEY
 <PROVIDER_NAME>_BASE_URL
 ```
@@ -770,7 +789,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
 
 ### Tool Emulation {#tool-emulation-openai}

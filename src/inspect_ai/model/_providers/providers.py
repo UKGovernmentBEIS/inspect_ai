@@ -177,6 +177,14 @@ def fireworks() -> type[ModelAPI]:
     return FireworksAIAPI
 
 
+@modelapi(name="sambanova")
+def sambanova() -> type[ModelAPI]:
+    validate_openai_client("SambaNova API")
+    from .sambanova import SambaNovaAPI
+
+    return SambaNovaAPI
+
+
 @modelapi(name="ollama")
 def ollama() -> type[ModelAPI]:
     # validate
