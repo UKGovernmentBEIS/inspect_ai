@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Analysis functions are out of beta (`inspect_ai.analysis.beta` is deprecated in favor of `inspect_ai.analysis`).
+- Tests: sandbox self_check: Improve check_test_fn to handle test failure via `with pytest.raises`, add test for env vars.
 
 ## 0.3.118 (02 August 2025)
 
