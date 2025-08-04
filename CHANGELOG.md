@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Analysis functions are out of beta (`inspect_ai.analysis.beta` is deprecated in favor of `inspect_ai.analysis`).
+- Scoring: Provide access to sample `store` for scorers run on existing log files.
 
 ## 0.3.118 (02 August 2025)
 
