@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
+- MockLLM: Added the ability to provide a generator like callback function to enable providing dynamic model responses.
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
 
 ## 0.3.119 (04 August 2025)
