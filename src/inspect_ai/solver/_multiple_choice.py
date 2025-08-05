@@ -143,6 +143,8 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
             answers = {matched}
             return answers
 
+    return set()
+
 
 def set_choices_based_on_generated_response(
     state: TaskState, answers: set[str]
