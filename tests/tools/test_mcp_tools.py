@@ -70,13 +70,18 @@ def fetch_task():
 
 
 # to run this test:
-# git clone https://github.com/modelcontextprotocol/python-sdk
-# cd pip install python-sdk/examples/servers/simple-tool/
-# mcp-simple-tool --transport sse --port 8000
-#
-# async def test_mcp_server_sse():
-#     async with mcp_server_sse(url="http://localhost:8000/sse") as server:
-#         await check_fetch_server(server)
+# - git clone https://github.com/modelcontextprotocol/python-sdk
+# - pip install python-sdk/examples/servers/simple-tool/
+# - mcp-simple-tool --transport sse --port 8000
+# - comment out the skip decorator below
+
+
+@pytest.mark.skip
+async def test_mcp_server_sse():
+    from inspect_ai.tool import mcp_server_sse
+
+    server = mcp_server_sse(url="http://localhost:8000/sse")
+    await check_fetch_server(server)
 
 
 async def check_fetch_server(server: MCPServer) -> None:
@@ -85,6 +90,25 @@ async def check_fetch_server(server: MCPServer) -> None:
         tools=server,
     )
     assert "example.com" in output.completion
+
+
+# to run this test
+# - git clone https://github.com/modelcontextprotocol/python-sdk
+# - uv run python-sdk/examples/snippets/servers/streamable_config.py
+# - comment out the skip decorator below
+
+
+@pytest.mark.skip
+async def test_mcp_server_streamablehttp():
+    from inspect_ai.tool import mcp_server_streamablehttp
+
+    server = mcp_server_streamablehttp(url="http://localhost:8000/mcp")
+
+    _, output = await get_model("openai/gpt-4o").generate_loop(
+        "Please call the greet() tool with the name 'Bob'",
+        tools=server,
+    )
+    assert "bob" in output.completion.lower()
 
 
 @task

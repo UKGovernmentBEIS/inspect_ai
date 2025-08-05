@@ -21,6 +21,9 @@ def mcp_server_sse(
 
     SSE interface to MCP server.  Use this for MCP servers available via a URL endpoint.
 
+    NOTE: The SEE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)
+    in favor of `mcp_server_streamablehttp()` for MCP servers at URL endpoints.
+
     Args:
         url: URL to remote server
         headers: Headers to send server (typically authorization is included here)
@@ -35,6 +38,33 @@ def mcp_server_sse(
     from ._mcp import create_server_sse
 
     return create_server_sse(url, headers, timeout, sse_read_timeout)
+
+
+def mcp_server_streamablehttp(
+    *,
+    url: str,
+    headers: dict[str, Any] | None = None,
+    timeout: float = 5,
+    sse_read_timeout: float = 60 * 5,
+) -> MCPServer:
+    """MCP Server (SSE).
+
+    Streamable HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint.
+
+    Args:
+        url: URL to remote server
+        headers: Headers to send server (typically authorization is included here)
+        timeout: Timeout for HTTP operations
+        sse_read_timeout: How long (in seconds) the client will wait for a new
+            event before disconnecting.
+
+    Returns:
+        McpClient: Client for MCP Server
+    """
+    verfify_mcp_package()
+    from ._mcp import create_server_streamablehttp
+
+    return create_server_streamablehttp(url, headers, timeout, sse_read_timeout)
 
 
 def mcp_server_stdio(
@@ -102,7 +132,7 @@ def mcp_server_sandbox(
 def verfify_mcp_package() -> None:
     FEATURE = "MCP tools"
     PACKAGE = "mcp"
-    MIN_VERSION = "1.9.4"
+    MIN_VERSION = "1.12.3"
 
     # verify we have the package
     try:

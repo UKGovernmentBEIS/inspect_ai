@@ -12,7 +12,8 @@ def mcp_tools(
     """Tools from MCP server.
 
     Args:
-       server: MCP server created with `mcp_server_stdio()` or `mcp_server_sse()`
+       server: MCP server created with `mcp_server_stdio()` or `mcp_server_streamablehttp()`
+          or `mcp_server_sandbox()`.
        tools: List of tool names (or globs) (defaults to "all")
           which returns all tools.
 
