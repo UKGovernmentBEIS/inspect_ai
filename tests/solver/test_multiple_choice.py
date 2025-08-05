@@ -124,6 +124,50 @@ async def test_custom_template():
 
 
 @pytest.mark.anyio
+async def test_trailing_punctuation_whitespace():
+    async def generate_trailing_punctuation(state: TaskState, **kwargs: Any) -> TaskState:
+        state.messages.append(ChatMessageAssistant(content="ANSWER: A. \n"))
+        state.output = ModelOutput.from_content(model="model", content="ANSWER: A. \n")
+        return state
+
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+
+    )
+    new_state = await solver(state=state, generate=generate_trailing_punctuation)
+
+    assert new_state.output.completion == "ANSWER: A. \n"
+    assert choices_marked_correct(new_state.choices) == {"choice 1"}
+
+
+@pytest.mark.anyio
+async def test_multiple_trailing_punctuation_whitespace():
+    async def generate_1(state: TaskState, **kwargs: Any) -> TaskState:
+        state.messages.append(ChatMessageAssistant(content="ANSWER: A, C. \n"))
+        state.output = ModelOutput.from_content(model="model", content="ANSWER: A, C. \n")
+        return state
+
+    async def generate_2(state: TaskState, **kwargs: Any) -> TaskState:
+        state.messages.append(ChatMessageAssistant(content="ANSWER: A and C. \n"))
+        state.output = ModelOutput.from_content(model="model", content="ANSWER: A and C. \n")
+        return state
+
+    solver = multiple_choice(multiple_correct=True)
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+
+    )
+    new_state1 = await solver(state=state, generate=generate_1)
+    new_state2 = await solver(state=state, generate=generate_2)
+
+    assert choices_marked_correct(new_state1.choices) == {"choice 1", "choice 3"}
+    assert choices_marked_correct(new_state2.choices) == {"choice 1", "choice 3"}
+
+
+@pytest.mark.anyio
 async def test_custom_template_raises_with_missing_fields():
     with pytest.raises(
         ValueError,
@@ -377,7 +421,6 @@ def choices_marked_correct(choices: list[Choice]) -> set[str]:
     return set([choice.value for choice in choices if choice.correct])
 
 @pytest.mark.anyio
-@pytest.mark.xfail(reason="'ANSWER: None of the above' incorrectly parsed as options A,B")
 async def test_none_of_the_above_should_not_mark_choices():
     async def generate_none_of_above(state: TaskState, **kwargs: Any) -> TaskState:
         content = "ANSWER: None of the above"
@@ -396,7 +439,6 @@ async def test_none_of_the_above_should_not_mark_choices():
     assert choices_marked_correct(new_state.choices) == set()
 
 @pytest.mark.anyio
-@pytest.mark.xfail(reason="Bug: 'Don't know' incorrectly parsed as option D")
 async def test_dont_know_should_not_mark_choices():
     async def generate_dont_know(state: TaskState, **kwargs: Any) -> TaskState:
         content = "ANSWER: Don't know"
@@ -420,7 +462,6 @@ async def test_dont_know_should_not_mark_choices():
     assert result.value != CORRECT  # Should not be marked as correct
 
 @pytest.mark.anyio
-@pytest.mark.xfail(reason="Bug: 'ANSWER: I don't know' maked as options I, D")
 async def test_i_dont_know_should_not_mark_choices():
     async def generate_i_dont_know(state: TaskState, **kwargs: Any) -> TaskState:
         content = "ANSWER: I don't know"
