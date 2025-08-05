@@ -2,7 +2,7 @@ import logging
 import re
 from enum import Enum
 from random import Random
-from typing import Match, TypedDict
+from typing import TypedDict
 
 from typing_extensions import Unpack
 
@@ -104,7 +104,8 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     # version for backward compatibility
     if match is None:
         match = re.search(
-            r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)", state.output.completion
+            r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)",
+            state.output.completion,
         )
 
     if match is None:
@@ -143,7 +144,9 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
             return answers
 
 
-def set_choices_based_on_generated_response(state: TaskState, answers: set[str]) -> None:
+def set_choices_based_on_generated_response(
+    state: TaskState, answers: set[str]
+) -> None:
     true_answers = [answer_index(letter) for letter in answers]
 
     for i in range(len(state.choices)):
@@ -324,7 +327,8 @@ def multiple_choice(
         if answers:
             # If we've found answers, update the state appropriately
             set_choices_based_on_generated_response(
-                state=state, answers=answers,
+                state=state,
+                answers=answers,
             )
             if shuffle:
                 pretend_we_didnt_shuffle(
