@@ -125,7 +125,9 @@ async def test_custom_template():
 
 @pytest.mark.anyio
 async def test_trailing_punctuation_whitespace():
-    async def generate_trailing_punctuation(state: TaskState, **kwargs: Any) -> TaskState:
+    async def generate_trailing_punctuation(
+        state: TaskState, **kwargs: Any
+    ) -> TaskState:
         state.messages.append(ChatMessageAssistant(content="ANSWER: A. \n"))
         state.output = ModelOutput.from_content(model="model", content="ANSWER: A. \n")
         return state
@@ -134,7 +136,6 @@ async def test_trailing_punctuation_whitespace():
     state = simple_task_state(
         choices=["choice 1", "choice 2", "choice 3"],
         messages=[ChatMessageUser(content="What's the answer?", source="input")],
-
     )
     new_state = await solver(state=state, generate=generate_trailing_punctuation)
 
@@ -146,19 +147,22 @@ async def test_trailing_punctuation_whitespace():
 async def test_multiple_trailing_punctuation_whitespace():
     async def generate_1(state: TaskState, **kwargs: Any) -> TaskState:
         state.messages.append(ChatMessageAssistant(content="ANSWER: A, C. \n"))
-        state.output = ModelOutput.from_content(model="model", content="ANSWER: A, C. \n")
+        state.output = ModelOutput.from_content(
+            model="model", content="ANSWER: A, C. \n"
+        )
         return state
 
     async def generate_2(state: TaskState, **kwargs: Any) -> TaskState:
         state.messages.append(ChatMessageAssistant(content="ANSWER: A and C. \n"))
-        state.output = ModelOutput.from_content(model="model", content="ANSWER: A and C. \n")
+        state.output = ModelOutput.from_content(
+            model="model", content="ANSWER: A and C. \n"
+        )
         return state
 
     solver = multiple_choice(multiple_correct=True)
     state = simple_task_state(
         choices=["choice 1", "choice 2", "choice 3"],
         messages=[ChatMessageUser(content="What's the answer?", source="input")],
-
     )
     new_state1 = await solver(state=state, generate=generate_1)
     new_state2 = await solver(state=state, generate=generate_2)
@@ -416,9 +420,11 @@ async def test_cot_complex_text():
     assert result.value == CORRECT
     assert result.answer == "D"
 
+
 def choices_marked_correct(choices: list[Choice]) -> set[str]:
     """Helper function"""
     return set([choice.value for choice in choices if choice.correct])
+
 
 @pytest.mark.anyio
 async def test_none_of_the_above_should_not_mark_choices():
@@ -437,6 +443,7 @@ async def test_none_of_the_above_should_not_mark_choices():
     new_state = await solver(state=state, generate=generate_none_of_above)
 
     assert choices_marked_correct(new_state.choices) == set()
+
 
 @pytest.mark.anyio
 async def test_dont_know_should_not_mark_choices():
@@ -461,6 +468,7 @@ async def test_dont_know_should_not_mark_choices():
     result = await scorer(new_state, Target("D"))
     assert result.value != CORRECT  # Should not be marked as correct
 
+
 @pytest.mark.anyio
 async def test_i_dont_know_should_not_mark_choices():
     async def generate_i_dont_know(state: TaskState, **kwargs: Any) -> TaskState:
@@ -471,7 +479,17 @@ async def test_i_dont_know_should_not_mark_choices():
 
     solver = multiple_choice()
     state = simple_task_state(
-        choices=["Option A", "Option B", "Option C", "Option D", "Option E", "Option F", "Option G", "Option H", "Option I"],
+        choices=[
+            "Option A",
+            "Option B",
+            "Option C",
+            "Option D",
+            "Option E",
+            "Option F",
+            "Option G",
+            "Option H",
+            "Option I",
+        ],
         messages=[ChatMessageUser(content="What's the answer?", source="input")],
     )
 
