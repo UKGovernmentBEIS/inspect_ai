@@ -3,6 +3,7 @@
 - [SambaNova](https://inspect.aisi.org.uk/providers.html#sambanova) model provider.
 - [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
 - Google: Pass `timeout` generation config option through to API `Client`.
+- MCP: Support for `mcp_server_streamablehttp()` (which replaces the deprecated SSE server mode).
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
 - Store: Support for serializing complex nested types (e.g. to read in an offline scorer).

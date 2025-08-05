@@ -11,6 +11,7 @@ from mcp import McpError
 from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.streamable_http import streamablehttp_client
 from mcp.types import (
     AudioContent,
     EmbeddedResource,
@@ -33,10 +34,6 @@ from ._context import MCPServerContext
 from ._sandbox import sandbox_client
 from ._types import MCPServer
 from .sampling import as_inspect_content, sampling_fn
-
-# https://github.com/modelcontextprotocol/python-sdk/pull/401
-# https://github.com/modelcontextprotocol/python-sdk/pull/361
-# https://github.com/modelcontextprotocol/python-sdk/pull/289
 
 logger = getLogger(__name__)
 
@@ -99,7 +96,9 @@ class MCPServerSession(MCPServer):
             self._exit_stack = AsyncExitStack()
             await self._exit_stack.__aenter__()
             with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-                read, write = await self._exit_stack.enter_async_context(self._client())
+                read, write, *_ = await self._exit_stack.enter_async_context(
+                    self._client()
+                )
             with trace_action(logger, "MCPServer", f"create session ({self._name})"):
                 self._session = await self._exit_stack.enter_async_context(
                     ClientSession(read, write, sampling_callback=self._sampling_fn())
@@ -199,7 +198,9 @@ class MCPServerSession(MCPServer):
         else:
             async with AsyncExitStack() as exit_stack:
                 with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-                    read, write = await exit_stack.enter_async_context(self._client())
+                    read, write, *_ = await exit_stack.enter_async_context(
+                        self._client()
+                    )
                 with trace_action(
                     logger, "MCPServer", f"create session ({self._name})"
                 ):
@@ -231,6 +232,19 @@ def create_server_sse(
 ) -> MCPServer:
     return MCPServerImpl(
         lambda: sse_client(url, headers, timeout, sse_read_timeout),
+        name=url,
+        events=True,
+    )
+
+
+def create_server_streamablehttp(
+    url: str,
+    headers: dict[str, Any] | None = None,
+    timeout: float = 5,
+    sse_read_timeout: float = 60 * 5,
+) -> MCPServer:
+    return MCPServerImpl(
+        lambda: streamablehttp_client(url, headers, timeout, sse_read_timeout),
         name=url,
         events=True,
     )

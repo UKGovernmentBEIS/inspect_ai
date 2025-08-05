@@ -17,8 +17,9 @@ title: "inspect_ai.tool"
 
 ### mcp_connection
 ### mcp_server_stdio
-### mcp_server_sse
+### mcp_server_streamablehttp
 ### mcp_server_sandbox
+### mcp_server_sse
 ### mcp_tools
 ### MCPServer
 
