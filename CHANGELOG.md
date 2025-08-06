@@ -17,6 +17,7 @@
 - Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
 - Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
+- Bugfix: Correct forwarding of `reasoning_effort` and `reasoning_tokens` for OpenRouter provider.
 
 
 ## 0.3.119 (04 August 2025)
