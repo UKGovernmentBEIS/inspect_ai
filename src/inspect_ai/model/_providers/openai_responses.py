@@ -180,7 +180,13 @@ async def wait_for_background_response(
         # if the entire sample is cancelled then let the provider know
         # so we can stop racking up token costs
         with anyio.move_on_after(5, shield=True):
-            await client.responses.cancel(model_response.id)
+            try:
+                await client.responses.cancel(model_response.id)
+            except BaseException as ex:
+                logger.warning(
+                    f"Error while attempting to cancel background request: {ex}"
+                )
+                pass
         raise
 
 
