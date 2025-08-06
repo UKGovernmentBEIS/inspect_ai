@@ -216,7 +216,9 @@ class GoogleGenAIAPI(ModelAPI):
                     )
 
             # custom base_url
-            self.base_url = model_base_url(self.base_url, "VERTEX_BASE_URL")
+            self.base_url = model_base_url(
+                self.base_url, ["GOOGLE_VERTEX_BASE_URL", "VERTEX_BASE_URL"]
+            )
 
         # normal google endpoint
         else:
