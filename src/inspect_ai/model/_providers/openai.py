@@ -76,8 +76,10 @@ class OpenAIAPI(ModelAPI):
         else:
             self.service = None
 
-        # extract user model arg if provided
-        self.user: str | NotGiven = model_args.pop("user", NOT_GIVEN)
+        # extract safety_identifier model arg if provided
+        self.safety_identifier: str | NotGiven = model_args.pop(
+            "safety_identifier", NOT_GIVEN
+        )
 
         # call super
         super().__init__(
@@ -299,7 +301,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 service_tier=self.service_tier,
-                user=self.user,
+                safety_identifier=self.safety_identifier,
                 openai_api=self,
                 batcher=self._responses_batcher,
             )
@@ -312,7 +314,7 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
-                user=self.user,
+                safety_identifier=self.safety_identifier,
                 openai_api=self,
                 batcher=self._completions_batcher,
             )
