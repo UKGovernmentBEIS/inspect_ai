@@ -22,7 +22,7 @@ def mcp_server_sse(
     SSE interface to MCP server.  Use this for MCP servers available via a URL endpoint.
 
     NOTE: The SEE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)
-    in favor of `mcp_server_streamablehttp()` for MCP servers at URL endpoints.
+    in favor of `mcp_server_http()` for MCP servers at URL endpoints.
 
     Args:
         url: URL to remote server
@@ -40,7 +40,7 @@ def mcp_server_sse(
     return create_server_sse(url, headers, timeout, sse_read_timeout)
 
 
-def mcp_server_streamablehttp(
+def mcp_server_http(
     *,
     url: str,
     headers: dict[str, Any] | None = None,
@@ -49,7 +49,7 @@ def mcp_server_streamablehttp(
 ) -> MCPServer:
     """MCP Server (SSE).
 
-    Streamable HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint.
+    HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint.
 
     Args:
         url: URL to remote server
