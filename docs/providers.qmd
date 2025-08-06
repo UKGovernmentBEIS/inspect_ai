@@ -186,6 +186,8 @@ gcloud auth application-default login
 
 If you have authorised the CLI then no additional auth is needed for the model API.
 
+You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override the default base URL for Vertex.
+
 ### Safety Settings {#safety-settings}
 
 Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
