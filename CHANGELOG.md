@@ -4,6 +4,7 @@
 - [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
 - Google: Pass `timeout` generation config option through to API `Client`.
 - Google: Ability to specify a custom `GOOGLE_VERTEX_BASE_URL`.
+- OpenAI: Add `safety_identifier` and `prompt_cache_key` custom model args (these were introduced in v1.98 of the `openai` package, which is now required).
 - MCP: Support for `mcp_server_streamablehttp()` (which replaces the deprecated SSE server mode).
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
