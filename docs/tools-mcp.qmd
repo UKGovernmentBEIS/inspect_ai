@@ -51,7 +51,7 @@ You can use the following functions to create interfaces to the various types of
 |                        |                                                                                           |
 |------------------------------------|------------------------------------|
 | `mcp_server_stdio()`   | Stdio interface to MCP server. Use this for MCP servers that run locally.                 |
-| `mcp_server_streamablehttp()` | Streamable interface to MCP server. Use this for MCP servers available via a URL endpoint.
+| `mcp_server_http()` | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint.
 | `mcp_server_sandbox()` | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
 | `mcp_server_sse()`     | SSE interface to MCP server (NOTE: The SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/))       |
 

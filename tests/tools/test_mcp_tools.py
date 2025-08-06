@@ -99,10 +99,10 @@ async def check_fetch_server(server: MCPServer) -> None:
 
 
 @pytest.mark.skip
-async def test_mcp_server_streamablehttp():
-    from inspect_ai.tool import mcp_server_streamablehttp
+async def test_mcp_server_http():
+    from inspect_ai.tool import mcp_server_http
 
-    server = mcp_server_streamablehttp(url="http://localhost:8000/mcp")
+    server = mcp_server_http(url="http://localhost:8000/mcp")
 
     _, output = await get_model("openai/gpt-4o").generate_loop(
         "Please call the greet() tool with the name 'Bob'",
