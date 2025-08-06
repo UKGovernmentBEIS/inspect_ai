@@ -65,6 +65,7 @@ class OpenAIAPI(ModelAPI):
         responses_store: Literal["auto"] | bool = "auto",
         service_tier: str | None = None,
         client_timeout: float | None = None,
+        background: bool | None = None,
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -95,14 +96,19 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
+        # set background bit
+        self.background = background
+
         # is this a model we use responses api by default for?
         responses_preferred = (
             self.is_o_series() and not self.is_o1_early()
         ) or self.is_codex()
 
         # resolve whether we are forcing the responses api
-        self.responses_api = self.is_computer_use_preview() or (
-            responses_api if responses_api is not None else responses_preferred
+        self.responses_api = (
+            background
+            or self.is_computer_use_preview()
+            or (responses_api if responses_api is not None else responses_preferred)
         )
 
         # resolve whether we are using the responses store
@@ -193,7 +199,9 @@ class OpenAIAPI(ModelAPI):
                 api_version=api_version,
                 azure_endpoint=base_url,
                 http_client=http_client,
-                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
+                timeout=self.client_timeout
+                if self.client_timeout is not None
+                else NOT_GIVEN,
                 **model_args,
             )
         else:
@@ -201,7 +209,9 @@ class OpenAIAPI(ModelAPI):
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
                 http_client=http_client,
-                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
+                timeout=self.client_timeout
+                if self.client_timeout is not None
+                else NOT_GIVEN,
                 **model_args,
             )
 
@@ -305,6 +315,7 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+                background=self.background,
                 service_tier=self.service_tier,
                 prompt_cache_key=self.prompt_cache_key,
                 safety_identifier=self.safety_identifier,
