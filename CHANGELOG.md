@@ -7,6 +7,7 @@
 - OpenAI: Add `background`, `safety_identifier` and `prompt_cache_key` custom model args (bump required version of `openai` package to v1.98).
 - OpenAI: Set `client_timeout` to 900s when flex processing is enabled.
 - MCP: Support for `mcp_server_http()` (which replaces the deprecated SSE server mode).
+- MCP: Added `authorization` to provide OAuth Bearer token for HTTP based servers.
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
 - Store: Support for serializing complex nested types (e.g. to read in an offline scorer).
