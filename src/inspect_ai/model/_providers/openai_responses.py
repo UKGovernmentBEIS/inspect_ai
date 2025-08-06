@@ -41,6 +41,7 @@ async def generate_responses(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     service_tier: str | None,
+    prompt_cache_key: str | NotGiven,
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[Response] | None,
@@ -75,6 +76,7 @@ async def generate_responses(
         else NOT_GIVEN,
         truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        prompt_cache_key=prompt_cache_key,
         safety_identifier=safety_identifier,
         **completion_params_responses(
             model_name,

@@ -45,6 +45,7 @@ async def generate_completions(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
+    prompt_cache_key: str | NotGiven,
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
@@ -93,6 +94,7 @@ async def generate_completions(
         if len(tools) > 0
         else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        prompt_cache_key=prompt_cache_key,
         safety_identifier=safety_identifier,
         **completion_params_completions(openai_api, config, len(tools) > 0),
     )
