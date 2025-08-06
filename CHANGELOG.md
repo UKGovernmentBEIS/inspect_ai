@@ -20,6 +20,7 @@
 - Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
 - Bugfix: Correct forwarding of `reasoning_effort` and `reasoning_tokens` for OpenRouter provider.
+- Bugfix: `bridge()` no longer causes a recursion error when running a large number of samples with openai models
 
 
 ## 0.3.119 (04 August 2025)
