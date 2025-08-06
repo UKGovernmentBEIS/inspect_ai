@@ -18,11 +18,7 @@ export OPENAI_API_KEY=your-openai-api-key
 inspect eval arc.py --model openai/gpt-4o-mini
 ```
 
-The `openai` provider supports the `user` custom model arg (`-M`), which is a unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse. For example:
-
-```bash
-inspect eval arc.py --model openai/gpt-4o-mini -M user=my-user
-```
+The `openai` provider also supports the [`safety_identifier`](https://platform.openai.com/docs/api-reference/chat/create#chat_create-safety_identifier) and [`prompt_cache_key`](https://platform.openai.com/docs/api-reference/chat/create#chat_create-prompt_cache_key) custom model args (`-M`).
 
 Other model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
