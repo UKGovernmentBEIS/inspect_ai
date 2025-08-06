@@ -13,6 +13,7 @@ logger = getLogger(__name__)
 def mcp_server_sse(
     *,
     url: str,
+    authorization: str | None = None,
     headers: dict[str, Any] | None = None,
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
@@ -26,6 +27,7 @@ def mcp_server_sse(
 
     Args:
         url: URL to remote server
+        authorization: OAuth Bearer token for authentication with server.
         headers: Headers to send server (typically authorization is included here)
         timeout: Timeout for HTTP operations
         sse_read_timeout: How long (in seconds) the client will wait for a new
@@ -37,12 +39,18 @@ def mcp_server_sse(
     verfify_mcp_package()
     from ._mcp import create_server_sse
 
-    return create_server_sse(url, headers, timeout, sse_read_timeout)
+    return create_server_sse(
+        url,
+        headers=_resolve_headers(authorization, headers),
+        timeout=timeout,
+        sse_read_timeout=sse_read_timeout,
+    )
 
 
 def mcp_server_http(
     *,
     url: str,
+    authorization: str | None = None,
     headers: dict[str, Any] | None = None,
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
@@ -53,6 +61,7 @@ def mcp_server_http(
 
     Args:
         url: URL to remote server
+        authorization: OAuth Bearer token for authentication with server.
         headers: Headers to send server (typically authorization is included here)
         timeout: Timeout for HTTP operations
         sse_read_timeout: How long (in seconds) the client will wait for a new
@@ -64,7 +73,12 @@ def mcp_server_http(
     verfify_mcp_package()
     from ._mcp import create_server_streamablehttp
 
-    return create_server_streamablehttp(url, headers, timeout, sse_read_timeout)
+    return create_server_streamablehttp(
+        url,
+        headers=_resolve_headers(authorization, headers),
+        timeout=timeout,
+        sse_read_timeout=sse_read_timeout,
+    )
 
 
 def mcp_server_stdio(
@@ -142,3 +156,15 @@ def verfify_mcp_package() -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+
+def _resolve_headers(
+    authorization: str | None = None, headers: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
+    if authorization is None and headers is None:
+        return None
+    if headers is None:
+        headers = dict()
+    if authorization is not None:
+        headers["Authorization"] = f"Bearer {authorization}"
+    return headers
