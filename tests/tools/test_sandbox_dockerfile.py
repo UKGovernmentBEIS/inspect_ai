@@ -12,7 +12,7 @@ def test_sandbox_dockerfile():
     sandbox = SandboxEnvironmentSpec(
         "docker", "tests/tools/docker-compose-context/Dockerfile"
     )
-    log = eval(Task(sandbox=sandbox))[0]
+    log = eval(Task(sandbox=sandbox, model="mockllm/model"))[0]
     assert log.status == "success"
     assert log.eval.sandbox == sandbox
 
