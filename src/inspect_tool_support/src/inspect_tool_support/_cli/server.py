@@ -24,7 +24,14 @@ def main() -> None:
 
     print(f"Starting server on Unix socket: {SOCKET_PATH}")
 
-    # Set umask for world-readable/writable socket (0o666 permissions)
+    # Set umask to handle dynamic user switching scenarios:
+    # The server is created on-demand by the first client call, but subsequent
+    # calls may come from different users. We must support all combinations:
+    # - root creates socket, non-root clients connect later
+    # - non-root creates socket, root connects later
+    # - non-root1 creates socket, non-root2 connects later
+    # Using umask 0o111 creates socket with 0o666 permissions (rw-rw-rw-)
+    # allowing any user to connect regardless of who created the socket
     old_umask = os.umask(0o111)
     try:
         run_app(app, path=str(SOCKET_PATH))
