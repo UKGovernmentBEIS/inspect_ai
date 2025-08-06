@@ -17,11 +17,6 @@ pip install openai
 export OPENAI_API_KEY=your-openai-api-key
 inspect eval arc.py --model openai/gpt-4o-mini
 ```
-
-The `openai` provider also supports the [`safety_identifier`](https://platform.openai.com/docs/api-reference/chat/create#chat_create-safety_identifier) and [`prompt_cache_key`](https://platform.openai.com/docs/api-reference/chat/create#chat_create-prompt_cache_key) custom model args (`-M`).
-
-Other model args are forwarded to the constructor of the `AsyncOpenAI` class.
-
 The following environment variables are supported by the OpenAI provider
 
 | Variable | Description |
@@ -30,6 +25,37 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+
+### Model Args
+
+The `openai` provider supports the following custom model args (other model args are forwarded to the constructor of the `AsyncOpenAI` class):
+
+| Model Arg | Description |
+|--------------------------|----------------------------------------------|
+| `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
+| `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
+| `background` | Run generate requests asynchronously, polling response objects to check status over time. |
+| `safety_identifier` | A stable identifier used to help detect users of your application. |
+| `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
+| `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
+
+: {tbl-colwidths=\[35,65\]}
+
+For example:
+
+``` bash
+inspect eval arc.py --model openai/gpt-4o-mini \ 
+   -M responses_api=true
+```
+
+Or from Python:
+
+```{python}
+eval(
+    "arc.py", model=" openai/gpt-4o-mini", 
+    model_args= { "responses_api": True }
+)
+```
 
 ### Responses API
 
@@ -66,9 +92,9 @@ inspect eval math.py --model openai/o4-mini \
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
 
-| Variable           | Description                      |
-|--------------------|----------------------------------|
-| `AZUREAI_OPENAI_API_KEY`  | API key credentials (optional).  |
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional). |
 | `AZUREAI_OPENAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
@@ -189,7 +215,7 @@ You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override the def
 Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
 
 | Category | Description |
-|-------------------------|-----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `civic_integrity` | Election-related queries. |
 | `sexually_explicit` | Contains references to sexual acts or other lewd content. |
 | `hate_speech` | Content that is rude, disrespectful, or profane. |
@@ -201,7 +227,7 @@ Google models make available [safety settings](https://ai.google.dev/gemini-api/
 For each category, the following block thresholds are available:
 
 | Block Threshold | Description |
-|-------------------------|-----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `none` | Always show regardless of probability of unsafe content |
 | `only_high` | Block when high probability of unsafe content |
 | `medium_and_above` | Block when medium or high probability of unsafe content |
@@ -337,9 +363,9 @@ For the `azureai` provider, custom model args (`-M`) are forwarded to the constr
 
 The following environment variables are supported by the Azure AI provider
 
-| Variable           | Description                      |
-|--------------------|----------------------------------|
-| `AZUREAI_API_KEY`  | API key credentials (optional).  |
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AZUREAI_API_KEY` | API key credentials (optional). |
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
@@ -374,7 +400,6 @@ The following environment variables are supported by the Together AI provider
 | `TOGETHER_API_KEY` | API key credentials (required). |
 | `TOGETHER_BASE_URL` | Base URL for requests (optional, defaults to `https://api.together.xyz/v1`) |
 
-
 ## Groq {#groq}
 
 To use the [Groq](https://groq.com/) provider, install the `groq` package, set your credentials, and specify a model using the `--model` option:
@@ -394,7 +419,6 @@ The following environment variables are supported by the Groq provider
 | `GROQ_API_KEY` | API key credentials (required). |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
 
-
 ## Fireworks AI {#fireworks-ai}
 
 To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` package (which the Fireworks AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -413,7 +437,6 @@ The following environment variables are supported by the Together AI provider
 |----------------------------|--------------------------------------------|
 | `FIREWORKS_API_KEY` | API key credentials (required). |
 | `FIREWORKS_BASE_URL` | Base URL for requests (optional, defaults to `https://api.fireworks.ai/inference/v1`) |
-
 
 ## SambaNova {#sambanova}
 
@@ -441,7 +464,6 @@ The following environment variables are supported by the SambaNova provider
 |----------------------------|--------------------------------------------|
 | `SAMBANOVA_API_KEY` | API key credentials (required). |
 | `SAMBANOVA_BASE_URL` | Base URL for requests (optional, defaults to `https://api.sambanova.ai/v1`) |
-
 
 ## Cloudflare {#cloudflare}
 
@@ -544,18 +566,17 @@ Or in a call to `get_model()`
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
-
 ### Hidden States
 
 If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
 
-```bash
+``` bash
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M hidden_states=true
 ```
 
 Or from Python:
 
-```python
+``` python
 model = get_model(
     model="hf/meta-llama/Llama-3.1-8B-Instruct",
     hidden_states=True
@@ -583,7 +604,6 @@ Or in a call to `get_model()`
 ``` python
 model = get_model("hf/local", model_path="./my-model")
 ```
-
 
 ## vLLM {#vllm}
 
@@ -636,7 +656,7 @@ vLLM supports tool use and reasoning; however, the usage is often model dependan
 
 Rather than letting Inspect start and stop a vLLM server every time you run an evaluation (which can take several minutes for large models), you can instead start the server manually and then connect to it. To do this, set the model base URL to point to the vLLM server and the API key to the server's API key. For example:
 
-```bash
+``` bash
 $ export VLLM_BASE_URL=http://localhost:8080/v1
 $ export VLLM_API_KEY=<your-server-api-key>
 $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct
@@ -644,7 +664,7 @@ $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct
 
 or
 
-```bash
+``` bash
 $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct --model-base-url http://localhost:8080/v1 -M api_key=<your-server-api-key>
 ```
 
@@ -729,9 +749,8 @@ eval("arc.py", model="transformer_lens/your-model-name", model_args=model_args)
 
 ### Limitations
 
-1. Please note that tool calling is not yet supported for TransformerLens models.
-2. Since the model is loaded dynamically, it is not possible to use cli arguments to specify the model.
-
+1.  Please note that tool calling is not yet supported for TransformerLens models.
+2.  Since the model is loaded dynamically, it is not possible to use cli arguments to specify the model.
 
 ## Ollama {#ollama}
 
@@ -751,8 +770,6 @@ The following environment variables are supported by the Ollma provider
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `OLLAMA_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:11434/v1`) |
-
-
 
 ## Llama-cpp-python {#llama-cpp-python}
 
@@ -775,13 +792,13 @@ The following environment variables are supported by the llama-cpp-python provid
 
 If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the `openai-api` provider, which uses the following model naming convention:
 
-```
+```         
 openai-api/<provider-name>/<model-name>
 ```
 
 Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):
 
-```
+```         
 <PROVIDER_NAME>_API_KEY
 <PROVIDER_NAME>_BASE_URL
 ```
@@ -836,9 +853,6 @@ The following environment variables are supported by the OpenRouter AI provider
 |----------------------------|--------------------------------------------|
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
-
-
-
 
 ## Custom Models
 

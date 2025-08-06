@@ -1,10 +1,19 @@
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
+import anyio
 from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError, NotGiven
 from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential_jitter,
+)
 
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -40,12 +49,17 @@ async def generate_responses(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
+    background: bool | None,
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[Response] | None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    # batch mode and background are incompatible
+    if batcher:
+        background = False
+
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 
@@ -76,6 +90,7 @@ async def generate_responses(
         else NOT_GIVEN,
         truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        background=background,
         prompt_cache_key=prompt_cache_key,
         safety_identifier=safety_identifier,
         **completion_params_responses(
@@ -97,6 +112,10 @@ async def generate_responses(
         # model_response is `Response | Any`. The lazy type inference engine
         # threw up its hands because of the `**request`.
         assert isinstance(model_response, Response)
+
+        # if this is a background request then poll for status until we get it
+        if background:
+            model_response = await wait_for_background_response(client, model_response)
 
         # check for error
         if model_response.error is not None:
@@ -132,6 +151,42 @@ async def generate_responses(
         return openai_handle_bad_request(
             openai_api.service_model_name(), e
         ), model_call()
+
+
+async def wait_for_background_response(
+    client: AsyncAzureOpenAI | AsyncOpenAI, model_response: Response
+) -> Response:
+    # do some retrying so we don't waste expensive background work
+    # because of transient networking issues
+    @retry(
+        wait=wait_exponential_jitter(),
+        stop=stop_after_attempt(5) | stop_after_delay(60),
+        retry=retry_if_exception(httpx_should_retry),
+        before_sleep=log_httpx_retry_attempt(
+            f"background polling: {model_response.model}"
+        ),
+    )
+    async def check_model_response(model_response: Response) -> Response:
+        return await client.responses.retrieve(model_response.id)
+
+    try:
+        # keep checking status until we get "complete", "incomplete", of "failed"
+        while model_response.status in {"queued", "in_progress"}:
+            await anyio.sleep(5)
+            model_response = await check_model_response(model_response)
+        return model_response
+    except anyio.get_cancelled_exc_class():
+        # if the entire sample is cancelled then let the provider know
+        # so we can stop racking up token costs
+        with anyio.move_on_after(5, shield=True):
+            try:
+                await client.responses.cancel(model_response.id)
+            except BaseException as ex:
+                logger.warning(
+                    f"Error while attempting to cancel background request: {ex}"
+                )
+                pass
+        raise
 
 
 def completion_params_responses(
