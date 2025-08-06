@@ -91,10 +91,12 @@ website:
           href: reference/inspect_ai.tool.qmd#mcp_connection
         - text: mcp_server_stdio
           href: reference/inspect_ai.tool.qmd#mcp_server_stdio
-        - text: mcp_server_sse
-          href: reference/inspect_ai.tool.qmd#mcp_server_sse
+        - text: mcp_server_streamablehttp
+          href: reference/inspect_ai.tool.qmd#mcp_server_streamablehttp
         - text: mcp_server_sandbox
           href: reference/inspect_ai.tool.qmd#mcp_server_sandbox
+        - text: mcp_server_sse
+          href: reference/inspect_ai.tool.qmd#mcp_server_sse
         - text: mcp_tools
           href: reference/inspect_ai.tool.qmd#mcp_tools
         - text: MCPServer
