@@ -2,13 +2,16 @@ import json
 import os
 import tempfile
 from logging import getLogger
-from typing import Any, BinaryIO, Literal, cast
+from typing import Any, BinaryIO, Literal, cast, List, Dict, Tuple
 from zipfile import ZIP_DEFLATED, ZipFile
 
+
+from multiprocessing import Pool
 import anyio
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
+from pydantic_core import from_json
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
@@ -386,6 +389,47 @@ class ZipLogFile:
                 fallback=lambda _x: None,
             ),
         )
+
+
+def _process_single_file_field(
+    args: Tuple[str, str], field: str
+) -> List[Dict[str, Any]]:
+    zip_location, filename = args
+    with ZipFile(zip_location, mode="r") as zip:
+        with zip.open(filename, "r") as f:
+            data = json.load(f)
+            return data[field] if field in data else []
+
+
+def process_single_file_messages(args: Tuple[str, str]) -> List[Dict[str, Any]]:
+    return _process_single_file_field(args, "messages")
+
+
+def process_single_file_events(args: Tuple[str, str]) -> List[Dict[str, Any]]:
+    return _process_single_file_field(args, "events")
+
+
+def read_eval_log_as_json(
+    location: str, field: str = "messages"
+) -> List[List[Dict[str, Any]]]:
+    with ZipFile(location, mode="r") as zip:
+        json_files = [
+            name
+            for name in zip.namelist()
+            if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json")
+        ]
+
+    args = [(location, name) for name in json_files]
+
+    if field == "messages":
+        processor = process_single_file_messages
+    elif field == "events":
+        processor = process_single_file_events
+
+    with Pool() as pool:
+        samples = pool.map(processor, args)
+
+    return samples
 
 
 def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
