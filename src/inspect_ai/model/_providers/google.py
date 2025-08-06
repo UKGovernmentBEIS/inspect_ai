@@ -215,6 +215,9 @@ class GoogleGenAIAPI(ModelAPI):
                         + "or the 'location' custom model arg (-M) when running against vertex."
                     )
 
+            # custom base_url
+            self.base_url = model_base_url(self.base_url, "VERTEX_BASE_URL")
+
         # normal google endpoint
         else:
             # read api key from env
