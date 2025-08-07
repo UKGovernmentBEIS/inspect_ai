@@ -1,3 +1,12 @@
+
+
+## 0.3.120 (07 August 2025)
+
+- OpenAI: Update model version checks for GPT-5.
+- OpenAI: Support for specifying "minimal" for `reasoning_effort`.
+- Bugfix: Conform to breaking changes in `openai` package (1.99.2).
+- Bugfix: Ensure that `sample_shuffle` is `None` (rather than 0) when not specified on the command line.
+
 ## 0.3.119 (04 August 2025)
 
 - Analysis functions are out of beta (`inspect_ai.analysis.beta` is deprecated in favor of `inspect_ai.analysis`).

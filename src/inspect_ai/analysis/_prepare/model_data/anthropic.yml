@@ -1,6 +1,19 @@
 anthropic:
   display_name: Anthropic
   models:
+    claude-opus-4-1:
+      display_name: Claude Opus 4.1
+      release_date: 2024-08-05
+      knowledge_cutoff_date: 2025-03-01
+      context_length: 200000
+      output_tokens: 32000
+      reasoning: True
+      versions:
+        claude-opus-4-1-20250805:
+          snapshot: "20250805"
+          aliases:
+            - anthropic.claude-opus-4-1-20250805-v1:0
+            - claude-opus-4-1@20250805
     claude-opus-4:
       display_name: Claude Opus 4
       release_date: 2024-05-14

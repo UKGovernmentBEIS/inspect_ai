@@ -112,6 +112,7 @@ async def inspect_model_request(
     tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
     inspect_tools: list[ToolInfo] = []
     for tool in tools:
+        assert tool["type"] == "function", '"custom" tool calls are not supported'
         function = tool["function"].copy()
         inspect_tools.append(
             ToolInfo(
@@ -133,6 +134,9 @@ async def inspect_model_request(
             case "required":
                 inspect_tool_choice = "any"
             case _:
+                assert tool_choice["type"] == "function", (
+                    '"custom" tool calls are not supported'
+                )
                 inspect_tool_choice = ToolFunction(name=tool_choice["function"]["name"])
 
     output = await model.generate(

@@ -164,10 +164,10 @@ def completion_params_responses(
     if config.seed is not None:
         unsupported_warning("seed")
     if config.temperature is not None:
-        if openai_api.is_o_series():
+        if openai_api.is_o_series() or openai_api.is_gpt_5():
             warn_once(
                 logger,
-                "o series models do not support the 'temperature' parameter (temperature is always 1).",
+                "gpt-5 and o-series models do not support the 'temperature' parameter (temperature is always 1).",
             )
         else:
             params["temperature"] = config.temperature
@@ -185,7 +185,12 @@ def completion_params_responses(
         and not openai_api.is_o_series()
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
-    if openai_api.is_o_series() and not openai_api.is_o1_early():
+
+    if (
+        (openai_api.is_o_series() and not openai_api.is_o1_early())
+        or openai_api.is_gpt_5()
+        or openai_api.is_codex()
+    ):
         reasoning: dict[str, str] = {}
         if config.reasoning_effort is not None:
             reasoning["effort"] = config.reasoning_effort

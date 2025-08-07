@@ -81,7 +81,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
 | `--cache-prompt` | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools. |
-| `--reasoning-effort` | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series models only. |
+| `--reasoning-effort` | Values: `minimal`, `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series and gpt-5 models only. |
 | `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
 | `--reasoning-history` | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider) |
 | `--response-format` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |

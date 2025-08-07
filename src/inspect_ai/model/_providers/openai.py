@@ -90,8 +90,10 @@ class OpenAIAPI(ModelAPI):
 
         # is this a model we use responses api by default for?
         responses_preferred = (
-            self.is_o_series() and not self.is_o1_early()
-        ) or self.is_codex()
+            (self.is_o_series() and not self.is_o1_early())
+            or self.is_codex()
+            or self.is_gpt_5()
+        )
 
         # resolve whether we are forcing the responses api
         self.responses_api = self.is_computer_use_preview() or (
@@ -219,6 +221,10 @@ class OpenAIAPI(ModelAPI):
             return True
         else:
             return not self.is_gpt() and bool(re.search(r"o\d+", name))
+
+    def is_gpt_5(self) -> bool:
+        name = self.service_model_name()
+        return "gpt-5" in name
 
     def is_o1(self) -> bool:
         name = self.service_model_name()

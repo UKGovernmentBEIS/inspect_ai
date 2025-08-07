@@ -80,7 +80,7 @@ async def generate_completions(
         system_role: Literal["user", "system", "developer"] = "user"
     # other o-series models use 'developer' rather than 'system' messages
     # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
-    elif openai_api.is_o_series():
+    elif openai_api.is_o_series() or openai_api.is_gpt_5():
         system_role = "developer"
     else:
         system_role = "system"
@@ -131,15 +131,15 @@ def completion_params_completions(
 
     # now tailor to current model
     if config.max_tokens is not None:
-        if openai_api.is_o_series():
+        if openai_api.is_o_series() or openai_api.is_gpt_5():
             params["max_completion_tokens"] = config.max_tokens
             del params["max_tokens"]
 
     if config.temperature is not None:
-        if openai_api.is_o_series():
+        if openai_api.is_o_series() or openai_api.is_gpt_5():
             warn_once(
                 logger,
-                "o series models do not support the 'temperature' parameter (temperature is always 1).",
+                "gpt-5 and o-series models do not support the 'temperature' parameter (temperature is always 1).",
             )
             del params["temperature"]
 
@@ -149,7 +149,7 @@ def completion_params_completions(
 
     # remove reasoning_effort if not supported
     if "reasoning_effort" in params.keys() and (
-        openai_api.is_gpt() or openai_api.is_o1_early()
+        (openai_api.is_gpt() and not openai_api.is_gpt_5()) or openai_api.is_o1_early()
     ):
         del params["reasoning_effort"]
 
