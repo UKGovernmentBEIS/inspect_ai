@@ -452,8 +452,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--reasoning-effort",
-        type=click.Choice(["low", "medium", "high"]),
-        help="Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series models only.",
+        type=click.Choice(["minimal", "low", "medium", "high"]),
+        help="Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series and gpt-5 models only.",
         envvar="INSPECT_EVAL_REASONING_EFFORT",
     )
     @click.option(

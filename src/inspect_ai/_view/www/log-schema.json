@@ -3444,6 +3444,7 @@
           "anyOf": [
             {
               "enum": [
+                "minimal",
                 "low",
                 "medium",
                 "high"
