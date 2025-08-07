@@ -25,6 +25,7 @@ from openai.types.chat import (
     ChatCompletionDeveloperMessageParam,
     ChatCompletionMessage,
     ChatCompletionMessageFunctionToolCall,
+    ChatCompletionMessageFunctionToolCallParam,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
@@ -36,7 +37,7 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
-from openai.types.chat.chat_completion_message_tool_call import Function
+from openai.types.chat.chat_completion_message_function_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
@@ -94,7 +95,7 @@ def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
 def openai_chat_tool_call_param(
     tool_call: ToolCall,
 ) -> ChatCompletionMessageToolCallParam:
-    return ChatCompletionMessageToolCallParam(
+    return ChatCompletionMessageFunctionToolCallParam(
         id=tool_call.id,
         function=dict(
             name=tool_call.function, arguments=json.dumps(tool_call.arguments)
