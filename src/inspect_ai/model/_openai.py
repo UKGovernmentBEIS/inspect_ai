@@ -352,6 +352,8 @@ def chat_tool_calls_from_openai(
         return [
             parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
             for call in message.tool_calls
+            # TODO: For now, we don't yet support "custom" tool calls
+            if call.type == "function"
         ]
     else:
         return None
