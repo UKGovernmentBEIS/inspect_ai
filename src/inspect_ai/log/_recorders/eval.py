@@ -1,17 +1,16 @@
 import json
 import os
 import tempfile
+from functools import partial
 from logging import getLogger
-from typing import Any, BinaryIO, Literal, cast, List, Dict, Tuple
+from multiprocessing import Pool
+from typing import Any, BinaryIO, Dict, List, Literal, Tuple, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
-
-from multiprocessing import Pool
 import anyio
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
-from pydantic_core import from_json
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
@@ -182,7 +181,12 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+        skip_sample_validation: bool = False,
+    ) -> EvalLog:
         # if the log is not stored in the local filesystem then download it first,
         # and then read it from a temp file (eliminates the possiblity of hundreds
         # of small fetches from the zip file streams)
@@ -196,7 +200,7 @@ class EvalRecorder(FileRecorder):
         # read log (use temp_log if we have it)
         try:
             with file(temp_log or location, "rb") as z:
-                return _read_log(z, location, header_only)
+                return _read_log(z, location, header_only, skip_sample_validation)
         finally:
             if temp_log:
                 os.unlink(temp_log)
@@ -432,7 +436,12 @@ def read_eval_log_as_json(
     return samples
 
 
-def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
+def _read_log(
+    log: BinaryIO,
+    location: str,
+    header_only: bool = False,
+    skip_sample_validation: bool = True,
+) -> EvalLog:
     with ZipFile(log, mode="r") as zip:
         evalLog = _read_header(zip, location)
         if REDUCTIONS_JSON in zip.namelist():
@@ -448,18 +457,34 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
 
         samples: list[EvalSample] | None = None
         if not header_only:
-            samples = []
-            for name in zip.namelist():
-                if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
-                    with zip.open(name, "r") as f:
-                        samples.append(
-                            EvalSample.model_validate(
-                                json.load(f), context=DESERIALIZING_CONTEXT
-                            ),
-                        )
-            sort_samples(samples)
-            evalLog.samples = samples
-        return evalLog
+            sample_filenames = [
+                name
+                for name in zip.namelist()
+                if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json")
+            ]
+
+    if not header_only:
+        _read_raw_sample_partial = partial(_read_raw_sample, location=location)
+        with Pool() as pool:
+            raw_samples: List[Dict] = pool.map(
+                _read_raw_sample_partial, sample_filenames
+            )
+        samples = [
+            EvalSample.model_validate(raw_sample, context=DESERIALIZING_CONTEXT)
+            if not skip_sample_validation
+            else EvalSample.model_construct(**raw_sample)
+            for raw_sample in raw_samples
+        ]
+        sort_samples(samples)
+        evalLog.samples = samples
+
+    return evalLog
+
+
+def _read_raw_sample(filename: str, location: str) -> Any:
+    with ZipFile(location, mode="r") as zip:
+        with zip.open(filename, "r") as f:
+            return json.load(f)
 
 
 def _read_start(zip: ZipFile) -> LogStart | None:

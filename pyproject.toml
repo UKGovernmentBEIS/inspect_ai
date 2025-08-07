@@ -55,7 +55,7 @@ convention = "google"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-rA --doctest-modules --color=yes"
+addopts = "-rA --doctest-modules --color=yes -m 'not benchmark'"
 testpaths = ["tests"]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 norecursedirs = [
@@ -66,6 +66,9 @@ norecursedirs = [
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 log_level = "WARNING"
+markers = [
+    "benchmark: performance comparison tests (excluded by default)",
+]
 
 [tool.mypy]
 exclude = [
@@ -188,6 +191,8 @@ dev = [
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]
+
+dev-benchmarks = ["pytest-benchmark"]
 
 [tool.typos.default.extend-words]
 ba = "ba"
