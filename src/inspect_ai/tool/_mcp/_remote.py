@@ -21,6 +21,9 @@ class MCPServerRemote(MCPServer):
     async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
         # we are going to return a tool named "inspect_mcp_remote" and calling
         # that tool will yield an MCPConfig
+
+        # we may be able to support dynamic binding if we can defer the server
+        # connection until the first call to the server?
         return []
 
     # no-op async context manager as we don't manage resources
