@@ -118,8 +118,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
-    reasoning_effort: Literal["low", "medium", "high"] | None
-    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None
+    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series and gpt-5 models only."""
 
     reasoning_tokens: int | None
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
@@ -206,8 +206,10 @@ class GenerateConfig(BaseModel):
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
-    reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
-    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = Field(
+        default=None
+    )
+    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series and gpt-5 models only."""
 
     reasoning_tokens: int | None = Field(default=None)
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
