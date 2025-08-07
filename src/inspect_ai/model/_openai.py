@@ -24,6 +24,7 @@ from openai.types.chat import (
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
     ChatCompletionMessage,
+    ChatCompletionMessageFunctionToolCall,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
@@ -81,7 +82,7 @@ class OpenAIResponseError(OpenAIError):
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
-    return ChatCompletionMessageToolCall(
+    return ChatCompletionMessageFunctionToolCall(
         type="function",
         id=tool_call.id,
         function=Function(
