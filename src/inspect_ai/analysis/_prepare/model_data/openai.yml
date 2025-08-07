@@ -217,3 +217,39 @@ openai:
           snapshot: "2025-04-16"
         latest:
           snapshot: latest
+    gpt-5:
+      display_name: GPT-5
+      release_date: 2025-08-07
+      knowledge_cutoff_date: 2024-09-30
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      versions:
+        gpt-5-2025-08-07:
+          snapshot: "2025-08-07"
+        latest:
+          snapshot: latest
+    gpt-5-mini:
+      display_name: GPT-5 Mini
+      release_date: 2025-08-07
+      knowledge_cutoff_date: 2024-05-30
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      versions:
+        gpt-5-mini-2025-08-07:
+          snapshot: "2025-08-07"
+        latest:
+          snapshot: latest
+    gpt-5-nano:
+      display_name: GPT-5 Nano
+      release_date: 2025-08-07
+      knowledge_cutoff_date: 2024-05-30
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      versions:
+        gpt-5-nano-2025-08-07:
+          snapshot: "2025-08-07"
+        latest:
+          snapshot: latest
