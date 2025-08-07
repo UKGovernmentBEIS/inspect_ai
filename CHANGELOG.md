@@ -21,6 +21,7 @@
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
 - Bugfix: Correct forwarding of `reasoning_effort` and `reasoning_tokens` for OpenRouter provider.
 - Bugfix: `bridge()` no longer causes a recursion error when running a large number of samples with openai models
+- Bugfix: Ensure that `sample_shuffle` is `None` (rather than 0) when not specified on the command line.
 
 
 ## 0.3.119 (04 August 2025)
