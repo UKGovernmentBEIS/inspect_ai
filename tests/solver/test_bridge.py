@@ -166,6 +166,7 @@ def test_anthropic_bridged_agent():
     check_anthropic_log_json(log_json)
 
 
+@skip_if_no_anthropic
 @skip_if_no_openai
 def test_bridged_agent_context():
     logs = eval(
