@@ -23,6 +23,7 @@ from openai.types.chat import (
     ChatCompletionContentPartRefusalParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
+    ChatCompletionFunctionToolParam,
     ChatCompletionMessage,
     ChatCompletionMessageFunctionToolCall,
     ChatCompletionMessageFunctionToolCallParam,
@@ -323,7 +324,7 @@ def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
     )
-    return ChatCompletionToolParam(type="function", function=function)
+    return ChatCompletionFunctionToolParam(type="function", function=function)
 
 
 def openai_chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
