@@ -240,6 +240,7 @@ def read_eval_log(
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    skip_sample_validation: bool = False,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -265,10 +266,7 @@ def read_eval_log(
     # flow, so force the use of asyncio
     return run_coroutine(
         read_eval_log_async(
-            log_file,
-            header_only,
-            resolve_attachments,
-            format,
+            log_file, header_only, resolve_attachments, format, skip_sample_validation
         )
     )
 
@@ -278,6 +276,7 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    skip_sample_validation: bool = False,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -308,7 +307,7 @@ async def read_eval_log_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    log = await recorder_type.read_log(log_file, header_only)
+    log = await recorder_type.read_log(log_file, header_only, skip_sample_validation)
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
