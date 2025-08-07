@@ -921,13 +921,12 @@ def eval_exec(
     eval_sample_id = parse_sample_id(sample_id)
 
     # resolve sample_shuffle
-    eval_sample_shuffle = (
-        False
-        if sample_shuffle is None
-        else True
-        if sample_shuffle == -1
-        else sample_shuffle
-    )
+    if sample_shuffle == -1:
+        eval_sample_shuffle: Literal[True] | int | None = True
+    elif sample_shuffle == 0:
+        eval_sample_shuffle = None
+    else:
+        eval_sample_shuffle = sample_shuffle
 
     # resolve fail_on_error
     if no_fail_on_error is True:
