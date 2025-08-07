@@ -22,6 +22,7 @@
 - Bugfix: Correct forwarding of `reasoning_effort` and `reasoning_tokens` for OpenRouter provider.
 - Bugfix: `bridge()` no longer causes a recursion error when running a large number of samples with openai models
 - Bugfix: Ensure that `sample_shuffle` is `None` (rather than 0) when not specified on the command line.
+- Bugfix: Conform to breaking changes in `openai` package (1.99.2).
 
 
 ## 0.3.119 (04 August 2025)
