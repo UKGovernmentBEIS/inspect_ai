@@ -439,6 +439,9 @@ def chat_messages_from_openai(
             if "tool_calls" in message:
                 tool_calls: list[ToolCall] = []
                 for call in message["tool_calls"]:
+                    # TODO: For now, we don't yet support "custom" tool calls
+                    if call["type"] != "function":
+                        continue
                     tool_calls.append(tool_call_from_openai(call))
                     tool_names[call["id"]] = call["function"]["name"]
 
@@ -482,6 +485,7 @@ def chat_messages_from_openai(
 
 
 def tool_call_from_openai(tool_call: ChatCompletionMessageToolCallParam) -> ToolCall:
+    assert tool_call["type"] == "function", '"custom" tool calls are not supported'
     return parse_tool_call(
         tool_call["id"],
         tool_call["function"]["name"],
