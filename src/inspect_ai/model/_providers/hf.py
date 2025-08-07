@@ -109,7 +109,7 @@ class HuggingFaceAPI(ModelAPI):
 
         # model
         if model_path:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model: Any = AutoModelForCausalLM.from_pretrained(
                 model_path, device_map=self.device, token=self.api_key, **model_args
             )
         else:

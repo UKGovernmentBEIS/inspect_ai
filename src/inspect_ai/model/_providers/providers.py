@@ -177,6 +177,14 @@ def fireworks() -> type[ModelAPI]:
     return FireworksAIAPI
 
 
+@modelapi(name="sambanova")
+def sambanova() -> type[ModelAPI]:
+    validate_openai_client("SambaNova API")
+    from .sambanova import SambaNovaAPI
+
+    return SambaNovaAPI
+
+
 @modelapi(name="ollama")
 def ollama() -> type[ModelAPI]:
     # validate
@@ -285,6 +293,28 @@ def none() -> type[ModelAPI]:
     from .none import NoModel
 
     return NoModel
+
+
+@modelapi("goodfire")
+def goodfire() -> type[ModelAPI]:
+    """Get the Goodfire API provider."""
+    FEATURE = "Goodfire API"
+    PACKAGE = "goodfire"
+    MIN_VERSION = "0.3.4"  # Support for newer Llama models and OpenAI compatibility
+
+    # verify we have the package
+    try:
+        import goodfire  # type: ignore # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
+    from .goodfire import GoodfireAPI  # type: ignore[attr-defined]
+
+    return GoodfireAPI  # type: ignore[no-any-return]
 
 
 def validate_openai_client(feature: str) -> None:

@@ -215,6 +215,11 @@ class GoogleGenAIAPI(ModelAPI):
                         + "or the 'location' custom model arg (-M) when running against vertex."
                     )
 
+            # custom base_url
+            self.base_url = model_base_url(
+                self.base_url, ["GOOGLE_VERTEX_BASE_URL", "VERTEX_BASE_URL"]
+            )
+
         # normal google endpoint
         else:
             # read api key from env
@@ -240,14 +245,21 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # http options
+        http_options = HttpOptions(
+            base_url=self.base_url,
+            api_version=self.api_version,
+        )
+
+        # apply timeout if specified
+        if config.timeout:
+            http_options.timeout = config.timeout * 1000
+
         # create client
         client = Client(
             vertexai=self.is_vertex(),
             api_key=self.api_key,
-            http_options={
-                "base_url": self.base_url,
-                "api_version": self.api_version,
-            },
+            http_options=http_options,
             **self.model_args,
         )
 

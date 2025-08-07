@@ -1,4 +1,26 @@
+## Unreleased
 
+- [SambaNova](https://inspect.aisi.org.uk/providers.html#sambanova) model provider.
+- [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
+- Google: Pass `timeout` generation config option through to API `Client`.
+- Google: Ability to specify a custom `GOOGLE_VERTEX_BASE_URL`.
+- OpenAI: Add `background`, `safety_identifier` and `prompt_cache_key` custom model args (bump required version of `openai` package to v1.98).
+- OpenAI: Set `client_timeout` to 900s when flex processing is enabled.
+- MCP: Support for `mcp_server_http()` (which replaces the deprecated SSE server mode).
+- MCP: Added `authorization` to provide OAuth Bearer token for HTTP based servers.
+- Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
+- Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
+- Store: Support for serializing complex nested types (e.g. to read in an offline scorer).
+- Tools: Code viewer now handles function calls with `list[str]` rather than `str` without crashing.
+- Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
+- Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
+- Tests: Added the ability to provide a generator like callback function for `MockLLM`.
+- Scoring: Improve multiple_choice answer parsing, making it more strict in interpreting answers like `ANSWER: None of the above`. Allow answers to end with full stop (`.`).
+- Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
+- Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
+- Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
+- Bugfix: Correct forwarding of `reasoning_effort` and `reasoning_tokens` for OpenRouter provider.
+- Bugfix: `bridge()` no longer causes a recursion error when running a large number of samples with openai models
 
 ## 0.3.120 (07 August 2025)
 

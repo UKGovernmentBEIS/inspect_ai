@@ -19,6 +19,7 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from ._mcp import (
     MCPServer,
     mcp_connection,
+    mcp_server_http,
     mcp_server_sandbox,
     mcp_server_sse,
     mcp_server_stdio,
@@ -66,6 +67,7 @@ __all__ = [
     "mcp_connection",
     "mcp_server_stdio",
     "mcp_server_sse",
+    "mcp_server_http",
     "mcp_server_sandbox",
     "MCPServer",
     "Content",

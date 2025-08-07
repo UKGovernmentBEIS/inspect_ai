@@ -488,11 +488,11 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                         )
                 elif len(solver_decorators) > 1:
                     raise PrerequisiteError(
-                        f"The source file {pretty_solver_file} has more than one @solver function (qualify which solver using e.g. '{solver_file.name}y@solver_fn')"
+                        f"The source file {pretty_solver_file} has more than one @solver function (qualify which solver using e.g. '{solver_file.name}@solver_fn')"
                     )
                 else:
                     raise PrerequisiteError(
-                        f"The source file {pretty_solver_file} has more than one @agent function (qualify which agent using e.g. '{solver_file.name}y@agent_fn')"
+                        f"The source file {pretty_solver_file} has more than one @agent function (qualify which agent using e.g. '{solver_file.name}@agent_fn')"
                     )
 
             # create decorator based solvers using the registry

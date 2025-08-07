@@ -38,6 +38,10 @@ def skip_if_no_groq(func):
     return pytest.mark.api(skip_if_env_var("GROQ_API_KEY", exists=False)(func))
 
 
+def skip_if_no_goodfire(func):
+    return pytest.mark.api(skip_if_env_var("GOODFIRE_API_KEY", exists=False)(func))
+
+
 def skip_if_no_package(package):
     return pytest.mark.skipif(
         importlib.util.find_spec(package) is None,
@@ -130,12 +134,20 @@ def skip_if_no_together(func):
     return pytest.mark.api(skip_if_env_var("TOGETHER_API_KEY", exists=False)(func))
 
 
+def skip_if_no_openrouter(func):
+    return pytest.mark.api(skip_if_env_var("OPENROUTER_API_KEY", exists=False)(func))
+
+
 def skip_if_no_together_base_url(func):
     return pytest.mark.api(skip_if_env_var("TOGETHER_BASE_URL", exists=False)(func))
 
 
 def skip_if_no_fireworks(func):
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
+
+
+def skip_if_no_sambanova(func):
+    return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
 
 
 def skip_if_no_perplexity(func):

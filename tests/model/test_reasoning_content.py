@@ -3,6 +3,8 @@ from typing import Literal
 import pytest
 from test_helpers.utils import (
     skip_if_no_groq,
+    skip_if_no_openai,
+    skip_if_no_openrouter,
     skip_if_no_together,
 )
 
@@ -16,16 +18,29 @@ from inspect_ai.solver._prompt import user_message
 from inspect_ai.solver._solver import generate
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_together
 async def test_reasoning_content_together():
     await check_reasoning_content("together/Qwen/Qwen3-235B-A22B-Thinking-2507")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_groq
 async def test_reasoning_content_groq():
     await check_reasoning_content("groq/deepseek-r1-distill-llama-70b")
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_reasoning_content_openai():
+    await check_reasoning_content("openai/o4-mini")
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+@skip_if_no_openrouter
+async def test_reasoning_content_openrouter_openai():
+    await check_reasoning_content("openrouter/openai/o4-mini")
 
 
 @pytest.mark.slow
@@ -51,7 +66,7 @@ async def check_reasoning_content(
 ):
     model = get_model(model_name)
     output = await model.generate(
-        "Please say 'hello, world'",
+        "Solve 3*x^3-5*x=1",
         config=config.merge(
             GenerateConfig(reasoning_effort="low", reasoning_tokens=1024)
         ),

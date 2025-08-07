@@ -51,45 +51,48 @@ _patch_enabled: ContextVar[bool] = ContextVar(
 
 def init_openai_request_patch() -> None:
     global _patch_initialised
-    if not _patch_initialised:
-        # get reference to original method
-        original_request = getattr(AsyncAPIClient, "request")
-        if original_request is None:
-            raise RuntimeError("Couldn't find 'request' method on AsyncAPIClient")
+    if _patch_initialised:
+        return
 
-        @wraps(original_request)
-        async def patched_request(
-            self: AsyncAPIClient,
-            cast_to: Type[ResponseT],
-            options: FinalRequestOptions,
-            *,
-            stream: bool = False,
-            stream_cls: type[_AsyncStreamT] | None = None,
-        ) -> Any:
-            # we have patched the underlying request method so now need to figure out when to
-            # patch and when to stand down
-            if (
-                # enabled for this coroutine
-                _patch_enabled.get()
-                # completions request
-                and options.url == "/chat/completions"
-            ):
-                # must also be an explicit request for an inspect model
-                json_data = cast(dict[str, Any], options.json_data)
-                model_name = str(json_data["model"])
-                if re.match(r"^inspect/?", model_name):
-                    return await inspect_model_request(model_name, options)
+    # get reference to original method
+    original_request = getattr(AsyncAPIClient, "request")
+    if original_request is None:
+        raise RuntimeError("Couldn't find 'request' method on AsyncAPIClient")
 
-            # otherwise just delegate
-            return await original_request(
-                self,
-                cast_to,
-                options,
-                stream=stream,
-                stream_cls=stream_cls,
-            )
+    @wraps(original_request)
+    async def patched_request(
+        self: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        *,
+        stream: bool = False,
+        stream_cls: type[_AsyncStreamT] | None = None,
+    ) -> Any:
+        # we have patched the underlying request method so now need to figure out when to
+        # patch and when to stand down
+        if (
+            # enabled for this coroutine
+            _patch_enabled.get()
+            # completions request
+            and options.url == "/chat/completions"
+        ):
+            # must also be an explicit request for an inspect model
+            json_data = cast(dict[str, Any], options.json_data)
+            model_name = str(json_data["model"])
+            if re.match(r"^inspect/?", model_name):
+                return await inspect_model_request(model_name, options)
 
-        setattr(AsyncAPIClient, "request", patched_request)
+        # otherwise just delegate
+        return await original_request(
+            self,
+            cast_to,
+            options,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
+
+    setattr(AsyncAPIClient, "request", patched_request)
+    _patch_initialised = True
 
 
 async def inspect_model_request(

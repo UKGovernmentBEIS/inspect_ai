@@ -16,10 +16,22 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/control-arena)"
   categories: ["Framework"]
 
+- name: "[Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/)"
+  description: |
+    Interactive data visualization for Inspect evalutions.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_viz)"
+  categories: ["Framework"]
+
 - name: "[Docent](https://docs.transluce.org/)"
   description: |
-    Docent provides tools to summarize, cluster, and search over agent transcripts.
+    Tools to summarize, cluster, and search over agent transcripts.
   author: "[Transluce](https://transluce.org/introducing-docent)"
+  categories: ["Analysis"]
+
+- name: "[Inspect Weave](https://github.com/DanielPolatajko/inspect_weave)"
+  description: |
+    Integration with Weights and Biases Weave platform.
+  author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 
 - name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
