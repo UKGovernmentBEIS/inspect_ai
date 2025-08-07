@@ -23,7 +23,10 @@ from openai.types.chat import (
     ChatCompletionContentPartRefusalParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
+    ChatCompletionFunctionToolParam,
     ChatCompletionMessage,
+    ChatCompletionMessageFunctionToolCall,
+    ChatCompletionMessageFunctionToolCallParam,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
@@ -35,7 +38,7 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
-from openai.types.chat.chat_completion_message_tool_call import Function
+from openai.types.chat.chat_completion_message_function_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
@@ -81,7 +84,7 @@ class OpenAIResponseError(OpenAIError):
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
-    return ChatCompletionMessageToolCall(
+    return ChatCompletionMessageFunctionToolCall(
         type="function",
         id=tool_call.id,
         function=Function(
@@ -93,7 +96,7 @@ def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
 def openai_chat_tool_call_param(
     tool_call: ToolCall,
 ) -> ChatCompletionMessageToolCallParam:
-    return ChatCompletionMessageToolCallParam(
+    return ChatCompletionMessageFunctionToolCallParam(
         id=tool_call.id,
         function=dict(
             name=tool_call.function, arguments=json.dumps(tool_call.arguments)
@@ -321,7 +324,7 @@ def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
     )
-    return ChatCompletionToolParam(type="function", function=function)
+    return ChatCompletionFunctionToolParam(type="function", function=function)
 
 
 def openai_chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
@@ -349,6 +352,8 @@ def chat_tool_calls_from_openai(
         return [
             parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
             for call in message.tool_calls
+            # TODO: For now, we don't yet support "custom" tool calls
+            if call.type == "function"
         ]
     else:
         return None
@@ -434,6 +439,9 @@ def chat_messages_from_openai(
             if "tool_calls" in message:
                 tool_calls: list[ToolCall] = []
                 for call in message["tool_calls"]:
+                    # TODO: For now, we don't yet support "custom" tool calls
+                    if call["type"] != "function":
+                        continue
                     tool_calls.append(tool_call_from_openai(call))
                     tool_names[call["id"]] = call["function"]["name"]
 
@@ -477,6 +485,7 @@ def chat_messages_from_openai(
 
 
 def tool_call_from_openai(tool_call: ChatCompletionMessageToolCallParam) -> ToolCall:
+    assert tool_call["type"] == "function", '"custom" tool calls are not supported'
     return parse_tool_call(
         tool_call["id"],
         tool_call["function"]["name"],
