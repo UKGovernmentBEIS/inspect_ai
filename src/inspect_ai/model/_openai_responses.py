@@ -86,7 +86,7 @@ async def _openai_input_item_from_chat_message(
         content = await _openai_responses_content_list_param(message.content)
         return (
             [Message(type="message", role="developer", content=content)]
-            if openai_api.is_o_series()
+            if openai_api.is_o_series() or openai_api.is_gpt_5()
             else [Message(type="message", role="system", content=content)]
         )
     elif message.role == "user":
