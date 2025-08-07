@@ -206,8 +206,10 @@ class GenerateConfig(BaseModel):
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
-    reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
-    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = Field(
+        default=None
+    )
+    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI reasoning models only."""
 
     reasoning_tokens: int | None = Field(default=None)
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
