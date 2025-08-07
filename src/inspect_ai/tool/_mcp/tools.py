@@ -31,5 +31,5 @@ class MCPToolSource(ToolSource):
 
     async def tools(self) -> list[Tool]:
         if self._cached_tool_list is None:
-            self._cached_tool_list = await self._server._list_tools(self._tools)
+            self._cached_tool_list = await self._server.tools(self._tools)
         return self._cached_tool_list

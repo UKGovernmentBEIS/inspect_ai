@@ -37,7 +37,7 @@ def mcp_server_sse(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import create_server_sse
+    from ._local import create_server_sse
 
     return create_server_sse(
         url,
@@ -71,7 +71,7 @@ def mcp_server_http(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import create_server_streamablehttp
+    from ._local import create_server_streamablehttp
 
     return create_server_streamablehttp(
         url,
@@ -105,7 +105,7 @@ def mcp_server_stdio(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import create_server_stdio
+    from ._local import create_server_stdio
 
     return create_server_stdio(command, args, cwd, env)
 
@@ -138,7 +138,7 @@ def mcp_server_sandbox(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import create_server_sandbox
+    from ._local import create_server_sandbox
 
     return create_server_sandbox(command, args, cwd, env, sandbox, timeout)
 

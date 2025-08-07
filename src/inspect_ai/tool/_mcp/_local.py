@@ -4,6 +4,7 @@ from contextlib import AsyncExitStack
 from fnmatch import fnmatch
 from logging import getLogger
 from pathlib import Path
+from types import TracebackType
 from typing import Any, AsyncIterator, Callable, Literal
 
 import anyio
@@ -38,9 +39,13 @@ from .sampling import as_inspect_content, sampling_fn
 logger = getLogger(__name__)
 
 
-class MCPServerImpl(MCPServer):
+class MCPServerLocal(MCPServer):
     def __init__(
-        self, client: Callable[[], MCPServerContext], *, name: str, events: bool
+        self,
+        client: Callable[[], MCPServerContext],
+        *,
+        name: str,
+        events: bool,
     ) -> None:
         super().__init__()
         self._client = client
@@ -48,34 +53,42 @@ class MCPServerImpl(MCPServer):
         self._events = events
 
     @override
-    async def _connect(self) -> None:
-        await self._task_session()._connect()
+    async def __aenter__(self) -> MCPServer:
+        return await self._task_session().__aenter__()
 
     @override
-    async def _close(self) -> None:
-        await self._task_session()._close()
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        await self._task_session().__aexit__(exc_type, exc_val, exc_tb)
 
-    async def _list_tools(
-        self, tools: Literal["all"] | list[str] = "all"
-    ) -> list[Tool]:
-        return await self._task_session()._list_tools(tools)
+    @override
+    async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
+        return await self._task_session().tools(tools)
 
     # create a separate MCPServer session per async task / server name
-    _task_sessions: dict[str, "MCPServerSession"] = {}
+    _task_sessions: dict[str, "MCPServerLocalSession"] = {}
 
-    def _task_session(self) -> "MCPServerSession":
+    def _task_session(self) -> "MCPServerLocalSession":
         task_id = anyio.get_current_task().id
         session_key = f"{task_id}_{self._name}"
         if session_key not in self._task_sessions:
-            MCPServerImpl._task_sessions[session_key] = MCPServerSession(
+            MCPServerLocal._task_sessions[session_key] = MCPServerLocalSession(
                 self._client, name=self._name, events=self._events
             )
-        return MCPServerImpl._task_sessions[session_key]
+        return MCPServerLocal._task_sessions[session_key]
 
 
-class MCPServerSession(MCPServer):
+class MCPServerLocalSession(MCPServer):
     def __init__(
-        self, client: Callable[[], MCPServerContext], *, name: str, events: bool
+        self,
+        client: Callable[[], MCPServerContext],
+        *,
+        name: str,
+        events: bool,
     ) -> None:
         super().__init__()
         self._refcount = 0
@@ -87,7 +100,7 @@ class MCPServerSession(MCPServer):
         self._cached_tool_list: list[MCPTool] | None = None
 
     @override
-    async def _connect(self) -> None:
+    async def __aenter__(self) -> MCPServer:
         if self._session is not None:
             assert self._refcount > 0
             self._refcount = self._refcount + 1
@@ -109,8 +122,15 @@ class MCPServerSession(MCPServer):
                 await self._session.initialize()
             self._refcount = 1
 
+        return self
+
     @override
-    async def _close(self) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         assert self._refcount > 0
         self._refcount = self._refcount - 1
         if self._refcount == 0:
@@ -123,9 +143,8 @@ class MCPServerSession(MCPServer):
                     self._session = None
                     self._exit_stack = None
 
-    async def _list_tools(
-        self, tools: Literal["all"] | list[str] = "all"
-    ) -> list[Tool]:
+    @override
+    async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
         if self._cached_tool_list:
             mcp_tools = self._cached_tool_list
         else:
@@ -230,7 +249,7 @@ def create_server_sse(
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
-    return MCPServerImpl(
+    return MCPServerLocal(
         lambda: sse_client(url, headers, timeout, sse_read_timeout),
         name=url,
         events=True,
@@ -243,7 +262,7 @@ def create_server_streamablehttp(
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
-    return MCPServerImpl(
+    return MCPServerLocal(
         lambda: streamablehttp_client(url, headers, timeout, sse_read_timeout),
         name=url,
         events=True,
@@ -256,7 +275,7 @@ def create_server_stdio(
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
 ) -> MCPServer:
-    return MCPServerImpl(
+    return MCPServerLocal(
         lambda: stdio_client(
             StdioServerParameters(
                 command=command,
@@ -281,7 +300,7 @@ def create_server_sandbox(
     # TODO: Confirm the lifetime concepts. By the time a request makes it to the
     # sandbox, it's going to need both a session id and a server "name".
     name = " ".join([command] + args)
-    return MCPServerImpl(
+    return MCPServerLocal(
         lambda: sandbox_client(
             StdioServerParameters(
                 command=command,

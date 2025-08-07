@@ -1,5 +1,4 @@
 import contextlib
-from types import TracebackType
 from typing import AsyncIterator, Sequence
 
 from .._tool import Tool, ToolSource
@@ -34,27 +33,8 @@ async def mcp_connection(
 
     # enter connection contexts
     async with contextlib.AsyncExitStack() as exit_stack:
-        for connection in [
-            MCPServerConnection(mcp_server) for mcp_server in mcp_servers
-        ]:
-            await exit_stack.enter_async_context(connection)
+        for mcp_server in mcp_servers:
+            await exit_stack.enter_async_context(mcp_server)
 
         # onward
         yield
-
-
-class MCPServerConnection:
-    def __init__(self, server: MCPServer) -> None:
-        self._server = server
-
-    async def __aenter__(self) -> "MCPServerConnection":
-        await self._server._connect()
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        await self._server._close()
