@@ -25,7 +25,7 @@ export const SpanEventView: FC<SpanEventViewProps> = ({
   const title =
     descriptor.name ||
     `${event.type ? event.type + ": " : "Step: "}${event.name}`;
-  
+
   const text = useMemo(() => summarize(children), [children]);
   const childIds = useMemo(() => children.map((child) => child.id), [children]);
 
