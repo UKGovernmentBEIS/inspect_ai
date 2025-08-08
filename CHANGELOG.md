@@ -23,6 +23,7 @@
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
 - Bugfix: Correct forwarding of `reasoning_effort` and `reasoning_tokens` for OpenRouter provider.
 - Bugfix: `bridge()` no longer causes a recursion error when running a large number of samples with openai models
+- Inspect View: Improved handling of scores and messages with large or complex metadata.
 
 ## 0.3.120 (07 August 2025)
 
