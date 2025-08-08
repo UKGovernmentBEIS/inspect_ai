@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, useMemo } from "react";
 import { SpanBeginEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "./event/EventPanel";
@@ -25,13 +25,15 @@ export const SpanEventView: FC<SpanEventViewProps> = ({
   const title =
     descriptor.name ||
     `${event.type ? event.type + ": " : "Step: "}${event.name}`;
-  const text = summarize(children);
+  
+  const text = useMemo(() => summarize(children), [children]);
+  const childIds = useMemo(() => children.map((child) => child.id), [children]);
 
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      childIds={children.map((child) => child.id)}
+      childIds={childIds}
       className={clsx("transcript-span", className)}
       title={title}
       subTitle={formatDateTime(new Date(event.timestamp))}
