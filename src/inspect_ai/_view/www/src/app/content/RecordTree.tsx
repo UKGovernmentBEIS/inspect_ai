@@ -205,6 +205,11 @@ export const RecordTree: FC<RecordTreeProps> = ({
     );
   };
 
+  // Don't render until collapsedIds is initialized to avoid flash of all items
+  if (!collapsedIds) {
+    return null;
+  }
+
   if (!scrollRef) {
     // No virtualization - render directly
     return (
