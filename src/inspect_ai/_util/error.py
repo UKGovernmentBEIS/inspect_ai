@@ -55,6 +55,20 @@ class PrerequisiteError(Exception):
         self.message = message
 
 
+class ConcurrentModificationError(Exception):
+    """Raised when a conditional write fails due to concurrent modification."""
+
+    def __init__(
+        self,
+        message: str,
+        etag_expected: str | None = None,
+        etag_actual: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.etag_expected = etag_expected
+        self.etag_actual = etag_actual
+
+
 def exception_hook() -> Callable[..., None]:
     sys_handler = sys.excepthook
 

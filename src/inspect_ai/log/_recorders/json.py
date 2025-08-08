@@ -9,8 +9,8 @@ from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
-from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import absolute_file_path, file
+from inspect_ai._util.error import ConcurrentModificationError, EvalError
+from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -123,8 +123,11 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
-        if header_only:
+    async def read_log(
+        cls, location: str, header_only: bool = False, include_etag: bool = False
+    ) -> EvalLog | tuple[EvalLog, str | None]:
+        if header_only and not include_etag:
+            # Fast path: header only, no ETag needed
             try:
                 return _read_header_streaming(location)
             # The Python JSON serializer supports NaN and Inf, however
@@ -141,6 +144,18 @@ class JSONRecorder(FileRecorder):
                     pass
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
+
+        # Get ETag if requested and on S3
+        etag = None
+        if include_etag:
+            fs = filesystem(location)
+            if fs.is_s3():
+                try:
+                    file_info = fs.info(location)
+                    etag = file_info.etag
+                except Exception:
+                    # If we can't get file info, proceed without ETag
+                    pass
 
         # full reads (and fallback to streaing reads if they encounter invalid json characters)
         with file(location, "r") as f:
@@ -165,13 +180,52 @@ class JSONRecorder(FileRecorder):
                     log.results.sample_reductions = None
                     log.reductions = None
 
-            # return log
-            return log
+            # return log or log with etag
+            if include_etag:
+                return log, etag
+            else:
+                return log
 
     @override
     @classmethod
-    async def write_log(cls, location: str, log: EvalLog) -> None:
+    async def write_log(
+        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+    ) -> None:
         from inspect_ai.log._file import eval_log_json
+
+        # Check if we should use S3 conditional write
+        fs = filesystem(location)
+        if fs.is_s3() and if_match_etag:
+            # Use S3 conditional write
+            await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
+        else:
+            # Standard write
+            # sort samples before writing as they can come in out of order
+            if log.samples:
+                sort_samples(log.samples)
+
+            # get log as bytes
+            log_bytes = eval_log_json(log)
+
+            with trace_action(logger, "Log Write", location):
+                with file(location, "wb") as f:
+                    f.write(log_bytes)
+
+    @classmethod
+    async def _write_log_s3_conditional(
+        cls, location: str, log: EvalLog, etag: str, fs: Any
+    ) -> None:
+        """Perform S3 conditional write using aioboto3."""
+        from urllib.parse import urlparse
+
+        from botocore.exceptions import ClientError
+
+        from inspect_ai.log._file import eval_log_json
+
+        # Parse S3 URL
+        parsed = urlparse(location)
+        bucket = parsed.netloc
+        key = parsed.path.lstrip("/")
 
         # sort samples before writing as they can come in out of order
         if log.samples:
@@ -180,9 +234,33 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        with trace_action(logger, "Log Write", location):
-            with file(location, "wb") as f:
-                f.write(log_bytes)
+        with trace_action(logger, "Log Conditional Write", location):
+            try:
+                # Create async S3 client with same configuration as filesystem
+                import aioboto3
+
+                session = aioboto3.Session()
+                async with session.client(
+                    "s3",
+                    endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
+                    aws_access_key_id=fs.fs.key,
+                    aws_secret_access_key=fs.fs.secret,
+                    region_name=fs.fs.client_kwargs.get("region_name"),
+                ) as s3_client:
+                    # Perform conditional write
+                    await s3_client.put_object(
+                        Bucket=bucket,
+                        Key=key,
+                        Body=log_bytes,
+                        IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
+                    )
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "PreconditionFailed":
+                    raise ConcurrentModificationError(
+                        f"Log file was modified by another process. Expected ETag: {etag}",
+                        etag_expected=etag,
+                    )
+                raise
 
 
 def _validate_version(ver: int) -> None:

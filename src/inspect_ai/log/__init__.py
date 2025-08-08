@@ -1,4 +1,4 @@
-from inspect_ai._util.error import EvalError
+from inspect_ai._util.error import ConcurrentModificationError, EvalError
 
 from ._bundle import bundle_log_dir
 from ._condense import condense_sample, resolve_sample_attachments
@@ -61,6 +61,7 @@ from ._transcript import (
 from ._tree import EventNode, EventTree, SpanNode, event_sequence, event_tree
 
 __all__ = [
+    "ConcurrentModificationError",
     "EvalConfig",
     "EvalError",
     "EvalDataset",
