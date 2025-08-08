@@ -88,7 +88,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
             <RecordTree
               record={message.metadata}
               id={`${id}-metadata`}
-              defaultExpandLevel={1}
+              defaultExpandLevel={0}
             />
           </LabeledValue>
         ) : (
