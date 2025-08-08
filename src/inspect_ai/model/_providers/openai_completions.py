@@ -94,10 +94,12 @@ async def generate_completions(
         if len(tools) > 0
         else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
-        prompt_cache_key=prompt_cache_key,
-        safety_identifier=safety_identifier,
         **completion_params_completions(openai_api, config, len(tools) > 0),
     )
+    if isinstance(prompt_cache_key, str):
+        request["prompt_cache_key"] = prompt_cache_key
+    if isinstance(safety_identifier, str):
+        request["safety_identifier"] = safety_identifier
 
     try:
         completion = await (

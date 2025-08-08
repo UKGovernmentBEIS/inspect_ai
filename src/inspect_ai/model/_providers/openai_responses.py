@@ -91,8 +91,6 @@ async def generate_responses(
         truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         background=background,
-        prompt_cache_key=prompt_cache_key,
-        safety_identifier=safety_identifier,
         **completion_params_responses(
             model_name,
             openai_api=openai_api,
@@ -101,6 +99,10 @@ async def generate_responses(
             tools=len(tools) > 0,
         ),
     )
+    if isinstance(prompt_cache_key, str):
+        request["prompt_cache_key"] = prompt_cache_key
+    if isinstance(safety_identifier, str):
+        request["safety_identifier"] = safety_identifier
 
     try:
         # generate response
