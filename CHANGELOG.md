@@ -6,12 +6,14 @@
 - Google: Ability to specify a custom `GOOGLE_VERTEX_BASE_URL`.
 - OpenAI: Add `background`, `safety_identifier` and `prompt_cache_key` custom model args (bump required version of `openai` package to v1.98).
 - OpenAI: Set `client_timeout` to 900s when flex processing is enabled.
+- Ollama: Forward `reasoning_effort` option to `reasoning` dict.
 - MCP: Support for `mcp_server_http()` (which replaces the deprecated SSE server mode).
 - MCP: Added `authorization` to provide OAuth Bearer token for HTTP based servers.
 - Task display: Sample cancel button now works immediately (no longer needs to wait for a cooperative check).
 - Limits: Sample working limit is now enforced even during long running generations and sandbox operations.
 - Store: Support for serializing complex nested types (e.g. to read in an offline scorer).
 - Tools: Code viewer now handles function calls with `list[str]` rather than `str` without crashing.
+- Basic Agent: Only set `message_limit` to 50 when both `message_limit` and `token_limit` are `None`.
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Tests: Added the ability to provide a generator like callback function for `MockLLM`.
@@ -22,6 +24,12 @@
 - Bugfix: Correct forwarding of `reasoning_effort` and `reasoning_tokens` for OpenRouter provider.
 - Bugfix: `bridge()` no longer causes a recursion error when running a large number of samples with openai models
 
+## 0.3.120 (07 August 2025)
+
+- OpenAI: Update model version checks for GPT-5.
+- OpenAI: Support for specifying "minimal" for `reasoning_effort`.
+- Bugfix: Conform to breaking changes in `openai` package (1.99.2).
+- Bugfix: Ensure that `sample_shuffle` is `None` (rather than 0) when not specified on the command line.
 
 ## 0.3.119 (04 August 2025)
 
