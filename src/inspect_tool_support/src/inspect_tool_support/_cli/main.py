@@ -1,21 +1,20 @@
 import argparse
 import asyncio
+import socket
 import subprocess
 import sys
+import time
 from typing import Literal
 
-import psutil
 from jsonrpcserver import async_dispatch
 from pydantic import BaseModel
 
 from inspect_tool_support._cli._post_install import post_install
 from inspect_tool_support._cli.server import main as server_main
 from inspect_tool_support._util.common_types import JSONRPCResponseJSON
-from inspect_tool_support._util.constants import SERVER_PORT
-from inspect_tool_support._util.json_rpc_helpers import json_rpc_http_call
+from inspect_tool_support._util.constants import SOCKET_PATH
+from inspect_tool_support._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_tool_support._util.load_tools import load_tools
-
-_SERVER_URL = f"http://localhost:{SERVER_PORT}/"
 
 
 class JSONRPCIncoming(BaseModel):
@@ -68,23 +67,45 @@ async def _dispatch_local_method(request_json_str: str) -> JSONRPCResponseJSON:
 
 async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
     _ensure_server_is_running()
-    return await json_rpc_http_call(_SERVER_URL, request_json_str)
+    return await json_rpc_unix_call(str(SOCKET_PATH), request_json_str)
 
 
 def _ensure_server_is_running() -> None:
     # TODO: Pipe stdout and stderr to proc 1
-    if not any(
-        (cmdline := x.info["cmdline"])
-        and len(cmdline) >= 2
-        and cmdline[-1] == "server"
-        and cmdline[-2].endswith("/inspect-tool-support")
-        for x in psutil.process_iter(["name", "cmdline"])
-    ):
-        subprocess.Popen(
-            ["inspect-tool-support", "server"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+    if _can_connect_to_socket():
+        return  # Server already running and responsive
+
+    # Start server (it will handle socket cleanup on startup)
+    subprocess.Popen(
+        ["inspect-tool-support", "server"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    # Wait for socket to become available
+    for _ in range(50):  # Wait up to 5 seconds
+        if _can_connect_to_socket():
+            return
+        time.sleep(0.1)
+
+    raise RuntimeError("Server failed to start within 5 seconds")
+
+
+def _can_connect_to_socket() -> bool:
+    """Test if we can connect to the Unix domain socket."""
+    if not SOCKET_PATH.exists():
+        return False
+
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(1.0)
+        sock.connect(str(SOCKET_PATH))
+        sock.close()
+        return True
+    except (OSError, ConnectionRefusedError):
+        # Remove stale socket on connection failure
+        SOCKET_PATH.unlink(missing_ok=True)
+        return False
 
 
 def _parse_args() -> argparse.Namespace:
