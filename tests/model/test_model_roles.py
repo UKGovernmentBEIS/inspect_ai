@@ -7,7 +7,7 @@ from inspect_ai._eval.evalset import eval_set
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import get_model
+from inspect_ai.model import Model, get_model
 from inspect_ai.solver import solver
 
 RED_TEAM = "red_team"
@@ -16,9 +16,9 @@ GEMINI_FLASH_20 = "google/gemini-2.0-flash"
 
 
 @solver
-def role_solver():
+def role_solver(red_team_model: Model | None = None):
     async def solve(state, generate):
-        model = get_model(role=RED_TEAM, default=RED_TEAM_DEFAULT)
+        model = red_team_model or get_model(role=RED_TEAM, default=RED_TEAM_DEFAULT)
         state.output = await model.generate(state.messages)
         state.messages.append(state.output.message)
         return state
@@ -51,6 +51,20 @@ def test_model_role_retry() -> None:
     log.status = "cancelled"
     log.samples = []
     log = eval_retry(log)[0]
+    assert log.eval.model_roles
+    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_20
+    check_model_role(log, RED_TEAM, GEMINI_FLASH_20)
+
+
+@task
+def role_task_init():
+    red_team = get_model(role=RED_TEAM, default="mockllm/model")
+    return Task(solver=role_solver(red_team))
+
+
+@skip_if_no_google
+def test_model_role_task_init():
+    log = eval(role_task_init, model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
     assert log.eval.model_roles
     assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_20
     check_model_role(log, RED_TEAM, GEMINI_FLASH_20)

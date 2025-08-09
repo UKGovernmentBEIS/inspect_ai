@@ -49,7 +49,12 @@ from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
 )
-from inspect_ai.model._model import get_model, init_active_model, resolve_models
+from inspect_ai.model._model import (
+    get_model,
+    init_active_model,
+    init_model_roles,
+    resolve_models,
+)
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -1112,7 +1117,12 @@ def eval_resolve_tasks(
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
+    # resolve model roles and initialize them in the eval context -- this
+    # will enable tasks that reference model roles in their initialization
+    # to pickup these mappings
     resolved_model_roles = resolve_model_roles(model_roles)
+    init_model_roles(resolved_model_roles or {})
+
     task_args = resolve_args(task_args)
     with task_display().suspend_task_app():
         resolved_tasks: list[ResolvedTask] = []
