@@ -93,7 +93,12 @@ async def score(
 
     # read the eval log
     recorder = create_recorder_for_location(log_file, log_dir)
-    eval_log = await recorder.read_log(log_file)
+    result = await recorder.read_log(log_file)
+    # Extract just the EvalLog if we got a tuple (ETag not needed for scoring)
+    if isinstance(result, tuple):
+        eval_log = result[0]
+    else:
+        eval_log = result
 
     # resolve the target output file (prompts user)
     output_file = resolve_output_file(

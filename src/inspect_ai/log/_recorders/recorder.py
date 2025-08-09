@@ -51,7 +51,9 @@ class Recorder(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog: ...
+    async def read_log(
+        cls, location: str, header_only: bool = False, include_etag: bool = False
+    ) -> EvalLog | tuple[EvalLog, str | None]: ...
 
     @classmethod
     @abc.abstractmethod
@@ -71,4 +73,6 @@ class Recorder(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    async def write_log(cls, location: str, log: EvalLog) -> None: ...
+    async def write_log(
+        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+    ) -> None: ...
