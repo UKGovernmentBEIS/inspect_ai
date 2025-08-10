@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.121 (10 August 2025)
 
 - [SambaNova](https://inspect.aisi.org.uk/providers.html#sambanova) model provider.
 - [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
