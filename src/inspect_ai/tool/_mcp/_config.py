@@ -48,8 +48,18 @@ class MCPServerConfigHTTP(MCPServerConfig):
     url: str
     """URL for remote server."""
 
-    authorization: str | None = Field(default=None)
-    """OAuth bearer token for remote server (type "http" or "sse")"""
-
     headers: dict[str, str] | None = Field(default=None)
     """Headers for remote server (type "http" or "sse")"""
+
+    @property
+    def authorization_token(self) -> str | None:
+        if self.headers and "Authorization" in self.headers:
+            authorization = str(self.headers["Authorization"])
+            authorization = (
+                authorization[:7]
+                if authorization.upper().startswith("BEARER ")
+                else authorization
+            )
+            return authorization
+        else:
+            return None
