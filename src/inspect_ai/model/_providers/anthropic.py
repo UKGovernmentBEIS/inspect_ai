@@ -39,6 +39,13 @@ from anthropic.types import (
     message_create_params,
 )
 from anthropic.types.beta import (
+    # BetaMCPToolResultBlock,
+    BetaRequestMCPServerToolConfigurationParam,
+    BetaRequestMCPServerURLDefinitionParam,
+    # BetaMCPToolUseBlock,
+    # BetaMCPToolUseBlockParam,
+    # BetaMessage,
+    # BetaMessageParam,
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
@@ -62,6 +69,7 @@ from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
@@ -206,9 +214,12 @@ class AnthropicAPI(ModelAPI):
 
         # generate
         try:
-            system_param, tools_param, messages = await self.resolve_chat_input(
-                input, tools, config
-            )
+            (
+                system_param,
+                tools_param,
+                mcp_servers_param,
+                messages,
+            ) = await self.resolve_chat_input(input, tools, config)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request = dict(messages=messages)
@@ -222,9 +233,18 @@ class AnthropicAPI(ModelAPI):
                     tool_choice, self.is_using_thinking(config)
                 )
 
+            # mcp servers
+            if len(mcp_servers_param) > 0:
+                request["mcp_servers"] = mcp_servers_param
+
             # additional options
             req, headers, betas = self.completion_config(config)
             request = request | req
+
+            # beta param for mcp tools
+            if len(mcp_servers_param) > 0:
+                # betas.append("mcp-client-2025-04-04")
+                raise RuntimeError("Remote MCP Servers not yet supported for Anthropic")
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
@@ -254,11 +274,9 @@ class AnthropicAPI(ModelAPI):
                 else self.streaming
             )
 
-            message, output = await self._perform_request_and_continuations(
+            response, output = await self._perform_request_and_continuations(
                 request, streaming, tools, config
             )
-
-            response = message.model_dump()
 
             return output, model_call()
 
@@ -282,7 +300,7 @@ class AnthropicAPI(ModelAPI):
         streaming: bool,
         tools: list[ToolInfo],
         config: GenerateConfig,
-    ) -> tuple[Message, ModelOutput]:
+    ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
 
@@ -336,9 +354,9 @@ class AnthropicAPI(ModelAPI):
             # the contract for this function is that it returns the head message
             # even when it has needed to recurse. This is because model_call()
             # above doesn't currently support multiple requests
-            return head_message, tail_model_output
+            return head_message.model_dump(), tail_model_output
 
-        return head_message, head_model_output
+        return head_message.model_dump(), head_model_output
 
     def completion_config(
         self, config: GenerateConfig
@@ -514,7 +532,12 @@ class AnthropicAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
-    ) -> Tuple[list[TextBlockParam] | None, list["ToolParamDef"], list[MessageParam]]:
+    ) -> Tuple[
+        list[TextBlockParam] | None,
+        list["ToolParamDef"],
+        list[BetaRequestMCPServerURLDefinitionParam],
+        list[MessageParam],
+    ]:
         # extract system message
         system_messages, messages = split_system_messages(input, config)
 
@@ -526,8 +549,16 @@ class AnthropicAPI(ModelAPI):
             consecutive_user_message_reducer, message_params, []
         )
 
+        # cleave out MCP servers from tools
+        tools, mcp_servers = self.partition_tools(tools)
+
         # tools
         tools_params = [self.tool_param_for_tool_info(tool, config) for tool in tools]
+
+        # mcp servers
+        mcp_server_params = [
+            self.mcp_server_param(mcp_server) for mcp_server in mcp_servers
+        ]
 
         # system messages
         if len(system_messages) > 0:
@@ -578,7 +609,20 @@ class AnthropicAPI(ModelAPI):
                     add_cache_control(cast(dict[str, Any], content[-1]))
 
         # return chat input
-        return system_param, tools_params, message_params
+        return system_param, tools_params, mcp_server_params, message_params
+
+    def partition_tools(
+        self,
+        tools: list[ToolInfo],
+    ) -> tuple[list[ToolInfo], list[MCPServerConfigHTTP]]:
+        standard_tools: list[ToolInfo] = []
+        mcp_servers: list[MCPServerConfigHTTP] = []
+        for tool in tools:
+            if tool.name.startswith("mcp_server_"):
+                mcp_servers.append(MCPServerConfigHTTP.model_validate(tool.options))
+            else:
+                standard_tools.append(tool)
+        return standard_tools, mcp_servers
 
     def tool_param_for_tool_info(
         self, tool: ToolInfo, config: GenerateConfig
@@ -589,6 +633,21 @@ class AnthropicAPI(ModelAPI):
             name=tool.name,
             description=tool.description,
             input_schema=tool.parameters.model_dump(exclude_none=True),
+        )
+
+    def mcp_server_param(
+        self, mcp_server: MCPServerConfigHTTP
+    ) -> BetaRequestMCPServerURLDefinitionParam:
+        return BetaRequestMCPServerURLDefinitionParam(
+            name=mcp_server.name,
+            type="url",
+            url=mcp_server.url,
+            authorization_token=mcp_server.authorization_token,
+            tool_configuration=BetaRequestMCPServerToolConfigurationParam(
+                enabled=True, allowed_tools=mcp_server.tools
+            )
+            if isinstance(mcp_server.tools, list)
+            else None,
         )
 
     def maybe_native_tool_param(
