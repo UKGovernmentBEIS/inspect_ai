@@ -4,7 +4,7 @@ from typing import AsyncIterator, Sequence
 from .._tool import Tool, ToolSource
 from .._tool_def import ToolDef
 from ._types import MCPServer
-from .tools import MCPToolSource
+from .tools import MCPToolSourceLocal
 
 
 @contextlib.asynccontextmanager
@@ -28,7 +28,7 @@ async def mcp_connection(
     for tool_source in tool_sources:
         if isinstance(tool_source, MCPServer):
             mcp_servers.append(tool_source)
-        elif isinstance(tool_source, MCPToolSource):
+        elif isinstance(tool_source, MCPToolSourceLocal):
             mcp_servers.append(tool_source._server)
 
     # enter connection contexts

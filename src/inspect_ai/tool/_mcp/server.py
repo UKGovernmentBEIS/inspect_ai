@@ -5,6 +5,8 @@ from typing import Literal
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
+from ._config import MCPServerConfigHTTP
+from ._remote import MCPServerRemote
 from ._types import MCPServer
 
 logger = getLogger(__name__)
@@ -43,13 +45,23 @@ def mcp_server_sse(
     verfify_mcp_package()
     from ._local import create_server_sse
 
-    return create_server_sse(
-        name=name or url,
-        url=url,
-        headers=_resolve_headers(authorization, headers),
-        timeout=timeout,
-        sse_read_timeout=sse_read_timeout,
-    )
+    name = name or url
+    headers = _resolve_headers(authorization, headers)
+
+    if execution == "local":
+        return create_server_sse(
+            name=name,
+            url=url,
+            headers=headers,
+            timeout=timeout,
+            sse_read_timeout=sse_read_timeout,
+        )
+    elif execution == "remote":
+        return MCPServerRemote(
+            MCPServerConfigHTTP(type="sse", name=name, url=url, headers=headers)
+        )
+    else:
+        raise ValueError(f"Unexpected execution type: {execution}")
 
 
 def mcp_server_http(
@@ -82,13 +94,23 @@ def mcp_server_http(
     verfify_mcp_package()
     from ._local import create_server_streamablehttp
 
-    return create_server_streamablehttp(
-        name=name or url,
-        url=url,
-        headers=_resolve_headers(authorization, headers),
-        timeout=timeout,
-        sse_read_timeout=sse_read_timeout,
-    )
+    name = name or url
+    headers = _resolve_headers(authorization, headers)
+
+    if execution == "local":
+        return create_server_streamablehttp(
+            name=name,
+            url=url,
+            headers=headers,
+            timeout=timeout,
+            sse_read_timeout=sse_read_timeout,
+        )
+    elif execution == "remote":
+        return MCPServerRemote(
+            MCPServerConfigHTTP(type="http", name=name, url=url, headers=headers)
+        )
+    else:
+        raise ValueError(f"Unexpected execution type: {execution}")
 
 
 def mcp_server_stdio(

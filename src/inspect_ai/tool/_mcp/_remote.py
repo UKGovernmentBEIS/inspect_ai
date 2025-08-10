@@ -4,7 +4,7 @@ from typing import Literal
 from typing_extensions import override
 
 from .._tool import Tool, ToolResult
-from ._config import MCPConfig
+from ._config import MCPServerConfigHTTP
 from ._types import MCPServer
 
 # https://platform.openai.com/docs/api-reference/responses/create#responses_create-tools
@@ -12,7 +12,7 @@ from ._types import MCPServer
 
 
 class MCPServerRemote(MCPServer):
-    def __init__(self, config: MCPConfig) -> None:
+    def __init__(self, config: MCPServerConfigHTTP) -> None:
         self._config = config
 
     @override
@@ -35,7 +35,7 @@ class MCPServerRemote(MCPServer):
 
 
 class MCPServerTool(Tool):
-    def __init__(self, config: MCPConfig, tools: Literal["all"] | list[str]):
+    def __init__(self, config: MCPServerConfigHTTP, tools: Literal["all"] | list[str]):
         self.config = config
         self.tools = tools
 

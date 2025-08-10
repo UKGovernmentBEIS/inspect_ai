@@ -1,41 +1,55 @@
-from dataclasses import dataclass
+from dataclasses import field
+from pathlib import Path
 from typing import Literal
 
+from pydantic import BaseModel, ConfigDict, Field
 
-@dataclass(frozen=True)
-class MCPConfig:
+
+class MCPServerConfig(BaseModel):
+    """Configuration for MCP server."""
+
+    model_config = ConfigDict(frozen=True)
+
     type: Literal["stdio", "http", "sse"]
+    """Server type."""
+
     name: str
+    """Human readable server name."""
+
+    tools: Literal["all"] | list[str] = Field(default="all")
+    """Tools to make available from server ("all" for all tools)."""
 
 
-@dataclass(frozen=True)
-class MCPConfigStdio(MCPConfig):
+class MCPServerConfigStdio(MCPServerConfig):
+    """Configuration for MCP servers with stdio interface."""
+
     type: Literal["stdio"]
+    """Server type."""
+
+    command: str
+    """The executable to run to start the server."""
+
+    args: list[str] = Field(default_factory=list)
+    """Command line arguments to pass to the executable."""
+
+    cwd: str | Path | None = Field(default=None)
+    """The working directory to use when spawning the process."""
+
+    env: dict[str, str] | None = field(default=None)
+    """The environment to use when spawning the process in addition to the platform specific set of default environment variables (e.g. "HOME", "LOGNAME", "PATH","SHELL", "TERM", and "USER" for Posix-based systems)"""
 
 
-@dataclass(frozen=True)
-class MCPConfigRemote(MCPConfig):
+class MCPServerConfigHTTP(MCPServerConfig):
+    """Conifguration for MCP servers with HTTP interface."""
+
     type: Literal["http", "sse"]
+    """Server type."""
+
     url: str
-    headers: dict[str, str] | None
+    """URL for remote server."""
 
-    def authorization(self) -> str | None:
-        if self.headers and "Authorization" in self.headers:
-            authorization = str(self.headers["Authorization"])
-            return (
-                authorization[7:]
-                if authorization.upper().startswith("BEARER ")
-                else authorization
-            )
-        else:
-            return None
+    authorization: str | None = Field(default=None)
+    """OAuth bearer token for remote server (type "http" or "sse")"""
 
-
-@dataclass(frozen=True)
-class MCPConfigHTTP(MCPConfigRemote):
-    type: Literal["http"]
-
-
-@dataclass(frozen=True)
-class MCPConfigSSE(MCPConfigRemote):
-    type: Literal["sse"]
+    headers: dict[str, str] | None = Field(default=None)
+    """Headers for remote server (type "http" or "sse")"""
