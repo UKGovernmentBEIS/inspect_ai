@@ -70,6 +70,7 @@ from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
@@ -618,7 +619,7 @@ class AnthropicAPI(ModelAPI):
         standard_tools: list[ToolInfo] = []
         mcp_servers: list[MCPServerConfigHTTP] = []
         for tool in tools:
-            if tool.name.startswith("mcp_server_"):
+            if is_mcp_server_tool(tool):
                 mcp_servers.append(MCPServerConfigHTTP.model_validate(tool.options))
             else:
                 standard_tools.append(tool)

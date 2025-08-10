@@ -4,6 +4,7 @@ from typing import Literal
 from typing_extensions import override
 
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
 
 from .._tool import Tool, ToolResult
 from ._config import MCPServerConfigHTTP
@@ -45,3 +46,7 @@ def mcp_server_tool(config: MCPServerConfigHTTP) -> Tool:
         name=f"mcp_server_{config.name}",
         options=config.model_dump(),
     ).as_tool()
+
+
+def is_mcp_server_tool(tool: ToolInfo) -> bool:
+    return tool.name.startswith("mcp_server_") and tool.options is not None

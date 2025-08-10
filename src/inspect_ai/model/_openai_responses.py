@@ -31,7 +31,12 @@ from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoice,
 )
-from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_input_item_param import (
+    FunctionCallOutput,
+    Message,
+    # McpListTools,
+    # McpCall,
+)
 from openai.types.responses.response_output_text import (
     Annotation,
     AnnotationFileCitation,
@@ -39,6 +44,7 @@ from openai.types.responses.response_output_text import (
     AnnotationURLCitation,
 )
 from openai.types.responses.response_reasoning_item_param import Summary
+from openai.types.responses.tool_param import Mcp
 from pydantic import JsonValue
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
@@ -54,6 +60,8 @@ from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -451,6 +459,7 @@ def _maybe_native_tool_param(
         (
             maybe_computer_use_preview_tool(tool)
             or maybe_web_search_tool(model_name, tool)
+            or maybe_mcp_tool(tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
@@ -509,8 +518,24 @@ _ResponseToolCallParam = (
     | ResponseComputerToolCallParam
     | ResponseFunctionWebSearchParam
     # | ResponseFileSearchToolCallParam
-    # | ResponseFunctionToolCallParam
 )
+
+
+def maybe_mcp_tool(tool: ToolInfo) -> Mcp | None:
+    if is_mcp_server_tool(tool):
+        mcp_server = MCPServerConfigHTTP.model_validate(tool.options)
+        return Mcp(
+            type="mcp",
+            server_label=mcp_server.name,
+            server_url=mcp_server.url,
+            headers=mcp_server.headers,
+            allowed_tools=mcp_server.tools
+            if isinstance(mcp_server.tools, list)
+            else None,
+            require_approval="never",
+        )
+    else:
+        return None
 
 
 def _tool_param_for_tool_info(
