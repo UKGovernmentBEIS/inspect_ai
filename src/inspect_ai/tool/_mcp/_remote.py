@@ -3,6 +3,8 @@ from typing import Literal
 
 from typing_extensions import override
 
+from inspect_ai.tool._tool_def import ToolDef
+
 from .._tool import Tool, ToolResult
 from ._config import MCPServerConfigHTTP
 from ._types import MCPServer
@@ -17,7 +19,7 @@ class MCPServerRemote(MCPServer):
 
     @override
     async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
-        return [MCPServerTool(self._config, tools)]
+        return [mcp_server_tool(self._config.model_copy(update={"tools": tools}))]
 
     # no-op async context manager as we don't manage resources
     @override
@@ -34,14 +36,12 @@ class MCPServerRemote(MCPServer):
         pass
 
 
-class MCPServerTool(Tool):
-    def __init__(self, config: MCPServerConfigHTTP, tools: Literal["all"] | list[str]):
-        self.config = config
-        self.tools = tools
-
-    @property
-    def __name__(self) -> str:
-        return f"mcp_server_{self.config.name}"
-
-    async def __call__(self) -> ToolResult:
+def mcp_server_tool(config: MCPServerConfigHTTP) -> Tool:
+    async def execute() -> ToolResult:
         raise RuntimeError("MCPServerTool should not be called directly")
+
+    return ToolDef(
+        execute,
+        name=f"mcp_server_{config.name}",
+        options=config.model_dump(),
+    ).as_tool()

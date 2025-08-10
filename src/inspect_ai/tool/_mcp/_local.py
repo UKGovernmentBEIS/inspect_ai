@@ -1,11 +1,10 @@
 import contextlib
 import sys
 from contextlib import AsyncExitStack
-from fnmatch import fnmatch
 from logging import getLogger
 from pathlib import Path
 from types import TracebackType
-from typing import Any, AsyncIterator, Callable, Literal
+from typing import Any, AsyncIterator, Callable
 
 import anyio
 from mcp import McpError
@@ -66,8 +65,8 @@ class MCPServerLocal(MCPServer):
         await self._task_session().__aexit__(exc_type, exc_val, exc_tb)
 
     @override
-    async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
-        return await self._task_session().tools(tools)
+    async def tools(self) -> list[Tool]:
+        return await self._task_session().tools()
 
     # create a separate MCPServer session per async task / server name
     _task_sessions: dict[str, "MCPServerLocalSession"] = {}
@@ -144,7 +143,7 @@ class MCPServerLocalSession(MCPServer):
                     self._exit_stack = None
 
     @override
-    async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
+    async def tools(self) -> list[Tool]:
         if self._cached_tool_list:
             mcp_tools = self._cached_tool_list
         else:
@@ -154,16 +153,6 @@ class MCPServerLocalSession(MCPServer):
                     mcp_tools = (await session.list_tools()).tools
                 self._cached_tool_list = mcp_tools
 
-        # filter them
-        def include_tool(tool: MCPTool) -> bool:
-            if tools == "all":
-                return True
-            else:
-                return any([fnmatch(tool.name, t) for t in tools])
-
-        mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
-
-        # dynamically create tools
         return [
             self._tool_def_from_mcp_tool(mcp_tool).as_tool() for mcp_tool in mcp_tools
         ]

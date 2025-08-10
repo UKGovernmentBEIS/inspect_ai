@@ -1,7 +1,6 @@
 import abc
 from contextlib import AbstractAsyncContextManager
 from logging import getLogger
-from typing import Literal
 
 from .._tool import Tool, ToolSource
 
@@ -16,10 +15,6 @@ class MCPServer(ToolSource, AbstractAsyncContextManager["MCPServer"]):
     """
 
     @abc.abstractmethod
-    async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
-        """List of all tools provided by this server.
-
-        Args:
-           tools: Either "all" for all tools or a list of globs for selected tools.
-        """
+    async def tools(self) -> list[Tool]:
+        """List of all tools provided by this server"""
         ...

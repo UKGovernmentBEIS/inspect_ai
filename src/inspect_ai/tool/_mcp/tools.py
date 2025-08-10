@@ -1,10 +1,11 @@
+from fnmatch import fnmatch
 from typing import Literal
 
-from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._tool_def import ToolDef
 
 from .._tool import Tool, ToolSource
 from ._local import MCPServerLocal
-from ._remote import MCPServerRemote, MCPServerTool
+from ._remote import MCPServerRemote
 from ._types import MCPServer
 
 
@@ -27,7 +28,9 @@ def mcp_tools(
     if isinstance(server, MCPServerLocal):
         return MCPToolSourceLocal(server, tools)
     elif isinstance(server, MCPServerRemote):
-        return MCPToolSourceRemote(server._config.model_copy(deep=True), tools)
+        return MCPServerRemote(
+            server._config.model_copy(update={"tools": tools}, deep=True)
+        )
     else:
         raise TypeError(f"Unexpected MCPServer type: {type(server)}")
 
@@ -42,16 +45,17 @@ class MCPToolSourceLocal(ToolSource):
 
     async def tools(self) -> list[Tool]:
         if self._cached_tool_list is None:
-            self._cached_tool_list = await self._server.tools(self._tools)
+            # get the underlying tools
+            mcp_tools = await self._server.tools()
+
+            # filter them
+            def include_tool(tool: Tool) -> bool:
+                if self._tools == "all":
+                    return True
+                else:
+                    return any([fnmatch(ToolDef(tool).name, t) for t in self._tools])
+
+            self._cached_tool_list = [
+                mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)
+            ]
         return self._cached_tool_list
-
-
-class MCPToolSourceRemote(ToolSource):
-    def __init__(
-        self, config: MCPServerConfigHTTP, tools: Literal["all"] | list[str]
-    ) -> None:
-        self._config = config
-        self._tools = tools
-
-    async def tools(self) -> list[Tool]:
-        return [MCPServerTool(self._config, self._tools)]
