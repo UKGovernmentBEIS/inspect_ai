@@ -1,3 +1,8 @@
+## Unreleased
+
+- OpenAI: Enable native `web_search()` tool for GPT-5.
+- OpenAI: Convert "web_search" tool choice to native "web_search_preview" type.
+
 ## 0.3.121 (10 August 2025)
 
 - [SambaNova](https://inspect.aisi.org.uk/providers.html#sambanova) model provider.
