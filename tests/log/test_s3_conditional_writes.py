@@ -1,17 +1,8 @@
-"""
-Tests for S3 conditional writes using ETags.
-
-Tests the new include_etag and if_match_etag parameters for
-read_eval_log and write_eval_log functions.
-"""
-
 import os
 import tempfile
 from pathlib import Path
 
-import boto3
 import pytest
-from botocore.exceptions import ClientError
 
 from inspect_ai._util.error import ConcurrentModificationError
 from inspect_ai.log import read_eval_log, write_eval_log
@@ -33,320 +24,187 @@ def temp_dir():
         yield Path(tmpdirname)
 
 
-def test_local_file_etag_is_none(sample_log, temp_dir):
-    """Test that include_etag=True returns None for local files."""
-    # Write to local file
-    local_path = temp_dir / "test.json"
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_eval_log_returns_no_etag_for_local_path(sample_log, temp_dir, format):
+    """Test that ETag is None for local files in different formats."""
+    local_path = temp_dir / f"test.{format}"
     write_eval_log(sample_log, local_path)
 
-    # Read with include_etag=True - should get None for local files
-    log, etag = read_eval_log(local_path, include_etag=True)
+    log = read_eval_log(local_path)
 
-    assert etag is None
-    assert log.eval.task == sample_log.eval.task
-
-    # Also test with eval format
-    eval_path = temp_dir / "test.eval"
-    write_eval_log(sample_log, eval_path)
-
-    log, etag = read_eval_log(eval_path, include_etag=True)
-    assert etag is None
+    assert log.etag is None
     assert log.eval.task == sample_log.eval.task
 
 
-def test_s3_etag_retrieval(sample_log, mock_s3):
-    """Test that include_etag=True returns proper ETag from S3."""
-    # Write to S3
-    s3_path = "s3://test-bucket/test_etag.json"
-    write_eval_log(sample_log, s3_path)
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_eval_log_returns_etag_for_s3_path(sample_log, mock_s3, format):
+    """Test that ETag is populated when reading from S3 in different formats."""
+    log_path = f"s3://test-bucket/test_etag.{format}"
+    write_eval_log(sample_log, log_path)
 
-    # Read with include_etag=True - should get an ETag
-    log, etag = read_eval_log(s3_path, include_etag=True)
+    log = read_eval_log(log_path)
 
-    assert etag is not None
-    assert isinstance(etag, str)
-    assert len(etag) > 0
+    assert log.etag is not None
+    assert isinstance(log.etag, str)
+    assert len(log.etag) > 0
     assert log.eval.task == sample_log.eval.task
 
-    # ETag should be consistent across reads (same content = same ETag)
-    log2, etag2 = read_eval_log(s3_path, include_etag=True)
-    assert etag == etag2
+    # ETag should be the same for the same content
+    log2 = read_eval_log(log_path)
+    assert log.etag == log2.etag
     assert log.model_dump_json() == log2.model_dump_json()
 
 
-def test_s3_etag_eval_format(sample_log, mock_s3):
-    """Test ETag retrieval with .eval format."""
-    # Write to S3 in eval format
-    s3_path = "s3://test-bucket/test_etag.eval"
-    write_eval_log(sample_log, s3_path, format="eval")
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_s3_conditional_write_success(sample_log, mock_s3, format):
+    """Test successful conditional write when ETag matches in different formats."""
+    log_path = f"s3://test-bucket/test_conditional.{format}"
 
-    # Read with include_etag=True
-    log, etag = read_eval_log(s3_path, include_etag=True, format="eval")
-
-    assert etag is not None
-    assert isinstance(etag, str)
-    assert log.eval.task == sample_log.eval.task
-
-
-def test_s3_conditional_write_success(sample_log, mock_s3):
-    """Test successful conditional write when ETag matches."""
-    s3_path = "s3://test-bucket/test_conditional.json"
-
-    # Initialize metadata if None
     if sample_log.eval.metadata is None:
         sample_log.eval.metadata = {}
 
-    # Initial write
-    write_eval_log(sample_log, s3_path)
+    write_eval_log(sample_log, log_path)
 
-    # Read with ETag
-    log, etag = read_eval_log(s3_path, include_etag=True)
+    log = read_eval_log(log_path)
 
     # Modify the log
     if log.eval.metadata is None:
         log.eval.metadata = {}
-    log.eval.metadata["test"] = "conditional_write"
+    log.eval.metadata["test"] = f"{format}_format_conditional"
 
-    # Conditional write with matching ETag should succeed
-    write_eval_log(log, s3_path, if_match_etag=etag)
+    # conditional write with matching ETag should succeed
+    write_eval_log(log, log_path, if_match_etag=log.etag)
 
-    # Verify the write succeeded
-    updated_log = read_eval_log(s3_path)
-    assert updated_log.eval.metadata is not None
-    assert updated_log.eval.metadata["test"] == "conditional_write"
+    # verify the write succeeded
+    new_log = read_eval_log(log_path)
+    assert new_log.eval.metadata is not None
+    assert new_log.eval.metadata["test"] == f"{format}_format_conditional"
 
 
-def test_s3_conditional_write_conflict(sample_log, mock_s3):
-    """Test that conditional write fails when ETag doesn't match."""
-    s3_path = "s3://test-bucket/test_conflict.json"
+def test_s3_conditional_write_error(sample_log, mock_s3):
+    """Test that conditional write errors when ETag doesn't match."""
+    log_path = "s3://test-bucket/test_conflict.json"
 
-    # Initialize metadata if None
     if sample_log.eval.metadata is None:
         sample_log.eval.metadata = {}
 
     # Initial write
-    write_eval_log(sample_log, s3_path)
+    write_eval_log(sample_log, log_path)
 
-    # Read with ETag
-    log, etag = read_eval_log(s3_path, include_etag=True)
+    log = read_eval_log(log_path)
 
-    # Simulate another process modifying the file
-    # (directly update S3 to change the ETag)
-    another_log = read_eval_log(s3_path)
-    if another_log.eval.metadata is None:
-        another_log.eval.metadata = {}
-    another_log.eval.metadata["modified_by"] = "another_process"
-    write_eval_log(another_log, s3_path)
+    # simulate another process modifying the file
+    # update to change the ETag
+    log2 = read_eval_log(log_path)
+    if log2.eval.metadata is None:
+        log2.eval.metadata = {}
+    log2.eval.metadata["modified_by"] = "another_process"
+    write_eval_log(log2, log_path)
 
-    # Now try conditional write with old ETag - should fail
+    # try conditional write with old ETag
     if log.eval.metadata is None:
         log.eval.metadata = {}
     log.eval.metadata["modified_by"] = "original_process"
 
     with pytest.raises(ConcurrentModificationError) as exc_info:
-        write_eval_log(log, s3_path, if_match_etag=etag)
+        write_eval_log(log, log_path, if_match_etag=log.etag)
 
-    # Verify error contains expected ETag
-    assert etag in str(exc_info.value)
+    # verify error contains expected information
+    assert log.etag in str(exc_info.value)
+    assert "modified by another process" in str(exc_info.value).lower()
 
-    # Verify the file wasn't overwritten
-    current_log = read_eval_log(s3_path)
+    # verify the file wasn't overwritten
+    current_log = read_eval_log(log_path)
     assert current_log.eval.metadata is not None
     assert current_log.eval.metadata["modified_by"] == "another_process"
 
 
 def test_s3_concurrent_modification_scenario(sample_log, mock_s3):
     """Test realistic concurrent modification scenario with two parties."""
-    s3_path = "s3://test-bucket/test_concurrent.json"
+    log_path = "s3://test-bucket/test_concurrent.json"
 
-    # Initial state - initialize metadata properly
     if sample_log.eval.metadata is None:
         sample_log.eval.metadata = {}
     sample_log.eval.metadata.update({"counter": 0, "history": []})
-    write_eval_log(sample_log, s3_path)
+    write_eval_log(sample_log, log_path)
 
-    # Party A reads
-    log_a, etag_a = read_eval_log(s3_path, include_etag=True)
+    # party 1 reads
+    log1 = read_eval_log(log_path)
 
-    # Party B reads (same initial state)
-    log_b, etag_b = read_eval_log(s3_path, include_etag=True)
+    # party 2 reads
+    log2 = read_eval_log(log_path)
 
-    assert etag_a == etag_b  # Both have same initial version
+    assert log1.etag == log2.etag  # both have same initial version
 
-    # Party A modifies and writes first
-    if log_a.eval.metadata is None:
-        log_a.eval.metadata = {}
-    log_a.eval.metadata["counter"] = 1
-    log_a.eval.metadata["history"] = log_a.eval.metadata.get("history", []) + [
-        "Party A"
-    ]
-    write_eval_log(log_a, s3_path, if_match_etag=etag_a)
+    # party 1 modifies and writes first
+    if log1.eval.metadata is None:
+        log1.eval.metadata = {}
+    log1.eval.metadata["counter"] = 1
+    log1.eval.metadata["history"] = log1.eval.metadata.get("history", []) + ["Party A"]
+    write_eval_log(log1, log_path, if_match_etag=log1.etag)
 
-    # Party B tries to write with stale ETag
-    if log_b.eval.metadata is None:
-        log_b.eval.metadata = {}
-    log_b.eval.metadata["counter"] = 1
-    log_b.eval.metadata["history"] = log_b.eval.metadata.get("history", []) + [
-        "Party B"
-    ]
+    # party 2 tries to write with old ETag
+    if log2.eval.metadata is None:
+        log2.eval.metadata = {}
+    log2.eval.metadata["counter"] = 1
+    log2.eval.metadata["history"] = log2.eval.metadata.get("history", []) + ["Party B"]
 
     with pytest.raises(ConcurrentModificationError):
-        write_eval_log(log_b, s3_path, if_match_etag=etag_b)
+        write_eval_log(log2, log_path, if_match_etag=log2.etag)
 
-    # Party B recovers: read fresh, merge, and retry
-    current_log, current_etag = read_eval_log(s3_path, include_etag=True)
+    # party 2 reads again and retries
+    current_log = read_eval_log(log_path)
     assert current_log.eval.metadata is not None
     assert current_log.eval.metadata["counter"] == 1
     assert current_log.eval.metadata["history"] == ["Party A"]
 
-    # Merge B's changes with A's
+    # add party 2's changes to party 1's
     current_log.eval.metadata["counter"] = 2
     current_log.eval.metadata["history"].append("Party B")
-    write_eval_log(current_log, s3_path, if_match_etag=current_etag)
+    write_eval_log(current_log, log_path, if_match_etag=current_log.etag)
 
-    # Verify final state has both updates
-    final_log = read_eval_log(s3_path)
-    assert final_log.eval.metadata is not None
-    assert final_log.eval.metadata["counter"] == 2
-    assert final_log.eval.metadata["history"] == ["Party A", "Party B"]
-
-
-def test_s3_conditional_write_eval_format(sample_log, mock_s3):
-    """Test conditional writes with .eval format."""
-    s3_path = "s3://test-bucket/test_conditional.eval"
-
-    # Initialize metadata if None
-    if sample_log.eval.metadata is None:
-        sample_log.eval.metadata = {}
-
-    # Initial write in eval format
-    write_eval_log(sample_log, s3_path, format="eval")
-
-    # Read with ETag
-    log, etag = read_eval_log(s3_path, include_etag=True, format="eval")
-
-    # Modify and write conditionally
-    if log.eval.metadata is None:
-        log.eval.metadata = {}
-    log.eval.metadata["test"] = "eval_format_conditional"
-    write_eval_log(log, s3_path, if_match_etag=etag, format="eval")
-
-    # Verify success
-    updated_log = read_eval_log(s3_path, format="eval")
-    assert updated_log.eval.metadata is not None
-    assert updated_log.eval.metadata["test"] == "eval_format_conditional"
+    # verify final state has both updates
+    new_log = read_eval_log(log_path)
+    assert new_log.eval.metadata is not None
+    assert new_log.eval.metadata["counter"] == 2
+    assert new_log.eval.metadata["history"] == ["Party A", "Party B"]
 
 
 def test_s3_etag_changes_after_modification(sample_log, mock_s3):
-    """Test that ETag changes when file content changes."""
-    s3_path = "s3://test-bucket/test_etag_change.json"
+    """Test that ETag changes when content changes."""
+    log_path = "s3://test-bucket/test_etag_change.json"
 
-    # Initial write
-    write_eval_log(sample_log, s3_path)
-    log1, etag1 = read_eval_log(s3_path, include_etag=True)
+    write_eval_log(sample_log, log_path)
+    log1 = read_eval_log(log_path)
 
-    # Modify and write
+    # update
     log1.eval.metadata = {"version": 2}
-    write_eval_log(log1, s3_path)
+    write_eval_log(log1, log_path)
 
-    # Read again - ETag should be different
-    log2, etag2 = read_eval_log(s3_path, include_etag=True)
+    # read again
+    log2 = read_eval_log(log_path)
 
-    assert etag1 != etag2  # ETag changed
-    assert log2.eval.metadata["version"] == 2  # Content updated
+    assert log1.etag != log2.etag  # the ETag has changed
+    assert log2.eval.metadata["version"] == 2  # content has changed
 
 
 def test_conditional_write_without_etag_succeeds(sample_log, mock_s3):
     """Test that write without if_match_etag always succeeds (backward compatibility)."""
-    s3_path = "s3://test-bucket/test_unconditional.json"
+    log_path = "s3://test-bucket/test_unconditional.json"
 
-    # Initial write
-    write_eval_log(sample_log, s3_path)
+    write_eval_log(sample_log, log_path)
 
-    # Read (could include etag, but we ignore it)
-    log, etag = read_eval_log(s3_path, include_etag=True)
+    log = read_eval_log(log_path)
 
-    # Another process modifies
-    another_log = read_eval_log(s3_path)
-    another_log.eval.metadata = {"modified": "by_another"}
-    write_eval_log(another_log, s3_path)
+    # another process updates
+    log2 = read_eval_log(log_path)
+    log2.eval.metadata = {"modified": "by_another"}
+    write_eval_log(log2, log_path)
 
-    # Unconditional write should still succeed (overwrites)
+    # unconditional write should still succeed (overwrites)
     log.eval.metadata = {"modified": "unconditionally"}
-    write_eval_log(log, s3_path)  # No if_match_etag
+    write_eval_log(log, log_path)
 
-    # Verify it overwrote
-    final_log = read_eval_log(s3_path)
-    assert final_log.eval.metadata["modified"] == "unconditionally"
-
-
-def test_s3_conditional_write_with_boto_directly(sample_log, mock_s3):
-    """Test S3 conditional write mechanics using boto3 directly to verify behavior."""
-    s3_path = "s3://test-bucket/test_boto.json"
-
-    # Write initial file
-    write_eval_log(sample_log, s3_path)
-
-    # Get S3 client
-    s3_client = boto3.client("s3")
-
-    # Get object and its ETag
-    response = s3_client.get_object(Bucket="test-bucket", Key="test_boto.json")
-    original_etag = response["ETag"].strip('"')
-
-    # Try to put with matching ETag (should succeed)
-    try:
-        s3_client.put_object(
-            Bucket="test-bucket",
-            Key="test_boto.json",
-            Body=b'{"test": "data"}',
-            IfMatch=f'"{original_etag}"',
-        )
-    except ClientError:
-        pytest.fail("Conditional write with matching ETag should succeed")
-
-    # Try to put with old ETag (should fail)
-    with pytest.raises(ClientError) as exc_info:
-        s3_client.put_object(
-            Bucket="test-bucket",
-            Key="test_boto.json",
-            Body=b'{"test": "data2"}',
-            IfMatch=f'"{original_etag}"',
-        )
-
-    assert exc_info.value.response["Error"]["Code"] == "PreconditionFailed"
-
-
-def test_concurrent_modification_error_attributes(sample_log, mock_s3):
-    """Test that ConcurrentModificationError contains expected attributes."""
-    s3_path = "s3://test-bucket/test_error_attrs.json"
-
-    # Initialize metadata if None
-    if sample_log.eval.metadata is None:
-        sample_log.eval.metadata = {}
-
-    # Setup conflict scenario
-    write_eval_log(sample_log, s3_path)
-    log, etag = read_eval_log(s3_path, include_etag=True)
-
-    # Cause conflict
-    another_log = read_eval_log(s3_path)
-    if another_log.eval.metadata is None:
-        another_log.eval.metadata = {}
-    another_log.eval.metadata["changed"] = True
-    write_eval_log(another_log, s3_path)
-
-    # Attempt conflicting write
-    if log.eval.metadata is None:
-        log.eval.metadata = {}
-    log.eval.metadata["my_change"] = True
-
-    try:
-        write_eval_log(log, s3_path, if_match_etag=etag)
-        pytest.fail("Should have raised ConcurrentModificationError")
-    except ConcurrentModificationError as e:
-        # Verify error has expected attributes
-        assert etag in str(e)
-        assert "modified by another process" in str(e).lower()
-        assert hasattr(e, "etag_expected")
-        assert e.etag_expected == etag
+    # verify it overwrote
+    new_log = read_eval_log(log_path)
+    assert new_log.eval.metadata["modified"] == "unconditionally"

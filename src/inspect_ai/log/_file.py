@@ -2,7 +2,7 @@ import os
 import re
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Callable, Generator, Literal, overload
+from typing import Any, Callable, Generator, Literal
 
 from pydantic import (
     BaseModel,
@@ -241,34 +241,12 @@ def write_log_dir_manifest(
         f.write(manifest_json)
 
 
-@overload
 def read_eval_log(
     log_file: str | Path | EvalLogInfo,
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
-    include_etag: Literal[False] = False,
-) -> EvalLog: ...
-
-
-@overload
-def read_eval_log(
-    log_file: str | Path | EvalLogInfo,
-    header_only: bool = False,
-    resolve_attachments: bool = False,
-    format: Literal["eval", "json", "auto"] = "auto",
-    *,
-    include_etag: Literal[True],
-) -> tuple[EvalLog, str | None]: ...
-
-
-def read_eval_log(
-    log_file: str | Path | EvalLogInfo,
-    header_only: bool = False,
-    resolve_attachments: bool = False,
-    format: Literal["eval", "json", "auto"] = "auto",
-    include_etag: bool = False,
-) -> EvalLog | tuple[EvalLog, str | None]:
+) -> EvalLog:
     """Read an evaluation log.
 
     Args:
@@ -279,12 +257,9 @@ def read_eval_log(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
-       include_etag (bool): If True and reading from S3, return ETag
-          along with the log for conditional writes. Defaults to False.
 
     Returns:
-       EvalLog object if include_etag=False, or tuple of (EvalLog, ETag)
-       if include_etag=True. ETag will be None for non-S3 storage.
+       EvalLog object read from file.
     """
     # don't mix trio and asyncio
     if current_async_backend() == "trio":
@@ -294,47 +269,14 @@ def read_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    if include_etag:
-        return run_coroutine(
-            read_eval_log_async(
-                log_file,
-                header_only,
-                resolve_attachments,
-                format,
-                include_etag=True,
-            )
+    return run_coroutine(
+        read_eval_log_async(
+            log_file,
+            header_only,
+            resolve_attachments,
+            format,
         )
-    else:
-        return run_coroutine(
-            read_eval_log_async(
-                log_file,
-                header_only,
-                resolve_attachments,
-                format,
-                include_etag=False,
-            )
-        )
-
-
-@overload
-async def read_eval_log_async(
-    log_file: str | Path | EvalLogInfo,
-    header_only: bool = False,
-    resolve_attachments: bool = False,
-    format: Literal["eval", "json", "auto"] = "auto",
-    include_etag: Literal[False] = False,
-) -> EvalLog: ...
-
-
-@overload
-async def read_eval_log_async(
-    log_file: str | Path | EvalLogInfo,
-    header_only: bool = False,
-    resolve_attachments: bool = False,
-    format: Literal["eval", "json", "auto"] = "auto",
-    *,
-    include_etag: Literal[True],
-) -> tuple[EvalLog, str | None]: ...
+    )
 
 
 async def read_eval_log_async(
@@ -342,8 +284,7 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
-    include_etag: bool = False,
-) -> EvalLog | tuple[EvalLog, str | None]:
+) -> EvalLog:
     """Read an evaluation log.
 
     Args:
@@ -354,12 +295,9 @@ async def read_eval_log_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
-       include_etag (bool): If True and reading from S3, return ETag
-          along with the log for conditional writes. Defaults to False.
 
     Returns:
-       EvalLog object if include_etag=False, or tuple of (EvalLog, ETag)
-       if include_etag=True. ETag will be None for non-S3 storage.
+       EvalLog object read from file.
     """
     # resolve to file path
     log_file = (
@@ -376,23 +314,7 @@ async def read_eval_log_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    result = await recorder_type.read_log(log_file, header_only, include_etag)
-
-    # Handle return type based on include_etag
-    etag: str | None = None
-    if include_etag:
-        if isinstance(result, tuple):
-            log, etag = result
-        else:
-            # This shouldn't happen if recorder returns tuple when include_etag=True
-            log = result
-            etag = None
-    else:
-        if isinstance(result, tuple):
-            # This shouldn't happen if recorder returns EvalLog when include_etag=False
-            log = result[0]
-        else:
-            log = result
+    log = await recorder_type.read_log(log_file, header_only)
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
@@ -408,11 +330,7 @@ async def read_eval_log_async(
 
     logger.debug(f"Completed reading eval log from {log_file}")
 
-    # Return appropriate format
-    if include_etag:
-        return (log, etag)
-    else:
-        return log
+    return log
 
 
 def read_eval_log_headers(

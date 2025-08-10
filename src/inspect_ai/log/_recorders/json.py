@@ -10,7 +10,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.error import ConcurrentModificationError, EvalError
-from inspect_ai._util.file import absolute_file_path, file, filesystem
+from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -123,13 +123,17 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    async def read_log(
-        cls, location: str, header_only: bool = False, include_etag: bool = False
-    ) -> EvalLog | tuple[EvalLog, str | None]:
-        if header_only and not include_etag:
-            # Fast path: header only, no ETag needed
+    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+        fs = filesystem(location)
+
+        if header_only:
+            # Fast path: header only
             try:
-                return _read_header_streaming(location)
+                log = _read_header_streaming(location)
+                if fs.is_s3():
+                    file_info = fs.info(location)
+                    log.etag = file_info.etag
+                return log
             # The Python JSON serializer supports NaN and Inf, however
             # this isn't technically part of the JSON spec. The json-stream
             # library shares this limitation, so if we fail with an
@@ -144,18 +148,6 @@ class JSONRecorder(FileRecorder):
                     pass
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
-
-        # Get ETag if requested and on S3
-        etag = None
-        if include_etag:
-            fs = filesystem(location)
-            if fs.is_s3():
-                try:
-                    file_info = fs.info(location)
-                    etag = file_info.etag
-                except Exception:
-                    # If we can't get file info, proceed without ETag
-                    pass
 
         # full reads (and fallback to streaing reads if they encounter invalid json characters)
         with file(location, "r") as f:
@@ -180,11 +172,11 @@ class JSONRecorder(FileRecorder):
                     log.results.sample_reductions = None
                     log.reductions = None
 
-            # return log or log with etag
-            if include_etag:
-                return log, etag
-            else:
-                return log
+            if fs.is_s3():
+                file_info = fs.info(location)
+                log.etag = file_info.etag
+
+            return log
 
     @override
     @classmethod
@@ -193,7 +185,6 @@ class JSONRecorder(FileRecorder):
     ) -> None:
         from inspect_ai.log._file import eval_log_json
 
-        # Check if we should use S3 conditional write
         fs = filesystem(location)
         if fs.is_s3() and if_match_etag:
             # Use S3 conditional write
@@ -213,7 +204,7 @@ class JSONRecorder(FileRecorder):
 
     @classmethod
     async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str, fs: Any
+        cls, location: str, log: EvalLog, etag: str, fs: FileSystem
     ) -> None:
         """Perform S3 conditional write using aioboto3."""
         from urllib.parse import urlparse
@@ -222,7 +213,6 @@ class JSONRecorder(FileRecorder):
 
         from inspect_ai.log._file import eval_log_json
 
-        # Parse S3 URL
         parsed = urlparse(location)
         bucket = parsed.netloc
         key = parsed.path.lstrip("/")
@@ -236,29 +226,13 @@ class JSONRecorder(FileRecorder):
 
         with trace_action(logger, "Log Conditional Write", location):
             try:
-                # Create async S3 client with same configuration as filesystem
-                import aioboto3
+                from .eval import _s3_conditional_put_object
 
-                session = aioboto3.Session()
-                async with session.client(
-                    "s3",
-                    endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-                    aws_access_key_id=fs.fs.key,
-                    aws_secret_access_key=fs.fs.secret,
-                    region_name=fs.fs.client_kwargs.get("region_name"),
-                ) as s3_client:
-                    # Perform conditional write
-                    await s3_client.put_object(
-                        Bucket=bucket,
-                        Key=key,
-                        Body=log_bytes,
-                        IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
-                    )
+                await _s3_conditional_put_object(fs, bucket, key, log_bytes, etag)
             except ClientError as e:
                 if e.response["Error"]["Code"] == "PreconditionFailed":
                     raise ConcurrentModificationError(
-                        f"Log file was modified by another process. Expected ETag: {etag}",
-                        etag_expected=etag,
+                        f"Log file was modified by another process. Expected ETag: {etag}"
                     )
                 raise
 

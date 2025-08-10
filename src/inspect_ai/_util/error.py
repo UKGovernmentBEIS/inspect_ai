@@ -56,17 +56,12 @@ class PrerequisiteError(Exception):
 
 
 class ConcurrentModificationError(Exception):
-    """Raised when a conditional write fails due to concurrent modification."""
+    """Exception raised when a conditional write fails due to concurrent modification.
 
-    def __init__(
-        self,
-        message: str,
-        etag_expected: str | None = None,
-        etag_actual: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.etag_expected = etag_expected
-        self.etag_actual = etag_actual
+    This error occurs when attempting to write to a log file that has been
+    modified by another process since it was last read, indicating a race
+    condition between concurrent evaluation runs.
+    """
 
 
 def exception_hook() -> Callable[..., None]:

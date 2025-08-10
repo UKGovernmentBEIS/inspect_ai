@@ -82,12 +82,7 @@ class FileRecorder(Recorder):
         if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
             eval_log = cls.__last_read_sample_log[1]
         else:
-            result = await cls.read_log(location)
-            # Extract just the EvalLog if we got a tuple
-            if isinstance(result, tuple):
-                eval_log = result[0]
-            else:
-                eval_log = result
+            eval_log = await cls.read_log(location)
             cls.__last_read_sample_log = (location, eval_log)
         return eval_log
 

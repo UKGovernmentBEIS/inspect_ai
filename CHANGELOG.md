@@ -1,5 +1,6 @@
 ## Unreleased
 
+- S3 conditional writes: Added `if_match_etag` parameter for `write_eval_log()` and `etag` field to `EvalLog` for safe concurrent log modification.
 - [SambaNova](https://inspect.aisi.org.uk/providers.html#sambanova) model provider.
 - [Goodfire](https://inspect.aisi.org.uk/providers.html#goodfire) model provider.
 - Google: Pass `timeout` generation config option through to API `Client`.
