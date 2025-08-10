@@ -3,28 +3,21 @@ from typing import Literal
 
 from typing_extensions import override
 
-from .._tool import Tool
+from .._tool import Tool, ToolResult
 from ._config import MCPConfig
 from ._types import MCPServer
+
+# https://platform.openai.com/docs/api-reference/responses/create#responses_create-tools
+# https://docs.anthropic.com/en/api/messages#body-mcp-servers
 
 
 class MCPServerRemote(MCPServer):
     def __init__(self, config: MCPConfig) -> None:
         self._config = config
 
-    @property
-    def config(self) -> MCPConfig:
-        """Configuration for remote server."""
-        return self._config
-
     @override
     async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
-        # we are going to return a tool named "inspect_mcp_remote" and calling
-        # that tool will yield an MCPConfig
-
-        # we may be able to support dynamic binding if we can defer the server
-        # connection until the first call to the server?
-        return []
+        return [MCPServerTool(self._config, tools)]
 
     # no-op async context manager as we don't manage resources
     @override
@@ -39,3 +32,16 @@ class MCPServerRemote(MCPServer):
         exc_tb: TracebackType | None,
     ) -> None:
         pass
+
+
+class MCPServerTool(Tool):
+    def __init__(self, config: MCPConfig, tools: Literal["all"] | list[str]):
+        self.config = config
+        self.tools = tools
+
+    @property
+    def __name__(self) -> str:
+        return f"mcp_server_{self.config.name}"
+
+    async def __call__(self) -> ToolResult:
+        raise RuntimeError("MCPServerTool should not be called directly")

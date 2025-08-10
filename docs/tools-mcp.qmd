@@ -20,6 +20,7 @@ from inspect_ai.tool import mcp_server_stdio
 @task
 def git_task():
     git_server = mcp_server_stdio(
+        name="Git",
         command="python3", 
         args=["-m", "mcp_server_git", "--repository", "."]
     )
@@ -86,6 +87,7 @@ When using MCP servers with Inspect, you only need to provide the inner argument
 
 ``` python
 maps_server = mcp_server_stdio(
+    name="Google Maps",
     command="npx", 
     args=["-y", "@modelcontextprotocol/server-google-maps"],
     env={ "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>" }
@@ -106,6 +108,7 @@ Each MCP server makes available a set of tools. For example, the Google Maps ser
 @task
 def map_task():
     maps_server = mcp_server_stdio(
+        name="Google Maps",
         command="npx", 
         args=["-y", "@modelcontextprotocol/server-google-maps"]
     )
@@ -178,6 +181,7 @@ For example, the following will establish a single connection to the memory serv
 
 ``` python
 memory_server = mcp_server_stdio(
+    name="Memory",
     command="npx", 
     args=["-y", "@modelcontextprotocol/server-memory"]
 )
@@ -209,6 +213,7 @@ def web_surfer() -> Agent:
 
         # interface to memory server
         memory_server = mcp_server_stdio(
+            name="Memory",
             command="npx", 
             args=["-y", "@modelcontextprotocol/server-memory"]
         )
@@ -279,7 +284,8 @@ Installing the package globally means we'll want to invoke it using its global e
 We can now use the `mcp_server_sandbox()` function to run the server as follows:
 
 ``` python
-maps_server = mcp_server_sandbox(
+filesystem_server = mcp_server_sandbox(
+    name="Filesystem",
     command="mcp-server-filesystem", 
     args=["/"]
 )

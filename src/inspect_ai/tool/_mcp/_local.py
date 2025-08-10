@@ -244,21 +244,25 @@ class MCPServerLocalSession(MCPServer):
 
 
 def create_server_sse(
+    *,
+    name: str,
     url: str,
-    headers: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
     return MCPServerLocal(
         lambda: sse_client(url, headers, timeout, sse_read_timeout),
-        name=url,
+        name=name,
         events=True,
     )
 
 
 def create_server_streamablehttp(
+    *,
+    name: str,
     url: str,
-    headers: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
@@ -270,6 +274,8 @@ def create_server_streamablehttp(
 
 
 def create_server_stdio(
+    *,
+    name: str,
     command: str,
     args: list[str] = [],
     cwd: str | Path | None = None,
@@ -284,12 +290,14 @@ def create_server_stdio(
                 env=env,
             )
         ),
-        name=" ".join([command] + args),
+        name=name,
         events=True,
     )
 
 
 def create_server_sandbox(
+    *,
+    name: str,
     command: str,
     args: list[str] = [],
     cwd: str | Path | None = None,
@@ -299,7 +307,6 @@ def create_server_sandbox(
 ) -> MCPServer:
     # TODO: Confirm the lifetime concepts. By the time a request makes it to the
     # sandbox, it's going to need both a session id and a server "name".
-    name = " ".join([command] + args)
     return MCPServerLocal(
         lambda: sandbox_client(
             StdioServerParameters(

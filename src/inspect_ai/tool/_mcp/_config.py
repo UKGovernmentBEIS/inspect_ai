@@ -1,10 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 
 @dataclass(frozen=True)
 class MCPConfig:
     type: Literal["stdio", "http", "sse"]
+    name: str
 
 
 @dataclass(frozen=True)
@@ -15,8 +16,19 @@ class MCPConfigStdio(MCPConfig):
 @dataclass(frozen=True)
 class MCPConfigRemote(MCPConfig):
     type: Literal["http", "sse"]
-    url: str | None = field(default=None)
-    authorization: str | None = field(default=None)
+    url: str
+    headers: dict[str, str] | None
+
+    def authorization(self) -> str | None:
+        if self.headers and "Authorization" in self.headers:
+            authorization = str(self.headers["Authorization"])
+            return (
+                authorization[7:]
+                if authorization.upper().startswith("BEARER ")
+                else authorization
+            )
+        else:
+            return None
 
 
 @dataclass(frozen=True)
