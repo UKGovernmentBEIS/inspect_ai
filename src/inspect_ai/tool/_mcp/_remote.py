@@ -16,8 +16,8 @@ class MCPServerRemote(MCPServer):
         self._config = config
 
     @override
-    async def tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
-        return [mcp_server_tool(self._config.model_copy(update={"tools": tools}))]
+    async def tools(self) -> list[Tool]:
+        return [mcp_server_tool(self._config)]
 
     # no-op async context manager as we don't manage resources
     @override
