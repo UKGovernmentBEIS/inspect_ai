@@ -7,6 +7,7 @@ import {
   ContentImage,
   ContentReasoning,
   ContentText,
+  ContentToolUse,
   ContentVideo,
   Format1,
   Format2,
@@ -28,7 +29,8 @@ type ContentObject =
   | ContentAudio
   | ContentVideo
   | ContentTool
-  | ContentData;
+  | ContentData
+  | ContentToolUse;
 
 type ContentType = string | string[] | ContentObject;
 
