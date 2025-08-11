@@ -201,12 +201,12 @@ export type Content =
   | string
   | (
       | ContentText
+      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
-      | ContentReasoning
-      | ContentToolUse
       | ContentData
+      | ContentToolUse
     )[];
 export type Type3 = "text";
 export type Text = string;
@@ -237,26 +237,26 @@ export type Internal2 = {
 } | null;
 export type Type7 = "url";
 export type Url = string;
-export type Type8 = "image";
-export type Image = string;
-export type Detail = "auto" | "low" | "high";
-export type Type9 = "audio";
-export type Audio = string;
-export type Format1 = "wav" | "mp3";
-export type Type10 = "video";
-export type Video = string;
-export type Format2 = "mp4" | "mpeg" | "mov";
-export type Type11 = "reasoning";
+export type Type8 = "reasoning";
 export type Reasoning = string;
 export type Signature = string | null;
 export type Redacted = boolean;
-export type Type12 = "tool_use";
+export type Type9 = "image";
+export type Image = string;
+export type Detail = "auto" | "low" | "high";
+export type Type10 = "audio";
+export type Audio = string;
+export type Format1 = "wav" | "mp3";
+export type Type11 = "video";
+export type Video = string;
+export type Format2 = "mp4" | "mpeg" | "mov";
+export type Type12 = "data";
+export type Type13 = "tool_use";
 export type ToolType = string;
 export type Id2 = string;
 export type Name8 = string;
 export type Context = string | null;
 export type Error = string | null;
-export type Type13 = "data";
 export type Source = ("input" | "generate") | null;
 export type Metadata5 = {
   [k: string]: unknown;
@@ -267,12 +267,12 @@ export type Content1 =
   | string
   | (
       | ContentText
+      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
-      | ContentReasoning
-      | ContentToolUse
       | ContentData
+      | ContentToolUse
     )[];
 export type Source1 = ("input" | "generate") | null;
 export type Metadata6 = {
@@ -285,12 +285,12 @@ export type Content2 =
   | string
   | (
       | ContentText
+      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
-      | ContentReasoning
-      | ContentToolUse
       | ContentData
+      | ContentToolUse
     )[];
 export type Source2 = ("input" | "generate") | null;
 export type Metadata7 = {
@@ -311,12 +311,12 @@ export type Content4 =
   | string
   | (
       | ContentText
+      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
-      | ContentReasoning
-      | ContentToolUse
       | ContentData
+      | ContentToolUse
     )[];
 export type Source3 = ("input" | "generate") | null;
 export type Metadata8 = {
@@ -1201,11 +1201,23 @@ export interface UrlCitation {
   url: Url;
 }
 /**
+ * Reasoning content.
+ *
+ * See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
+ */
+export interface ContentReasoning {
+  internal: unknown;
+  type: Type8;
+  reasoning: Reasoning;
+  signature: Signature;
+  redacted: Redacted;
+}
+/**
  * Image content.
  */
 export interface ContentImage {
   internal: unknown;
-  type: Type8;
+  type: Type9;
   image: Image;
   detail: Detail;
 }
@@ -1214,7 +1226,7 @@ export interface ContentImage {
  */
 export interface ContentAudio {
   internal: unknown;
-  type: Type9;
+  type: Type10;
   audio: Audio;
   format: Format1;
 }
@@ -1223,25 +1235,24 @@ export interface ContentAudio {
  */
 export interface ContentVideo {
   internal: unknown;
-  type: Type10;
+  type: Type11;
   video: Video;
   format: Format2;
 }
 /**
- * Reasoning content.
- *
- * See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
+ * Model internal.
  */
-export interface ContentReasoning {
+export interface ContentData {
   internal: unknown;
-  type: Type11;
-  reasoning: Reasoning;
-  signature: Signature;
-  redacted: Redacted;
+  type: Type12;
+  data: Data;
+}
+export interface Data {
+  [k: string]: JsonValue;
 }
 export interface ContentToolUse {
   internal: unknown;
-  type: Type12;
+  type: Type13;
   tool_type: ToolType;
   id: Id2;
   name: Name8;
@@ -1249,17 +1260,6 @@ export interface ContentToolUse {
   arguments: JsonValue;
   result: JsonValue;
   error: Error;
-}
-/**
- * Model internal.
- */
-export interface ContentData {
-  internal: unknown;
-  type: Type13;
-  data: Data;
-}
-export interface Data {
-  [k: string]: JsonValue;
 }
 /**
  * User chat message.

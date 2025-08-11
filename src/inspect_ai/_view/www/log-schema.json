@@ -352,6 +352,9 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -361,13 +364,10 @@
                     "$ref": "#/$defs/ContentVideo"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
+                    "$ref": "#/$defs/ContentData"
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -491,6 +491,9 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -500,13 +503,10 @@
                     "$ref": "#/$defs/ContentVideo"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
+                    "$ref": "#/$defs/ContentData"
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -601,6 +601,9 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -610,13 +613,10 @@
                     "$ref": "#/$defs/ContentVideo"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
+                    "$ref": "#/$defs/ContentData"
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -749,6 +749,9 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -758,13 +761,10 @@
                     "$ref": "#/$defs/ContentVideo"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
+                    "$ref": "#/$defs/ContentData"
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
