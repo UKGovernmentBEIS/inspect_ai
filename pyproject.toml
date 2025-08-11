@@ -152,7 +152,7 @@ dev = [
   "moto[server]",
   "mypy>=1.17.0",
   "nbformat",
-  "openai",
+  "openai<=1.99.6",
   "pandas>=2.0.0",
   "panflute",
   "pip",
