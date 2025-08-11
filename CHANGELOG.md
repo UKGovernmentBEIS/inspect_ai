@@ -2,6 +2,7 @@
 
 - OpenAI: Enable native `web_search()` tool for GPT-5.
 - OpenAI: Convert "web_search" tool choice to native "web_search_preview" type.
+- Nan values returned from scorers will be excluded from reductions when reducing epochs.
 
 ## 0.3.121 (10 August 2025)
 
