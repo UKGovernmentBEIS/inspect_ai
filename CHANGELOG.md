@@ -1,3 +1,13 @@
+## Unreleased
+
+- Inspect View: Improved handling of scores and messages with large or complex metadata.
+
+## 0.3.122 (11 August 2025)
+
+- OpenAI: Enable native `web_search()` tool for GPT-5.
+- OpenAI: Convert "web_search" tool choice to native "web_search_preview" type.
+- Apply `sample_shuffle` for eval retry.
+
 ## 0.3.121 (10 August 2025)
 
 - [SambaNova](https://inspect.aisi.org.uk/providers.html#sambanova) model provider.
