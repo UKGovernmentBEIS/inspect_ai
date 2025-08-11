@@ -46,6 +46,8 @@ class ContentReasoning(ContentBase):
 
 
 class ContentToolUse(ContentBase):
+    """Server side tool use."""
+
     type: Literal["tool_use"] = Field(default="tool_use")
     """Type."""
 
