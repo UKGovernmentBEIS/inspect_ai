@@ -125,11 +125,11 @@ class ContentData(ContentBase):
 
 Content = Union[
     ContentText,
+    ContentReasoning,
     ContentImage,
     ContentAudio,
     ContentVideo,
-    ContentReasoning,
-    ContentToolUse,
     ContentData,
+    ContentToolUse,
 ]
 """Content sent to or received from a model."""
