@@ -13,8 +13,25 @@ Runtime injection of `inspect-tool-support` into arbitrary running containers, f
 ### 1. Executable Build System
 - Build dependency-free executables using PyInstaller + StaticX (POC working)
 - Target OS support: Ubuntu, Debian, Kali (initially)
-- **Issues**: How should we deal with Playwright? Always include it for os/distro's that support it?
-- **Details TBD**: Architecture variants
+
+#### Build Tools
+- **PyInstaller**: Bundles Python application and all dependencies into a single executable, including the Python interpreter, libraries, and application code
+- **StaticX**: Post-processes PyInstaller output to create a fully static binary that includes all shared libraries, eliminating runtime dependencies on the target system
+
+#### Build Process
+- **Docker Image Build**: Creates a container image with PyInstaller, StaticX, and all build dependencies
+- **Source Mount**: Mounts the source code read-only at `/src` in the container
+- **Output Mount**: Mounts `./container_build/` directory read-write at `/output` for build artifacts
+- **Build Execution**: Runs the containerized build script which:
+  1. Copies source to a writable temporary directory
+  2. Installs the package dependencies with `pip install .`
+  3. Runs PyInstaller to create the executable
+  4. Uses StaticX to create a fully static binary
+  5. Copies the final executable to the output directory
+
+#### Open Issues
+- **Playwright Dependencies**: How should we deal with Playwright? Always include it for distributions that support it?
+- **Details TBD**: Architecture variants (x64, ARM64)
 
 ### 2. Container Reconnaissance
 - OS/distro detection via shell command probes
@@ -47,6 +64,30 @@ Runtime injection of `inspect-tool-support` into arbitrary running containers, f
 - **No fallback**: We will not maintain both the old and new approaches. This means that if injection fails, it will fail the sample (eval?). 
 
 
+## Success Criteria
+
+- Eliminate need for pre-built reference images
+- Eliminate need for user Dockerfile modifications
+- Maintain existing tool functionality and performance
+- Zero version mismatch possibilities
+
+## New Execution Flow
+
+1. User configures the sandbox in their evaluation just like they always have.
+2. Tool calls `tool_support_sandbox("tool_name")` (No change)
+3. The implementation of `tool_support_sandbox` will do look for the appropriate sandbox (optionally named) that has `inspect_tool_support` already injected. If not found, it will:
+
+    1. **Container Reconnaissance**: Probe container OS/architecture via shell commands
+    2. **Executable Selection**: Determine exact executable version based on:
+        - inspect_ai version
+        - Detected container OS/architecture
+    3. **Executable Acquisition**: Obtain executable via installation-method-specific approach:
+        - Git clone: Download/cache from network source
+        - Package install: Retrieve from bundled/pre-positioned executables
+    4. **File Injection**: Copy executable to container filesystem
+
+9. **Normal Operation**: Proceed with existing JSON-RPC communication pattern
+
 ## Implementation Phases
 
 ### Phase 1: Validation (Git Clone + Network)
@@ -63,26 +104,4 @@ Runtime injection of `inspect-tool-support` into arbitrary running containers, f
 - Complete offline support for all installation methods
 - Support manually copied inspect_ai in isolated environments
 
-## Success Criteria
-
-- Eliminate need for pre-built reference images
-- Eliminate need for user Dockerfile modifications
-- Maintain existing tool functionality and performance
-- Zero version mismatch possibilities
-
-## New Execution Flow
-
-1. User configures `sandbox="docker"` in their evaluation  
-2. Tool calls `tool_support_sandbox("tool_name")`
-3. inspect_ai detects that container lacks `inspect-tool-support`
-4. **Container Reconnaissance**: Probe container OS/architecture via shell commands
-5. **Executable Selection**: Determine exact executable version based on:
-   - inspect_ai version
-   - Detected container OS/architecture
-6. **Executable Acquisition**: Obtain executable via installation-method-specific approach:
-   - Git clone: Download/cache from network source
-   - Package install: Retrieve from bundled/pre-positioned executables
-7. **File Injection**: Copy executable to container filesystem
-8. **Service Startup**: Execute injected binary to start tool support services
-9. **Normal Operation**: Proceed with existing JSON-RPC communication pattern
 
