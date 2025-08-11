@@ -38,10 +38,20 @@ from openai.types.responses.response_function_web_search_param import (
 )
 from openai.types.responses.response_input_item_param import (
     FunctionCallOutput,
+    Message,
+)
+from openai.types.responses.response_input_item_param import (
+    McpCall as McpCallParam,
+)
+from openai.types.responses.response_input_item_param import (
+    McpListTools as McpListToolsParam,
+)
+from openai.types.responses.response_input_item_param import (
+    McpListToolsTool as McpListToolsToolParam,
+)
+from openai.types.responses.response_output_item import (
     McpCall,
     McpListTools,
-    McpListToolsTool,
-    Message,
 )
 from openai.types.responses.response_output_text import (
     Annotation,
@@ -321,6 +331,7 @@ def _chat_message_assistant_from_openai_response(
                 if output.id is not None:
                     internal["tool_message_ids"][output.call_id] = output.id
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
+
             case ResponseFunctionWebSearch():
                 message_content.append(
                     ContentToolUse(
@@ -332,30 +343,28 @@ def _chat_message_assistant_from_openai_response(
                         error="failed" if output.status == "failed" else None,
                     )
                 )
-            case {"type": "mcp_list_tools"}:
-                list_tools = cast(McpListTools, output)
+            case McpListTools():
                 message_content.append(
                     ContentToolUse(
                         tool_type="mcp_list_tools",
-                        id=list_tools["id"],
+                        id=output.id,
                         name="mcp_list_tools",
-                        context=list_tools["server_label"],
+                        context=output.server_label,
                         arguments="",
-                        result=jsonable_python(list(list_tools["tools"])),
-                        error=list_tools.get("error", ""),
+                        result=jsonable_python(output.tools),
+                        error=output.error,
                     )
                 )
-            case {"type": "mcp_call"}:
-                call = cast(McpCall, output)
+            case McpCall():
                 message_content.append(
                     ContentToolUse(
                         tool_type="mcp_call",
-                        id=call["id"],
-                        name=call["name"],
-                        context=call["server_label"],
-                        arguments=call["arguments"],
-                        result=call.get("output", ""),
-                        error=call.get("error", ""),
+                        id=output.id,
+                        name=output.name,
+                        context=output.server_label,
+                        arguments=output.arguments,
+                        result=output.output,
+                        error=output.error,
                     )
                 )
             case _:
@@ -443,17 +452,17 @@ def _openai_input_items_from_chat_message_assistant(
             ):
                 if tool_type == "mcp_list_tools":
                     items.append(
-                        McpListTools(
+                        McpListToolsParam(
                             id=id,
                             server_label=context or "",
-                            tools=cast(list[McpListToolsTool], result),
+                            tools=cast(list[McpListToolsToolParam], result),
                             type="mcp_list_tools",
                             error=error,
                         )
                     )
                 elif tool_type == "mcp_call":
                     items.append(
-                        McpCall(
+                        McpCallParam(
                             id=id,
                             arguments=str(arguments),
                             name=name,
