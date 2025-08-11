@@ -44,11 +44,9 @@ from anthropic.types import (
 from anthropic.types.beta import (
     # BetaMCPToolUseBlock,
     # BetaMCPToolResultBlock,
+    # BetaMCPToolUseBlockParam,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
-    # BetaMCPToolUseBlockParam,
-    # BetaMessage,
-    # BetaMessageParam,
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
@@ -1065,7 +1063,12 @@ async def model_output_from_message(
                     id=pending_tool_use.id,
                     name=pending_tool_use.name,
                     arguments=jsonable_python(pending_tool_use.input),
-                    result=jsonable_python(content_block.content),
+                    result=cast(
+                        JsonValue,
+                        content_block.content.model_dump()
+                        if isinstance(content_block.content, WebSearchToolResultError)
+                        else [result.model_dump() for result in content_block.content],
+                    ),
                     error=content_block.content.error_code
                     if isinstance(content_block.content, WebSearchToolResultError)
                     else None,
