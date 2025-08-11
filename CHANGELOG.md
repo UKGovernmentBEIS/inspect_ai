@@ -1,5 +1,6 @@
 ## Unreleased
 
+- MCP: Support for [Remote MCP Servers](https://inspect.aisi.org.uk/tools-mcp.html#remote-mcp) for OpenAI and Anthropic models.
 - OpenAI: Use types from latest SDK (v1.99.7) and make that the minimum required version of the `openai` package.
 - Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
 - Inspect View: Improved handling of scores and messages with large or complex metadata.
