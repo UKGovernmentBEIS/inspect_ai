@@ -1,5 +1,4 @@
 from types import TracebackType
-from typing import Literal
 
 from typing_extensions import override
 
