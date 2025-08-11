@@ -41,9 +41,12 @@ def mcp_server_tool(config: MCPServerConfigHTTP) -> Tool:
     async def execute() -> ToolResult:
         raise RuntimeError("MCPServerTool should not be called directly")
 
+    name = f"mcp_server_{config.name}"
+
     return ToolDef(
         execute,
-        name=f"mcp_server_{config.name}",
+        name=name,
+        description=name,
         options=config.model_dump(),
     ).as_tool()
 

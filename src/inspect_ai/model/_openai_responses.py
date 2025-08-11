@@ -72,7 +72,6 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
@@ -354,7 +353,7 @@ def _chat_message_assistant_from_openai_response(
                         name="mcp_list_tools",
                         context=output.server_label,
                         arguments="",
-                        result=jsonable_python(output.tools),
+                        result=[tool.model_dump() for tool in output.tools],
                         error=output.error,
                     )
                 )
