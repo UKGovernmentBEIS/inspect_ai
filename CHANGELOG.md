@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Use types from latest SDK (v1.99.7) and make that the minimum required version of the `openai` package.
+- Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
 - Inspect View: Improved handling of scores and messages with large or complex metadata.
 
 ## 0.3.122 (11 August 2025)
@@ -29,6 +30,7 @@
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Tests: Added the ability to provide a generator like callback function for `MockLLM`.
 - Scoring: Improve multiple_choice answer parsing, making it more strict in interpreting answers like `ANSWER: None of the above`. Allow answers to end with full stop (`.`).
+- Tool Support: Converted `inspect_tool_support` to use a Unix socket rather than a tcp port for intra-container RPC. 
 - Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
 - Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.

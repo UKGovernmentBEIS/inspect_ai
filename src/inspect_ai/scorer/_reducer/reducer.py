@@ -120,7 +120,7 @@ def pass_at(
 
     def reduce(scores: list[Score]) -> Score:
         def pass_at_k(values: list[float]) -> float:
-            total = len(scores)
+            total = len(values)
             correct = sum(1 for v in values if v >= value)
             if total - correct < k:
                 return 1.0
@@ -192,7 +192,12 @@ def _count_scalar(
         scores: a list of Scores.
         counter_fn: a function which returns a scalar value based upon the counter
     """
-    counts = Counter([score._as_scalar() for score in scores])
+    score_values: list[str | int | float | bool] = []
+    for score in scores:
+        scalar_value = score._as_scalar()
+        if _is_reducible(scalar_value):
+            score_values.append(scalar_value)
+    counts = Counter(score_values)
     return _reduced_score(counter_fn(counts), scores)
 
 
@@ -212,9 +217,12 @@ def _count_dict(
     dict_result: dict[str, str | int | float | bool] = {}
     keys = scores[0].value.keys()  # type: ignore
     for key in keys:
-        counts: Counter[str | int | float | bool] = Counter(
-            [score.value[key] for score in scores]  # type: ignore
-        )
+        key_values = []
+        for score in scores:
+            key_value = cast(str | int | float | bool, score.value[key])  # type: ignore
+            if _is_reducible(key_value):
+                key_values.append(key_value)
+        counts: Counter[str | int | float | bool] = Counter(key_values)
         dict_result[key] = counter_fn(counts)
     return _reduced_score(
         cast(dict[str, str | int | float | bool | None], dict_result), scores
@@ -237,9 +245,12 @@ def _count_list(
     list_result: list[str | int | float | bool] = []
     list_size = len(scores[0].value)  # type: ignore
     for i in range(list_size):
-        counts: Counter[str | int | float | bool] = Counter(
-            [score.value[i] for score in scores]  # type:ignore
-        )
+        index_values = []
+        for score in scores:
+            index_value = cast(str | int | float | bool, score.value[i])  # type:ignore
+            if _is_reducible(index_value):
+                index_values.append(index_value)
+        counts: Counter[str | int | float | bool] = Counter(index_values)
         list_result.append(counter_fn(counts))
     return _reduced_score(list_result, scores)
 
@@ -261,7 +272,11 @@ def _compute_dict_stat(
 
     dict_result: dict[str, str | int | float | bool | None] = {}
     for key in scores[0].value.keys():  # type: ignore
-        values = [value_to_float(score.value[key]) for score in scores]  # type: ignore
+        values = []
+        for score in scores:
+            key_value = value_to_float(score.value[key])  # type: ignore
+            if _is_reducible(key_value):
+                values.append(value_to_float(key_value))
         dict_result[key] = statistic(values)
     return _reduced_score(dict_result, scores)
 
@@ -284,7 +299,12 @@ def _compute_list_stat(
     list_result: list[str | int | float | bool] = []
     list_size = len(scores[0].value)  # type: ignore
     for i in range(list_size):
-        values = [value_to_float(score.value[i]) for score in scores]  # type: ignore
+        values = []
+        for score in scores:
+            list_values = cast(list[str | int | float | bool], score.value)
+            value = value_to_float(list_values[i])
+            if _is_reducible(value):
+                values.append(value)
         list_result.append(statistic(values))
     return _reduced_score(list_result, scores)
 
@@ -301,7 +321,10 @@ def _compute_scalar_stat(
         value_to_float: function to convert the value to a float
         statistic: the statistic to apply
     """
-    values = [value_to_float(score.value) for score in scores]
+    values = []
+    for score in scores:
+        if _is_reducible(value_to_float(score.value)):
+            values.append(value_to_float(score.value))
     result = statistic(values)
     return _reduced_score(result, scores)
 
@@ -348,3 +371,8 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
         else None,
         metadata=scores[0].metadata,
     )
+
+
+def _is_reducible(value: str | int | float | bool) -> bool:
+    """Check if a value is reducible (not a NaN float)."""
+    return not (isinstance(value, float) and np.isnan(value))
