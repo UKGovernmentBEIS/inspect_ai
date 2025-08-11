@@ -28,8 +28,8 @@ from openai.types.chat import (
     ChatCompletionMessageFunctionToolCall,
     ChatCompletionMessageFunctionToolCallParam,
     ChatCompletionMessageParam,
-    ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
+    ChatCompletionMessageToolCallUnion,
     ChatCompletionNamedToolChoiceParam,
     ChatCompletionSystemMessageParam,
     ChatCompletionToolChoiceOptionParam,
@@ -83,7 +83,7 @@ class OpenAIResponseError(OpenAIError):
 # in _providers/openai.py to enable proper overriding by subclasses
 
 
-def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
+def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
     return ChatCompletionMessageFunctionToolCall(
         type="function",
         id=tool_call.id,

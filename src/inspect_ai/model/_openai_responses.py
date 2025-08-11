@@ -168,6 +168,9 @@ def openai_responses_tool_choice(
                 ToolChoiceTypesParam(type="computer_use_preview")
                 if tool_choice.name == "computer"
                 and any(tool["type"] == "computer_use_preview" for tool in tools)
+                else ToolChoiceTypesParam(type="web_search_preview")
+                if tool_choice.name == "web_search"
+                and any(tool["type"] == "web_search_preview" for tool in tools)
                 else ToolChoiceFunctionParam(type="function", name=tool_choice.name)
             )
 
