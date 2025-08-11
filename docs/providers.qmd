@@ -440,14 +440,6 @@ The following environment variables are supported by the Together AI provider
 
 ## SambaNova {#sambanova}
 
-::: callout-note
-The SambaNova provider is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 To use the [SambaNova](https://sambanova.ai/) provider, install the `openai` package (which the SambaNova service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
@@ -505,14 +497,6 @@ The following environment variables are supported by the Perplexity provider
 Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
 
 ## Goodfire {#goodfire}
-
-::: callout-note
-The Goodfire provider is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 To use the [Goodfire](https://platform.goodfire.ai/) provider, install the `goodfire` package, set your credentials, and specify a model using the `--model` option:
 
