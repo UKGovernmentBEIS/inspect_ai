@@ -2,18 +2,19 @@
 
 ## Problem Statement
 
-Current approach requires users to either use pre-built `aisiuk/inspect-tool-support` image or rebuild their existing images with inspect-tool-support installation steps. This creates friction for users with existing, complex container environments.
+The current approach for running some inspect tools in sandboxes requires users to either use pre-built `aisiuk/inspect-tool-support` image or rebuild their existing images with inspect-tool-support installation steps. This creates friction for users with existing, complex container environments.
 
 ## Solution Overview
 
-Runtime injection of inspect-tool-support capabilities into arbitrary running containers, following VS Code remote development pattern. Eliminates need for image modification or pre-built images.
+Runtime injection of `inspect-tool-support` into arbitrary running containers, following VS Code remote development pattern. Eliminates need for image modification or pre-built images.
 
 ## Key Components
 
 ### 1. Executable Build System
 - Build dependency-free executables using PyInstaller + StaticX (POC working)
 - Target OS support: Ubuntu, Debian, Kali (initially)
-- **Details TBD**: Architecture variants, Playwright bundling strategy
+- **Issues**: How should we deal with Playwright? Always include it for os/distro's that support it?
+- **Details TBD**: Architecture variants
 
 ### 2. Container Reconnaissance
 - OS/distro detection via shell command probes
@@ -39,10 +40,12 @@ Runtime injection of inspect-tool-support capabilities into arbitrary running co
   - Package install users: No network dependency (eventual goal)
 - **Details TBD**: Storage location, retrieval method, offline support
 
-## Constraints
+## Assumptions
 
 - **Offline-first**: No network access required for containers or inspect_ai process
 - **Airgapped support**: Must work when inspect_ai manually copied to isolated machines
+- **No fallback**: We will not maintain both the old and new approaches. This means that if injection fails, it will fail the sample (eval?). 
+
 
 ## Implementation Phases
 
@@ -66,4 +69,20 @@ Runtime injection of inspect-tool-support capabilities into arbitrary running co
 - Eliminate need for user Dockerfile modifications
 - Maintain existing tool functionality and performance
 - Zero version mismatch possibilities
+
+## New Execution Flow
+
+1. User configures `sandbox="docker"` in their evaluation  
+2. Tool calls `tool_support_sandbox("tool_name")`
+3. inspect_ai detects that container lacks `inspect-tool-support`
+4. **Container Reconnaissance**: Probe container OS/architecture via shell commands
+5. **Executable Selection**: Determine exact executable version based on:
+   - inspect_ai version
+   - Detected container OS/architecture
+6. **Executable Acquisition**: Obtain executable via installation-method-specific approach:
+   - Git clone: Download/cache from network source
+   - Package install: Retrieve from bundled/pre-positioned executables
+7. **File Injection**: Copy executable to container filesystem
+8. **Service Startup**: Execute injected binary to start tool support services
+9. **Normal Operation**: Proceed with existing JSON-RPC communication pattern
 
