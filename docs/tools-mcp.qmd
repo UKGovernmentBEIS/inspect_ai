@@ -49,12 +49,12 @@ In addition, the Inspect implementation of MCP adds another transport:
 
 You can use the following functions to create interfaces to the various types of servers:
 
-|                        |                                                                                           |
+|  |  |
 |------------------------------------|------------------------------------|
-| `mcp_server_stdio()`   | Stdio interface to MCP server. Use this for MCP servers that run locally.                 |
-| `mcp_server_http()` | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint.
+| `mcp_server_stdio()` | Stdio interface to MCP server. Use this for MCP servers that run locally. |
+| `mcp_server_http()` | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint. |
 | `mcp_server_sandbox()` | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
-| `mcp_server_sse()`     | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/))       |
+| `mcp_server_sse()` | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)) |
 
 : {tbl-colwidths=\[40,60\]}
 
@@ -125,7 +125,7 @@ In this example we use all of the tool made available by the server. You can als
 
 #### ToolSource
 
-The `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect generation methods that take `Tool` or `ToolDef` now also take `ToolSource`. 
+The `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect generation methods that take `Tool` or `ToolDef` now also take `ToolSource`.
 
 If you are creating your own agents or functions that take `tools` arguments, we recommend you do this same if you are going to be using MCP servers. For example:
 
@@ -134,7 +134,6 @@ If you are creating your own agents or functions that take `tools` arguments, we
 def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     ...
 ```
-
 
 ## Remote MCP
 
@@ -150,7 +149,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 
 You can specify that you'd like an HTTP-based MCP Server to be executed remotely by passing the `execution="remote"` option. For example:
 
-```python
+``` python
 deepwiki = mcp_server_http(
     name="deepwiki", 
     url="https://mcp.deepwiki.com/mcp", 
@@ -159,9 +158,9 @@ deepwiki = mcp_server_http(
 )
 ```
 
-1. This is what indicates that the MCP Server should be executed remotely. Pass `execution="local"` for local execution (the default).
+1.  This is what indicates that the MCP Server should be executed remotely. Pass `execution="local"` for local execution (the default).
 
-Note that some remote MCP servers will reuqire credentials---in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or use `headers` to provide credentails using another scheme.
+Note that some remote MCP servers will require credentials---in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or pass `headers` to provide credentials using another scheme.
 
 Before using remote servers, you should review OpenAI's [Risks and Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety) guidance for Remote MCP.
 
@@ -189,7 +188,7 @@ In the case that you using stateful servers, you will want to establish a longer
 
 #### ReAct Agent
 
-The `mcp_connection()` context manager is used **automatically** by the `react()` agent, with the server connection being maintained for the duration of the agent loop. 
+The `mcp_connection()` context manager is used **automatically** by the `react()` agent, with the server connection being maintained for the duration of the agent loop.
 
 For example, the following will establish a single connection to the memory server and preserve its state across calls:
 
