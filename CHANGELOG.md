@@ -2,6 +2,7 @@
 
 - OpenAI: Enable native `web_search()` tool for GPT-5.
 - OpenAI: Convert "web_search" tool choice to native "web_search_preview" type.
+- Apply `sample_shuffle` for eval retry.
 
 ## 0.3.121 (10 August 2025)
 
