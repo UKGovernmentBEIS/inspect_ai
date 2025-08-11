@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.122 (11 August 2025)
 
 - OpenAI: Enable native `web_search()` tool for GPT-5.
 - OpenAI: Convert "web_search" tool choice to native "web_search_preview" type.
