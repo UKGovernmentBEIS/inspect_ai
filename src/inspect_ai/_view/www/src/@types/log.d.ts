@@ -201,10 +201,11 @@ export type Content =
   | string
   | (
       | ContentText
-      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
+      | ContentReasoning
+      | ContentToolUse
       | ContentData
     )[];
 export type Type3 = "text";
@@ -236,34 +237,41 @@ export type Internal2 = {
 } | null;
 export type Type7 = "url";
 export type Url = string;
-export type Type8 = "reasoning";
+export type Type8 = "image";
+export type Image = string;
+export type Detail = "auto" | "low" | "high";
+export type Type9 = "audio";
+export type Audio = string;
+export type Format1 = "wav" | "mp3";
+export type Type10 = "video";
+export type Video = string;
+export type Format2 = "mp4" | "mpeg" | "mov";
+export type Type11 = "reasoning";
 export type Reasoning = string;
 export type Signature = string | null;
 export type Redacted = boolean;
-export type Type9 = "image";
-export type Image = string;
-export type Detail = "auto" | "low" | "high";
-export type Type10 = "audio";
-export type Audio = string;
-export type Format1 = "wav" | "mp3";
-export type Type11 = "video";
-export type Video = string;
-export type Format2 = "mp4" | "mpeg" | "mov";
-export type Type12 = "data";
+export type Type12 = "tool_use";
+export type ToolType = string;
+export type Id2 = string;
+export type Name8 = string;
+export type Context = string | null;
+export type Error = string | null;
+export type Type13 = "data";
 export type Source = ("input" | "generate") | null;
 export type Metadata5 = {
   [k: string]: unknown;
 } | null;
 export type Role = "system";
-export type Id2 = string | null;
+export type Id3 = string | null;
 export type Content1 =
   | string
   | (
       | ContentText
-      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
+      | ContentReasoning
+      | ContentToolUse
       | ContentData
     )[];
 export type Source1 = ("input" | "generate") | null;
@@ -272,15 +280,16 @@ export type Metadata6 = {
 } | null;
 export type Role1 = "user";
 export type ToolCallId = string[] | null;
-export type Id3 = string | null;
+export type Id4 = string | null;
 export type Content2 =
   | string
   | (
       | ContentText
-      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
+      | ContentReasoning
+      | ContentToolUse
       | ContentData
     )[];
 export type Source2 = ("input" | "generate") | null;
@@ -289,23 +298,24 @@ export type Metadata7 = {
 } | null;
 export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
-export type Id4 = string;
+export type Id5 = string;
 export type Function = string;
 export type ParseError = string | null;
 export type Title3 = string | null;
 export type Format3 = "text" | "markdown";
 export type Content3 = string;
-export type Type13 = string | null;
+export type Type14 = string | null;
 export type Model2 = string | null;
-export type Id5 = string | null;
+export type Id6 = string | null;
 export type Content4 =
   | string
   | (
       | ContentText
-      | ContentReasoning
       | ContentImage
       | ContentAudio
       | ContentVideo
+      | ContentReasoning
+      | ContentToolUse
       | ContentData
     )[];
 export type Source3 = ("input" | "generate") | null;
@@ -315,7 +325,7 @@ export type Metadata8 = {
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
-export type Type14 =
+export type Type15 =
   | "parsing"
   | "timeout"
   | "unicode_decode"
@@ -358,7 +368,7 @@ export type Time = number | null;
 export type Metadata9 = {
   [k: string]: unknown;
 } | null;
-export type Error = string | null;
+export type Error1 = string | null;
 export type Scores1 = {
   [k: string]: Score;
 } | null;
@@ -394,7 +404,7 @@ export type Input1 =
     )[];
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
-export type Id6 = number | string | null;
+export type Id7 = number | string | null;
 export type Metadata13 = {
   [k: string]: unknown;
 } | null;
@@ -411,7 +421,7 @@ export type Metadata14 = {
 } | null;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type15 =
+export type Type16 =
   | "message"
   | "time"
   | "working"
@@ -479,9 +489,9 @@ export type Input3 = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Name8 = string;
+export type Name9 = string;
 export type Description2 = string;
-export type Type16 = "object";
+export type Type17 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
 export type Options3 = {
@@ -489,9 +499,9 @@ export type Options3 = {
 } | null;
 export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
-export type Name9 = string;
+export type Name10 = string;
 export type Retries = number | null;
-export type Error1 = string | null;
+export type Error2 = string | null;
 export type Cache = ("read" | "write") | null;
 export type Time1 = number | null;
 export type Completed1 = string | null;
@@ -505,27 +515,18 @@ export type Metadata19 = {
 } | null;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
-export type Type17 = "function";
-export type Id7 = string;
+export type Type18 = "function";
+export type Id8 = string;
 export type Function2 = string;
 export type Result1 =
   | string
   | number
   | boolean
   | ContentText
-  | ContentReasoning
   | ContentImage
   | ContentAudio
   | ContentVideo
-  | ContentData
-  | (
-      | ContentText
-      | ContentReasoning
-      | ContentImage
-      | ContentAudio
-      | ContentVideo
-      | ContentData
-    )[];
+  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Truncated = [unknown, unknown] | null;
 export type Uuid7 = string | null;
 export type SpanId7 = string | null;
@@ -585,7 +586,7 @@ export type Metadata24 = {
 } | null;
 export type Pending11 = boolean | null;
 export type Event11 = "logger";
-export type Name10 = string | null;
+export type Name11 = string | null;
 export type Level =
   | "debug"
   | "trace"
@@ -619,10 +620,10 @@ export type Metadata26 = {
 } | null;
 export type Pending13 = boolean | null;
 export type Event13 = "span_begin";
-export type Id8 = string;
+export type Id9 = string;
 export type ParentId = string | null;
-export type Type18 = string | null;
-export type Name11 = string;
+export type Type19 = string | null;
+export type Name12 = string;
 export type Uuid14 = string | null;
 export type SpanId14 = string | null;
 export type Timestamp14 = string;
@@ -632,7 +633,7 @@ export type Metadata27 = {
 } | null;
 export type Pending14 = boolean | null;
 export type Event14 = "span_end";
-export type Id9 = string;
+export type Id10 = string;
 export type Uuid15 = string | null;
 export type SpanId15 = string | null;
 export type Timestamp15 = string;
@@ -643,8 +644,8 @@ export type Metadata28 = {
 export type Pending15 = boolean | null;
 export type Event15 = "step";
 export type Action1 = "begin" | "end";
-export type Type19 = string | null;
-export type Name12 = string;
+export type Type20 = string | null;
+export type Name13 = string;
 export type Uuid16 = string | null;
 export type SpanId16 = string | null;
 export type Timestamp16 = string;
@@ -654,8 +655,8 @@ export type Metadata29 = {
 } | null;
 export type Pending16 = boolean | null;
 export type Event16 = "subtask";
-export type Name13 = string;
-export type Type20 = string | null;
+export type Name14 = string;
+export type Type21 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -724,7 +725,7 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid17 = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type Type21 =
+export type Type22 =
   | "context"
   | "time"
   | "working"
@@ -1200,23 +1201,11 @@ export interface UrlCitation {
   url: Url;
 }
 /**
- * Reasoning content.
- *
- * See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
- */
-export interface ContentReasoning {
-  internal: unknown;
-  type: Type8;
-  reasoning: Reasoning;
-  signature: Signature;
-  redacted: Redacted;
-}
-/**
  * Image content.
  */
 export interface ContentImage {
   internal: unknown;
-  type: Type9;
+  type: Type8;
   image: Image;
   detail: Detail;
 }
@@ -1225,7 +1214,7 @@ export interface ContentImage {
  */
 export interface ContentAudio {
   internal: unknown;
-  type: Type10;
+  type: Type9;
   audio: Audio;
   format: Format1;
 }
@@ -1234,16 +1223,39 @@ export interface ContentAudio {
  */
 export interface ContentVideo {
   internal: unknown;
-  type: Type11;
+  type: Type10;
   video: Video;
   format: Format2;
+}
+/**
+ * Reasoning content.
+ *
+ * See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
+ */
+export interface ContentReasoning {
+  internal: unknown;
+  type: Type11;
+  reasoning: Reasoning;
+  signature: Signature;
+  redacted: Redacted;
+}
+export interface ContentToolUse {
+  internal: unknown;
+  type: Type12;
+  tool_type: ToolType;
+  id: Id2;
+  name: Name8;
+  context: Context;
+  arguments: JsonValue;
+  result: JsonValue;
+  error: Error;
 }
 /**
  * Model internal.
  */
 export interface ContentData {
   internal: unknown;
-  type: Type12;
+  type: Type13;
   data: Data;
 }
 export interface Data {
@@ -1253,7 +1265,7 @@ export interface Data {
  * User chat message.
  */
 export interface ChatMessageUser {
-  id: Id2;
+  id: Id3;
   content: Content1;
   source: Source1;
   metadata: Metadata6;
@@ -1265,7 +1277,7 @@ export interface ChatMessageUser {
  * Assistant chat message.
  */
 export interface ChatMessageAssistant {
-  id: Id3;
+  id: Id4;
   content: Content2;
   source: Source2;
   metadata: Metadata7;
@@ -1275,13 +1287,13 @@ export interface ChatMessageAssistant {
   model: Model2;
 }
 export interface ToolCall {
-  id: Id4;
+  id: Id5;
   function: Function;
   arguments: Arguments;
   internal: unknown;
   parse_error: ParseError;
   view: ToolCallContent | null;
-  type: Type13;
+  type: Type14;
 }
 export interface Arguments {
   [k: string]: unknown;
@@ -1298,7 +1310,7 @@ export interface ToolCallContent {
  * Tool chat message.
  */
 export interface ChatMessageTool {
-  id: Id5;
+  id: Id6;
   content: Content4;
   source: Source3;
   metadata: Metadata8;
@@ -1309,7 +1321,7 @@ export interface ChatMessageTool {
   error: ToolCallError | null;
 }
 export interface ToolCallError {
-  type: Type14;
+  type: Type15;
   message: Message1;
 }
 /**
@@ -1321,7 +1333,7 @@ export interface ModelOutput {
   usage: ModelUsage1 | null;
   time: Time;
   metadata: Metadata9;
-  error: Error;
+  error: Error1;
 }
 /**
  * Choice generated for completion.
@@ -1390,7 +1402,7 @@ export interface Sample {
   input: Input1;
   choices: Choices2;
   target: Target1;
-  id: Id6;
+  id: Id7;
   metadata: Metadata13;
   sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
@@ -1407,7 +1419,7 @@ export interface SampleLimitEvent {
   metadata: Metadata14;
   pending: Pending1;
   event: Event1;
-  type: Type15;
+  type: Type16;
   message: Message2;
   limit: Limit1;
 }
@@ -1490,7 +1502,7 @@ export interface ModelEvent {
   config: GenerateConfig;
   output: ModelOutput;
   retries: Retries;
-  error: Error1;
+  error: Error2;
   cache: Cache;
   call: ModelCall | null;
   completed: Completed1;
@@ -1523,7 +1535,7 @@ export interface ModelEvent {
  * ```
  */
 export interface ToolInfo {
-  name: Name8;
+  name: Name9;
   description: Description2;
   parameters: ToolParams;
   options: Options3;
@@ -1532,7 +1544,7 @@ export interface ToolInfo {
  * Description of tool parameters object in JSON Schema format.
  */
 export interface ToolParams {
-  type: Type16;
+  type: Type17;
   properties: Properties1;
   required: Required1;
   additionalProperties: Additionalproperties1;
@@ -1541,7 +1553,7 @@ export interface Properties1 {
   [k: string]: JSONSchema;
 }
 export interface ToolFunction {
-  name: Name9;
+  name: Name10;
 }
 /**
  * Model call (raw request/response data).
@@ -1568,8 +1580,8 @@ export interface ToolEvent {
   metadata: Metadata19;
   pending: Pending6;
   event: Event6;
-  type: Type17;
-  id: Id7;
+  type: Type18;
+  id: Id8;
   function: Function2;
   arguments: Arguments1;
   internal: unknown;
@@ -1678,7 +1690,7 @@ export interface LoggerEvent {
  * Message written to Python log.
  */
 export interface LoggingMessage {
-  name: Name10;
+  name: Name11;
   level: Level;
   message: Message4;
   created: Created1;
@@ -1711,10 +1723,10 @@ export interface SpanBeginEvent {
   metadata: Metadata26;
   pending: Pending13;
   event: Event13;
-  id: Id8;
+  id: Id9;
   parent_id: ParentId;
-  type: Type18;
-  name: Name11;
+  type: Type19;
+  name: Name12;
 }
 /**
  * Mark the end of a transcript span.
@@ -1727,7 +1739,7 @@ export interface SpanEndEvent {
   metadata: Metadata27;
   pending: Pending14;
   event: Event14;
-  id: Id9;
+  id: Id10;
 }
 /**
  * Step within current sample or subtask.
@@ -1741,8 +1753,8 @@ export interface StepEvent {
   pending: Pending15;
   event: Event15;
   action: Action1;
-  type: Type19;
-  name: Name12;
+  type: Type20;
+  name: Name13;
 }
 /**
  * Subtask spawned.
@@ -1755,8 +1767,8 @@ export interface SubtaskEvent {
   metadata: Metadata29;
   pending: Pending16;
   event: Event16;
-  name: Name13;
-  type: Type20;
+  name: Name14;
+  type: Type21;
   input: Input5;
   result: Result2;
   events: Events2;
@@ -1779,7 +1791,7 @@ export interface Attachments {
  * Limit encountered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type21;
+  type: Type22;
   limit: Limit2;
 }
 /**

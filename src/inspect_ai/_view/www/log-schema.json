@@ -352,9 +352,6 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
-                  },
-                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -362,6 +359,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
                   },
                   {
                     "$ref": "#/$defs/ContentData"
@@ -488,9 +491,6 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
-                  },
-                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -498,6 +498,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
                   },
                   {
                     "$ref": "#/$defs/ContentData"
@@ -595,9 +601,6 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
-                  },
-                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -605,6 +608,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
                   },
                   {
                     "$ref": "#/$defs/ContentData"
@@ -740,9 +749,6 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
-                    "$ref": "#/$defs/ContentReasoning"
-                  },
-                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -750,6 +756,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
                   },
                   {
                     "$ref": "#/$defs/ContentData"
@@ -1165,6 +1177,83 @@
         "citations"
       ],
       "title": "ContentText",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentToolUse": {
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "tool_use",
+          "default": "tool_use",
+          "title": "Type",
+          "type": "string"
+        },
+        "tool_type": {
+          "title": "Tool Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context"
+        },
+        "arguments": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "result": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "tool_type",
+        "id",
+        "name",
+        "context",
+        "arguments",
+        "result",
+        "error"
+      ],
+      "title": "ContentToolUse",
       "type": "object",
       "additionalProperties": false
     },
@@ -6416,9 +6505,6 @@
               "$ref": "#/$defs/ContentText"
             },
             {
-              "$ref": "#/$defs/ContentReasoning"
-            },
-            {
               "$ref": "#/$defs/ContentImage"
             },
             {
@@ -6428,16 +6514,10 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
-              "$ref": "#/$defs/ContentData"
-            },
-            {
               "items": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentReasoning"
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
@@ -6447,9 +6527,6 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
