@@ -1181,6 +1181,7 @@
       "additionalProperties": false
     },
     "ContentToolUse": {
+      "description": "Server side tool use.",
       "properties": {
         "internal": {
           "anyOf": [

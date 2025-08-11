@@ -1250,6 +1250,9 @@ export interface ContentData {
 export interface Data {
   [k: string]: JsonValue;
 }
+/**
+ * Server side tool use.
+ */
 export interface ContentToolUse {
   internal: unknown;
   type: Type13;
