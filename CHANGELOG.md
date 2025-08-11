@@ -1,8 +1,13 @@
 ## Unreleased
 
+- Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
+- Inspect View: Improved handling of scores and messages with large or complex metadata.
+
+## 0.3.122 (11 August 2025)
+
 - OpenAI: Enable native `web_search()` tool for GPT-5.
 - OpenAI: Convert "web_search" tool choice to native "web_search_preview" type.
-- Nan values returned from scorers will be excluded from reductions when reducing epochs.
+- Apply `sample_shuffle` for eval retry.
 
 ## 0.3.121 (10 August 2025)
 

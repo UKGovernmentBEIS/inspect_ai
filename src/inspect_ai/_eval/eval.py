@@ -967,6 +967,7 @@ async def eval_retry_async(
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
         sample_id = eval_log.eval.config.sample_id
+        sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
             if eval_log.eval.config.epochs
@@ -1049,6 +1050,7 @@ async def eval_retry_async(
                 log_format=log_format,
                 limit=limit,
                 sample_id=sample_id,
+                sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
                 retry_on_error=retry_on_error,
