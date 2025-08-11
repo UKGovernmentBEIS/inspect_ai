@@ -9,7 +9,7 @@ from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
-from inspect_ai._util.error import ConcurrentModificationError, EvalError
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
 from inspect_ai._util.trace import trace_action
 
@@ -185,16 +185,16 @@ class JSONRecorder(FileRecorder):
     ) -> None:
         from inspect_ai.log._file import eval_log_json
 
+        # sort samples before writing as they can come in out of order
+        if log.samples:
+            sort_samples(log.samples)
+
         fs = filesystem(location)
         if fs.is_s3() and if_match_etag:
             # Use S3 conditional write
             await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
         else:
             # Standard write
-            # sort samples before writing as they can come in out of order
-            if log.samples:
-                sort_samples(log.samples)
-
             # get log as bytes
             log_bytes = eval_log_json(log)
 
@@ -207,34 +207,16 @@ class JSONRecorder(FileRecorder):
         cls, location: str, log: EvalLog, etag: str, fs: FileSystem
     ) -> None:
         """Perform S3 conditional write using aioboto3."""
-        from urllib.parse import urlparse
-
-        from botocore.exceptions import ClientError
-
         from inspect_ai.log._file import eval_log_json
 
-        parsed = urlparse(location)
-        bucket = parsed.netloc
-        key = parsed.path.lstrip("/")
+        from .eval import _s3_bucket_and_key, _write_s3_conditional
 
-        # sort samples before writing as they can come in out of order
-        if log.samples:
-            sort_samples(log.samples)
+        bucket, key = _s3_bucket_and_key(location)
 
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        with trace_action(logger, "Log Conditional Write", location):
-            try:
-                from .eval import _s3_conditional_put_object
-
-                await _s3_conditional_put_object(fs, bucket, key, log_bytes, etag)
-            except ClientError as e:
-                if e.response["Error"]["Code"] == "PreconditionFailed":
-                    raise ConcurrentModificationError(
-                        f"Log file was modified by another process. Expected ETag: {etag}"
-                    )
-                raise
+        await _write_s3_conditional(fs, bucket, key, log_bytes, etag, location, logger)
 
 
 def _validate_version(ver: int) -> None:

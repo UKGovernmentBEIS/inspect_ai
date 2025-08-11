@@ -55,7 +55,7 @@ class PrerequisiteError(Exception):
         self.message = message
 
 
-class ConcurrentModificationError(Exception):
+class WriteConflictError(Exception):
     """Exception raised when a conditional write fails due to concurrent modification.
 
     This error occurs when attempting to write to a log file that has been

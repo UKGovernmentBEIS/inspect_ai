@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import tempfile
 from logging import getLogger
@@ -11,7 +12,7 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
-from inspect_ai._util.error import ConcurrentModificationError, EvalError
+from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
@@ -271,13 +272,8 @@ class EvalRecorder(FileRecorder):
     ) -> None:
         """Perform S3 conditional write for .eval format using boto3."""
         import tempfile
-        from urllib.parse import urlparse
 
-        from botocore.exceptions import ClientError
-
-        parsed = urlparse(location)
-        bucket = parsed.netloc
-        key = parsed.path.lstrip("/")
+        bucket, key = _s3_bucket_and_key(location)
 
         # create the eval log in a temporary directory first
         import os
@@ -293,15 +289,7 @@ class EvalRecorder(FileRecorder):
             with open(temp_eval_file, "rb") as f:
                 log_bytes = f.read()
 
-        with trace_action(logger, "Log Conditional Write", location):
-            try:
-                await _s3_conditional_put_object(fs, bucket, key, log_bytes, etag)
-            except ClientError as e:
-                if e.response["Error"]["Code"] == "PreconditionFailed":
-                    raise ConcurrentModificationError(
-                        f"Log file was modified by another process. Expected ETag: {etag}"
-                    )
-                raise
+        await _write_s3_conditional(fs, bucket, key, log_bytes, etag, location, logger)
 
 
 async def _write_eval_log_with_recorder(
@@ -316,6 +304,16 @@ async def _write_eval_log_with_recorder(
     await recorder.log_finish(
         log.eval, log.status, log.stats, log.results, log.reductions, log.error
     )
+
+
+def _s3_bucket_and_key(location: str) -> tuple[str, str]:
+    """Extract S3 bucket and key from an S3 URL."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(location)
+    bucket = parsed.netloc
+    key = parsed.path.lstrip("/")
+    return bucket, key
 
 
 async def _s3_conditional_put_object(
@@ -338,6 +336,31 @@ async def _s3_conditional_put_object(
             Body=body,
             IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
         )
+
+
+async def _write_s3_conditional(
+    fs: FileSystem,
+    bucket: str,
+    key: str,
+    body: bytes,
+    etag: str,
+    location: str,
+    logger: logging.Logger,
+) -> None:
+    """Write to S3 with conditional check and error handling."""
+    from botocore.exceptions import ClientError
+
+    from inspect_ai._util.trace import trace_action
+
+    with trace_action(logger, "Log Conditional Write", location):
+        try:
+            await _s3_conditional_put_object(fs, bucket, key, body, etag)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "PreconditionFailed":
+                raise WriteConflictError(
+                    f"Log file was modified by another process. Expected ETag: {etag}"
+                )
+            raise
 
 
 def read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:

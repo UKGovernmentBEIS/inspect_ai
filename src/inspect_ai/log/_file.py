@@ -138,6 +138,10 @@ def write_eval_log(
           (defaults to 'auto' based on `log_file` extension)
        if_match_etag (str | None): ETag for conditional write. If provided
           and writing to S3, will only write if the current ETag matches.
+
+    Raises:
+       WriteConflictError: If if_match_etag is provided and doesn't match
+          the current ETag of the file in S3.
     """
     # don't mix trio and asyncio
     if current_async_backend() == "trio":

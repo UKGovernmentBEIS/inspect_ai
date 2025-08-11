@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from inspect_ai._util.error import ConcurrentModificationError
+from inspect_ai._util.error import WriteConflictError
 from inspect_ai.log import read_eval_log, write_eval_log
 
 
@@ -106,7 +106,7 @@ def test_s3_conditional_write_error(sample_log, mock_s3):
         log.eval.metadata = {}
     log.eval.metadata["modified_by"] = "original_process"
 
-    with pytest.raises(ConcurrentModificationError) as exc_info:
+    with pytest.raises(WriteConflictError) as exc_info:
         write_eval_log(log, log_path, if_match_etag=log.etag)
 
     # verify error contains expected information
@@ -149,7 +149,7 @@ def test_s3_concurrent_modification_scenario(sample_log, mock_s3):
     log2.eval.metadata["counter"] = 1
     log2.eval.metadata["history"] = log2.eval.metadata.get("history", []) + ["Party B"]
 
-    with pytest.raises(ConcurrentModificationError):
+    with pytest.raises(WriteConflictError):
         write_eval_log(log2, log_path, if_match_etag=log2.etag)
 
     # party 2 reads again and retries
