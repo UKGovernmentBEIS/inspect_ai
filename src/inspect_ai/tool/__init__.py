@@ -12,6 +12,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai._util.deprecation import relocated_module_attribute
@@ -77,6 +78,7 @@ __all__ = [
     "ContentReasoning",
     "ContentText",
     "ContentVideo",
+    "ContentToolUse",
     "ToolCall",
     "ToolCallContent",
     "ToolCallModelInput",

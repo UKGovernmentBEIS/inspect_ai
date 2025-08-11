@@ -14,6 +14,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai._util.deprecation import relocated_module_attribute
@@ -70,6 +71,7 @@ __all__ = [
     "CachePolicy",
     "ContentAudio",
     "ContentData",
+    "ContentToolUse",
     "ContentImage",
     "ContentReasoning",
     "ContentText",
