@@ -15,8 +15,30 @@ Runtime injection of `inspect-tool-support` into arbitrary running containers, f
 - Target OS support: Ubuntu, Debian, Kali (initially)
 
 #### Build Tools
-- **PyInstaller**: Bundles Python application and all dependencies into a single executable, including the Python interpreter, libraries, and application code
-- **StaticX**: Post-processes PyInstaller output to create a fully static binary that includes all shared libraries, eliminating runtime dependencies on the target system
+- **PyInstaller**: Bundles Python application and all dependencies into a single executable, including the Python interpreter, libraries, and application code. However, PyInstaller executables still depend on system shared libraries like `libc.so.6`, `libssl.so.1.1`, `libffi.so.6`, and `libz.so.1`
+- **StaticX**: Post-processes PyInstaller output to create a fully static binary that includes all shared libraries, eliminating runtime dependencies on the target system. StaticX bundles all system libraries directly into the executable, making it truly portable across different Linux distributions and versions
+
+> [!NOTE]
+> `PyInstaller` output might still depend on system shared libraries like:
+>   - libc.so.6 (GNU C Library)
+>   - libssl.so.1.1 (OpenSSL library)
+>   - libffi.so.6 (Foreign Function Interface library)
+>   - libz.so.1 (zlib compression library)
+> 
+>   So when you run ldd on a `PyInstaller` executable, you might see:
+>   linux-vdso.so.1 (0x00007fff123456789)
+>   libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f1234567890)
+>   libssl.so.1.1 => /usr/lib/x86_64-linux-gnu/libssl.so.1.1 (0x00007f1234567891)
+> 
+>   This means the executable would fail on a target system that has:
+>   - Different glibc version
+>   - Missing OpenSSL libraries
+>   - Different library paths
+> 
+>   `StaticX` fixes this by bundling all these shared libraries directly into the executable, so `ldd` on the `StaticX` output shows: not a dynamic executable
+> 
+>   This makes the binary truly portable across different Linux distributions and versions, which is crucial for injecting into arbitrary user containers that may have different library versions or missing dependencies.
+
 
 #### Build Process
 - **Docker Image Build**: Creates a container image with PyInstaller, StaticX, and all build dependencies
