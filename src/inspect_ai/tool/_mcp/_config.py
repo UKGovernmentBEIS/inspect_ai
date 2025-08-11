@@ -1,4 +1,3 @@
-from dataclasses import field
 from pathlib import Path
 from typing import Literal
 
@@ -35,7 +34,7 @@ class MCPServerConfigStdio(MCPServerConfig):
     cwd: str | Path | None = Field(default=None)
     """The working directory to use when spawning the process."""
 
-    env: dict[str, str] | None = field(default=None)
+    env: dict[str, str] | None = Field(default=None)
     """The environment to use when spawning the process in addition to the platform specific set of default environment variables (e.g. "HOME", "LOGNAME", "PATH","SHELL", "TERM", and "USER" for Posix-based systems)"""
 
 

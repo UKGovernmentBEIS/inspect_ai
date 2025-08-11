@@ -8,6 +8,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai.model._chat_message import ChatMessage
@@ -25,6 +26,7 @@ def thin_input(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
                 filtered_content: list[
                     ContentText
                     | ContentReasoning
+                    | ContentToolUse
                     | ContentImage
                     | ContentAudio
                     | ContentVideo

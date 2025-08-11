@@ -45,6 +45,32 @@ class ContentReasoning(ContentBase):
     """Indicates that the explicit content of this reasoning block has been redacted."""
 
 
+class ContentToolUse(ContentBase):
+    type: Literal["tool_use"] = Field(default="tool_use")
+    """Type."""
+
+    tool_type: str
+    """The type of the tool call."""
+
+    id: str
+    """The unique ID of the tool call."""
+
+    name: str
+    """Name of the tool."""
+
+    context: str | None = Field(default=None)
+    """Tool context (e.g. MCP Server)"""
+
+    arguments: JsonValue
+    """Arguments passed to the tool."""
+
+    result: JsonValue
+    """Result from the tool call."""
+
+    error: str | None = Field(default=None)
+    """The error from the tool call (if any)."""
+
+
 class ContentImage(ContentBase):
     """Image content."""
 
@@ -100,6 +126,7 @@ class ContentData(ContentBase):
 Content = Union[
     ContentText,
     ContentReasoning,
+    ContentToolUse,
     ContentImage,
     ContentAudio,
     ContentVideo,

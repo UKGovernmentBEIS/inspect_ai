@@ -53,6 +53,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
@@ -607,7 +608,9 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentReasoning):
         return Part(text=content.reasoning or NO_CONTENT, thought=True)
     elif isinstance(content, ContentData):
-        assert False, "Google provider should never encounter ContentData"
+        raise RuntimeError("Google provider should never encounter ContentData")
+    elif isinstance(content, ContentToolUse):
+        raise RuntimeError("Google provider should never encounter ContentToolUse")
     else:
         return await chat_content_to_part(client, content)
 
@@ -748,6 +751,7 @@ def completion_choice_from_candidate(
                 ContentText
                 | ContentReasoning
                 | ContentImage
+                | ContentToolUse
                 | ContentAudio
                 | ContentVideo
                 | ContentData

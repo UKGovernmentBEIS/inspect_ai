@@ -33,9 +33,9 @@ from openai.types.responses.response_create_params import (
 )
 from openai.types.responses.response_input_item_param import (
     FunctionCallOutput,
+    McpCall,
+    McpListTools,
     Message,
-    # McpListTools,
-    # McpCall,
 )
 from openai.types.responses.response_output_text import (
     Annotation,
@@ -296,6 +296,10 @@ def _chat_message_assistant_from_openai_response(
                         reasoning="\n".join([s.text for s in summary]), signature=id
                     )
                 )
+            case McpListTools():
+                pass
+            case McpCall():
+                pass
             case _:
                 stop_reason = "tool_calls"
                 match output:

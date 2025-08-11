@@ -39,10 +39,10 @@ from anthropic.types import (
     message_create_params,
 )
 from anthropic.types.beta import (
+    # BetaMCPToolUseBlock,
     # BetaMCPToolResultBlock,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
-    # BetaMCPToolUseBlock,
     # BetaMCPToolUseBlockParam,
     # BetaMessage,
     # BetaMessageParam,
