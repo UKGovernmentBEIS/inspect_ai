@@ -15,10 +15,10 @@ export const getColumns = (columnIds?: string[]) => {
     iconColumn(),
     taskColumn(),
     modelColumn(),
-    fileNameColumn(),
-    completedDateColumn(),
     scoreColumn(),
     statusColumn(),
+    completedDateColumn(),
+    fileNameColumn(),
   ];
   if (columnIds) {
     return allColumns.filter((col) => columnIds.includes(col.id || ""));

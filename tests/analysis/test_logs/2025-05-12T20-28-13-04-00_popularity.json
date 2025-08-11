@@ -176,7 +176,10 @@
         }
       },
       "metadata": {
-        "label_confidence": 0.8860552919198255
+        "label_confidence": 0.8860552919198255,
+        "nested": {
+          "foo": "bar"
+        }
       },
       "store": {},
       "events": [

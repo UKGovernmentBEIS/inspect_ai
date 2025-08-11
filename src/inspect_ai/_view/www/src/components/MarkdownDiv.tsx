@@ -1,7 +1,6 @@
 import clsx from "clsx";
-import "katex/dist/katex.min.css";
 import markdownit from "markdown-it";
-import markdownitKatex from "markdown-it-katex";
+import markdownitMathjax3 from "markdown-it-mathjax3";
 import { CSSProperties, forwardRef } from "react";
 import "./MarkdownDiv.css";
 
@@ -34,11 +33,8 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
         html: true,
       });
 
-      // Add KaTeX support
-      md.use(markdownitKatex, {
-        throwOnError: false,
-        errorColor: "#cc0000",
-      });
+      // Add MathJax support
+      md.use(markdownitMathjax3);
 
       renderedHtml = md.render(preparedForMarkdown);
     } catch (ex) {
@@ -81,20 +77,32 @@ const protectBackslashesInLatex = (content: string): string => {
     // Match block math: $$...$$
     const blockRegex = /\$\$([\s\S]*?)\$\$/g;
 
-    // Replace backslashes in LaTeX blocks with a placeholder
+    // Replace backslashes and HTML characters in LaTeX blocks with placeholders
     let result = content.replace(inlineRegex, (_match, latex) => {
-      const protectedTex = latex.replace(/\\/g, "___LATEX_BACKSLASH___");
+      const protectedTex = latex
+        .replace(/\\/g, "___LATEX_BACKSLASH___")
+        .replace(/</g, "___LATEX_LT___")
+        .replace(/>/g, "___LATEX_GT___")
+        .replace(/&/g, "___LATEX_AMP___")
+        .replace(/'/g, "___LATEX_APOS___")
+        .replace(/"/g, "___LATEX_QUOT___");
       return `$${protectedTex}$`;
     });
 
     result = result.replace(blockRegex, (_match, latex) => {
-      const protectedTex = latex.replace(/\\/g, "___LATEX_BACKSLASH___");
+      const protectedTex = latex
+        .replace(/\\/g, "___LATEX_BACKSLASH___")
+        .replace(/</g, "___LATEX_LT___")
+        .replace(/>/g, "___LATEX_GT___")
+        .replace(/&/g, "___LATEX_AMP___")
+        .replace(/'/g, "___LATEX_APOS___")
+        .replace(/"/g, "___LATEX_QUOT___");
       return `$$${protectedTex}$$`;
     });
 
     return result;
   } catch (error) {
-    console.error("Error protecting LaTeX backslashes:", error);
+    console.error("Error protecting LaTeX content:", error);
     return content;
   }
 };
@@ -105,16 +113,22 @@ const restoreBackslashesForLatex = (content: string): string => {
   }
 
   try {
-    // First restore backslashes
-    let result = content.replace(/___LATEX_BACKSLASH___/g, "\\");
+    // Restore all protected LaTeX content
+    let result = content
+      .replace(/___LATEX_BACKSLASH___/g, "\\")
+      .replace(/___LATEX_LT___/g, "<")
+      .replace(/___LATEX_GT___/g, ">")
+      .replace(/___LATEX_AMP___/g, "&")
+      .replace(/___LATEX_APOS___/g, "'")
+      .replace(/___LATEX_QUOT___/g, '"');
 
-    // Then fix dots notation for better KaTeX compatibility
+    // Then fix dots notation for better MathJax compatibility
     // This replaces \dots with \ldots which has better support
     result = fixDotsNotation(result);
 
     return result;
   } catch (error) {
-    console.error("Error restoring LaTeX backslashes:", error);
+    console.error("Error restoring LaTeX content:", error);
     return content; // Return input content if something goes wrong
   }
 };

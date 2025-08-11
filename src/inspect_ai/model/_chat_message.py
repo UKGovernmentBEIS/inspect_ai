@@ -6,6 +6,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
 
@@ -28,6 +29,20 @@ class ChatMessageBase(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional message metadata."""
+
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Metadata as a Pydantic model.
+
+        Args:
+           metadata_cls: BaseModel derived class.
+
+        Returns:
+           BaseModel: Instance of metadata_cls.
+        """
+        if self.metadata is None:
+            raise ValueError("ChatMessage does not have metadata")
+
+        return metadata_as(self.metadata, metadata_cls)
 
     internal: JsonValue | None = Field(default=None)
     """Model provider specific payload - typically used to aid transformation back to model types."""

@@ -1,4 +1,5 @@
 import json
+from functools import reduce
 from typing import TYPE_CHECKING, Sequence, TypedDict, cast
 
 from openai.types.responses import (
@@ -85,7 +86,7 @@ async def _openai_input_item_from_chat_message(
         content = await _openai_responses_content_list_param(message.content)
         return (
             [Message(type="message", role="developer", content=content)]
-            if openai_api.is_o_series()
+            if openai_api.is_o_series() or openai_api.is_gpt_5()
             else [Message(type="message", role="system", content=content)]
         )
     elif message.role == "user":
@@ -167,6 +168,9 @@ def openai_responses_tool_choice(
                 ToolChoiceTypesParam(type="computer_use_preview")
                 if tool_choice.name == "computer"
                 and any(tool["type"] == "computer_use_preview" for tool in tools)
+                else ToolChoiceTypesParam(type="web_search_preview")
+                if tool_choice.name == "web_search"
+                and any(tool["type"] == "web_search_preview" for tool in tools)
                 else ToolChoiceFunctionParam(type="function", name=tool_choice.name)
             )
 
@@ -561,21 +565,21 @@ def _to_inspect_citation(input: Annotation) -> Citation:
 def _filter_consecutive_reasoning_blocks(
     content_list: list[ContentText | ContentReasoning],
 ) -> list[ContentText | ContentReasoning]:
-    return [
-        content
-        for i, content in enumerate(content_list)
-        if _should_keep_content(i, content, content_list)
-    ]
+    return reduce(_reasoning_reducer, content_list, [])
 
 
-def _should_keep_content(
-    i: int,
-    content: ContentText | ContentReasoning,
-    content_list: list[ContentText | ContentReasoning],
-) -> bool:
-    return (
-        True
-        if not isinstance(content, ContentReasoning)
-        else i == len(content_list) - 1
-        or not isinstance(content_list[i + 1], ContentReasoning)
-    )
+def _reasoning_reducer(
+    acc: list[ContentText | ContentReasoning], curr: ContentText | ContentReasoning
+) -> list[ContentText | ContentReasoning]:
+    # Keep only the last ContentReasoning in each consecutive run
+    if not acc:
+        acc = [curr]
+
+    # Replace previous with current if they're both ContentReasoning's
+    elif isinstance(acc[-1], ContentReasoning) and isinstance(curr, ContentReasoning):
+        acc[-1] = curr
+
+    else:
+        acc.append(curr)
+
+    return acc

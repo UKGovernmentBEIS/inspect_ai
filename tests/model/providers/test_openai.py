@@ -59,19 +59,19 @@ async def test_openai_o_series_developer_messages() -> None:
 @pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_o_series_reasoning_effort() -> None:
-    async def check_reasoning_effort(model_name: str):
+    async def check_reasoning_effort(model_name: str, effort: str = "medium"):
         model = get_model(
             model_name,
-            config=GenerateConfig(reasoning_effort="medium", parallel_tool_calls=True),
+            config=GenerateConfig(reasoning_effort=effort, parallel_tool_calls=True),  # type: ignore
         )
         message = ChatMessageUser(content="This is a test string. What are you?")
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
-        print(response)
 
     await check_reasoning_effort("openai/o1")
     await check_reasoning_effort("openai/o1-mini")
     await check_reasoning_effort("openai/o3-mini")
+    await check_reasoning_effort("openai/gpt-5-mini", "minimal")
 
 
 @pytest.mark.anyio
@@ -109,7 +109,7 @@ def test_openai_flex_requests_not_available():
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "error"
-    assert "Flex is not available for this model" in str(log.error)
+    assert "Invalid service_tier argument" in str(log.error)
 
 
 def encode_internal(obj):

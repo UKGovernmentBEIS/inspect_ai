@@ -17,9 +17,6 @@ pip install openai
 export OPENAI_API_KEY=your-openai-api-key
 inspect eval arc.py --model openai/gpt-4o-mini
 ```
-
-For the `openai` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
-
 The following environment variables are supported by the OpenAI provider
 
 | Variable | Description |
@@ -28,6 +25,37 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+
+### Model Args
+
+The `openai` provider supports the following custom model args (other model args are forwarded to the constructor of the `AsyncOpenAI` class):
+
+| Model Arg | Description |
+|--------------------------|----------------------------------------------|
+| `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
+| `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
+| `background` | Run generate requests asynchronously, polling response objects to check status over time. |
+| `safety_identifier` | A stable identifier used to help detect users of your application. |
+| `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
+| `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
+
+: {tbl-colwidths=\[35,65\]}
+
+For example:
+
+``` bash
+inspect eval arc.py --model openai/gpt-4o-mini \ 
+   -M responses_api=true
+```
+
+Or from Python:
+
+```{python}
+eval(
+    "arc.py", model=" openai/gpt-4o-mini", 
+    model_args= { "responses_api": True }
+)
+```
 
 ### Responses API
 
@@ -64,9 +92,9 @@ inspect eval math.py --model openai/o4-mini \
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
 
-| Variable           | Description                      |
-|--------------------|----------------------------------|
-| `AZUREAI_OPENAI_API_KEY`  | API key credentials (optional).  |
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional). |
 | `AZUREAI_OPENAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
@@ -180,12 +208,14 @@ gcloud auth application-default login
 
 If you have authorised the CLI then no additional auth is needed for the model API.
 
+You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override the default base URL for Vertex.
+
 ### Safety Settings {#safety-settings}
 
 Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
 
 | Category | Description |
-|-------------------------|-----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `civic_integrity` | Election-related queries. |
 | `sexually_explicit` | Contains references to sexual acts or other lewd content. |
 | `hate_speech` | Content that is rude, disrespectful, or profane. |
@@ -197,7 +227,7 @@ Google models make available [safety settings](https://ai.google.dev/gemini-api/
 For each category, the following block thresholds are available:
 
 | Block Threshold | Description |
-|-------------------------|-----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `none` | Always show regardless of probability of unsafe content |
 | `only_high` | Block when high probability of unsafe content |
 | `medium_and_above` | Block when medium or high probability of unsafe content |
@@ -266,7 +296,7 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
 
 ## Grok {#grok}
@@ -333,9 +363,9 @@ For the `azureai` provider, custom model args (`-M`) are forwarded to the constr
 
 The following environment variables are supported by the Azure AI provider
 
-| Variable           | Description                      |
-|--------------------|----------------------------------|
-| `AZUREAI_API_KEY`  | API key credentials (optional).  |
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AZUREAI_API_KEY` | API key credentials (optional). |
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
@@ -351,27 +381,6 @@ inspect eval ctf.py -M emulate_tools=true
 
 You can also use this option to disable tool emulation for Llama models with `emulate_tools=false`.
 
-## Vertex AI {#vertex-ai}
-
-::: {.callout-note appearance="simple"}
-If you are using Gemini or Anthropic models on Vertex AI, we recommend you use the Google and Anthropic providers (respectively) which both support models hosted on Vertex:
-
--   [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
--   [Gemini on Vertex AI](#gemini-on-vertex-ai)
-
-If you are using other models hosted on Vertex (e.g. Mistral, Llama, Gemma, etc.) then you should instead use the `vertex` provider as described below.
-:::
-
-To use the [Vertex AI](https://cloud.google.com/vertex-ai) provider, install the `google-cloud-aiplatform` package, [configure your environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1) for Vertex API access, and specify a model using the `--model` option:
-
-``` bash
-inspect eval eval.py --model vertex/mistral-large-2411
-```
-
-The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables.
-
-Vertex AI also provides the same `safety_settings` outlined in the [Google](#safety-settings) provider.
-
 ## Together AI {#together-ai}
 
 To use the [Together AI](https://www.together.ai/) provider, install the `openai` package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -382,7 +391,7 @@ export TOGETHER_API_KEY=your-together-api-key
 inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
 ```
 
-For the `together` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
+For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Together AI provider
 
@@ -409,6 +418,44 @@ The following environment variables are supported by the Groq provider
 |----------------------------|--------------------------------------------|
 | `GROQ_API_KEY` | API key credentials (required). |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
+
+## Fireworks AI {#fireworks-ai}
+
+To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` package (which the Fireworks AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export FIREWORKS_API_KEY=your-firewrks-api-key
+inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
+```
+
+For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the Together AI provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `FIREWORKS_API_KEY` | API key credentials (required). |
+| `FIREWORKS_BASE_URL` | Base URL for requests (optional, defaults to `https://api.fireworks.ai/inference/v1`) |
+
+## SambaNova {#sambanova}
+
+To use the [SambaNova](https://sambanova.ai/) provider, install the `openai` package (which the SambaNova service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export SAMABANOVA_API_KEY=your-sambanova-api-key
+inspect eval arc.py --model sambanova/DeepSeek-V1-0324
+```
+
+For the `sambanova` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the SambaNova provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `SAMBANOVA_API_KEY` | API key credentials (required). |
+| `SAMBANOVA_BASE_URL` | Base URL for requests (optional, defaults to `https://api.sambanova.ai/v1`) |
 
 ## Cloudflare {#cloudflare}
 
@@ -449,6 +496,25 @@ The following environment variables are supported by the Perplexity provider
 
 Perplexity responses include citations when available. These are surfaced as `UrlCitation`s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
 
+## Goodfire {#goodfire}
+
+To use the [Goodfire](https://platform.goodfire.ai/) provider, install the `goodfire` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install goodfire
+export GOODFIRE_API_KEY=your-goodfire-api-key
+inspect eval arc.py --model goodfire/meta-llama/Meta-Llama-3.1-8B-Instruct
+```
+
+For the `goodfire` provider, custom model args (`-M`) are forwarded to `chat.completions.create` method of the `AsyncClient` class.
+
+The following environment variables are supported by the Goodfire provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `GOODFIRE_API_KEY` | API key credentials (required). |
+| `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
+
 ## Hugging Face {#hugging-face}
 
 The [Hugging Face](https://huggingface.co/models) provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. To use the Hugging Face provider, install the `torch`, `transformers`, and `accelerate` packages and specify a model using the `--model` option:
@@ -483,6 +549,25 @@ Or in a call to `get_model()`
 ``` python
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
+
+### Hidden States
+
+If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
+
+``` bash
+$ inspect eval arc.py --model hf/openai-community/gpt2 -M hidden_states=true
+```
+
+Or from Python:
+
+``` python
+model = get_model(
+    model="hf/meta-llama/Llama-3.1-8B-Instruct",
+    hidden_states=True
+)
+```
+
+Activations are available in the "hidden_states" field of `ModelOutput.metadata`. The hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
 
 ### Local Models
 
@@ -555,7 +640,7 @@ vLLM supports tool use and reasoning; however, the usage is often model dependan
 
 Rather than letting Inspect start and stop a vLLM server every time you run an evaluation (which can take several minutes for large models), you can instead start the server manually and then connect to it. To do this, set the model base URL to point to the vLLM server and the API key to the server's API key. For example:
 
-```bash
+``` bash
 $ export VLLM_BASE_URL=http://localhost:8080/v1
 $ export VLLM_API_KEY=<your-server-api-key>
 $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct
@@ -563,7 +648,7 @@ $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct
 
 or
 
-```bash
+``` bash
 $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct --model-base-url http://localhost:8080/v1 -M api_key=<your-server-api-key>
 ```
 
@@ -648,8 +733,8 @@ eval("arc.py", model="transformer_lens/your-model-name", model_args=model_args)
 
 ### Limitations
 
-1. Please note that tool calling is not yet supported for TransformerLens models.
-2. Since the model is loaded dynamically, it is not possible to use cli arguments to specify the model.
+1.  Please note that tool calling is not yet supported for TransformerLens models.
+2.  Since the model is loaded dynamically, it is not possible to use cli arguments to specify the model.
 
 ## Ollama {#ollama}
 
@@ -661,6 +746,8 @@ inspect eval arc.py --model ollama/llama3.1
 ```
 
 Note that you should be sure that Ollama is running on your system before using it with Inspect.
+
+You can enable [Tool Emulation](#tool-emulation-openai) for Ollama models using the `emulate_tools` custom model arg (`-M`).
 
 The following environment variables are supported by the Ollma provider
 
@@ -709,8 +796,18 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
+
+### Tool Emulation {#tool-emulation-openai}
+
+When using OpenAI compatible model providers, tool calling support can be 'emulated' for models that don't yet support it. Use the `emulate_tools` model arg to force tool emulation:
+
+``` bash
+inspect eval ctf.py -M emulate_tools=true
+```
+
+Tool calling emulation works by encoding tool JSON schema in an XML tag and asking the model to make tool calls using another XML tag. This works with varying degrees of efficacy depending on the model and the complexity of the tool schema. Before using tool emulation you should always check if your provider implements native support for tool calling on the model you are using, as that will generally work better.
 
 ## OpenRouter
 
@@ -731,6 +828,8 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 
 : {tbl-colwidths=\[20,85\]}
+
+In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don't yet support tool calling in their API.
 
 The following environment variables are supported by the OpenRouter AI provider
 

@@ -29,6 +29,7 @@ import { EventNode } from "./types";
 interface ModelEventViewProps {
   eventNode: EventNode<ModelEvent>;
   className?: string | string[];
+  showToolCalls: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ interface ModelEventViewProps {
  */
 export const ModelEventView: FC<ModelEventViewProps> = ({
   eventNode,
+  showToolCalls,
   className,
 }) => {
   const event = eventNode.event;
@@ -81,7 +83,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           id={`${eventNode.id}-model-output`}
           messages={[...userMessages, ...(outputMessages || [])]}
           numbered={false}
-          toolCallStyle="omit"
+          toolCallStyle={showToolCalls ? "complete" : "omit"}
         />
         {event.pending ? (
           <div className={clsx(styles.progress)}>

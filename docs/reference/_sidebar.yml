@@ -91,10 +91,12 @@ website:
           href: reference/inspect_ai.tool.qmd#mcp_connection
         - text: mcp_server_stdio
           href: reference/inspect_ai.tool.qmd#mcp_server_stdio
-        - text: mcp_server_sse
-          href: reference/inspect_ai.tool.qmd#mcp_server_sse
+        - text: mcp_server_http
+          href: reference/inspect_ai.tool.qmd#mcp_server_http
         - text: mcp_server_sandbox
           href: reference/inspect_ai.tool.qmd#mcp_server_sandbox
+        - text: mcp_server_sse
+          href: reference/inspect_ai.tool.qmd#mcp_server_sse
         - text: mcp_tools
           href: reference/inspect_ai.tool.qmd#mcp_tools
         - text: MCPServer
@@ -494,8 +496,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#evaltask
         - text: EvalModel
           href: reference/inspect_ai.analysis.qmd#evalmodel
-        - text: EvalConfig
-          href: reference/inspect_ai.analysis.qmd#evalconfig
+        - text: EvalConfiguration
+          href: reference/inspect_ai.analysis.qmd#evalconfiguration
         - text: EvalResults
           href: reference/inspect_ai.analysis.qmd#evalresults
         - text: EvalScores
@@ -536,8 +538,16 @@ website:
           href: reference/inspect_ai.analysis.qmd#prepare
         - text: log_viewer
           href: reference/inspect_ai.analysis.qmd#log_viewer
+        - text: model_info
+          href: reference/inspect_ai.analysis.qmd#model_info
+        - text: task_info
+          href: reference/inspect_ai.analysis.qmd#task_info
+        - text: frontier
+          href: reference/inspect_ai.analysis.qmd#frontier
         - text: Operation
           href: reference/inspect_ai.analysis.qmd#operation
+        - text: ModelInfo
+          href: reference/inspect_ai.analysis.qmd#modelinfo
         - text: Column
           href: reference/inspect_ai.analysis.qmd#column
         - text: ColumnType

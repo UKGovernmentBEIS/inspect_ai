@@ -14,6 +14,7 @@ export type Task = string;
 export type TaskId = string;
 export type TaskVersion = number | string;
 export type TaskFile = string | null;
+export type TaskDisplayName = string | null;
 export type TaskRegistryName = string | null;
 export type Solver = string | null;
 export type SolverArgs = {
@@ -50,7 +51,7 @@ export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
-export type ReasoningEffort = ("low" | "medium" | "high") | null;
+export type ReasoningEffort = ("minimal" | "low" | "medium" | "high") | null;
 export type ReasoningTokens = number | null;
 export type ReasoningSummary = ("concise" | "detailed" | "auto") | null;
 export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
@@ -93,6 +94,7 @@ export type SampleId =
   | number[]
   | (string | number)[]
   | null;
+export type SampleShuffle = boolean | number | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
 export type Name2 = string;
@@ -777,6 +779,7 @@ export interface EvalSpec {
   task_id: TaskId;
   task_version: TaskVersion;
   task_file: TaskFile;
+  task_display_name: TaskDisplayName;
   task_registry_name: TaskRegistryName;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;
@@ -919,6 +922,7 @@ export interface Args {
 export interface EvalConfig {
   limit: Limit;
   sample_id: SampleId;
+  sample_shuffle: SampleShuffle;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
   approval: ApprovalPolicyConfig | null;

@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
-from typing import TypedDict
+
+from typing_extensions import TypedDict
 
 
 class ComposeServiceHealthcheck(TypedDict, total=False):

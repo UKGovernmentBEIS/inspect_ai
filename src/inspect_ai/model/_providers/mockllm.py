@@ -1,4 +1,4 @@
-from typing import Any, Generator, Iterable, Iterator
+from typing import Any, Callable, Generator, Iterable, Iterator
 
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -14,12 +14,20 @@ class MockLLM(ModelAPI):
     """A mock implementation of the ModelAPI class for testing purposes.
 
     Always returns default_output, unless you pass in a model_args
-    key "custom_outputs" with a value of an Iterable[ModelOutput]
+    key "custom_outputs" with a value of an Iterable[ModelOutput],
+    Generator[ModelOutput, None, None], or a Callable that takes
+    (input, tools, tool_choice, config) and returns a single ModelOutput.
+    The callable acts like a generator with access to generate parameters.
     """
 
     default_output = "Default output from mockllm/model"
 
-    outputs: Iterator[ModelOutput]
+    outputs: (
+        Iterator[ModelOutput]
+        | Callable[
+            [list[ChatMessage], list[ToolInfo], ToolChoice, GenerateConfig], ModelOutput
+        ]
+    )
 
     def __init__(
         self,
@@ -29,19 +37,26 @@ class MockLLM(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         custom_outputs: Iterable[ModelOutput]
         | Generator[ModelOutput, None, None]
+        | Callable[
+            [list[ChatMessage], list[ToolInfo], ToolChoice, GenerateConfig], ModelOutput
+        ]
         | None = None,
         **model_args: dict[str, Any],
     ) -> None:
         super().__init__(model_name, base_url, api_key, [], config)
         self.model_args = model_args
         if custom_outputs is not None:
-            # We cannot rely on the user of this model giving custom_outputs the correct type since they do not call this constructor
-            # Hence this type check and the one in generate.
-            if not isinstance(custom_outputs, Iterable | Generator):
+            # Check if it's a callable function
+            if isinstance(custom_outputs, Generator) or callable(custom_outputs):
+                self.outputs = custom_outputs
+            elif isinstance(custom_outputs, Iterable):
+                self.outputs = iter(custom_outputs)
+            else:
+                # We cannot rely on the user of this model giving custom_outputs the correct type since they do not call this constructor
+                # Hence this type check and the one in generate.
                 raise ValueError(
-                    f"model_args['custom_outputs'] must be an Iterable or a Generator, got {custom_outputs}"
+                    f"model_args['custom_outputs'] must be an Iterable, Generator, or Callable, got {custom_outputs}"
                 )
-            self.outputs = iter(custom_outputs)
         else:
             self.outputs = iter(
                 (
@@ -59,6 +74,10 @@ class MockLLM(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
+        # If we have a custom function, call it with the generate arguments each time
+        if callable(self.outputs):
+            return self.outputs(input, tools, tool_choice, config)
+
         try:
             output = next(self.outputs)
         except StopIteration:

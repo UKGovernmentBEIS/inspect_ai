@@ -1,5 +1,3 @@
-import os
-
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
@@ -76,31 +74,6 @@ def anthropic() -> type[ModelAPI]:
     return AnthropicAPI
 
 
-@modelapi(name="vertex")
-def vertex() -> type[ModelAPI]:
-    FEATURE = "Google Vertex API"
-    PACKAGE = "google-cloud-aiplatform"
-    MIN_VERSION = "1.73.0"
-
-    # workaround log spam
-    # https://github.com/ray-project/ray/issues/24917
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
-
-    # verify we have the package
-    try:
-        import vertexai  # type: ignore  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-    # in the clear
-    from .vertex import VertexAPI  # type: ignore
-
-    return VertexAPI  # type: ignore
-
-
 @modelapi(name="google")
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
@@ -157,7 +130,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.1"
+    MIN_VERSION = "1.9.3"
 
     # verify we have the package
     try:
@@ -194,6 +167,22 @@ def together() -> type[ModelAPI]:
     from .together import TogetherAIAPI
 
     return TogetherAIAPI
+
+
+@modelapi(name="fireworks")
+def fireworks() -> type[ModelAPI]:
+    validate_openai_client("FireworksAI API")
+    from .fireworks import FireworksAIAPI
+
+    return FireworksAIAPI
+
+
+@modelapi(name="sambanova")
+def sambanova() -> type[ModelAPI]:
+    validate_openai_client("SambaNova API")
+    from .sambanova import SambaNovaAPI
+
+    return SambaNovaAPI
 
 
 @modelapi(name="ollama")
@@ -306,10 +295,32 @@ def none() -> type[ModelAPI]:
     return NoModel
 
 
+@modelapi("goodfire")
+def goodfire() -> type[ModelAPI]:
+    """Get the Goodfire API provider."""
+    FEATURE = "Goodfire API"
+    PACKAGE = "goodfire"
+    MIN_VERSION = "0.3.4"  # Support for newer Llama models and OpenAI compatibility
+
+    # verify we have the package
+    try:
+        import goodfire  # type: ignore # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
+    from .goodfire import GoodfireAPI  # type: ignore[attr-defined]
+
+    return GoodfireAPI  # type: ignore[no-any-return]
+
+
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.78.0"
+    MIN_VERSION = "1.99.7"
 
     # verify we have the package
     try:

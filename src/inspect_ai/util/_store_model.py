@@ -1,6 +1,6 @@
 from typing import Any, Type, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from ._store import Store, store
 
@@ -18,13 +18,13 @@ class StoreModel(BaseModel):
     instance: str | None = Field(exclude=True, default=None)
 
     def model_post_init(self, __context: Any) -> None:
-        for name in self.model_fields.keys():
+        for name in self.__class__.model_fields.keys():
             if name == "store":
                 continue
             # if its in the store, then have our dict reflect that
             ns_name = self._ns_name(name)
             if ns_name in self.store:
-                self.__dict__[name] = self.store.get(ns_name)
+                self._get_and_coerce_field(name)
             # if its not in the store, then reflect dict into store
             elif name in self.__dict__.keys():
                 self.store.set(ns_name, self.__dict__[name])
@@ -37,13 +37,13 @@ class StoreModel(BaseModel):
         if name.startswith("__") or name.startswith("model_"):
             return object.__getattribute__(self, name)
         # handle model_fields (except 'store' and 'namespace') by reading the store
-        elif name in object.__getattribute__(self, "model_fields") and name not in [
+        elif name in self.__class__.model_fields and name not in [
             "store",
             "instance",
         ]:
             store_key = self._ns_name(name)
             if store_key in self.store:
-                return self.store.get(store_key)
+                return self._get_and_coerce_field(name)
             else:
                 return object.__getattribute__(self, name)
         # default to super
@@ -52,7 +52,7 @@ class StoreModel(BaseModel):
 
     def __setattr__(self, name: str, value: Any) -> None:
         self._validate_value(name, value)
-        if name in self.model_fields:
+        if name in self.__class__.model_fields:
             # validate with the new value (can throw ValidationError)
             temp_data = self.store._data.copy()
             temp_data[self._ns_name(name)] = value
@@ -74,11 +74,10 @@ class StoreModel(BaseModel):
 
     def _sync_model(self) -> None:
         self._validate_store()
-        for field_name in self.model_fields.keys():
+        for field_name in self.__class__.model_fields.keys():
             if field_name == "store":
                 continue
-            store_value = self.store.get(self._ns_name(field_name))
-            self.__dict__[field_name] = store_value
+            self._get_and_coerce_field(field_name)
 
     def _validate_store(self, data: dict[str, Any] | None = None) -> None:
         # validate store or custom dict
@@ -111,6 +110,63 @@ class StoreModel(BaseModel):
         if self.instance:
             name = name.replace(f"{self.instance}:", "", 1)
         return name
+
+    def _get_and_coerce_field(self, field_name: str) -> Any:
+        """Get a field value from the store, coerce it to the proper type, and update if needed.
+
+        This method:
+        1. Gets the raw value from the store
+        2. Coerces it to the proper type if needed
+        3. Updates both the store and __dict__ if coercion occurred
+        4. Returns the coerced value
+        """
+        ns_name = self._ns_name(field_name)
+        raw_value = self.store.get(ns_name)
+        coerced_value = self._coerce_value(field_name, raw_value)
+
+        # If we coerced the value (created a new object), update the store
+        # so future reads are fast and mutations to mutable objects persist
+        if coerced_value is not raw_value:
+            self.store.set(ns_name, coerced_value)
+
+        # Always update __dict__ to keep it in sync
+        self.__dict__[field_name] = coerced_value
+
+        return coerced_value
+
+    def _coerce_value(self, field_name: str, value: Any) -> Any:
+        """Coerce a raw value from the store to the proper field type.
+
+        This handles nested Pydantic models, lists of models, dicts of models,
+        TypedDicts, dataclasses, tuples, and other complex types.
+        """
+        if field_name not in self.__class__.model_fields or value is None:
+            return value
+
+        field_info = self.__class__.model_fields[field_name]  # pylint: disable=unsubscriptable-object
+        field_type = field_info.annotation
+
+        # Skip coercion for scalar types (they don't need it)
+        if self._is_scalar(value):
+            return value
+
+        # For everything else, attempt coercion with TypeAdapter
+        # This handles BaseModels, TypedDicts, dataclasses, tuples, lists, dicts, etc.
+        # Since we cache the result in the Store, this only happens once per field
+        try:
+            adapter: TypeAdapter[Any] = TypeAdapter(field_type)
+            return adapter.validate_python(value)
+        except Exception:
+            # If coercion fails, return the raw value
+            return value
+
+    def _is_scalar(self, value: Any) -> bool:
+        """Check if a value is a scalar type that doesn't need coercion.
+
+        Scalars include: str, int, float, bool, None, bytes
+        Everything else (lists, dicts, tuples, objects) might need coercion.
+        """
+        return isinstance(value, str | int | float | bool | type(None) | bytes)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

@@ -32,7 +32,7 @@ Or equivalently:
 ``` python
 from inspect_ai import eval_set
 
-eval_set(
+success, logs = eval_set(
    tasks=["mmlu.py", "mathematics.py"],
    model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
    log_dir="logs-run-42"      
@@ -40,6 +40,8 @@ eval_set(
 ```
 
 Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
+
+The `eval_set()` function returns a tuple of bool (whether all tasks completed successfully) and a list of `EvalLog` headers (i.e. raw sample data is not included in the logs returned).
 
 ### Concurrency
 

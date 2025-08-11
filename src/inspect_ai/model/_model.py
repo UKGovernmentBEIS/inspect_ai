@@ -37,7 +37,6 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -374,8 +373,19 @@ class Model:
         base_config = self.config
 
         # if we are the active_model then merge active generate config
+        active_config = active_generate_config()
         if is_active_model:
-            base_config = base_config.merge(active_generate_config())
+            base_config = base_config.merge(active_config)
+
+        ## otherwise merge connection-oriented config
+        else:
+            base_config = base_config.merge(
+                GenerateConfig(
+                    max_connections=active_config.max_connections,
+                    max_retries=active_config.max_retries,
+                    timeout=active_config.timeout,
+                )
+            )
 
         # merge passed config
         config = base_config.merge(config)
@@ -572,8 +582,6 @@ class Model:
         async def generate() -> tuple[ModelOutput, BaseModel]:
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
-
-            check_sample_interrupt()
 
             cache_entry: CacheEntry | None
             if cache:

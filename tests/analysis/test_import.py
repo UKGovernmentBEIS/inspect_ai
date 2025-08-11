@@ -6,9 +6,9 @@ from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai.analysis.beta import Column, EvalColumns
-from inspect_ai.analysis.beta._dataframe.evals.columns import EvalColumn
-from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_record
+from inspect_ai.analysis import Column, EvalColumns
+from inspect_ai.analysis._dataframe.evals.columns import EvalColumn
+from inspect_ai.analysis._dataframe.record import _resolve_value, import_record
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 

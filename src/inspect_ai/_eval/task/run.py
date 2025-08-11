@@ -4,7 +4,6 @@ import sys
 import time
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime
 from logging import getLogger
 from pathlib import PurePath
 from typing import Callable, Literal
@@ -87,7 +86,7 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, monitor_working_limit
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -322,51 +321,34 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 async def run_sample(
                     sample: Sample, state: TaskState
                 ) -> dict[str, SampleScore] | None:
-                    result: dict[str, SampleScore] | None = None
-
-                    async def run(tg: TaskGroup) -> None:
-                        try:
-                            nonlocal result
-                            result = await task_run_sample(
-                                tg=tg,
-                                task_name=task.name,
-                                log_location=profile.log_location,
-                                sample=sample,
-                                state=state,
-                                sandbox=sandbox,
-                                max_sandboxes=config.max_sandboxes,
-                                sandbox_cleanup=sandbox_cleanup,
-                                plan=plan,
-                                scorers=scorers,
-                                generate=generate,
-                                progress=progress,
-                                logger=logger if log_samples else None,
-                                log_images=log_images,
-                                sample_source=sample_source,
-                                sample_error=sample_error_handler,
-                                sample_complete=sample_complete,
-                                fails_on_error=(
-                                    config.fail_on_error is None
-                                    or config.fail_on_error is True
-                                ),
-                                retry_on_error=config.retry_on_error or 0,
-                                error_retries=[],
-                                time_limit=config.time_limit,
-                                working_limit=config.working_limit,
-                                semaphore=sample_semaphore,
-                                run_id=logger.eval.run_id,
-                                task_id=logger.eval.eval_id,
-                            )
-                        finally:
-                            tg.cancel_scope.cancel()
-
-                    try:
-                        async with anyio.create_task_group() as tg:
-                            tg.start_soon(run, tg)
-                    except Exception as ex:
-                        raise inner_exception(ex)
-
-                    return result
+                    return await task_run_sample(
+                        task_name=task.name,
+                        log_location=profile.log_location,
+                        sample=sample,
+                        state=state,
+                        sandbox=sandbox,
+                        max_sandboxes=config.max_sandboxes,
+                        sandbox_cleanup=sandbox_cleanup,
+                        plan=plan,
+                        scorers=scorers,
+                        generate=generate,
+                        progress=progress,
+                        logger=logger if log_samples else None,
+                        log_images=log_images,
+                        sample_source=sample_source,
+                        sample_error=sample_error_handler,
+                        sample_complete=sample_complete,
+                        fails_on_error=(
+                            config.fail_on_error is None or config.fail_on_error is True
+                        ),
+                        retry_on_error=config.retry_on_error or 0,
+                        error_retries=[],
+                        time_limit=config.time_limit,
+                        working_limit=config.working_limit,
+                        semaphore=sample_semaphore,
+                        run_id=logger.eval.run_id,
+                        task_id=logger.eval.eval_id,
+                    )
 
                 sample_results = await tg_collect(
                     [
@@ -533,7 +515,6 @@ def update_metrics_display_fn(
 
 async def task_run_sample(
     *,
-    tg: TaskGroup,
     task_name: str,
     log_location: str,
     sample: Sample,
@@ -657,7 +638,6 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
-            tg=tg,
         ) as active,
     ):
         start_time: float | None = None
@@ -700,28 +680,96 @@ async def task_run_sample(
                         create_time_limit(time_limit),
                         create_working_limit(working_limit),
                     ):
-                        # mark started
-                        active.started = datetime.now().timestamp()
 
-                        # emit/log sample start
-                        sample_summary = EvalSampleSummary(
-                            id=sample_id,
-                            epoch=state.epoch,
-                            input=sample.input,
-                            target=sample.target,
-                            metadata=sample.metadata or {},
-                        )
-                        if logger is not None:
-                            await logger.start_sample(sample_summary)
-                        # only emit the sample start once: not on retries
-                        if not error_retries:
-                            await emit_sample_start(
-                                run_id, task_id, state.uuid, sample_summary
-                            )
+                        async def run(tg: TaskGroup) -> None:
+                            # access to state, limit, and errors
+                            nonlocal state, limit, error, raise_error
 
-                        # set progress for plan then run it
-                        async with span("solvers"):
-                            state = await plan(state, generate)
+                            try:
+                                # start the sample
+                                active.start(tg)
+
+                                # monitor working limit in the background
+                                monitor_working_limit()
+
+                                # emit/log sample start
+                                sample_summary = EvalSampleSummary(
+                                    id=sample_id,
+                                    epoch=state.epoch,
+                                    input=sample.input,
+                                    target=sample.target,
+                                    metadata=sample.metadata or {},
+                                )
+                                if logger is not None:
+                                    await logger.start_sample(sample_summary)
+                                # only emit the sample start once: not on retries
+                                if not error_retries:
+                                    await emit_sample_start(
+                                        run_id, task_id, state.uuid, sample_summary
+                                    )
+
+                                # set progress for plan then run it
+                                async with span("solvers"):
+                                    state = await plan(state, generate)
+
+                            # some 'cancel' exceptions are actually user interrupts or the
+                            # result of monitor_working_limit() - for these exceptions we
+                            # want to intercept them and apply the appropriate control flow
+                            # so they can continue on and be scored.
+                            except anyio.get_cancelled_exc_class() as ex:
+                                if active.interrupt_action:
+                                    # record event
+                                    transcript()._event(
+                                        SampleLimitEvent(
+                                            type="operator",
+                                            message="Sample completed: interrupted by operator",
+                                        )
+                                    )
+
+                                    # handle the action
+                                    match active.interrupt_action:
+                                        case "score":
+                                            # continue to scoring (capture the most recent state)
+                                            state = sample_state() or state
+                                            limit = EvalSampleLimit(
+                                                type="operator", limit=1
+                                            )
+                                        case "error":
+                                            # default error handling
+                                            error, raise_error = handle_error(ex)
+
+                                elif active.limit_exceeded_error:
+                                    # record event
+                                    transcript()._event(
+                                        SampleLimitEvent(
+                                            type="working",
+                                            message=active.limit_exceeded_error.message,
+                                            limit=active.limit_exceeded_error.limit,
+                                        )
+                                    )
+
+                                    # capture most recent state for scoring
+                                    state = sample_state() or state
+                                    limit = EvalSampleLimit(
+                                        type=active.limit_exceeded_error.type,
+                                        limit=active.limit_exceeded_error.limit
+                                        if active.limit_exceeded_error.limit is not None
+                                        else -1,
+                                    )
+
+                                # this was not a user interrupt or working time limit so propagate
+                                else:
+                                    raise
+                            finally:
+                                # ensures that monitor_working_limit() and any coroutines
+                                # created w/ background() are cancelled
+                                tg.cancel_scope.cancel()
+
+                        try:
+                            async with anyio.create_task_group() as tg:
+                                tg.start_soon(run, tg)
+                        except Exception as ex:
+                            raise inner_exception(ex)
 
                 except TimeoutError:
                     # Scoped time limits manifest themselves as LimitExceededError, not
@@ -733,30 +781,6 @@ async def task_run_sample(
                     # capture most recent state for scoring
                     state = sample_state() or state
 
-                except anyio.get_cancelled_exc_class() as ex:
-                    if active.interrupt_action:
-                        # record event
-                        transcript()._event(
-                            SampleLimitEvent(
-                                type="operator",
-                                message="Sample completed: interrupted by operator",
-                            )
-                        )
-
-                        # handle the action
-                        match active.interrupt_action:
-                            case "score":
-                                # continue to scoring (capture the most recent state)
-                                state = sample_state() or state
-                            case "error":
-                                # default error handling
-                                error, raise_error = handle_error(ex)
-
-                    else:
-                        # task group provided by tg_collect will automatically
-                        # handle the cancel exception
-                        raise
-
                 except LimitExceededError as ex:
                     # capture most recent state for scoring
                     state = sample_state() or state
@@ -764,7 +788,12 @@ async def task_run_sample(
                         type=ex.type, limit=ex.limit if ex.limit is not None else -1
                     )
 
-                except TerminateSampleError:
+                except TerminateSampleError as ex:
+                    # emit event
+                    transcript()._event(
+                        SampleLimitEvent(type="operator", limit=1, message=ex.reason)
+                    )
+
                     # capture most recent state for scoring
                     state = sample_state() or state
                     limit = EvalSampleLimit(type="operator", limit=1)
@@ -917,7 +946,6 @@ async def task_run_sample(
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
-            tg=tg,
             run_id=run_id,
             task_id=task_id,
         )

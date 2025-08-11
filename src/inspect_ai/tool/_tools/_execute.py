@@ -8,7 +8,7 @@ from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 def code_viewer(language: str, code_param: str) -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
         code = tool_call.arguments.get(code_param, None)
-        code = (code or tool_call.function).strip()
+        code = str(code or tool_call.function).strip()
         call = ToolCallContent(
             title=language,
             format="markdown",

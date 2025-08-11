@@ -8,8 +8,8 @@ from typing import Any, Type, Union, cast, overload
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._util.interrupt import check_sample_interrupt
-from inspect_ai.dataset._dataset import MT, Sample, metadata_as
+from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
@@ -157,6 +157,7 @@ class TaskState:
         token_limit: int | None = None,
         completed: bool = False,
         metadata: dict[str, Any] = {},
+        store: dict[str, Any] | None = None,
     ) -> None:
         self._model = model
         self._sample_id = sample_id
@@ -170,7 +171,7 @@ class TaskState:
         self._message_limit = create_message_limit(message_limit)
         self._token_limit = create_token_limit(token_limit)
         self._completed = completed
-        self._store = Store()
+        self._store = Store(store)
         self._uuid = uuid()
 
         if choices:
@@ -363,7 +364,6 @@ class TaskState:
         if self._completed:
             return True
         else:
-            check_sample_interrupt()
             return self._completed
 
     @completed.setter

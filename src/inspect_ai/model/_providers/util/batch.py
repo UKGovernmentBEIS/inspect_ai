@@ -9,12 +9,16 @@ from typing import Any, Generic, TypeVar
 
 import anyio
 import anyio.abc
+from tenacity import RetryCallState, retry
 
 from inspect_ai._util._async import run_in_background, tg_collect
-from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.notgiven import sanitize_notgiven
-from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._retry import ModelRetryConfig
+
+from .batch_log import log_batch
 
 DEFAULT_BATCH_TICK = 15
 DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
@@ -62,6 +66,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     def __init__(
         self,
         config: BatchConfig,
+        retry_config: ModelRetryConfig,
         max_batch_request_count: int,
         max_batch_size_mb: int,
     ) -> None:
@@ -77,13 +82,15 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             config.max_consecutive_check_failures
             or DEFAULT_MAX_CONSECUTIVE_CHECK_FAILURES
         )
+        self._retry_config = retry_config
         self._intake_queue: list[BatchRequest[ResponseT]] = []
         self._next_batch: PendingBatch[ResponseT] | None = None
         self._inflight_batches: dict[str, Batch[ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
-    async def generate(
-        self, request: dict[str, Any], config: GenerateConfig
+    async def generate_for_request(
+        self,
+        request: dict[str, Any],
     ) -> ResponseT:
         send_stream, receive_stream = anyio.create_memory_object_stream[
             ResponseT | Exception
@@ -123,12 +130,18 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     async def _check_inflight_batches(self) -> None:
         if self._inflight_batches:
-            await tg_collect(
-                [
-                    functools.partial(self._check_inflight_batch, batch)
-                    for batch in self._inflight_batches.values()
-                ]
-            )
+            batches = list(self._inflight_batches.values())
+            # Poll batches in chunks to prevent overwhelming the async runtime
+            # and HTTP stack connection limits when _max_batches is large (e.g. 1,000+)
+            # TODO: Consider adding a new BatchConfig value rather than relying on
+            # DEFAULT_MAX_CONNECTIONS
+            for i in range(0, len(batches), DEFAULT_MAX_CONNECTIONS):
+                await tg_collect(
+                    [
+                        functools.partial(self._check_inflight_batch, batch)
+                        for batch in batches[i : i + DEFAULT_MAX_CONNECTIONS]
+                    ]
+                )
 
         self._print_aggregate_status()
 
@@ -144,7 +157,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 if self._inflight_batches
                 else 0
             )
-            print(
+            log_batch(
                 f"Current batches: {len(self._inflight_batches)}, "
                 f"requests (pending/completed/failed requests): {total - completed - failed}/{completed}/{failed}, "
                 f"batch age (avg/max): {format_progress_time(avg_age, False)}/{format_progress_time(max_age, False)}"
@@ -181,7 +194,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         batch_requests: list[BatchRequest[ResponseT]],
         error: Exception,
     ) -> None:
-        print(message)
+        log_batch(message)
         for request in batch_requests:
             try:
                 await request.result_stream.send(error)
@@ -233,9 +246,13 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     # Any exception that escapes a _wrapped_* method will bring down the eval.
 
     async def _wrapped_create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+        @retry(**_with_retry_logging(self._retry_config, "_create_batch"))
+        async def _create() -> str:
+            return await self._create_batch(batch)
+
         try:
-            result = await self._create_batch(batch)
-            print(f"Created batch {result} with {len(batch)} requests")
+            result = await _create()
+            log_batch(f"Created batch {result} with {len(batch)} requests")
             return result
         except Exception as e:
             await self._fail_all_requests(
@@ -254,7 +271,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             return result
         except Exception as e:
             batch.consecutive_check_failure_count += 1
-            print(
+            log_batch(
                 f"Error {batch.consecutive_check_failure_count} checking batch {batch.id}. Error: {e}"
             )
             if (
@@ -273,27 +290,66 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         batch: Batch[ResponseT],
         completion_info: CompletedBatchInfoT,
     ) -> None:
+        @retry(
+            **_with_retry_logging(
+                self._retry_config, f"_handle_batch_result({batch.id})"
+            )
+        )
+        async def _handle() -> dict[str, ResponseT | Exception]:
+            return await self._handle_batch_result(batch, completion_info)
+
         try:
-            results = await self._handle_batch_result(batch, completion_info)
-            print(f"Batch {batch.id} completed")
-            # TODO: We don't have any evidence that this actually happens. I
-            # think we should just get rid of the code.
-            if len(results) != len(batch.requests):
-                print(
-                    f"Batch {batch.id} returned {len(results)} results, expected {len(batch.requests)}",
-                )
+            log_batch(f"Batch {batch.id} completed")
+            await self._resolve_inflight_batch(batch, await _handle())
+        except Exception as e:
+            await self._fail_and_cleanup_inflight_batch("obtaining results", batch, e)
+
+    async def _resolve_inflight_batch(
+        self, batch: Batch[ResponseT], results: dict[str, ResponseT | Exception]
+    ) -> None:
+        """
+        Resolve a batch by sending results to each request and cleaning up inflight state.
+
+        This method iterates over the results dictionary, sends each response or exception
+        to the corresponding request's result stream, and removes the batch from the inflight
+        batches. It is called internally by the batcher after handling batch results, but
+        it is also safe and intended for use by derived classes if they need to manually
+        resolve a batch with results.
+
+        Args:
+            batch: The batch to resolve.
+            results: A dictionary mapping request IDs to their responses or exceptions.
+
+        Notes:
+            - Derived class instances may call this method directly if custom batch resolution
+              logic is required.
+            - This method does not raise exceptions for missing request IDs, but will log if
+              the number of results does not match the number of requests.
+        """
+        # TODO: We don't have any evidence that this actually happens. I
+        # think we should just get rid of the code.
+        if len(results) != len(batch.requests):
+            log_batch(
+                f"Attempting to resolve {batch.id} with {len(results)} results, expected {len(batch.requests)}",
+            )
+
+        # This function needs its own try/catch since in some cases derived classes
+        # call it, and we need to ensure exceptions do not escape
+        try:
             for request_id, response in results.items():
                 await batch.requests[request_id].result_stream.send(response)
-            del self._inflight_batches[batch.id]
         except Exception as e:
-            await self._fail_and_cleanup_inflight_batch("handling result", batch, e)
+            await self._fail_and_cleanup_inflight_batch("sending results", batch, e)
+        finally:
+            del self._inflight_batches[batch.id]
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
         """Create a new batch.
 
         This method should submit the batch requests to the model and return a
-        unique identifier for the created batch.
+        unique identifier for the created batch. The base class automatically
+        handles retries for transient failures using the configured retry policy.
 
         Args:
             batch: List of batch requests to be processed together.
@@ -302,7 +358,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             A unique string identifier for the created batch.
 
         Raises:
-            Exception: If batch creation fails for any reason.
+            Exception: If batch creation fails permanently after all retry attempts.
         """
         pass
 
@@ -340,7 +396,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         """Process the results of a completed batch.
 
         This method should retrieve and process the results from a completed batch,
-        mapping each request to its corresponding response or error.
+        mapping each request to its corresponding response or error. The base class
+        automatically handles retries for transient failures using the configured
+        retry policy.
 
         Args:
             batch: The completed batch to process.
@@ -353,8 +411,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             if that specific request failed.
 
         Raises:
-            Exception: If processing the batch results fails. This will cause
-                all requests in the batch to fail with this exception.
+            Exception: If processing the batch results fails permanently after all
+                retry attempts. This will cause all requests in the batch to fail
+                with this exception.
         """
         pass
 
@@ -441,3 +500,15 @@ def _batch_stats_reducer(
         total_age + batch.age,
         max(max_age, batch.age),
     )
+
+
+def _log_retry(operation: str, retry_state: RetryCallState) -> None:
+    log_batch(
+        f"-> Batch {operation} last outcome: {retry_state.outcome} retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)"
+    )
+
+
+def _with_retry_logging(config: ModelRetryConfig, operation: str) -> ModelRetryConfig:
+    tweaked_retry_config: ModelRetryConfig = config.copy()
+    tweaked_retry_config["before_sleep"] = functools.partial(_log_retry, operation)
+    return tweaked_retry_config

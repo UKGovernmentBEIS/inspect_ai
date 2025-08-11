@@ -1,99 +1,176 @@
-import functools
-import json
-import tempfile
 import time
-from itertools import chain
-from typing import Any, Literal, TypedDict
+from typing import IO, Any, Generic, Literal, TypedDict, TypeVar
 
 import httpx
+import pydantic
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
-from openai.types.chat import ChatCompletion
-from tenacity import retry
+from openai.types import Batch as OpenAIBatch
+from openai.types.batch import Errors as OpenAIErrors
+from openai.types.batch_error import BatchError
+from pydantic import BaseModel
+from typing_extensions import override
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .util.batch import (
     Batch,
-    Batcher,
     BatchRequest,
 )
-from .util.hooks import HttpxHooks
+from .util.file_batcher import FileBatcher
 
 
 class CompletedBatchInfo(TypedDict):
     result_uris: list[str]
 
 
-class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
+ResponseT = TypeVar("ResponseT", bound=BaseModel)
+
+
+class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[ResponseT]):
     def __init__(
         self,
         client: AsyncOpenAI,
         config: BatchConfig,
         retry_config: ModelRetryConfig,
+        response_cls: type[ResponseT],
+        endpoint: Literal[
+            "/v1/chat/completions", "/v1/responses"
+        ] = "/v1/chat/completions",
     ):
         super().__init__(
             config=config,
+            retry_config=retry_config,
             max_batch_request_count=50000,
             max_batch_size_mb=200,
         )
-        self._client = client
-        self._retry_config = retry_config
+        self._response_cls = response_cls
+        # Members below are considered protected and fair game for derived classes
+        self._openai_client = client
+        self.endpoint = endpoint
 
-    async def _create_batch(self, batch: list[BatchRequest[ChatCompletion]]) -> str:
-        @retry(**self._retry_config)
-        async def _create() -> str:
-            # TODO: support other endpoints
-            endpoint: Literal["/v1/chat/completions"] = "/v1/chat/completions"
-            extra_headers: dict[str, str] = {}
-            with tempfile.NamedTemporaryFile(
-                delete=True, suffix=".jsonl", mode="w+b"
-            ) as temp_file:
-                for request in batch:
-                    extra_headers = request.request.pop("extra_headers", {})
-                    request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
-                    if request_id is not None:
-                        request.custom_id = request_id
-                    temp_file.write(
-                        json.dumps(
-                            {
-                                "custom_id": request.custom_id,
-                                "method": "POST",
-                                "url": endpoint,
-                                "body": {
-                                    k: v
-                                    for k, v in request.request.items()
-                                    if v is not NOT_GIVEN
-                                },
-                            },
-                        ).encode()
-                        + b"\n"
-                    )
-                temp_file.flush()
-                temp_file.seek(0)
+    # FileBatcher overrides
 
-                batch_file = await self._client.files.create(
-                    file=temp_file.file,
-                    purpose="batch",
-                    extra_headers=extra_headers or None,
-                )
+    @override
+    def _jsonl_line_for_request(
+        self, request: BatchRequest[ResponseT], custom_id: str
+    ) -> dict[str, pydantic.JsonValue]:
+        """Format request as OpenAI JSONL entry."""
+        return {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": self.endpoint,
+            "body": {k: v for k, v in request.request.items() if v is not NOT_GIVEN},
+        }
 
-            batch_info = await self._client.batches.create(
-                input_file_id=batch_file.id,
+    @override
+    def _uris_from_completion_info(
+        self, completion_info: CompletedBatchInfo
+    ) -> list[str]:
+        """Extract result file URIs from OpenAI completion info."""
+        return completion_info["result_uris"]
+
+    @override
+    async def _upload_batch_file(
+        self,
+        temp_file: IO[bytes],
+        extra_headers: dict[str, str],
+    ) -> str:
+        """
+        Uploads a batch file to the Together API.
+
+        This method is can be overridden in derived classes to provide provider-specific
+        file upload logic for batch processing.
+
+        Args:
+            temp_file: A file-like object containing the batch data to upload.
+            extra_headers: Additional headers to include in the upload request.
+
+        Returns:
+            The ID of the uploaded file as a string.
+        """
+        file_object = await self._openai_client.files.create(
+            file=temp_file,
+            purpose="batch",
+            extra_headers=extra_headers or None,
+        )
+        return file_object.id
+
+    @override
+    async def _submit_batch_for_file(
+        self,
+        file_id: str,
+        extra_headers: dict[str, str],
+    ) -> str:
+        """
+        Creates a batch job using the OpenAI API.
+
+        Args:
+            file_id: The ID of the uploaded batch file.
+            extra_headers: Additional headers to include in the batch creation request.
+
+        Returns:
+            The ID of the created batch job as a string.
+
+        Raises:
+            ValueError: If batch creation fails or the response is invalid.
+        """
+        return (
+            await self._openai_client.batches.create(
+                input_file_id=file_id,
                 completion_window="24h",
-                endpoint=endpoint,
+                endpoint=self.endpoint,
                 extra_headers=extra_headers or None,
             )
-            return batch_info.id
+        ).id
 
-        return await _create()
+    @override
+    async def _download_result_file(self, file_id: str) -> bytes:
+        """Download result file content from OpenAI."""
+        batch_file = await self._openai_client.files.content(file_id)
+        return await batch_file.aread()
 
+    @override
+    def _parse_jsonl_line(
+        self, line_data: dict[str, pydantic.JsonValue]
+    ) -> tuple[str, ResponseT | Exception]:
+        """Parse a single JSONL result line from OpenAI."""
+        # Make a copy to avoid mutating the original
+        result: dict[str, Any] = line_data.copy()
+        request_id = result.pop("custom_id", "")
+        if not request_id:
+            raise ValueError(
+                f"Unable to find custom_id in batched request result. {result}"
+            )
+
+        if (error := result.get("error")) is None:
+            response_body = result["response"]["body"]
+            return request_id, self._response_cls.model_validate(response_body)
+        else:
+            return request_id, (
+                self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+                    httpx.Response(status_code=error["code"], text=error["message"])
+                )
+            )
+
+    # Batcher overrides
+
+    @override
     async def _check_batch(
-        self, batch: Batch[ChatCompletion]
+        self, batch: Batch[ResponseT]
     ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
-        batch_info = await self._client.batches.retrieve(batch.id)
+        batch_info = self._adapt_batch_info(
+            await self._openai_client.batches.retrieve(batch.id)
+        )
+
+        # If the entire batch was rejected, OpenAI doesn't populate `request_counts`.
+        # Instead, the `.errors` object is set in the batch info.
+        if batch_info.status == "failed":
+            await self._resolve_inflight_batch(
+                batch, self._results_from_rejection(batch, batch_info.errors)
+            )
+            return (0, 0, 0, None)
 
         # TODO: Is it bogus to return 0, 0 when request_counts isn't available
         completed, failed = (
@@ -125,47 +202,52 @@ class OpenAIBatcher(Batcher[ChatCompletion, CompletedBatchInfo]):
             {"result_uris": batch_file_ids} if batch_file_ids else None,
         )
 
-    async def _handle_batch_result(
-        self,
-        batch: Batch[ChatCompletion],
-        completion_info: CompletedBatchInfo,
-    ) -> dict[str, ChatCompletion | Exception]:
-        result_uris = completion_info["result_uris"]
+    # Protected - subclasses can override
 
-        @retry(**self._retry_config)
-        async def _results() -> list[dict[str, ChatCompletion | Exception]]:
-            return await tg_collect(
-                [
-                    functools.partial(self._handle_batch_result_file, file_id)
-                    for file_id in result_uris
-                ]
-            )
+    def _adapt_batch_info(self, input: OpenAIBatch) -> OpenAIBatch:
+        # Some OpenAI "compatible" providers don't return data that properly
+        # conforms to this. Provide a hook point to fixup that data.
+        return input
 
-        return dict(
-            chain.from_iterable(file_result.items() for file_result in await _results())
+    # Private gunk
+
+    def _results_from_rejection(
+        self, batch: Batch[ResponseT], errors: OpenAIErrors | None
+    ) -> dict[str, ResponseT | Exception]:
+        """Create error results for a rejected batch.
+
+        On the happy path, errors.data will contain a list that is the same size as
+        batch.requests. In that case, we map each batch.request.id to the corresponding
+        error in errors.data.
+
+        If errors is None, errors.data is None, or the lengths don't match, we create
+        a single generic exception for all request IDs.
+        """
+        request_ids = list(batch.requests.keys())
+
+        # Happy path: errors and errors.data exist and match request count
+        if (
+            errors is not None
+            and errors.data is not None
+            and len(errors.data) == len(request_ids)
+        ):
+            return {
+                request_id: _batch_error_to_exception(error)
+                for request_id, error in zip(request_ids, errors.data)
+            }
+
+        exception = RuntimeError(
+            "Batch rejected: error information could not be determined"
         )
 
-    async def _handle_batch_result_file(
-        self, file_id: str
-    ) -> dict[str, ChatCompletion | Exception]:
-        # TODO: Add error handling so that if one uri fails, the others can
-        # still succeed
-        results: dict[str, ChatCompletion | Exception] = {}
-        batch_file = await self._client.files.content(file_id)
-        for line in (await batch_file.aread()).decode().splitlines():
-            result: dict[str, Any] = json.loads(line)
-            request_id = result.pop("custom_id")
-            if not request_id:
-                raise ValueError(
-                    f"Unable to find custom_id in batched request result. {result}"
-                )
+        return {request_id: exception for request_id in request_ids}
 
-            # Store the result in the dictionary instead of sending to result_stream
-            results[request_id] = (
-                ChatCompletion.model_validate(result["response"]["body"])
-                if (error := result.get("error")) is None
-                else self._client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx.Response(status_code=error["code"], text=error["message"])
-                )
-            )
-        return results
+
+def _batch_error_to_exception(error: BatchError) -> Exception:
+    """Convert a BatchError to an Exception."""
+    message = error.message or "Batch request failed"
+    if error.code:
+        message = f"[{error.code}] {message}"
+    if error.param:
+        message = f"{message} (param: {error.param})"
+    return RuntimeError(message)

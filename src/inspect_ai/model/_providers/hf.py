@@ -95,6 +95,7 @@ class HuggingFaceAPI(ModelAPI):
         self.enable_thinking = collect_model_arg("enable_thinking")
         if self.tokenizer_call_args is None:
             self.tokenizer_call_args = {}
+        self.hidden_states = collect_model_arg("hidden_states")
 
         # device
         if device:
@@ -108,7 +109,7 @@ class HuggingFaceAPI(ModelAPI):
 
         # model
         if model_path:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model: Any = AutoModelForCausalLM.from_pretrained(
                 model_path, device_map=self.device, token=self.api_key, **model_args
             )
         else:
@@ -172,6 +173,8 @@ class HuggingFaceAPI(ModelAPI):
             kwargs["top_k"] = config.top_k
         if config.logprobs is not None:
             kwargs["output_logits"] = config.logprobs
+        if self.hidden_states is not None:
+            kwargs["output_hidden_states"] = self.hidden_states
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
         if config.stop_seqs is not None:
@@ -240,6 +243,7 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
+            metadata={"hidden_states": response.hidden_states},
         )
 
     @override
@@ -384,6 +388,7 @@ def set_random_seeds(seed: int | None = None) -> None:
 class ModelGenerateOutput:
     sequences: Tensor
     logits: tuple[Tensor]
+    hidden_states: tuple[tuple[Tensor]] | None
 
 
 class Tokenizer(Protocol):
@@ -417,6 +422,7 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
+    hidden_states: tuple[tuple[torch.Tensor]] | None
     time: float
 
 
@@ -495,6 +501,7 @@ def process_batches() -> None:
                 )
                 generate_ids = generation_outputs.sequences
                 logits = generation_outputs.logits
+                hidden_states = generation_outputs.hidden_states
 
             # get logprobs from logits
             logprobs = None
@@ -525,6 +532,9 @@ def process_batches() -> None:
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
+                        hidden_states=hidden_states
+                        if hidden_states is not None
+                        else None,
                         time=total_time,
                     )
                 )

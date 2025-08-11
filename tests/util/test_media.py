@@ -3,7 +3,6 @@ import os
 from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_openai,
-    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval, task
@@ -52,11 +51,6 @@ def test_media_google_audio():
 @skip_if_no_google
 def test_media_google_video():
     check_video("google/gemini-1.5-flash")
-
-
-@skip_if_no_vertex
-def test_media_vertex_audio():
-    check_audio("vertex/gemini-1.5-flash")
 
 
 @skip_if_no_openai

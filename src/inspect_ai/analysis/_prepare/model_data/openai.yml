@@ -1,0 +1,255 @@
+openai:
+  display_name: OpenAI
+  models:
+    gpt-3.5-turbo:
+      display_name: GPT-3.5 Turbo
+      release_date: 2023-03-01
+      knowledge_cutoff_date: 2021-08-31
+      context_length: 4096
+      output_tokens: 4096
+      versions:
+        gpt-3.5-turbo-0301:
+          snapshot: "0301"
+          release_date: 2023-03-01
+        gpt-3.5-turbo-0613:
+          snapshot: "0613"
+          release_date: 2023-06-13
+        gpt-3.5-turbo-0125:
+          snapshot: "0125"
+          release_date: 2023-01-25
+        gpt-3.5-turbo-1106:
+          snapshot: "1106"
+          release_date: 2023-11-06
+        gpt-3.5-turbo-latest:
+          snapshot: latest
+    gpt-4:
+      display_name: GPT-4
+      release_date: 2023-03-14
+      knowledge_cutoff_date: 2023-11-30
+      context_length: 8192
+      output_tokens: 8192
+      versions:
+        gpt-4-0314:
+          snapshot: "0314"
+          release_date: 2023-03-14
+        gpt-4-0613:
+          snapshot: "0613"
+          release_date: 2023-06-13
+        gpt-4-latest:
+          snapshot: latest
+    gpt-4-turbo:
+      display_name: GPT-4 Turbo
+      release_date: 2024-04-09
+      knowledge_cutoff_date: 2023-11-30
+      context_length: 128000
+      output_tokens: 4096
+      versions:
+        gpt-4-turbo-preview:
+          snapshot: "preview"
+        gpt-4-turbo-2024-04-09:
+          snapshot: "2024-04-09"
+    gpt-4o:
+      display_name: GPT-4o
+      release_date: 2024-05-13
+      knowledge_cutoff_date: 2023-11-30
+      context_length: 128000
+      output_tokens: 16384
+      versions:
+        gpt-4o-2024-11-20:
+          snapshot: "2024-11-20"
+          release_date: 2024-11-20
+        gpt-4o-2024-08-06:
+          snapshot: "2024-08-06"
+          release_date: 2024-08-06
+        gpt-4o-2024-05-13:
+          snapshot: "2024-05-13"
+          release_date: 2024-05-13
+        gpt-4o-latest:
+          snapshot: latest
+    gpt-4o-mini:
+      display_name: GPT-4o Mini
+      release_date: 2024-07-18
+      knowledge_cutoff_date: 2023-11-30
+      context_length: 128000
+      output_tokens: 16384
+      versions:
+        gpt-4o-mini-2024-07-18:
+          snapshot: "2024-07-18"
+        gpt-4o-mini-latest:
+          snapshot: latest
+    gpt-4.1:
+      display_name: GPT-4.1
+      release_date: 2025-04-14
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 1047576
+      output_tokens: 32768
+      versions:
+        gpt-4.1-2025-04-14:
+          snapshot: "2025-04-14"
+        latest:
+          snapshot: "latest"
+    gpt-4.1-mini:
+      display_name: GPT-4.1 Mini
+      release_date: 2025-04-14
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 1047576
+      output_tokens: 32768
+      versions:
+        gpt-4.1-mini-2025-04-14:
+          snapshot: "2025-04-14"
+        latest:
+          snapshot: latest
+    gpt-4.1-nano:
+      display_name: GPT-4.1 Nano
+      release_date: 2025-04-14
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 1047576
+      output_tokens: 32768
+      versions:
+        gpt-4.1-nano-2025-04-14:
+          snapshot: "2025-04-14"
+        latest:
+          snapshot: latest
+    gpt-4.5-preview:
+      display_name: GPT-4.5 Preview
+      release_date: 2025-02-27
+      knowledge_cutoff_date: 2023-09-30
+      context_length: 128000
+      output_tokens: 16384
+      versions:
+        gpt-4.5-preview-2025-02-27:
+          snapshot: "2025-02-27"
+        latest:
+          snapshot: latest
+    o1:
+      display_name: o1
+      release_date: 2024-12-17
+      knowledge_cutoff_date: 2023-09-30
+      context_length: 200000
+      output_tokens: 100000
+      reasoning: True
+      versions:
+        o1-2024-12-17:
+          snapshot: "2024-12-17"
+        latest:
+          snapshot: latest
+    o1-preview:
+      display_name: o1 Preview
+      release_date: 2024-09-12
+      knowledge_cutoff_date: 2023-09-30
+      context_length: 128000
+      output_tokens: 32768
+      reasoning: True
+      versions:
+        o1-preview-2024-09-12:
+          snapshot: "2024-09-12"
+        latest:
+          snapshot: latest
+    o1-mini:
+      display_name: o1 Mini
+      release_date: 2024-09-12
+      knowledge_cutoff_date: 2023-09-30
+      context_length: 128000
+      output_tokens: 65536
+      reasoning: True
+      versions:
+        o1-mini-2024-09-12:
+          snapshot: "2024-09-12"
+        latest:
+          snapshot: latest
+    o1-pro:
+      display_name: o1 Pro
+      release_date: 2025-03-19
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 200000
+      output_tokens: 100000
+      reasoning: True
+      versions:
+        o1-pro-2025-03-19:
+          snapshot: "2025-03-19"
+        latest:
+          snapshot: latest
+    o3:
+      display_name: o3
+      release_date: 2025-04-16
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 200000
+      output_tokens: 100000
+      reasoning: True
+      versions:
+        o3-2025-04-16:
+          snapshot: "2025-04-16"
+        latest:
+          snapshot: latest
+    o3-mini:
+      display_name: o3-mini
+      release_date: 2025-01-31
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 200000
+      output_tokens: 100000
+      reasoning: True
+      versions:
+        o3-mini-2025-01-31:
+          snapshot: "2025-01-31"
+        latest:
+          snapshot: latest
+    o3-pro:
+      display_name: o3 Pro
+      release_date: 2025-06-10
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 200000
+      output_tokens: 100000
+      reasoning: True
+      versions:
+        o3-pro-2025-06-10:
+          snapshot: "2025-06-10"
+        latest:
+          snapshot: latest
+    o4-mini:
+      display_name: o4 Mini
+      release_date: 2025-04-16
+      knowledge_cutoff_date: 2024-05-31
+      context_length: 200000
+      output_tokens: 100000
+      reasoning: True
+      versions:
+        o4-mini-2025-04-16:
+          snapshot: "2025-04-16"
+        latest:
+          snapshot: latest
+    gpt-5:
+      display_name: GPT-5
+      release_date: 2025-08-07
+      knowledge_cutoff_date: 2024-09-30
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      versions:
+        gpt-5-2025-08-07:
+          snapshot: "2025-08-07"
+        latest:
+          snapshot: latest
+    gpt-5-mini:
+      display_name: GPT-5 Mini
+      release_date: 2025-08-07
+      knowledge_cutoff_date: 2024-05-30
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      versions:
+        gpt-5-mini-2025-08-07:
+          snapshot: "2025-08-07"
+        latest:
+          snapshot: latest
+    gpt-5-nano:
+      display_name: GPT-5 Nano
+      release_date: 2025-08-07
+      knowledge_cutoff_date: 2024-05-30
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      versions:
+        gpt-5-nano-2025-08-07:
+          snapshot: "2025-08-07"
+        latest:
+          snapshot: latest
