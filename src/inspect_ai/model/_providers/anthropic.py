@@ -33,9 +33,12 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    WebSearchResultBlockParam,
     WebSearchTool20250305Param,
+    WebSearchToolRequestErrorParam,
     WebSearchToolResultBlock,
     WebSearchToolResultBlockParam,
+    WebSearchToolResultError,
     message_create_params,
 )
 from anthropic.types.beta import (
@@ -56,14 +59,15 @@ from typing_extensions import override
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
-    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
@@ -922,7 +926,9 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
         else:
             content = [
-                await message_param_content(content) for content in message.content
+                item
+                for content in message.content
+                for item in await message_param_content(content)
             ]
 
         return MessageParam(
@@ -952,7 +958,11 @@ async def message_param(message: ChatMessage) -> MessageParam:
             [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
             else (
-                [(await message_param_content(content)) for content in message.content]
+                [
+                    item
+                    for content in message.content
+                    for item in await message_param_content(content)
+                ]
             )
         )
 
@@ -988,7 +998,9 @@ async def message_param(message: ChatMessage) -> MessageParam:
         return MessageParam(
             role=message.role,
             content=[
-                await message_param_content(content) for content in message.content
+                item
+                for content in message.content
+                for item in await message_param_content(content)
             ],
         )
 
@@ -1004,6 +1016,7 @@ async def model_output_from_message(
     reasoning_tokens = 0
     tool_calls: list[ToolCall] | None = None
 
+    pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
     for content_block in message.content:
         if isinstance(content_block, TextBlock):
             # if this was a tool call then remove <result></result> tags that
@@ -1039,9 +1052,25 @@ async def model_output_from_message(
                 )
             )
         elif isinstance(content_block, ServerToolUseBlock):
-            content.append(ContentData(data=content_block.model_dump()))
+            pending_tool_uses[content_block.id] = content_block
         elif isinstance(content_block, WebSearchToolResultBlock):
-            content.append(ContentData(data=content_block.model_dump()))
+            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            if pending_tool_use is None:
+                raise RuntimeError(
+                    "WebSearchToolResultBlock without previous ServerToolUseBlock"
+                )
+            content.append(
+                ContentToolUse(
+                    tool_type="server_tool_use",
+                    id=pending_tool_use.id,
+                    name=pending_tool_use.name,
+                    arguments=jsonable_python(pending_tool_use.input),
+                    result=jsonable_python(content_block.content),
+                    error=content_block.content.error_code
+                    if isinstance(content_block.content, WebSearchToolResultError)
+                    else None,
+                )
+            )
         elif isinstance(content_block, RedactedThinkingBlock):
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
@@ -1155,14 +1184,14 @@ def split_system_messages(
 
 async def message_param_content(
     content: Content,
-) -> (
+) -> list[
     TextBlockParam
     | ImageBlockParam
     | ThinkingBlockParam
     | RedactedThinkingBlockParam
     | ServerToolUseBlockParam
     | WebSearchToolResultBlockParam
-):
+]:
     if isinstance(content, ContentText):
         citations = (
             [
@@ -1176,9 +1205,11 @@ async def message_param_content(
             else None
         )
 
-        return TextBlockParam(
-            type="text", text=content.text or NO_CONTENT, citations=citations
-        )
+        return [
+            TextBlockParam(
+                type="text", text=content.text or NO_CONTENT, citations=citations
+            )
+        ]
     elif isinstance(content, ContentImage):
         # resolve to url
         image = await file_as_data_uri(content.image)
@@ -1190,35 +1221,56 @@ async def message_param_content(
         if media_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
             raise ValueError(f"Unable to read image of type {media_type}")
 
-        return ImageBlockParam(
-            type="image",
-            source=dict(type="base64", media_type=cast(Any, media_type), data=image),
-        )
+        return [
+            ImageBlockParam(
+                type="image",
+                source=dict(
+                    type="base64", media_type=cast(Any, media_type), data=image
+                ),
+            )
+        ]
     elif isinstance(content, ContentReasoning):
         if content.redacted:
-            return RedactedThinkingBlockParam(
-                type="redacted_thinking",
-                data=content.reasoning,
-            )
+            return [
+                RedactedThinkingBlockParam(
+                    type="redacted_thinking",
+                    data=content.reasoning,
+                )
+            ]
         else:
             if content.signature is None:
                 raise ValueError("Thinking content without signature.")
-            return ThinkingBlockParam(
-                type="thinking", thinking=content.reasoning, signature=content.signature
+            return [
+                ThinkingBlockParam(
+                    type="thinking",
+                    thinking=content.reasoning,
+                    signature=content.signature,
+                )
+            ]
+    elif isinstance(content, ContentToolUse):
+        if content.tool_type == "server_tool_use" and content.name == "web_search":
+            return [
+                ServerToolUseBlockParam(
+                    id=content.id,
+                    input=content.arguments,
+                    type="server_tool_use",
+                    name="web_search",
+                ),
+                WebSearchToolResultBlockParam(
+                    content=cast(
+                        list[WebSearchResultBlockParam]
+                        | WebSearchToolRequestErrorParam,
+                        content.result,
+                    ),
+                    tool_use_id=content.id,
+                    type="web_search_tool_result",
+                ),
+            ]
+        else:
+            raise RuntimeError(
+                f"Unexpected tool use: {content.tool_type}/{content.name}"
             )
-    elif isinstance(content, ContentData):
-        match content.data.get("type", None):
-            case "server_tool_use":
-                return cast(
-                    ServerToolUseBlockParam,
-                    ServerToolUseBlock.model_validate(content.data).model_dump(),
-                )
-            case "web_search_tool_result":
-                return cast(
-                    WebSearchToolResultBlockParam,
-                    WebSearchToolResultBlock.model_validate(content.data).model_dump(),
-                )
-        raise NotImplementedError()
+
     else:
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."
