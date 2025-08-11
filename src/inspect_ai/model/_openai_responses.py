@@ -53,8 +53,10 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
 )
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import jsonable_dict
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
@@ -296,10 +298,39 @@ def _chat_message_assistant_from_openai_response(
                         reasoning="\n".join([s.text for s in summary]), signature=id
                     )
                 )
-            case McpListTools():
+            case McpListTools(
+                id=id, server_label=server_label, tools=tools, error=error
+            ):
+                message_content.append(
+                    ContentToolUse(
+                        tool_type="mcp_list_tools",
+                        id=id,
+                        name="mcp_list_tools",
+                        context=server_label,
+                        arguments="",
+                        result=jsonable_dict(tools),
+                        error=error,
+                    )
+                )
                 pass
-            case McpCall():
-                pass
+            case McpCall(
+                id=id,
+                arguments=arguments,
+                name=name,
+                server_label=server_label,
+                error=error,
+                output=output,
+            ):
+                message_content.append(
+                    ContentToolUse(
+                        tool_type="mcp_call",
+                        name=name,
+                        context=server_label,
+                        arguments=arguments,
+                        result=output,
+                        error=error,
+                    )
+                )
             case _:
                 stop_reason = "tool_calls"
                 match output:
