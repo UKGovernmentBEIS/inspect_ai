@@ -10,9 +10,6 @@ from .._tool import Tool, ToolResult
 from ._config import MCPServerConfigHTTP
 from ._types import MCPServer
 
-# https://platform.openai.com/docs/api-reference/responses/create#responses_create-tools
-# https://docs.anthropic.com/en/api/messages#body-mcp-servers
-
 
 class MCPServerRemote(MCPServer):
     def __init__(self, config: MCPServerConfigHTTP) -> None:

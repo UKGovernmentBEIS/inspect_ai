@@ -42,11 +42,13 @@ from anthropic.types import (
     message_create_params,
 )
 from anthropic.types.beta import (
-    # BetaMCPToolUseBlock,
-    # BetaMCPToolResultBlock,
-    # BetaMCPToolUseBlockParam,
+    BetaMCPToolResultBlock,
+    BetaMCPToolUseBlock,
+    BetaMCPToolUseBlockParam,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
+    BetaRequestMCPToolResultBlockParam,
+    BetaTextBlockParam,
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
@@ -231,14 +233,10 @@ class AnthropicAPI(ModelAPI):
             if system_param is not None:
                 request["system"] = system_param
             request["tools"] = tools_param
-            if len(tools) > 0:
+            if len(tools_param) > 0:
                 request["tool_choice"] = message_tool_choice(
                     tool_choice, self.is_using_thinking(config)
                 )
-
-            # mcp servers
-            if len(mcp_servers_param) > 0:
-                request["mcp_servers"] = mcp_servers_param
 
             # additional options
             req, headers, betas = self.completion_config(config)
@@ -246,8 +244,7 @@ class AnthropicAPI(ModelAPI):
 
             # beta param for mcp tools
             if len(mcp_servers_param) > 0:
-                # betas.append("mcp-client-2025-04-04")
-                raise RuntimeError("Remote MCP Servers not yet supported for Anthropic")
+                betas.append("mcp-client-2025-04-04")
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
@@ -269,6 +266,12 @@ class AnthropicAPI(ModelAPI):
             # extra_body
             if self.extra_body is not None:
                 request["extra_body"] = self.extra_body
+
+            # mcp servers
+            if len(mcp_servers_param) > 0:
+                if "extra_body" not in request:
+                    request["extra_body"] = dict()
+                request["extra_body"]["mcp_servers"] = mcp_servers_param
 
             # make request (unless overridden, stream if we are using reasoning)
             streaming = (
@@ -357,9 +360,12 @@ class AnthropicAPI(ModelAPI):
             # the contract for this function is that it returns the head message
             # even when it has needed to recurse. This is because model_call()
             # above doesn't currently support multiple requests
-            return head_message.model_dump(), tail_model_output
+            return head_message.model_dump(warnings="none"), tail_model_output
 
-        return head_message.model_dump(), head_model_output
+        # NOTE: we do warnings="none" here because we are including beta API message
+        # params (for MCP tool use/result) in the payload which causes Message to emit
+        # Pydantic UserWarning for. We can remove this when remote MCP is out of beta
+        return head_message.model_dump(warnings="none"), head_model_output
 
     def completion_config(
         self, config: GenerateConfig
@@ -475,6 +481,13 @@ class AnthropicAPI(ModelAPI):
     @override
     def tools_required(self) -> bool:
         return True
+
+    @override
+    def supports_remote_mcp(self) -> bool:
+        if self.is_bedrock() or self.is_vertex():
+            return False
+        else:
+            return True
 
     @override
     def tool_result_images(self) -> bool:
@@ -911,6 +924,8 @@ async def message_param(message: ChatMessage) -> MessageParam:
                     | RedactedThinkingBlockParam
                     | ServerToolUseBlockParam
                     | WebSearchToolResultBlockParam
+                    | BetaMCPToolUseBlockParam
+                    | BetaRequestMCPToolResultBlockParam,
                 ]
             ) = message.error.message
             # anthropic requires that content be populated when
@@ -952,6 +967,8 @@ async def message_param(message: ChatMessage) -> MessageParam:
             | ToolUseBlockParam
             | ServerToolUseBlockParam
             | WebSearchToolResultBlockParam
+            | BetaMCPToolUseBlockParam
+            | BetaRequestMCPToolResultBlockParam,
         ] = (
             [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
@@ -984,7 +1001,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
         return MessageParam(
             role=message.role,
-            content=tools_content,
+            content=tools_content,  # type: ignore[typeddict-item]
         )
 
     # normal text content
@@ -996,7 +1013,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
         return MessageParam(
             role=message.role,
             content=[
-                item
+                item  # type: ignore[misc]
                 for content in message.content
                 for item in await message_param_content(content)
             ],
@@ -1015,8 +1032,38 @@ async def model_output_from_message(
     tool_calls: list[ToolCall] | None = None
 
     pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
+    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] = dict()
     for content_block in message.content:
-        if isinstance(content_block, TextBlock):
+        if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
+            tool_use_block = BetaMCPToolUseBlock.model_validate(
+                content_block.model_dump()
+            )
+            pending_mcp_tool_uses[tool_use_block.id] = tool_use_block
+        elif content_block.type == "mcp_tool_result":  # type: ignore[comparison-overlap]
+            tool_result_block = BetaMCPToolResultBlock.model_validate(
+                content_block.model_dump()
+            )
+            pending_mcp_tool_use = pending_mcp_tool_uses.get(
+                tool_result_block.tool_use_id, None
+            )
+            if pending_mcp_tool_use is None:
+                raise RuntimeError(
+                    "MCPToolResultBlock without previous MCPToolUseBlock"
+                )
+            content.append(
+                ContentToolUse(
+                    tool_type="mcp_tool_use",
+                    id=tool_result_block.tool_use_id,
+                    name=pending_mcp_tool_use.name,
+                    context=pending_mcp_tool_use.server_name,
+                    arguments=pending_mcp_tool_use.input,
+                    result=tool_result_block.content
+                    if isinstance(tool_result_block.content, str)
+                    else [block.model_dump() for block in tool_result_block.content],
+                    error="error" if tool_result_block.is_error else None,
+                )
+            )
+        elif isinstance(content_block, TextBlock):
             # if this was a tool call then remove <result></result> tags that
             # claude sometimes likes to insert!
             content_text = content_block.text
@@ -1194,6 +1241,8 @@ async def message_param_content(
     | RedactedThinkingBlockParam
     | ServerToolUseBlockParam
     | WebSearchToolResultBlockParam
+    | BetaMCPToolUseBlockParam
+    | BetaRequestMCPToolResultBlockParam,
 ]:
     if isinstance(content, ContentText):
         citations = (
@@ -1267,6 +1316,22 @@ async def message_param_content(
                     ),
                     tool_use_id=content.id,
                     type="web_search_tool_result",
+                ),
+            ]
+        elif content.tool_type == "mcp_tool_use":
+            return [
+                BetaMCPToolUseBlockParam(
+                    id=content.id,
+                    input=content.arguments,
+                    name=content.name,
+                    server_name=content.context or "",
+                    type="mcp_tool_use",
+                ),
+                BetaRequestMCPToolResultBlockParam(
+                    tool_use_id=content.id,
+                    type="mcp_tool_result",
+                    content=cast(str | list[BetaTextBlockParam], content.result),
+                    is_error=content.error is not None and len(content.error) > 0,
                 ),
             ]
         else:
