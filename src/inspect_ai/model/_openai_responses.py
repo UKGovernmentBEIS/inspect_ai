@@ -298,68 +298,58 @@ def _chat_message_assistant_from_openai_response(
                         reasoning="\n".join([s.text for s in summary]), signature=id
                     )
                 )
-            case McpListTools(
-                id=id, server_label=server_label, tools=tools, error=error
-            ):
+            case ResponseFunctionToolCall():
+                stop_reason = "tool_calls"
+                if output.id is not None:
+                    internal["tool_message_ids"][output.call_id] = output.id
+                tool_calls.append(
+                    parse_tool_call(
+                        output.call_id,
+                        _from_responses_tool_alias(output.name),
+                        output.arguments,
+                        tools,
+                    )
+                )
+            case ResponseComputerToolCall():
+                stop_reason = "tool_calls"
+                if output.id is not None:
+                    internal["tool_message_ids"][output.call_id] = output.id
+                tool_calls.append(tool_call_from_openai_computer_tool_call(output))
+            case ResponseFunctionWebSearch():
+                # We don't currently capture this since the model did the
+                # "tool call" internally. It's conceivable that could be
+                # forced to include it in `.internal` in the future, but
+                # for now we just ignore it.
+                # {"id":"ws_682cdcec3fa88198bc10b38fafefbd5e077e89e31fd4a3d5","status":"completed","type":"web_search_call"}
+                pass
+            case {"type": "mcp_list_tools"}:
+                list_tools = cast(McpListTools, output)
                 message_content.append(
                     ContentToolUse(
                         tool_type="mcp_list_tools",
-                        id=id,
+                        id=list_tools["id"],
                         name="mcp_list_tools",
-                        context=server_label,
+                        context=list_tools["server_label"],
                         arguments="",
-                        result=jsonable_dict(tools),
-                        error=error,
+                        result=jsonable_dict(list_tools["tools"]),
+                        error=list_tools.get("error", ""),
                     )
                 )
-                pass
-            case McpCall(
-                id=id,
-                arguments=arguments,
-                name=name,
-                server_label=server_label,
-                error=error,
-                output=output,
-            ):
+            case {"type": "mcp_call"}:
+                call = cast(McpCall, output)
                 message_content.append(
                     ContentToolUse(
                         tool_type="mcp_call",
-                        name=name,
-                        context=server_label,
-                        arguments=arguments,
-                        result=output,
-                        error=error,
+                        id=call["id"],
+                        name=call["name"],
+                        context=call["server_label"],
+                        arguments=call["arguments"],
+                        result=call.get("output", ""),
+                        error=call.get("error", ""),
                     )
                 )
             case _:
-                stop_reason = "tool_calls"
-                match output:
-                    case ResponseFunctionToolCall():
-                        if output.id is not None:
-                            internal["tool_message_ids"][output.call_id] = output.id
-                        tool_calls.append(
-                            parse_tool_call(
-                                output.call_id,
-                                _from_responses_tool_alias(output.name),
-                                output.arguments,
-                                tools,
-                            )
-                        )
-                    case ResponseComputerToolCall():
-                        if output.id is not None:
-                            internal["tool_message_ids"][output.call_id] = output.id
-                        tool_calls.append(
-                            tool_call_from_openai_computer_tool_call(output)
-                        )
-                    case ResponseFunctionWebSearch():
-                        # We don't currently capture this since the model did the
-                        # "tool call" internally. It's conceivable that could be
-                        # forced to include it in `.internal` in the future, but
-                        # for now we just ignore it.
-                        # {"id":"ws_682cdcec3fa88198bc10b38fafefbd5e077e89e31fd4a3d5","status":"completed","type":"web_search_call"}
-                        pass
-                    case _:
-                        raise ValueError(f"Unexpected output type: {output.__class__}")
+                raise ValueError(f"Unexpected output type: {output.__class__}")
 
     return (
         ChatMessageAssistant(
