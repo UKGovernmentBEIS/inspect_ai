@@ -31,6 +31,7 @@
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Tests: Added the ability to provide a generator like callback function for `MockLLM`.
 - Scoring: Improve multiple_choice answer parsing, making it more strict in interpreting answers like `ANSWER: None of the above`. Allow answers to end with full stop (`.`).
+- Tool Support: Converted `inspect_tool_support` to use a Unix socket rather than a tcp port for intra-container RPC. 
 - Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
 - Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.
