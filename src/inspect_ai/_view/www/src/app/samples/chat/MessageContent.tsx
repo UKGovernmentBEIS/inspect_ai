@@ -212,6 +212,14 @@ const messageRenderers: Record<string, MessageRenderer> = {
       return <ToolOutput output={c.content} key={key} />;
     },
   },
+  // server-side tool use
+  tool_use: {
+    render: (key, content) => {
+      const c = content as ContentToolUse;
+      // If the tool use has a tool, render it
+      return <ServerToolCall id={key} content={c}/>;
+    }
+  },
   data: {
     render: (key, content) => {
       const c = content as ContentData;
