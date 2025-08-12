@@ -131,7 +131,9 @@ async def openai_chat_completion_part(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
     elif content.type == "document":
-
+        raise RuntimeError(
+            "Document content is not currently supported by Open AI chat models."
+        )
     else:
         raise RuntimeError(
             "Video content is not currently supported by Open AI chat models."
