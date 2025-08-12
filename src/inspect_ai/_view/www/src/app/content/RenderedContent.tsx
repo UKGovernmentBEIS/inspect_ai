@@ -11,7 +11,10 @@ import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
 import { MetaDataGrid } from "./MetaDataGrid";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer, RenderOptions } from "./types";
-import { isMessageContent, MessageContent } from "../samples/chat/MessageContent";
+import {
+  isMessageContent,
+  MessageContent,
+} from "../samples/chat/MessageContent";
 import { defaultContext } from "../samples/chat/MessageContents";
 
 interface RenderedContentProps {
@@ -272,7 +275,9 @@ const contentRenderers: (
       },
       render: (id, entry, _options) => {
         return {
-          rendered: <MessageContent contents={entry.value} context={defaultContext()}/>
+          rendered: (
+            <MessageContent contents={entry.value} context={defaultContext()} />
+          ),
         };
       },
     },

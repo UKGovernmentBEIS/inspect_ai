@@ -30,7 +30,9 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
     ...args,
   };
 
-  const titleStr = content.context ? `${content.context} — ${content.name}()` : `${content.name}()`;
+  const titleStr = content.context
+    ? `${content.context} — ${content.name}()`
+    : `${content.name}()`;
 
   return (
     <div id={id} className={clsx(styles.mcpToolUse)}>
@@ -42,9 +44,7 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
         )}
       >
         <i className={ApplicationIcons.role.tool} />
-        <pre className={styles.titleText}>
-          {titleStr}
-        </pre>
+        <pre className={styles.titleText}>{titleStr}</pre>
         <div className={styles.type}>{content.type}</div>
       </div>
 
@@ -64,13 +64,21 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
 
           return (
             <>
-              <div className={clsx(styles.argLabel, "text-style-secondary", "text-size-smaller")}>
+              <div
+                className={clsx(
+                  styles.argLabel,
+                  "text-style-secondary",
+                  "text-size-smaller",
+                )}
+              >
                 <pre>{key}</pre>
               </div>
               {valueRecord ? (
                 <RecordTree id={`${id}-val-${index}`} record={valueRecord} />
               ) : (
-                <div className={clsx("text-size-smaller")}>{value as ReactNode}</div>
+                <div className={clsx("text-size-smaller")}>
+                  {value as ReactNode}
+                </div>
               )}
             </>
           );
@@ -83,11 +91,11 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
         </div>
       ) : (
         <ExpandablePanel id={`${id}-output`} collapse={true}>
-            <RenderedContent
+          <RenderedContent
             id={`${id}-output`}
             entry={{ name: "Output", value: content.result }}
             renderOptions={{ renderString: "markdown" }}
-            />
+          />
         </ExpandablePanel>
       )}
     </div>

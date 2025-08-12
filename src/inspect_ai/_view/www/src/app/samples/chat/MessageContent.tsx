@@ -51,7 +51,7 @@ export const isMessageContent = (
     "type" in content &&
     typeof content.type === "string"
   );
-}
+};
 
 /**
  * Renders message content based on its type.
@@ -217,8 +217,8 @@ const messageRenderers: Record<string, MessageRenderer> = {
     render: (key, content) => {
       const c = content as ContentToolUse;
       // If the tool use has a tool, render it
-      return <ServerToolCall id={key} content={c}/>;
-    }
+      return <ServerToolCall id={key} content={c} />;
+    },
   },
   data: {
     render: (key, content) => {
