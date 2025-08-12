@@ -753,6 +753,7 @@ export type Metadata30 = {
 export type SampleId1 = string | number | null;
 export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
+export type Etag = string | null;
 
 /**
  * Evaluation log.
@@ -768,6 +769,7 @@ export interface EvalLog {
   samples?: Samples1;
   reductions?: Reductions;
   location?: Location1;
+  etag?: Etag;
 }
 /**
  * Eval target and configuration.
