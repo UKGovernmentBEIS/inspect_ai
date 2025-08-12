@@ -115,6 +115,19 @@ class ContentVideo(ContentBase):
     """Format of video data ('mp4', 'mpeg', or 'mov')"""
 
 
+class ContentDocument(ContentBase):
+    """Document content (e.g. a PDF)."""
+
+    type: Literal["document"] = Field(default="document")
+    """Type."""
+
+    document: str
+    """Document file path or base64 encoded data URL."""
+
+    mime_type: str | None = Field(default=None)
+    """Document mime type (optional if document is a file path, in which case the mime type will be guessed from the file extension)."""
+
+
 class ContentData(ContentBase):
     """Model internal."""
 
@@ -133,5 +146,6 @@ Content = Union[
     ContentVideo,
     ContentData,
     ContentToolUse,
+    ContentDocument,
 ]
 """Content sent to or received from a model."""

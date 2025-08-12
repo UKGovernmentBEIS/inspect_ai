@@ -50,6 +50,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.content import (
     ContentAudio,
     ContentData,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -617,7 +618,7 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
 
 async def chat_content_to_part(
     client: Client,
-    content: ContentImage | ContentAudio | ContentVideo,
+    content: ContentImage | ContentAudio | ContentVideo | ContentDocument,
 ) -> Part:
     if isinstance(content, ContentImage):
         content_bytes, mime_type = await file_as_data(content.image)
@@ -755,6 +756,7 @@ def completion_choice_from_candidate(
                 | ContentAudio
                 | ContentVideo
                 | ContentData
+                | ContentDocument
             ]
         ) = ""
     # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
@@ -989,7 +991,7 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
 
 
 async def file_for_content(
-    client: Client, content: ContentAudio | ContentVideo
+    client: Client, content: ContentAudio | ContentVideo | ContentDocument
 ) -> File:
     # helper to write trace messages
     def trace(message: str) -> None:
@@ -998,8 +1000,10 @@ async def file_for_content(
     # get the file bytes and compute sha256 hash
     if isinstance(content, ContentAudio):
         file = content.audio
-    else:
+    elif isinstance(content, ContentVideo):
         file = content.video
+    else:
+        file = content.document
     content_bytes, mime_type = await file_as_data(file)
     content_sha256 = hashlib.sha256(content_bytes).hexdigest()
     # we cache uploads for re-use, open the db where we track that
