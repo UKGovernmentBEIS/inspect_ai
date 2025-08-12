@@ -127,6 +127,7 @@ def write_eval_log(
     log: EvalLog,
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
+    if_match_etag: str | None = None,
 ) -> None:
     """Write an evaluation log.
 
@@ -135,6 +136,12 @@ def write_eval_log(
        location (str | FileInfo): Location to write log to.
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
+       if_match_etag (str | None): ETag for conditional write. If provided
+          and writing to S3, will only write if the current ETag matches.
+
+    Raises:
+       WriteConflictError: If if_match_etag is provided and doesn't match
+          the current ETag of the file in S3.
     """
     # don't mix trio and asyncio
     if current_async_backend() == "trio":
@@ -144,13 +151,14 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    run_coroutine(write_eval_log_async(log, location, format))
+    run_coroutine(write_eval_log_async(log, location, format, if_match_etag))
 
 
 async def write_eval_log_async(
     log: EvalLog,
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
+    if_match_etag: str | None = None,
 ) -> None:
     """Write an evaluation log.
 
@@ -159,6 +167,8 @@ async def write_eval_log_async(
        location (str | FileInfo): Location to write log to.
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
+       if_match_etag (str | None): ETag for conditional write. If provided
+          and writing to S3, will only write if the current ETag matches.
     """
     # resolve location
     if location is None:
@@ -183,7 +193,7 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log)
+    await recorder_type.write_log(location, log, if_match_etag)
 
     logger.debug(f"Writing eval log to {location} completed")
 

@@ -71,4 +71,6 @@ class Recorder(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    async def write_log(cls, location: str, log: EvalLog) -> None: ...
+    async def write_log(
+        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+    ) -> None: ...
