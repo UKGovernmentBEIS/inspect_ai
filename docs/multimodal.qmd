@@ -171,8 +171,6 @@ The following model providers support PDF inputs:
 -   [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/pdf-support)
 -   [Google](https://ai.google.dev/api/files)
 
-In addition to PDFs, some models may also support uploading text files. Please see the provider specific documentation for details.
-
 To include PDF in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include a PDF alongside some text content:
 
 ``` javascript
