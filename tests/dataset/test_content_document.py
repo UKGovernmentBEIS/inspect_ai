@@ -121,17 +121,6 @@ def test_missing_document_field():
     assert errors[0]["type"] == "missing"
 
 
-def test_empty_document_field():
-    """Test that empty document field raises validation error."""
-    with pytest.raises(ValidationError) as exc_info:
-        ContentDocument(document="")
-
-    errors = exc_info.value.errors()
-    # Empty document causes missing name and mime_type errors
-    assert any(error["loc"] == ("filename",) for error in errors)
-    assert any(error["loc"] == ("mime_type",) for error in errors)
-
-
 def test_type_field_default():
     """Test that type field has correct default value."""
     doc = ContentDocument(document="/path/to/file.pdf")

@@ -127,10 +127,10 @@ class ContentDocument(ContentBase):
     document: str
     """Document file path or base64 encoded data URL."""
 
-    filename: str
+    filename: str = Field(default_factory=str)
     """Document filename (automatically determined from 'document' if not specified)."""
 
-    mime_type: str
+    mime_type: str = Field(default_factory=str)
     """Document mime type (automatically determined from 'document' if not specified)."""
 
     @model_validator(mode="before")
@@ -146,18 +146,18 @@ class ContentDocument(ContentBase):
             return data
 
         if document.startswith("data:"):
-            if mime_type is None:
+            if not mime_type:
                 mime_type = data_uri_mime_type(document) or "application/octet-stream"
-            if filename is None:
+            if not filename:
                 extension = mime_type.split("/")[-1]
                 filename = f"document.{extension}"
 
         else:
             path = Path(document)
-            if filename is None:
+            if not filename:
                 filename = path.name
 
-            if mime_type is None:
+            if not mime_type:
                 guessed_type, _ = mimetypes.guess_type(str(path))
                 mime_type = guessed_type or "application/octet-stream"
 
