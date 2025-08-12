@@ -21,6 +21,7 @@ import styles from "./MessageContent.module.css";
 import { MessagesContext } from "./MessageContents";
 import { ToolOutput } from "./tools/ToolOutput";
 import { Citation } from "./types";
+import { ServerToolCall } from "./server-tools/ServerToolCall";
 
 type ContentObject =
   | ContentText
@@ -39,6 +40,17 @@ type Contents = string | string[] | ContentObject[];
 interface MessageContentProps {
   contents: Contents;
   context: MessagesContext;
+}
+
+export const isMessageContent = (
+  content: unknown,
+): content is ContentObject => {
+  return (
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    typeof content.type === "string"
+  );
 }
 
 /**
