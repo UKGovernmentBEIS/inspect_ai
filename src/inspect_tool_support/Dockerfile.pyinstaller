@@ -1,14 +1,28 @@
-FROM python:3.10-slim-bullseye
+# Base image will automatically use target platform
+FROM python:3.10-slim-bullseye AS base
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        gcc \
-        g++ \
-        build-essential \
-        patchelf \
-        scons \
-        file \
-    && pip install --no-cache-dir \
+# Architecture-specific package installation
+FROM base AS packages-amd64
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    build-essential \
+    patchelf \
+    scons \
+    file
+
+FROM base AS packages-arm64  
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    build-essential \
+    patchelf \
+    scons \
+    file
+
+# Final stage - automatically selects correct packages stage
+FROM packages-${TARGETARCH} AS final
+RUN pip install --no-cache-dir \
         pyinstaller \
         staticx \
         psutil \

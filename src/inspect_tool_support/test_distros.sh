@@ -2,9 +2,33 @@
 
 echo "🧪 Quick portability test..."
 
-EXECUTABLE_PATH="$(pwd)/container_build/inspect-tool-support"
+# Detect host architecture
+ARCH=$(uname -m)
+case $ARCH in
+    x86_64)
+        ARCH_SUFFIX="amd64"
+        ;;
+    aarch64|arm64)
+        ARCH_SUFFIX="arm64"
+        ;;
+    *)
+        echo "Unsupported architecture: $ARCH"
+        exit 1
+        ;;
+esac
+
+EXECUTABLE_PATH="$(pwd)/container_build/inspect-tool-support-$ARCH_SUFFIX"
+
+if [ ! -f "$EXECUTABLE_PATH" ]; then
+    echo "❌ Executable not found: $EXECUTABLE_PATH"
+    echo "Run ./build_within_container.sh first"
+    exit 1
+fi
+
+echo "Testing executable for $ARCH ($ARCH_SUFFIX): $EXECUTABLE_PATH"
 
 # Essential distributions representing different libc implementations
+# Note: These will pull images matching the host architecture automatically
 distributions=(
     "alpine:latest"           # musl libc
     "ubuntu:18.04"           # older glibc
@@ -24,3 +48,7 @@ for distro in "${distributions[@]}"; do
         echo "❌"
     fi
 done
+
+echo ""
+echo "Note: Tests run against $ARCH_SUFFIX executable on $ARCH_SUFFIX containers"
+echo "For cross-architecture testing, build on the target architecture"
