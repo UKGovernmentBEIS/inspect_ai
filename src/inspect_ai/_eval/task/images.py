@@ -10,7 +10,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import data_uri_mime_type, is_data_uri
+from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage
 from inspect_ai.solver import TaskState
@@ -117,8 +117,9 @@ async def chat_content_with_base64_content(content: Content) -> Content:
         )
     elif isinstance(content, ContentDocument):
         document = await file_as_data_uri(content.document)
-        mime_type = data_uri_mime_type(document)
-        return ContentDocument(document=document, mime_type=mime_type)
+        return ContentDocument(
+            document=document, filename=content.filename, mime_type=content.mime_type
+        )
     else:
         return content
 
@@ -132,7 +133,9 @@ def chat_content_without_base64_content(content: Content) -> Content:
         return ContentVideo(video=BASE_64_DATA_REMOVED, format="mp4")
     elif isinstance(content, ContentDocument) and is_data_uri(content.document):
         return ContentDocument(
-            document=BASE_64_DATA_REMOVED, mime_type=content.mime_type
+            document=BASE_64_DATA_REMOVED,
+            filename=content.filename,
+            mime_type=content.mime_type,
         )
     else:
         return content
