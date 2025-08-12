@@ -290,6 +290,8 @@ website:
           href: reference/inspect_ai.model.qmd#contentaudio
         - text: ContentVideo
           href: reference/inspect_ai.model.qmd#contentvideo
+        - text: ContentDocument
+          href: reference/inspect_ai.model.qmd#contentdocument
         - text: ContentData
           href: reference/inspect_ai.model.qmd#contentdata
         - text: ContentToolUse
@@ -433,6 +435,8 @@ website:
           href: reference/inspect_ai.log.qmd#evalsamplereductions
         - text: EvalSampleScore
           href: reference/inspect_ai.log.qmd#evalsamplescore
+        - text: WriteConflictError
+          href: reference/inspect_ai.log.qmd#writeconflicterror
         - text: transcript
           href: reference/inspect_ai.log.qmd#transcript
         - text: Transcript
