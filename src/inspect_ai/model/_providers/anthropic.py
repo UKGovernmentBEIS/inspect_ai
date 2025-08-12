@@ -17,6 +17,7 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
+    DocumentBlockParam,
     ImageBlockParam,
     Message,
     MessageParam,
@@ -919,6 +920,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 str
                 | list[
                     TextBlockParam
+                    | DocumentBlockParam
                     | ImageBlockParam
                     | ThinkingBlockParam
                     | RedactedThinkingBlockParam
@@ -963,6 +965,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             TextBlockParam
             | ThinkingBlockParam
             | RedactedThinkingBlockParam
+            | DocumentBlockParam
             | ImageBlockParam
             | ToolUseBlockParam
             | ServerToolUseBlockParam
@@ -1236,6 +1239,7 @@ async def message_param_content(
     content: Content,
 ) -> list[
     TextBlockParam
+    | DocumentBlockParam
     | ImageBlockParam
     | ThinkingBlockParam
     | RedactedThinkingBlockParam
@@ -1338,7 +1342,8 @@ async def message_param_content(
             raise RuntimeError(
                 f"Unexpected tool use: {content.tool_type}/{content.name}"
             )
-
+    # elif isinstance(content, ContentDocument):
+    #     pass
     else:
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."
