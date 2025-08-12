@@ -31,7 +31,12 @@ def role_task():
     return Task(solver=role_solver())
 
 
+# skip_if_no_openai is needed on the below tests because of RED_TEAM_DEFAULT
+# which is "openai/gpt-4o"
+
+
 @skip_if_no_google
+@skip_if_no_openai
 def test_model_role() -> None:
     log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
     assert log.eval.model_roles
@@ -46,6 +51,7 @@ def test_model_role_default() -> None:
 
 
 @skip_if_no_google
+@skip_if_no_openai
 def test_model_role_retry() -> None:
     log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
     log.status = "cancelled"
@@ -63,6 +69,7 @@ def role_task_init():
 
 
 @skip_if_no_google
+@skip_if_no_openai
 def test_model_role_task_init():
     log = eval(role_task_init, model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
     assert log.eval.model_roles
@@ -71,6 +78,7 @@ def test_model_role_task_init():
 
 
 @skip_if_no_google
+@skip_if_no_openai
 def test_model_role_eval_set() -> None:
     dataset: list[Sample] = []
     for _ in range(0, 10):

@@ -1,3 +1,4 @@
+import pytest
 from test_helpers.tool_call_utils import find_tool_call, get_tool_event
 from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_openai
@@ -60,17 +61,23 @@ def check_agent_handoff(
     assert str(max_searches) in assistant_message.text
 
 
+# These tests are flaky because, occasionally, the model will call the with a max_searches parameter
+
+
 @skip_if_no_openai
+@pytest.mark.flaky
 def test_agent_handoff_tool():
     check_agent_handoff()
 
 
 @skip_if_no_openai
+@pytest.mark.flaky
 def test_agent_handoff_tool_arg():
     check_agent_handoff(10)
 
 
 @skip_if_no_openai
+@pytest.mark.flaky
 def test_agent_handoff_tool_curry():
     check_agent_handoff(15, handoff(searcher(), max_searches=15))
 
@@ -93,6 +100,7 @@ def searcher2() -> Agent:
 
 
 @skip_if_no_openai
+@pytest.mark.flaky
 def test_agent_handoff_user_message():
     log = eval(
         Task(
