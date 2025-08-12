@@ -127,8 +127,8 @@ class ContentDocument(ContentBase):
     document: str
     """Document file path or base64 encoded data URL."""
 
-    name: str
-    """Document name (automatically determined from 'document' if not specified)."""
+    filename: str
+    """Document filename (automatically determined from 'document' if not specified)."""
 
     mime_type: str
     """Document mime type (automatically determined from 'document' if not specified)."""
@@ -138,7 +138,7 @@ class ContentDocument(ContentBase):
     def set_name_and_mime_type(cls, data: dict[str, Any]) -> dict[str, Any]:
         """Automatically set name and mime_type if not provided."""
         document: str | None = data.get("document")
-        name: str | None = data.get("name")
+        filename: str | None = data.get("filename")
         mime_type: str | None = data.get("mime_type")
 
         if not document:
@@ -148,20 +148,20 @@ class ContentDocument(ContentBase):
         if document.startswith("data:"):
             if mime_type is None:
                 mime_type = data_uri_mime_type(document) or "application/octet-stream"
-            if name is None:
+            if filename is None:
                 extension = mime_type.split("/")[-1]
-                name = f"document.{extension}"
+                filename = f"document.{extension}"
 
         else:
             path = Path(document)
-            if name is None:
-                name = path.name
+            if filename is None:
+                filename = path.name
 
             if mime_type is None:
                 guessed_type, _ = mimetypes.guess_type(str(path))
                 mime_type = guessed_type or "application/octet-stream"
 
-        data["name"] = name
+        data["filename"] = filename
         data["mime_type"] = mime_type
 
         return data

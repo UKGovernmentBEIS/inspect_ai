@@ -11,14 +11,14 @@ def test_file_path_auto_detection():
     """Test automatic name and mime_type detection from file paths."""
     doc = ContentDocument(document="/path/to/report.pdf")
     assert doc.document == "/path/to/report.pdf"
-    assert doc.name == "report.pdf"
+    assert doc.filename == "report.pdf"
     assert doc.mime_type == "application/pdf"
 
 
 def test_file_path_with_explicit_name():
     """Test that explicit name is preserved with auto mime_type."""
-    doc = ContentDocument(document="/path/to/file.pdf", name="Q4 Financial Report")
-    assert doc.name == "Q4 Financial Report"
+    doc = ContentDocument(document="/path/to/file.pdf", filename="Q4 Financial Report")
+    assert doc.filename == "Q4 Financial Report"
     assert doc.mime_type == "application/pdf"
 
 
@@ -27,24 +27,28 @@ def test_file_path_with_explicit_mime_type():
     doc = ContentDocument(
         document="/path/to/report.pdf", mime_type="application/x-custom-pdf"
     )
-    assert doc.name == "report.pdf"
+    assert doc.filename == "report.pdf"
     assert doc.mime_type == "application/x-custom-pdf"
 
 
 def test_file_path_all_explicit():
     """Test that all explicit values are preserved."""
     doc = ContentDocument(
-        document="/path/to/file.bin", name="Custom Name", mime_type="application/custom"
+        document="/path/to/file.bin",
+        filename="Custom Name",
+        mime_type="application/custom",
     )
-    assert doc.name == "Custom Name"
+    assert doc.filename == "Custom Name"
     assert doc.mime_type == "application/custom"
 
 
 def test_unknown_file_extension():
     """Test fallback mime_type for unknown extensions."""
     doc = ContentDocument(document="/path/to/file.xyz")
-    assert doc.name == "file.xyz"
-    assert doc.mime_type == "chemical/x-xyz"  # mimetypes.guess_type returns this for .xyz
+    assert doc.filename == "file.xyz"
+    assert (
+        doc.mime_type == "chemical/x-xyz"
+    )  # mimetypes.guess_type returns this for .xyz
 
 
 def test_data_uri_auto_detection():
@@ -52,23 +56,24 @@ def test_data_uri_auto_detection():
     doc = ContentDocument(
         document="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
     )
-    assert doc.name == "document.png"
+    assert doc.filename == "document.png"
     assert doc.mime_type == "image/png"
 
 
 def test_data_uri_pdf():
     """Test data URI with PDF mime type."""
     doc = ContentDocument(document="data:application/pdf;base64,JVBERi0xLjQKJcfs...")
-    assert doc.name == "document.pdf"
+    assert doc.filename == "document.pdf"
     assert doc.mime_type == "application/pdf"
 
 
 def test_data_uri_with_explicit_name():
     """Test data URI with explicit name."""
     doc = ContentDocument(
-        document="data:image/jpeg;base64,/9j/4AAQSkZJRg...", name="profile_photo.jpg"
+        document="data:image/jpeg;base64,/9j/4AAQSkZJRg...",
+        filename="profile_photo.jpg",
     )
-    assert doc.name == "profile_photo.jpg"
+    assert doc.filename == "profile_photo.jpg"
     assert doc.mime_type == "image/jpeg"
 
 
@@ -77,7 +82,7 @@ def test_data_uri_with_explicit_mime_type():
     doc = ContentDocument(
         document="data:image/png;base64,iVBORw0KGgo...", mime_type="image/x-custom-png"
     )
-    assert doc.name == "document.x-custom-png"
+    assert doc.filename == "document.x-custom-png"
     assert doc.mime_type == "image/x-custom-png"
 
 
@@ -85,7 +90,7 @@ def test_data_uri_no_mime_type_in_uri():
     """Test data URI without mime type falls back to default."""
     with patch("inspect_ai._util.content.data_uri_mime_type", return_value=None):
         doc = ContentDocument(document="data:,Hello%20World")
-        assert doc.name == "document.octet-stream"
+        assert doc.filename == "document.octet-stream"
         assert doc.mime_type == "application/octet-stream"
 
 
@@ -95,7 +100,10 @@ def test_data_uri_complex_mime_type():
         document="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,UEsDBA..."
     )
     # The extension is extracted from the last part after the last dot
-    assert doc.name == "document.vnd.openxmlformats-officedocument.wordprocessingml.document"
+    assert (
+        doc.filename
+        == "document.vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
     assert (
         doc.mime_type
         == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -105,7 +113,7 @@ def test_data_uri_complex_mime_type():
 def test_missing_document_field():
     """Test that missing document field raises validation error."""
     with pytest.raises(ValidationError) as exc_info:
-        ContentDocument(name="test.pdf", mime_type="application/pdf")
+        ContentDocument(filename="test.pdf", mime_type="application/pdf")
 
     errors = exc_info.value.errors()
     assert len(errors) == 1
@@ -120,7 +128,7 @@ def test_empty_document_field():
 
     errors = exc_info.value.errors()
     # Empty document causes missing name and mime_type errors
-    assert any(error["loc"] == ("name",) for error in errors)
+    assert any(error["loc"] == ("filename",) for error in errors)
     assert any(error["loc"] == ("mime_type",) for error in errors)
 
 
@@ -143,28 +151,28 @@ def test_type_field_cannot_be_changed():
 def test_file_path_with_multiple_dots():
     """Test file with multiple dots in name."""
     doc = ContentDocument(document="/path/to/file.name.with.dots.pdf")
-    assert doc.name == "file.name.with.dots.pdf"
+    assert doc.filename == "file.name.with.dots.pdf"
     assert doc.mime_type == "application/pdf"
 
 
 def test_file_path_no_extension():
     """Test file without extension."""
     doc = ContentDocument(document="/path/to/README")
-    assert doc.name == "README"
+    assert doc.filename == "README"
     assert doc.mime_type == "application/octet-stream"
 
 
 def test_file_path_hidden_file():
     """Test hidden file (starting with dot)."""
     doc = ContentDocument(document="/path/to/.gitignore")
-    assert doc.name == ".gitignore"
+    assert doc.filename == ".gitignore"
     assert doc.mime_type == "application/octet-stream"
 
 
 def test_relative_file_path():
     """Test relative file path."""
     doc = ContentDocument(document="./documents/report.docx")
-    assert doc.name == "report.docx"
+    assert doc.filename == "report.docx"
     assert (
         doc.mime_type
         == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -176,7 +184,7 @@ def test_windows_file_path():
     # On Unix systems, Windows paths are treated as a single filename
     doc = ContentDocument(document=r"C:\Users\Documents\report.xlsx")
     # On Unix, the entire path becomes the filename
-    assert doc.name == r"C:\Users\Documents\report.xlsx"
+    assert doc.filename == r"C:\Users\Documents\report.xlsx"
     # mimetypes can still extract .xlsx extension from the string
     assert (
         doc.mime_type
@@ -210,7 +218,7 @@ def test_windows_file_path():
 def test_common_mime_types(extension, expected_mime):
     """Test common file extensions are mapped to correct MIME types."""
     doc = ContentDocument(document=f"/path/to/file.{extension}")
-    assert doc.name == f"file.{extension}"
+    assert doc.filename == f"file.{extension}"
     assert doc.mime_type == expected_mime
 
 
@@ -236,7 +244,7 @@ def test_model_serialization():
         "internal": None,  # ContentBase includes internal field
         "type": "document",
         "document": "/path/to/report.pdf",
-        "name": "report.pdf",
+        "filename": "report.pdf",
         "mime_type": "application/pdf",
     }
 
@@ -246,11 +254,11 @@ def test_model_deserialization():
     data = {
         "type": "document",
         "document": "/path/to/report.pdf",
-        "name": "Custom Report",
+        "filename": "Custom Report",
         "mime_type": "application/pdf",
     }
     doc = ContentDocument.model_validate(data)
 
     assert doc.document == "/path/to/report.pdf"
-    assert doc.name == "Custom Report"
+    assert doc.filename == "Custom Report"
     assert doc.mime_type == "application/pdf"

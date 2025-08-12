@@ -38,6 +38,7 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
+from openai.types.chat.chat_completion_content_part_param import File, FileFile
 from openai.types.chat.chat_completion_message_function_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
@@ -131,8 +132,12 @@ async def openai_chat_completion_part(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
     elif content.type == "document":
-        raise RuntimeError(
-            "Document content is not currently supported by Open AI chat models."
+        document_data_uri = await file_as_data_uri(content.document)
+        document_data = document_data_uri.split("base64,")[1]
+
+        return File(
+            type="file",
+            file=FileFile(file_data=document_data, filename=content.filename),
         )
     else:
         raise RuntimeError(
