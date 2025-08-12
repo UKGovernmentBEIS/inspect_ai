@@ -52,8 +52,8 @@ class GrokAPI(OpenAICompatibleAPI):
                 content = str(ex.body.get("message"))
             else:
                 content = ex.message
-            
-            if 'Content violates usage guidelines' in content:
+
+            if "Content violates usage guidelines" in content:
                 return ModelOutput.from_content(
                     model=self.model_name,
                     content=content,
