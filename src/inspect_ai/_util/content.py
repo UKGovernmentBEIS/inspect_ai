@@ -1,8 +1,11 @@
-from typing import Literal, Sequence, Union
+import mimetypes
+from pathlib import Path
+from typing import Any, Literal, Sequence, Union
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai._util.citation import Citation
+from inspect_ai._util.url import data_uri_mime_type
 
 
 class ContentBase(BaseModel):
@@ -124,8 +127,44 @@ class ContentDocument(ContentBase):
     document: str
     """Document file path or base64 encoded data URL."""
 
-    mime_type: str | None = Field(default=None)
-    """Document mime type (optional if document is a file path, in which case the mime type will be guessed from the file extension)."""
+    name: str
+    """Document name (automatically determined from 'document' if not specified)."""
+
+    mime_type: str
+    """Document mime type (automatically determined from 'document' if not specified)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_name_and_mime_type(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Automatically set name and mime_type if not provided."""
+        document: str | None = data.get("document")
+        name: str | None = data.get("name")
+        mime_type: str | None = data.get("mime_type")
+
+        if not document:
+            # Let Pydantic handle the missing required field
+            return data
+
+        if document.startswith("data:"):
+            if mime_type is None:
+                mime_type = data_uri_mime_type(document) or "application/octet-stream"
+            if name is None:
+                extension = mime_type.split("/")[-1]
+                name = f"document.{extension}"
+
+        else:
+            path = Path(document)
+            if name is None:
+                name = path.name
+
+            if mime_type is None:
+                guessed_type, _ = mimetypes.guess_type(str(path))
+                mime_type = guessed_type or "application/octet-stream"
+
+        data["name"] = name
+        data["mime_type"] = mime_type
+
+        return data
 
 
 class ContentData(ContentBase):
