@@ -292,6 +292,8 @@ website:
           href: reference/inspect_ai.model.qmd#contentvideo
         - text: ContentData
           href: reference/inspect_ai.model.qmd#contentdata
+        - text: ContentToolUse
+          href: reference/inspect_ai.model.qmd#contenttooluse
         - text: Citation
           href: reference/inspect_ai.model.qmd#citation
         - text: CitationBase

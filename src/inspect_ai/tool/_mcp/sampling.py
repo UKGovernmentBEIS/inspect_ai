@@ -18,7 +18,7 @@ from mcp.types import (
     StopReason as MCPStopReason,
 )
 
-from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentText
+from inspect_ai._util.content import ContentAudio, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 
@@ -100,7 +100,7 @@ def as_inspect_content(
     | AudioContent
     | ResourceLink
     | EmbeddedResource,
-) -> Content:
+) -> ContentText | ContentImage | ContentAudio:
     if isinstance(content, TextContent):
         return ContentText(text=content.text)
     elif isinstance(content, ImageContent):

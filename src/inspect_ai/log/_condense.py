@@ -13,6 +13,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai._util.hash import mm3_hash
@@ -345,6 +346,14 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
         return content.model_copy(update=dict(video=content_fn(content.video)))
     elif isinstance(content, ContentReasoning):
         return content.model_copy(update=dict(reasoning=content_fn(content.reasoning)))
+    elif isinstance(content, ContentToolUse):
+        return content.model_copy(
+            update=dict(
+                arguments=walk_json_value(content.arguments, content_fn),
+                result=walk_json_value(content.result, content_fn),
+                error=content_fn(content.error) if content.error else content.error,
+            )
+        )
     elif isinstance(content, ContentData):
         return content.model_copy(
             update=dict(data=walk_json_value(content.data, content_fn))

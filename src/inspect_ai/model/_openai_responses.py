@@ -31,7 +31,28 @@ from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoice,
 )
-from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
+from openai.types.responses.response_function_web_search_param import (
+    ActionFind,
+    ActionOpenPage,
+    ActionSearch,
+)
+from openai.types.responses.response_input_item_param import (
+    FunctionCallOutput,
+    Message,
+)
+from openai.types.responses.response_input_item_param import (
+    McpCall as McpCallParam,
+)
+from openai.types.responses.response_input_item_param import (
+    McpListTools as McpListToolsParam,
+)
+from openai.types.responses.response_input_item_param import (
+    McpListToolsTool as McpListToolsToolParam,
+)
+from openai.types.responses.response_output_item import (
+    McpCall,
+    McpListTools,
+)
 from openai.types.responses.response_output_text import (
     Annotation,
     AnnotationFileCitation,
@@ -39,6 +60,7 @@ from openai.types.responses.response_output_text import (
     AnnotationURLCitation,
 )
 from openai.types.responses.response_reasoning_item_param import Summary
+from openai.types.responses.tool_param import Mcp
 from pydantic import JsonValue
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
@@ -47,6 +69,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
@@ -54,6 +77,8 @@ from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -291,35 +316,61 @@ def _chat_message_assistant_from_openai_response(
                         reasoning="\n".join([s.text for s in summary]), signature=id
                     )
                 )
-            case _:
+            case ResponseFunctionToolCall():
                 stop_reason = "tool_calls"
-                match output:
-                    case ResponseFunctionToolCall():
-                        if output.id is not None:
-                            internal["tool_message_ids"][output.call_id] = output.id
-                        tool_calls.append(
-                            parse_tool_call(
-                                output.call_id,
-                                _from_responses_tool_alias(output.name),
-                                output.arguments,
-                                tools,
-                            )
-                        )
-                    case ResponseComputerToolCall():
-                        if output.id is not None:
-                            internal["tool_message_ids"][output.call_id] = output.id
-                        tool_calls.append(
-                            tool_call_from_openai_computer_tool_call(output)
-                        )
-                    case ResponseFunctionWebSearch():
-                        # We don't currently capture this since the model did the
-                        # "tool call" internally. It's conceivable that could be
-                        # forced to include it in `.internal` in the future, but
-                        # for now we just ignore it.
-                        # {"id":"ws_682cdcec3fa88198bc10b38fafefbd5e077e89e31fd4a3d5","status":"completed","type":"web_search_call"}
-                        pass
-                    case _:
-                        raise ValueError(f"Unexpected output type: {output.__class__}")
+                if output.id is not None:
+                    internal["tool_message_ids"][output.call_id] = output.id
+                tool_calls.append(
+                    parse_tool_call(
+                        output.call_id,
+                        _from_responses_tool_alias(output.name),
+                        output.arguments,
+                        tools,
+                    )
+                )
+            case ResponseComputerToolCall():
+                stop_reason = "tool_calls"
+                if output.id is not None:
+                    internal["tool_message_ids"][output.call_id] = output.id
+                tool_calls.append(tool_call_from_openai_computer_tool_call(output))
+
+            case ResponseFunctionWebSearch():
+                message_content.append(
+                    ContentToolUse(
+                        tool_type="web_search_call",
+                        id=output.id,
+                        name=output.action.type,
+                        arguments=output.action.model_dump(),
+                        result="",
+                        error="failed" if output.status == "failed" else None,
+                    )
+                )
+            case McpListTools():
+                message_content.append(
+                    ContentToolUse(
+                        tool_type="mcp_list_tools",
+                        id=output.id,
+                        name="mcp_list_tools",
+                        context=output.server_label,
+                        arguments="",
+                        result=[tool.model_dump() for tool in output.tools],
+                        error=output.error,
+                    )
+                )
+            case McpCall():
+                message_content.append(
+                    ContentToolUse(
+                        tool_type="mcp_call",
+                        id=output.id,
+                        name=output.name,
+                        context=output.server_label,
+                        arguments=output.arguments,
+                        result=output.output,
+                        error=output.error,
+                    )
+                )
+            case _:
+                raise ValueError(f"Unexpected output type: {output.__class__}")
 
     return (
         ChatMessageAssistant(
@@ -353,11 +404,13 @@ def _openai_input_items_from_chat_message_assistant(
     # (indicating that when reading the message from the server we didn't find output).
     # this could happen e.g. when a react() agent sets the output.completion in response
     # to a submit() tool call
-    content_items: list[ContentText | ContentReasoning] = (
+    content_items: list[ContentText | ContentReasoning | ContentToolUse] = (
         [ContentText(text=message.content)]
         if isinstance(message.content, str)
         else [
-            c for c in message.content if isinstance(c, ContentText | ContentReasoning)
+            c
+            for c in message.content
+            if isinstance(c, ContentText | ContentReasoning | ContentToolUse)
         ]
     )
     has_content_with_ids = any(
@@ -390,6 +443,64 @@ def _openai_input_items_from_chat_message_assistant(
                         else [],
                     )
                 )
+            case ContentToolUse(
+                tool_type=tool_type,
+                id=id,
+                name=name,
+                context=context,
+                arguments=arguments,
+                result=result,
+                error=error,
+            ):
+                if tool_type == "mcp_list_tools":
+                    items.append(
+                        McpListToolsParam(
+                            id=id,
+                            server_label=context or "",
+                            tools=cast(list[McpListToolsToolParam], result),
+                            type="mcp_list_tools",
+                            error=error,
+                        )
+                    )
+                elif tool_type == "mcp_call":
+                    items.append(
+                        McpCallParam(
+                            id=id,
+                            arguments=str(arguments),
+                            name=name,
+                            server_label=context or "",
+                            type="mcp_call",
+                            output=str(result),
+                            error=error,
+                        )
+                    )
+                elif tool_type == "web_search_call":
+                    match arguments:
+                        case {"type": "search"}:
+                            action: ActionSearch | ActionOpenPage | ActionFind = cast(
+                                ActionSearch, arguments
+                            )
+                        case {"type": "open_page"}:
+                            action = cast(ActionOpenPage, arguments)
+                        case {"type": "find"}:
+                            action = cast(ActionFind, arguments)
+                        case _:
+                            raise ValueError(
+                                f"Unexpected arguments for web_search_call: {arguments}"
+                            )
+
+                    items.append(
+                        ResponseFunctionWebSearchParam(
+                            id=id,
+                            action=action,
+                            status="failed" if error else "completed",
+                            type="web_search_call",
+                        )
+                    )
+                else:
+                    raise ValueError(
+                        f"OpenAI Responses: Unspected tool_type '{tool_type}'"
+                    )
             case ContentText(text=text, refusal=refusal):
                 if suppress_output_message:
                     continue
@@ -454,6 +565,7 @@ def _maybe_native_tool_param(
         (
             maybe_computer_use_preview_tool(tool)
             or maybe_web_search_tool(model_name, tool)
+            or maybe_mcp_tool(tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
@@ -512,8 +624,24 @@ _ResponseToolCallParam = (
     | ResponseComputerToolCallParam
     | ResponseFunctionWebSearchParam
     # | ResponseFileSearchToolCallParam
-    # | ResponseFunctionToolCallParam
 )
+
+
+def maybe_mcp_tool(tool: ToolInfo) -> Mcp | None:
+    if is_mcp_server_tool(tool):
+        mcp_server = MCPServerConfigHTTP.model_validate(tool.options)
+        return Mcp(
+            type="mcp",
+            server_label=mcp_server.name,
+            server_url=mcp_server.url,
+            headers=mcp_server.headers,
+            allowed_tools=mcp_server.tools
+            if isinstance(mcp_server.tools, list)
+            else None,
+            require_approval="never",
+        )
+    else:
+        return None
 
 
 def _tool_param_for_tool_info(
@@ -563,14 +691,15 @@ def _to_inspect_citation(input: Annotation) -> Citation:
 
 
 def _filter_consecutive_reasoning_blocks(
-    content_list: list[ContentText | ContentReasoning],
-) -> list[ContentText | ContentReasoning]:
+    content_list: list[ContentText | ContentReasoning | ContentToolUse],
+) -> list[ContentText | ContentReasoning | ContentToolUse]:
     return reduce(_reasoning_reducer, content_list, [])
 
 
 def _reasoning_reducer(
-    acc: list[ContentText | ContentReasoning], curr: ContentText | ContentReasoning
-) -> list[ContentText | ContentReasoning]:
+    acc: list[ContentText | ContentReasoning | ContentToolUse],
+    curr: ContentText | ContentReasoning | ContentToolUse,
+) -> list[ContentText | ContentReasoning | ContentToolUse]:
     # Keep only the last ContentReasoning in each consecutive run
     if not acc:
         acc = [curr]

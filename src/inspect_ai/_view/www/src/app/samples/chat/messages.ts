@@ -8,6 +8,7 @@ import {
   ContentImage,
   ContentReasoning,
   ContentText,
+  ContentToolUse,
   ContentVideo,
   Events,
   Messages,
@@ -66,6 +67,7 @@ export const resolveMessages = (messages: Messages) => {
     | ContentVideo
     | ContentReasoning
     | ContentData
+    | ContentToolUse
   )[] = [];
   for (const systemMessage of systemMessages) {
     const contents = Array.isArray(systemMessage.content)
@@ -121,6 +123,7 @@ const normalizeContent = (
     | ContentVideo
     | ContentReasoning
     | ContentData
+    | ContentToolUse
     | string,
 ):
   | ContentText
@@ -128,7 +131,8 @@ const normalizeContent = (
   | ContentAudio
   | ContentVideo
   | ContentReasoning
-  | ContentData => {
+  | ContentData
+  | ContentToolUse => {
   if (typeof content === "string") {
     return {
       type: "text",

@@ -36,7 +36,6 @@ from pydantic import BaseModel
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
-    ContentData,
     ContentImage,
     ContentText,
     ContentVideo,
@@ -56,6 +55,7 @@ from inspect_ai.tool._tool import (
     ToolParsingError,
     ToolResult,
     ToolSource,
+    tool_result_content,
 )
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
@@ -189,19 +189,15 @@ async def execute_tools(
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
             if isinstance(
-                result,
-                ContentText | ContentImage | ContentAudio | ContentVideo | ContentData,
+                result, ContentText | ContentImage | ContentAudio | ContentVideo
             ):
-                content: str | list[Content] = [result]
+                content: (
+                    str | list[ContentText | ContentImage | ContentAudio | ContentVideo]
+                ) = [result]
             elif isinstance(result, list) and (
                 len(result) == 0
                 or isinstance(
-                    result[0],
-                    ContentText
-                    | ContentImage
-                    | ContentAudio
-                    | ContentVideo
-                    | ContentData,
+                    result[0], ContentText | ContentImage | ContentAudio | ContentVideo
                 )
             ):
                 content = result
@@ -238,7 +234,7 @@ async def execute_tools(
                         ExecuteToolsResult(
                             messages=[
                                 ChatMessageTool(
-                                    content=content,
+                                    content=cast(list[Content], content),
                                     tool_call_id=call.id,
                                     function=call.function,
                                     error=tool_error,
@@ -301,7 +297,7 @@ async def execute_tools(
                     id=call.id,
                     function=call.function,
                     arguments=call.arguments,
-                    result=tool_message.content,
+                    result=tool_result_content(tool_message.content),
                     truncated=None,
                     view=call.view,
                     error=tool_message.error,

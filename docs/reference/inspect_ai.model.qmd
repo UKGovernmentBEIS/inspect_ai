@@ -36,6 +36,7 @@ title: "inspect_ai.model"
 ### ContentAudio
 ### ContentVideo
 ### ContentData
+### ContentToolUse
 
 ## Citation
 

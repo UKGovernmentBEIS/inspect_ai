@@ -276,6 +276,10 @@ class OpenAIAPI(ModelAPI):
         return not self.responses_api
 
     @override
+    def supports_remote_mcp(self) -> bool:
+        return True
+
+    @override
     def tool_result_images(self) -> bool:
         # computer_use_preview supports tool calls returning images
         if self.is_computer_use_preview():

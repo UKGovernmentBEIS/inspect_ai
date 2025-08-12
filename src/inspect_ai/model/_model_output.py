@@ -137,6 +137,9 @@ class ModelOutput(BaseModel):
     choices: list[ChatCompletionChoice] = Field(default=[])
     """Completion choices."""
 
+    completion: str = Field(default="")
+    """Model completion."""
+
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
 
@@ -163,30 +166,13 @@ class ModelOutput(BaseModel):
         """First message choice."""
         return self.choices[0].message
 
-    @property
-    def completion(self) -> str:
-        """Text of first message choice text."""
-        if len(self.choices) > 0:
-            return self.choices[0].message.text
-        else:
-            return ""
-
-    @completion.setter
-    def completion(self, completion: str) -> None:
-        """Set the text of the first message choice.
-
-        Args:
-          completion (str): Text for first message.
-        """
-        if len(self.choices) > 0:
-            self.choices[0].message.text = completion
-        else:
-            self.choices.append(
-                ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=completion, model=self.model),
-                    stop_reason="stop",
-                )
+    @model_validator(mode="after")
+    def set_completion(self) -> "ModelOutput":
+        if not self.completion:
+            self.completion = (
+                self.choices[0].message.text if len(self.choices) > 0 else ""
             )
+        return self
 
     @staticmethod
     def from_content(

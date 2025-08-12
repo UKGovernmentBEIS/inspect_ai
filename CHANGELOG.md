@@ -1,9 +1,12 @@
 ## Unreleased
 
+- MCP: Support for [Remote MCP Servers](https://inspect.aisi.org.uk/tools-mcp.html#remote-mcp) for OpenAI and Anthropic models.
 - OpenAI: Use types from latest SDK (v1.99.7) and make that the minimum required version of the `openai` package.
 - Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
 - Eval logs: Add `if_match_etag` parameter for `write_eval_log()` and `etag` field to `EvalLog` for safe concurrent log modification.
+- ModelOutput: Setting the `completion` property now does not affect the underlying `message` content.
 - Inspect View: Improved handling of scores and messages with large or complex metadata.
+- Inspect View: Web search and other server-side tool calls (e.g. remote MCP) are now shown in the transcript.
 
 ## 0.3.122 (11 August 2025)
 
