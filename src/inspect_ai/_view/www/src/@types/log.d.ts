@@ -364,6 +364,7 @@ export type Logprob2 = number;
 export type Bytes1 = number[] | null;
 export type Content5 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
+export type Completion = string;
 export type Time = number | null;
 export type Metadata9 = {
   [k: string]: unknown;
@@ -1335,6 +1336,7 @@ export interface ToolCallError {
 export interface ModelOutput {
   model: Model3;
   choices: Choices1;
+  completion: Completion;
   usage: ModelUsage1 | null;
   time: Time;
   metadata: Metadata9;

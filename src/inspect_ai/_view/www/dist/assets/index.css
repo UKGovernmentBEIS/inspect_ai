@@ -15912,6 +15912,47 @@ a._citationLink_t2k1z_9:hover {
 ._textCode_bv5nm_18 {
   word-wrap: anywhere;
 }
+._mcpToolUse_5vgvx_1 {
+  margin-left: 0.5em;
+  margin-top: 2em;
+  margin-bottom: 2em;
+  background-color: #ffffff;
+  padding: 0.25em 0.75em;
+  border-left: solid 5px var(--bs-border-color);
+}
+
+._title_5vgvx_10 {
+  margin-bottom: 0.25em;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 0.3em;
+  align-items: baseline;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+._titleText_5vgvx_19 {
+  margin-bottom: 0;
+}
+
+._args_5vgvx_23 {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.5em;
+  row-gap: 0.1em;
+  margin-bottom: 1em;
+  align-items: baseline;
+}
+
+._argLabel_5vgvx_32 pre {
+    margin: 0;
+}
+
+._error_5vgvx_36 {
+  color: red;
+  font-weight: bold;
+}
+
+
 ._toolCallView_16q6n_1 {
   display: grid;
   row-gap: 1em;
