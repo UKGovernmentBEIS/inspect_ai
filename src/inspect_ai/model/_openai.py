@@ -133,11 +133,10 @@ async def openai_chat_completion_part(
         )
     elif content.type == "document":
         document_data_uri = await file_as_data_uri(content.document)
-        document_data = document_data_uri.split("base64,")[1]
 
         return File(
             type="file",
-            file=FileFile(file_data=document_data, filename=content.filename),
+            file=FileFile(file_data=document_data_uri, filename=content.filename),
         )
     else:
         raise RuntimeError(

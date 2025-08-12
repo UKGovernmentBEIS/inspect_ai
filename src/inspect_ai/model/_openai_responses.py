@@ -187,10 +187,9 @@ async def _openai_responses_content_param(
                 raise TypeError(f"Unexpected content type: {type(content)}")
 
         file_data_uri = await file_as_data_uri(contents)
-        file_data = file_data_uri.split("base64,")[1]
 
         return ResponseInputFileParam(
-            type="input_file", file_data=file_data, filename=filename
+            type="input_file", file_data=file_data_uri, filename=filename
         )
     else:
         # TODO: support for files (PDFs) and audio and video whenever
