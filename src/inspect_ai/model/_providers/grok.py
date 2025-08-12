@@ -46,6 +46,21 @@ class GrokAPI(OpenAICompatibleAPI):
                 )
             else:
                 return ex
+        elif ex.status_code == 403:
+            # extract message
+            if isinstance(ex.body, dict) and "message" in ex.body.keys():
+                content = str(ex.body.get("message"))
+            else:
+                content = ex.message
+            
+            if 'Content violates usage guidelines' in content:
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=content,
+                    stop_reason="content_filter",
+                )
+            else:
+                return ex
         else:
             return ex
 
