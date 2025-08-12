@@ -130,6 +130,7 @@ async def openai_chat_completion_part(
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
+    elif content.type == "document":
 
     else:
         raise RuntimeError(
