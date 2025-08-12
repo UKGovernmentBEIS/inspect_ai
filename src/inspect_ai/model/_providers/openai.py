@@ -96,7 +96,9 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # set background bit
+        # set background bit (automatically use background for deep research)
+        if background is None and self.is_deep_research():
+            background = True
         self.background = background
 
         # is this a model we use responses api by default for?
@@ -238,6 +240,9 @@ class OpenAIAPI(ModelAPI):
             return True
         else:
             return not self.is_gpt() and bool(re.search(r"o\d+", name))
+
+    def is_deep_research(self) -> bool:
+        return "deep-research" in self.service_model_name()
 
     def is_gpt_5(self) -> bool:
         name = self.service_model_name()
