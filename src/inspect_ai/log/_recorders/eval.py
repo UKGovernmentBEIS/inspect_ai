@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import tempfile
 from logging import getLogger
@@ -11,7 +12,7 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
-from inspect_ai._util.error import EvalError
+from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
@@ -193,7 +194,13 @@ class EvalRecorder(FileRecorder):
         # read log (use temp_log if we have it)
         try:
             with file(temp_log or location, "rb") as z:
-                return _read_log(z, location, header_only)
+                log = _read_log(z, location, header_only)
+
+                if fs.is_s3():
+                    file_info = fs.info(location)
+                    log.etag = file_info.etag
+
+                return log
         finally:
             if temp_log:
                 os.unlink(temp_log)
@@ -248,16 +255,112 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
-    async def write_log(cls, location: str, log: EvalLog) -> None:
-        # write using the recorder (so we get all of the extra streams)
-        recorder = EvalRecorder(dirname(location))
-        await recorder.log_init(log.eval, location, clean=True)
-        await recorder.log_start(log.eval, log.plan)
-        for sample in log.samples or []:
-            await recorder.log_sample(log.eval, sample)
-        await recorder.log_finish(
-            log.eval, log.status, log.stats, log.results, log.reductions, log.error
+    async def write_log(
+        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+    ) -> None:
+        fs = filesystem(location)
+        if fs.is_s3() and if_match_etag:
+            # Use S3 conditional write
+            await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
+        else:
+            # Standard write using the recorder (so we get all of the extra streams)
+            await _write_eval_log_with_recorder(log, dirname(location), location)
+
+    @classmethod
+    async def _write_log_s3_conditional(
+        cls, location: str, log: EvalLog, etag: str, fs: FileSystem
+    ) -> None:
+        """Perform S3 conditional write for .eval format using boto3."""
+        import tempfile
+
+        bucket, key = _s3_bucket_and_key(location)
+
+        # create the eval log in a temporary directory first
+        import os
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # create a temporary eval file name
+            temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
+
+            # write using the normal recorder to get proper .eval format
+            await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
+
+            # read the created file in bytes
+            with open(temp_eval_file, "rb") as f:
+                log_bytes = f.read()
+
+        await _write_s3_conditional(fs, bucket, key, log_bytes, etag, location, logger)
+
+
+async def _write_eval_log_with_recorder(
+    log: EvalLog, recorder_dir: str, output_file: str
+) -> None:
+    """Helper function to write EvalLog using EvalRecorder pattern."""
+    recorder = EvalRecorder(recorder_dir)
+    await recorder.log_init(log.eval, output_file, clean=True)
+    await recorder.log_start(log.eval, log.plan)
+    for sample in log.samples or []:
+        await recorder.log_sample(log.eval, sample)
+    await recorder.log_finish(
+        log.eval, log.status, log.stats, log.results, log.reductions, log.error
+    )
+
+
+def _s3_bucket_and_key(location: str) -> tuple[str, str]:
+    """Extract S3 bucket and key from an S3 URL."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(location)
+    bucket = parsed.netloc
+    key = parsed.path.lstrip("/")
+    return bucket, key
+
+
+async def _s3_conditional_put_object(
+    fs: FileSystem, bucket: str, key: str, body: bytes, etag: str
+) -> None:
+    """Helper function to perform S3 conditional write with aioboto3."""
+    import aioboto3
+
+    session = aioboto3.Session()
+    async with session.client(
+        "s3",
+        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
+        aws_access_key_id=fs.fs.key,
+        aws_secret_access_key=fs.fs.secret,
+        region_name=fs.fs.client_kwargs.get("region_name"),
+    ) as s3_client:
+        await s3_client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=body,
+            IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
         )
+
+
+async def _write_s3_conditional(
+    fs: FileSystem,
+    bucket: str,
+    key: str,
+    body: bytes,
+    etag: str,
+    location: str,
+    logger: logging.Logger,
+) -> None:
+    """Write to S3 with conditional check and error handling."""
+    from botocore.exceptions import ClientError
+
+    from inspect_ai._util.trace import trace_action
+
+    with trace_action(logger, "Log Conditional Write", location):
+        try:
+            await _s3_conditional_put_object(fs, bucket, key, body, etag)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "PreconditionFailed":
+                raise WriteConflictError(
+                    f"Log file was modified by another process. Expected ETag: {etag}"
+                )
+            raise
 
 
 def read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:

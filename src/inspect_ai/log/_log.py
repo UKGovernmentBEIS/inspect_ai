@@ -952,6 +952,9 @@ class EvalLog(BaseModel):
     location: str = Field(default_factory=str, exclude=True)
     """Location that the log file was read from."""
 
+    etag: str | None = Field(default=None, exclude=True)
+    """ETag from S3 for conditional writes."""
+
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
