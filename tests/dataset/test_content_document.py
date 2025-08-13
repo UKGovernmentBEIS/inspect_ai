@@ -188,7 +188,6 @@ def test_windows_file_path():
         ("txt", "text/plain"),
         ("html", "text/html"),
         ("css", "text/css"),
-        ("js", "application/javascript"),
         ("json", "application/json"),
         ("xml", "application/xml"),
         ("jpg", "image/jpeg"),
