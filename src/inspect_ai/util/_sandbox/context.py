@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Iterator, NoReturn, cast
+from typing import Any, Awaitable, Callable, Iterator, NoReturn, cast
 
 from shortuuid import uuid
 
@@ -89,30 +89,50 @@ async def sandbox_with(
         if (named_env := environments.get(name, None))
         else []
     ):
-        try:
-            if on_path:
-                # can we find the file on the path?
-                if not (await environment.exec(["which", file])).success:
-                    continue
-            else:
-                # can we read the file?
-                await environment.read_file(file)
-
-            # if so this is our environment, cache and return it
-            environments_with[environment_with_key] = environment
-            return environment
-
-        # allow exception types known to be raised from read_file
-        except (
-            FileNotFoundError,
-            UnicodeDecodeError,
-            PermissionError,
-            IsADirectoryError,
-        ):
-            pass
+        if on_path:
+            # can we find the file on the path?
+            if not (await environment.exec(["which", file])).success:
+                continue
+        else:
+            if await _is_file_readable(environment, file):
+                # if so this is our environment, cache and return it
+                environments_with[environment_with_key] = environment
+                return environment
 
     # not found
     return None
+
+
+async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
+    try:
+        await environment.read_file(file)
+        return True
+    # allow exception types known to be raised from read_file
+    except (
+        FileNotFoundError,
+        UnicodeDecodeError,
+        PermissionError,
+        IsADirectoryError,
+    ):
+        return False
+
+
+async def sandbox_with_injection(
+    file: str,
+    injector: Callable[[SandboxEnvironment], Awaitable[None]],
+    *,
+    on_path: bool = False,
+    sandbox_name: str | None = None,
+) -> SandboxEnvironment:
+    if existing_sb := await sandbox_with(file, on_path, name=sandbox_name):
+        return existing_sb
+
+    await injector(sandbox(sandbox_name))
+
+    if injected_sb := await sandbox_with(file, on_path, name=sandbox_name):
+        return injected_sb
+
+    raise_no_sandbox()
 
 
 async def sandbox_connections() -> dict[str, SandboxConnection]:
