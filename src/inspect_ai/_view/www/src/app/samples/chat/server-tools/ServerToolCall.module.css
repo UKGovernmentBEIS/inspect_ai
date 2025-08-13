@@ -36,3 +36,7 @@
   color: red;
   font-weight: bold;
 }
+
+.toolPanel {
+  display: contents;
+}

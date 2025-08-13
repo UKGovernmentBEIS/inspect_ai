@@ -26,10 +26,6 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
     # span id
     id = uuid4().hex
 
-    # span caller context
-    frame = inspect.stack()[1]
-    caller = f"{frame.function}() [{frame.filename}:{frame.lineno}]"
-
     # capture parent id
     parent_id = _current_span_id.get()
 
@@ -59,6 +55,8 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
         try:
             _current_span_id.reset(token)
         except ValueError:
+            frame = inspect.stack()[1]
+            caller = f"{frame.function}() [{frame.filename}:{frame.lineno}]"
             logger.warning(f"Exiting span created in another context: {caller}")
 
 
