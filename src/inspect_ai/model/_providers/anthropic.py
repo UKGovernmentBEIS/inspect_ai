@@ -280,9 +280,9 @@ class AnthropicAPI(ModelAPI):
                     request["extra_body"] = dict()
                 request["extra_body"]["mcp_servers"] = mcp_servers_param
 
-            # make request (unless overridden, stream if we are using reasoning)
+            # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (
-                self.is_using_thinking(config)
+                self.auto_streaming(config)
                 if self.streaming == "auto"
                 else self.streaming
             )
@@ -435,6 +435,12 @@ class AnthropicAPI(ModelAPI):
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
         return self.is_thinking_model() and config.reasoning_tokens is not None
+
+    # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
+    def auto_streaming(self, config: GenerateConfig) -> bool:
+        return self.is_using_thinking(config) or (
+            config.max_tokens is not None and config.max_tokens >= 8192
+        )
 
     def is_thinking_model(self) -> bool:
         return not self.is_claude_3() and not self.is_claude_3_5()
