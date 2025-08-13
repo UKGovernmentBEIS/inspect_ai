@@ -86,7 +86,11 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError, monitor_working_limit
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    monitor_working_limit,
+    record_sample_limit_data,
+)
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -770,6 +774,11 @@ async def task_run_sample(
                                 tg.start_soon(run, tg)
                         except Exception as ex:
                             raise inner_exception(ex)
+                        finally:
+                            # capture sample limits
+                            record_sample_limit_data(
+                                len((sample_state() or state).messages)
+                            )
 
                 except TimeoutError:
                     # Scoped time limits manifest themselves as LimitExceededError, not
