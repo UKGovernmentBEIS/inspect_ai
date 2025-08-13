@@ -139,6 +139,14 @@ The following environment variables are supported by the Anthropic provider
 | `ANTHROPIC_API_KEY` | API key credentials (required). |
 | `ANTHROPIC_BASE_URL` | Base URL for requests (optional, defaults to `https://api.anthropic.com`) |
 
+### Streaming
+
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with >= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+
+```bash
+inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest -M streaming=true
+```
+
 ### Anthropic on AWS Bedrock {#anthropic-on-aws-bedrock}
 
 To use Anthropic models on Bedrock, use the normal `anthropic` provider with the `bedrock` qualifier, specifying a model name that corresponds to a model you have access to on Bedrock. For Bedrock, authentication is not handled using an API key but rather your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`). You should also be sure to have specified an AWS region. For example:
