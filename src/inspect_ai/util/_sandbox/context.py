@@ -105,7 +105,9 @@ async def sandbox_with(
 
 async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
     try:
-        await environment.read_file(file)
+        # TODO: This is gross. We actually read the file contents just to see if
+        # it's readable.
+        await environment.read_file(file, False)
         return True
     # allow exception types known to be raised from read_file
     except (

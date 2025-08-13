@@ -7,7 +7,7 @@ It includes definitions for JSON-RPC request and response models, as well as fun
 from typing import Type
 
 from inspect_ai.tool._tool import ToolError
-from inspect_ai.tool._tool_support_sandbox import inject_tool_support_code
+from inspect_ai.tool._tool_support_sandbox import SANDBOX_CLI, inject_tool_support_code
 from inspect_ai.util._sandbox.context import sandbox_with_injection
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -141,12 +141,6 @@ class ToolSupportSandboxTransport(JSONRPCTransport):
                 f"Sandbox.exec failure executing {_rpc_call_description(method, params)}: {exec_result.stderr}"
             )
         return exec_result.stdout
-
-
-# TODO: Currently, this logic relies on a specific file existing at a specific path
-# this may need to be enhanced to use a dynamic predicate instead. otherwise, how
-# would we work on os's with a different directory structure?
-SANDBOX_CLI = "inspect-tool-support-xxx-for-now"
 
 
 async def tool_support_sandbox(
