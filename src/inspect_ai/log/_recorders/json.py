@@ -124,59 +124,9 @@ class JSONRecorder(FileRecorder):
     @override
     @classmethod
     async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
-        fs = filesystem(location)
+        from anyio import to_thread
 
-        if header_only:
-            # Fast path: header only
-            try:
-                log = _read_header_streaming(location)
-                if fs.is_s3():
-                    file_info = fs.info(location)
-                    log.etag = file_info.etag
-                return log
-            # The Python JSON serializer supports NaN and Inf, however
-            # this isn't technically part of the JSON spec. The json-stream
-            # library shares this limitation, so if we fail with an
-            # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
-            # (which does support NaN and Inf by default)
-            except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-                if (
-                    str(ex).find("Invalid JSON character") != -1
-                    or str(ex).find("invalid char in json text") != -1
-                    or str(ex).find("Unexpected symbol") != -1
-                ):
-                    pass
-                else:
-                    raise ValueError(f"Unable to read log file: {location}") from ex
-
-        # full reads (and fallback to streaing reads if they encounter invalid json characters)
-        with file(location, "r") as f:
-            # parse w/ pydantic
-            raw_data = from_json(f.read())
-            log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
-            log.location = location
-
-            # fail for unknown version
-            _validate_version(log.version)
-
-            # set the version to the schema version we'll be returning
-            log.version = LOG_SCHEMA_VERSION
-
-            # prune if header_only
-            if header_only:
-                # exclude samples
-                log.samples = None
-
-                # prune sample reductions
-                if log.results is not None:
-                    log.results.sample_reductions = None
-                    log.reductions = None
-
-            if fs.is_s3():
-                file_info = fs.info(location)
-                log.etag = file_info.etag
-
-            return log
+        return await to_thread.run_sync(_read_log_json_sync, location, header_only)
 
     @override
     @classmethod
@@ -295,3 +245,60 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         error=error if has_error else None,
         location=log_file,
     )
+
+
+def _read_log_json_sync(location: str, header_only: bool = False) -> EvalLog:
+    """Synchronous helper to read JSON log file."""
+    fs = filesystem(location)
+
+    if header_only:
+        # Fast path: header only
+        try:
+            log = _read_header_streaming(location)
+            if fs.is_s3():
+                file_info = fs.info(location)
+                log.etag = file_info.etag
+            return log
+        # The Python JSON serializer supports NaN and Inf, however
+        # this isn't technically part of the JSON spec. The json-stream
+        # library shares this limitation, so if we fail with an
+        # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
+        # (which does support NaN and Inf by default)
+        except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
+            if (
+                str(ex).find("Invalid JSON character") != -1
+                or str(ex).find("invalid char in json text") != -1
+                or str(ex).find("Unexpected symbol") != -1
+            ):
+                pass
+            else:
+                raise ValueError(f"Unable to read log file: {location}") from ex
+
+    # full reads (and fallback to streaing reads if they encounter invalid json characters)
+    with file(location, "r") as f:
+        # parse w/ pydantic
+        raw_data = from_json(f.read())
+        log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
+        log.location = location
+
+        # fail for unknown version
+        _validate_version(log.version)
+
+        # set the version to the schema version we'll be returning
+        log.version = LOG_SCHEMA_VERSION
+
+        # prune if header_only
+        if header_only:
+            # exclude samples
+            log.samples = None
+
+            # prune sample reductions
+            if log.results is not None:
+                log.results.sample_reductions = None
+                log.reductions = None
+
+        if fs.is_s3():
+            file_info = fs.info(location)
+            log.etag = file_info.etag
+
+        return log

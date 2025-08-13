@@ -82,11 +82,9 @@ class EvalRecorder(FileRecorder):
     ) -> str:
         # if the file exists then read summaries
         if not clean and location is not None and self.fs.exists(location):
-            with file(location, "rb") as f:
-                with ZipFile(f, "r") as zip:
-                    log_start = _read_start(zip)
-                    summary_counter = _read_summary_counter(zip)
-                    summaries = _read_all_summaries(zip, summary_counter)
+            log_start, summary_counter, summaries = await anyio.to_thread.run_sync(
+                _read_existing_log_data, location
+            )
         else:
             log_start = None
             summary_counter = 0
@@ -187,23 +185,17 @@ class EvalRecorder(FileRecorder):
         temp_log: str | None = None
         fs = filesystem(location)
         if not fs.is_local() and header_only is False:
-            with tempfile.NamedTemporaryFile(delete=False) as temp:
-                temp_log = temp.name
-                fs.get_file(location, temp_log)
+            temp_log = await anyio.to_thread.run_sync(_get_remote_as_temp, location, fs)
 
         # read log (use temp_log if we have it)
         try:
-            with file(temp_log or location, "rb") as z:
-                log = _read_log(z, location, header_only)
-
-                if fs.is_s3():
-                    file_info = fs.info(location)
-                    log.etag = file_info.etag
-
-                return log
+            log = await anyio.to_thread.run_sync(
+                _read_log_sync, temp_log or location, header_only, fs, location
+            )
+            return log
         finally:
             if temp_log:
-                os.unlink(temp_log)
+                await anyio.to_thread.run_sync(os.unlink, temp_log)
 
     @override
     @classmethod
@@ -214,44 +206,14 @@ class EvalRecorder(FileRecorder):
         epoch: int = 1,
         uuid: str | None = None,
     ) -> EvalSample:
-        with file(location, "rb") as z:
-            with ZipFile(z, mode="r") as zip:
-                try:
-                    # if a uuid was specified then read the summaries and find the matching sample
-                    if id is None:
-                        if uuid is None:
-                            raise ValueError(
-                                "You must specify an 'id' or 'uuid' to read"
-                            )
-                        summaries = _read_sample_summaries(zip)
-                        sample = next(
-                            (summary for summary in summaries if summary.uuid == uuid),
-                            None,
-                        )
-                        if sample is None:
-                            raise ValueError(
-                                f"Sample with uuid '{uuid}' not found in log."
-                            )
-                        id = sample.id
-                        epoch = sample.epoch
-
-                    with zip.open(_sample_filename(id, epoch), "r") as f:
-                        return EvalSample.model_validate(
-                            json.load(f), context=DESERIALIZING_CONTEXT
-                        )
-                except KeyError:
-                    raise IndexError(
-                        f"Sample id {id} for epoch {epoch} not found in log {location}"
-                    )
+        return await anyio.to_thread.run_sync(
+            _read_log_sample_sync, location, id, epoch, uuid
+        )
 
     @classmethod
     @override
     async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
-        with file(location, "rb") as z:
-            with ZipFile(z, mode="r") as zip:
-                summary_counter = _read_summary_counter(zip)
-                summaries = _read_all_summaries(zip, summary_counter)
-                return summaries
+        return await anyio.to_thread.run_sync(_read_log_sample_summaries_sync, location)
 
     @classmethod
     @override
@@ -615,3 +577,78 @@ def _journal_summary_path(file: str | None = None) -> str:
 
 def _journal_summary_file(index: int) -> str:
     return f"{index}.json"
+
+
+def _get_remote_as_temp(location: str, fs: FileSystem) -> str:
+    """Synchronous helper to fetch remote file as temp file."""
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        temp_log = temp.name
+        fs.get_file(location, temp_log)
+        return temp_log
+
+
+def _read_log_sync(
+    location: str, header_only: bool, fs: FileSystem, original_location: str
+) -> EvalLog:
+    """Synchronous helper to read log file."""
+    with file(location, "rb") as z:
+        log = _read_log(z, original_location, header_only)
+
+        if fs.is_s3():
+            file_info = fs.info(original_location)
+            log.etag = file_info.etag
+
+        return log
+
+
+def _read_log_sample_sync(
+    location: str,
+    id: str | int | None = None,
+    epoch: int = 1,
+    uuid: str | None = None,
+) -> EvalSample:
+    """Synchronous helper to read log sample."""
+    with file(location, "rb") as z:
+        with ZipFile(z, mode="r") as zip:
+            try:
+                # if a uuid was specified then read the summaries and find the matching sample
+                if id is None:
+                    if uuid is None:
+                        raise ValueError("You must specify an 'id' or 'uuid' to read")
+                    summaries = _read_sample_summaries(zip)
+                    sample = next(
+                        (summary for summary in summaries if summary.uuid == uuid),
+                        None,
+                    )
+                    if sample is None:
+                        raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                    id = sample.id
+                    epoch = sample.epoch
+
+                with zip.open(_sample_filename(id, epoch), "r") as f:
+                    return EvalSample.model_validate(
+                        json.load(f), context=DESERIALIZING_CONTEXT
+                    )
+            except KeyError:
+                raise IndexError(
+                    f"Sample id {id} for epoch {epoch} not found in log {location}"
+                )
+
+
+def _read_log_sample_summaries_sync(location: str) -> list[EvalSampleSummary]:
+    """Synchronous helper to read log sample summaries."""
+    with file(location, "rb") as z:
+        with ZipFile(z, mode="r") as zip:
+            return _read_sample_summaries(zip)
+
+
+def _read_existing_log_data(
+    location: str,
+) -> tuple[LogStart | None, int, list[EvalSampleSummary]]:
+    """Synchronous helper to read existing log data from zip file."""
+    with file(location, "rb") as f:
+        with ZipFile(f, "r") as zip:
+            log_start = _read_start(zip)
+            summaries = _read_sample_summaries(zip)
+            summary_counter = _read_summary_counter(zip)
+            return log_start, summary_counter, summaries
