@@ -30,97 +30,97 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
     : `${content.name}()`;
 
   return (
-    <ExpandablePanel id={`${id}-output`} collapse={true}>
-      <div id={id} className={clsx(styles.mcpToolUse)}>
-        <div
-          className={clsx(
-            styles.title,
-            "text-size-small",
-            "text-style-secondary",
-          )}
-        >
-          <i className={ApplicationIcons.role.tool} />
-          <pre className={styles.titleText}>{titleStr}</pre>
-          <div className={styles.type}>{content.type}</div>
-        </div>
+    <div id={id} className={clsx(styles.mcpToolUse)}>
+      <div
+        className={clsx(
+          styles.title,
+          "text-size-small",
+          "text-style-secondary",
+        )}
+      >
+        <i className={ApplicationIcons.role.tool} />
+        <pre className={styles.titleText}>{titleStr}</pre>
+        <div className={styles.type}>{content.type}</div>
+      </div>
 
-        <div className={styles.args}>
-          {Object.keys(args).map((key, index) => {
-            const value = args[key];
+      <div className={styles.args}>
+        {Object.keys(args).map((key, index) => {
+          const value = args[key];
 
-            let valueRecord: Record<string, unknown> | undefined = undefined;
-            if (Array.isArray(value)) {
-              valueRecord = {};
-              for (var i = 0; i < value.length; i++) {
-                valueRecord[`[${i}]`] = value[i];
-              }
-            } else if (value && typeof value === "object") {
-              valueRecord = value as Record<string, unknown>;
+          let valueRecord: Record<string, unknown> | undefined = undefined;
+          if (Array.isArray(value)) {
+            valueRecord = {};
+            for (var i = 0; i < value.length; i++) {
+              valueRecord[`[${i}]`] = value[i];
             }
+          } else if (value && typeof value === "object") {
+            valueRecord = value as Record<string, unknown>;
+          }
 
-            return (
-              <>
-                <LabelDiv label={key} />
-                {valueRecord ? (
-                  <RecordTree id={`${id}-val-${index}`} record={valueRecord} />
-                ) : (
-                  <ValueDiv>{value as ReactNode}</ValueDiv>
-                )}
-              </>
-            );
-          })}
-
-          {isWebSearchResult(content) ? (
+          return (
             <>
-              <LabelDiv label={"results"} />
-              <ValueDiv>
-                {(content.result as WebResult[]).map((result, index) => (
-                  <div key={index} className={styles.result}>
-                    <a
-                      href={result.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {result.title}
-                    </a>
-                  </div>
-                ))}
-              </ValueDiv>
+              <LabelDiv label={key} />
+              {valueRecord ? (
+                <RecordTree id={`${id}-val-${index}`} record={valueRecord} />
+              ) : (
+                <ValueDiv>{value as ReactNode}</ValueDiv>
+              )}
             </>
-          ) : undefined}
+          );
+        })}
 
-          {isListTools(content)
-            ? (content.result as ToolInfo[]).map((tool, index) => (
-                <>
-                  <LabelDiv label={tool.name} />
-                  <ValueDiv>
-                    <div>{tool.description}</div>
-                    <RecordTree
-                      id={`${id}-tool-${index}`}
-                      record={{ schema: tool.input_schema }}
-                      defaultExpandLevel={0}
-                    />
-                  </ValueDiv>
-                </>
-              ))
-            : undefined}
+        {isWebSearchResult(content) ? (
+          <>
+            <LabelDiv label={"results"} />
+            <ValueDiv>
+              {(content.result as WebResult[]).map((result, index) => (
+                <div key={index} className={styles.result}>
+                  <a
+                    href={result.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {result.title}
+                  </a>
+                </div>
+              ))}
+            </ValueDiv>
+          </>
+        ) : undefined}
+
+        {isListTools(content)
+          ? (content.result as ToolInfo[]).map((tool, index) => (
+              <>
+                <LabelDiv label={tool.name} />
+                <ValueDiv>
+                  <div>{tool.description}</div>
+                  <RecordTree
+                    id={`${id}-tool-${index}`}
+                    record={{ schema: tool.input_schema }}
+                    defaultExpandLevel={0}
+                  />
+                </ValueDiv>
+              </>
+            ))
+          : undefined}
+      </div>
+
+      {content.error ? (
+        <div className={styles.error}>
+          <span>Error: {content.error}</span>
         </div>
-
-        {content.error ? (
-          <div className={styles.error}>
-            <span>Error: {content.error}</span>
-          </div>
-        ) : !isWebSearchResult(content) && !isListTools(content) ? (
-          <div className={clsx("text-size-small")}>
+      ) : !isWebSearchResult(content) && !isListTools(content) ? (
+        <div className={clsx("text-size-small")}>
+          <ExpandablePanel id={`${id}-output`} collapse={true}>
             <RenderedContent
               id={`${id}-output`}
               entry={{ name: "Output", value: content.result }}
               renderOptions={{ renderString: "markdown" }}
             />
-          </div>
-        ) : undefined}
-      </div>
-    </ExpandablePanel>
+          </ExpandablePanel>
+        </div>
+      ) : undefined}
+    </div>
   );
 };
 
