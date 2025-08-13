@@ -73,7 +73,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import file_as_data, file_as_data_uri
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
