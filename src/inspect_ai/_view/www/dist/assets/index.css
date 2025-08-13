@@ -15759,26 +15759,29 @@ pre[class*="language-"] {
   background-color: var(--bs-light-border-subtle);
   margin-top: -1px;
 }
-._keyPairContainer_1ltuo_1 {
+._keyPairContainer_qjlxf_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.5em;
   padding-top: 4px;
   padding-bottom: 4px;
+}
+
+._keyPairBordered_qjlxf_9 {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._key_1ltuo_1 {
+._key_qjlxf_1 {
   display: grid;
   grid-template-columns: 1em auto;
   cursor: pointer;
 }
 
-._pre_1ltuo_16 {
+._pre_qjlxf_19 {
   margin-bottom: 0;
 }
 
-._treeIcon_1ltuo_20 {
+._treeIcon_qjlxf_23 {
   margin-top: -3px;
 }
 ._message_1ivu3_1 {

@@ -153,7 +153,11 @@ export const RecordTree: FC<RecordTreeProps> = ({
     return (
       <div
         key={item.id}
-        className={clsx(styles.keyPairContainer, "text-size-small")}
+        className={clsx(
+          styles.keyPairContainer,
+          index < items.length - 1 ? styles.keyPairBordered : undefined,
+          "text-size-small",
+        )}
         style={{
           paddingLeft: `${item.depth * 20}px`,
         }}

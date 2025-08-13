@@ -24,7 +24,9 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
   const args =
     typeof content.arguments === "object"
       ? content.arguments
-      : { arguments: content.arguments };
+      : content.arguments
+        ? { arguments: content.arguments }
+        : undefined;
 
   const record: Record<string, unknown> = {
     ...args,
@@ -92,13 +94,29 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
             </ValueDiv>
           </>
         ) : undefined}
+
+        {isListTools(content)
+          ? (content.result as ToolInfo[]).map((tool, index) => (
+              <>
+                <LabelDiv label={tool.name} />
+                <ValueDiv>
+                  <div>{tool.description}</div>
+                  <RecordTree
+                    id={`${id}-tool-${index}`}
+                    record={{ schema: tool.input_schema }}
+                    defaultExpandLevel={0}
+                  />
+                </ValueDiv>
+              </>
+            ))
+          : undefined}
       </div>
 
       {content.error ? (
         <div className={styles.error}>
           <span>Error: {content.error}</span>
         </div>
-      ) : !isWebSearchResult(content) ? (
+      ) : !isWebSearchResult(content) && !isListTools(content) ? (
         <ExpandablePanel id={`${id}-output`} collapse={true}>
           <RenderedContent
             id={`${id}-output`}
@@ -127,6 +145,16 @@ const isWebSearchResult = (
   );
 };
 
+const isListTools = (
+  content: ContentToolUse,
+): content is ContentToolUse & { result: ToolInfo[] } => {
+  return (
+    content.name === "mcp_list_tools" &&
+    Array.isArray(content.result) &&
+    content.result.every((item) => typeof item === "object")
+  );
+};
+
 const LabelDiv: FC<{ label: string }> = ({ label }) => {
   return (
     <div
@@ -149,4 +177,10 @@ interface WebResult {
   title: string;
   url: string;
   type: string;
+}
+
+interface ToolInfo {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
 }
