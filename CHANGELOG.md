@@ -7,6 +7,7 @@
 - Anthropic: Improved retry behavior via detection of more "overloaded" error conditions.
 - Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
 - Scoring: String to float conversion now extracts the first valid float from the string (ignoring trailing characters that are invalid for floats).
+- Scoring: Provide access to `sample_limits()` within scorers.
 - Eval logs: Add `if_match_etag` parameter for `write_eval_log()` and `etag` field to `EvalLog` for safe concurrent log modification.
 - ModelOutput: Setting the `completion` property now does not affect the underlying `message` content.
 - Inspect View: Improved handling of scores and messages with large or complex metadata.
