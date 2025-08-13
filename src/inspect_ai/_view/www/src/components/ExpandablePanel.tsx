@@ -64,6 +64,7 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
             collapsed ? styles.expandableCollapsed : undefined,
             border ? styles.expandableBordered : undefined,
             showToggle ? styles.padBottom : undefined,
+            className,
           )}
         >
           {children}

@@ -91,15 +91,21 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
         {isListTools(content)
           ? (content.result as ToolInfo[]).map((tool, index) => (
               <>
-                <LabelDiv label={tool.name} />
-                <ValueDiv>
-                  <div>{tool.description}</div>
-                  <RecordTree
-                    id={`${id}-tool-${index}`}
-                    record={{ schema: tool.input_schema }}
-                    defaultExpandLevel={0}
-                  />
-                </ValueDiv>
+                <ExpandablePanel
+                  id={`${id}-output`}
+                  collapse={true}
+                  className={clsx(styles.toolPanel)}
+                >
+                  <LabelDiv label={tool.name} />
+                  <ValueDiv>
+                    <div>{tool.description}</div>
+                    <RecordTree
+                      id={`${id}-tool-${index}`}
+                      record={{ schema: tool.input_schema }}
+                      defaultExpandLevel={0}
+                    />
+                  </ValueDiv>
+                </ExpandablePanel>
               </>
             ))
           : undefined}
