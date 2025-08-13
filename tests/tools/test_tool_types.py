@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+import pytest
 from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
@@ -280,6 +281,7 @@ def test_anthropoic_tool_types() -> None:
 
 
 @skip_if_no_google
+@pytest.mark.flaky
 def test_google_tool_types() -> None:
     check_tool_types("google/gemini-1.5-pro")
 
