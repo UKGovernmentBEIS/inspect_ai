@@ -127,7 +127,7 @@ To use the [Anthropic](https://www.anthropic.com/api) provider, install the `ant
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
+inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
@@ -139,12 +139,22 @@ The following environment variables are supported by the Anthropic provider
 | `ANTHROPIC_API_KEY` | API key credentials (required). |
 | `ANTHROPIC_BASE_URL` | Base URL for requests (optional, defaults to `https://api.anthropic.com`) |
 
+### Betas
+
+Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
+
+If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 5 models:
+
+```bash
+inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
+```
+
 ### Streaming
 
 The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with >= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ```bash
-inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest -M streaming=true
+inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 ```
 
 ### Anthropic on AWS Bedrock {#anthropic-on-aws-bedrock}

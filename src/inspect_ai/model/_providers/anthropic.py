@@ -112,6 +112,7 @@ class AnthropicAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         streaming: bool | Literal["auto"] = "auto",
+        betas: str | list[str] = [],
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -121,8 +122,9 @@ class AnthropicAPI(ModelAPI):
         else:
             self.service = None
 
-        # record steraming pref
+        # record steraming and betas prefs
         self.streaming = streaming
+        self.betas = betas if isinstance(betas, list) else [str(betas)]
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -266,6 +268,7 @@ class AnthropicAPI(ModelAPI):
             if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
                 betas.append("computer-use-2024-10-22")
             if len(betas) > 0:
+                betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
 
             request["extra_headers"] = extra_headers
@@ -380,7 +383,7 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = {}
-        betas: list[str] = []
+        betas: list[str] = self.betas.copy()
 
         # temperature not compatible with extended thinking
         THINKING_WARNING = "anthropic models do not support the '{parameter}' parameter when using extended thinking."
