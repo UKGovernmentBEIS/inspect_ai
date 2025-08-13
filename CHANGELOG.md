@@ -6,6 +6,7 @@
 - OpenAI: Automatically use background-mode for deep research models.
 - Anthropic: Automatically use streaming when `max_tokens` is 8k or higher.
 - Anthropic: Improved retry behavior via detection of more "overloaded" error conditions.
+- Anthropic: Add `betas` custom model arg (`-M`) for opting in to beta features.
 - Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
 - Scoring: String to float conversion now extracts the first valid float from the string (ignoring trailing characters that are invalid for floats).
 - Scoring: Provide access to `sample_limits()` within scorers.
