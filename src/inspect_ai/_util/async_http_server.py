@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import ssl
 from http import HTTPStatus
 from typing import Any, Awaitable, Callable, TypeAlias
 from urllib.parse import urlparse
@@ -13,7 +12,7 @@ MethodRoutes: TypeAlias = dict[str, RouteMap]
 
 
 class AsyncHTTPServer:
-    """Async HTTP server supporting GET/POST with SSL."""
+    """Async HTTP server supporting GET/POST requests."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8000) -> None:
         """Initialize the server.
@@ -217,18 +216,13 @@ class AsyncHTTPServer:
             writer.close()
             await writer.wait_closed()
 
-    async def start(self, ssl_context: ssl.SSLContext | None = None) -> None:
-        """Start the server.
-
-        Args:
-            ssl_context: Optional SSL context for HTTPS
-        """
+    async def start(self) -> None:
+        """Start the server."""
         self.server = await asyncio.start_server(
-            self._handle_client, self.host, self.port, ssl=ssl_context
+            self._handle_client, self.host, self.port
         )
 
-        scheme = "https" if ssl_context else "http"
-        print(f"Server running on {scheme}://{self.host}:{self.port}")
+        print(f"Server running on http://{self.host}:{self.port}")
 
         async with self.server:
             await self.server.serve_forever()
@@ -239,18 +233,3 @@ class AsyncHTTPServer:
             self.server.close()
             await self.server.wait_closed()
             self.server = None
-
-
-def create_ssl_context(certfile: str, keyfile: str) -> ssl.SSLContext:
-    """Create SSL context for HTTPS.
-
-    Args:
-        certfile: Path to certificate file
-        keyfile: Path to private key file
-
-    Returns:
-        SSL context
-    """
-    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.load_cert_chain(certfile, keyfile)
-    return ssl_context

@@ -17,7 +17,7 @@ async def http_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
     async def start_server() -> None:
         # Override the start method to not call serve_forever
         server.server = await asyncio.start_server(
-            server._handle_client, server.host, server.port, ssl=None
+            server._handle_client, server.host, server.port
         )
         # Get the actual port that was assigned
         server.port = server.server.sockets[0].getsockname()[1]
