@@ -48,15 +48,10 @@ def test_str_to_float_invalid_input():
     with pytest.raises(ValueError):
         str_to_float("")
     with pytest.raises(ValueError):
-        str_to_float("2^3")
-    with pytest.raises(ValueError):
         str_to_float("⁺²")  # Unsupported superscript characters
 
 
 def test_str_to_float_edge_cases():
-    # Exponent with unsupported characters
-    with pytest.raises(ValueError):
-        str_to_float("2⁻³")
     # Base with unsupported characters
     with pytest.raises(ValueError):
         str_to_float("a²")
@@ -117,6 +112,41 @@ def test_str_to_float_fraction_invalid_input():
     with pytest.raises(ValueError):
         str_to_float("a½")
 
-    # Invalid character between number and fraction
-    with pytest.raises(ValueError):
-        str_to_float("2a½")
+
+def test_str_to_float_trailing_decimal_groups():
+    # Test the original case with many trailing decimal groups
+    assert (
+        str_to_float(
+            "31800.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.0"
+        )
+        == 31800.00
+    )
+
+    # Test simpler cases with trailing decimal groups
+    assert str_to_float("100.00.00") == 100.00
+    assert str_to_float("42.5.5.5") == 42.5
+    assert str_to_float("3.14159.265") == 3.14159
+
+    # Test with trailing text after valid float
+    assert str_to_float("123.45abc") == 123.45
+    assert str_to_float("99.99xyz123") == 99.99
+    assert str_to_float("0.5hello") == 0.5
+
+    # Test negative numbers with trailing content
+    assert str_to_float("-50.25.25") == -50.25
+    assert str_to_float("-100.00.00.00") == -100.00
+    assert str_to_float("-3.14extra") == -3.14
+
+    # Test integers with trailing content
+    assert str_to_float("42garbage") == 42.0
+    assert str_to_float("100abc123") == 100.0
+    assert str_to_float("-75text") == -75.0
+
+    # Test edge cases
+    assert str_to_float("0.0.0.0") == 0.0
+    assert str_to_float("1.") == 1.0  # Valid float with trailing dot
+    # Note: .5extra doesn't match the regex pattern ^([+-]?\d+(?:\.\d+)?)
+
+    # Test with signs
+    assert str_to_float("+123.45.67") == 123.45
+    assert str_to_float("-987.65.43") == -987.65

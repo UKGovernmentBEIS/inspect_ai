@@ -12,17 +12,17 @@ For tools that require the maintenance of state over the lifetime of and sandbox
 
 Each stateful tool should have its own subdirectory that contains the following files:
 
-- `json_rpc_methods.py`
+-   `json_rpc_methods.py`
 
-  This module contains all of the JSON RPC `@method` functions — one for each tool (e.g. the web browser tool is actually a set of distinct tools). It is responsible for unpacking the JSON RPC request and forwarding the call to a transport-agnostic, strongly typed, stateful controller.
+    This module contains all of the JSON RPC `@method` functions — one for each tool (e.g. the web browser tool is actually a set of distinct tools). It is responsible for unpacking the JSON RPC request and forwarding the call to a transport-agnostic, strongly typed, stateful controller.
 
-- `tool_types.py`
+-   `tool_types.py`
 
-  This module includes the `pydantic` models representing the types for tool call parameters and results.
+    This module includes the `pydantic` models representing the types for tool call parameters and results.
 
-- `controller.py`
+-   `controller.py`
 
-  This is transport-agnostic, strongly typed code that manages the tool specific in-process state and performs requested commands.
+    This is transport-agnostic, strongly typed code that manages the tool specific in-process state and performs requested commands.
 
 ## Release Process
 
@@ -43,19 +43,19 @@ All changes should be documented using [`towncrier`](https://towncrier.readthedo
 
 1. Use `towncrier create` to create a new pending changelog item:
 
-   This will interactively prompt you for:
+    This will interactively prompt you for:
 
-   - The (optional) related issue
-   - The type of semantic version change (major, minor, or patch)
-   - A description of your change (supporting markdown)
+    - The (optional) related issue
+    - The type of semantic version change (major, minor, or patch)
+    - A description of your change (supporting markdown)
 
-   Alternatively, all options can be provided directly on the command line:
+    Alternatively, all options can be provided directly on the command line:
 
-   ```
-   towncrier create <issue-number>.[major|minor|patch].md
-   ```
+    ```
+    towncrier create <issue-number>.[major|minor|patch].md
+    ```
 
-   For more details on `towncrier`'s command line options, refer to the [`towncrier` documentation](https://towncrier.readthedocs.io/en/latest/cli.html).
+    For more details on `towncrier`'s command line options, refer to the [`towncrier` documentation](https://towncrier.readthedocs.io/en/latest/cli.html).
 
 2. Pending changelog items are stored in the `unreleased_changes/` directory and accumulate until the next release.
 
@@ -68,16 +68,33 @@ When it's time to make a release:
 2. Run the `make-release-commit` script:
 
 3. The script automatically:
-   - Determines the version bump type (major, minor, or patch) based on the pending changelog items
-   - Runs `towncrier build` to incorporate all pending changelog items into `CHANGELOG.md`
-   - Updates the version in `pyproject.toml` using `bump2version`
-   - Commits the changes into a commit with a message like `Bump inspect-tool-support version: 1.0.2 → 1.1.0`
-   - Tags the commit with the new version number `inspect-tool-support-1.1.0`
+    - Determines the version bump type (major, minor, or patch) based on the pending changelog items
+    - Runs `towncrier build` to incorporate all pending changelog items into `CHANGELOG.md`
+    - Updates the version in `pyproject.toml` using `bump2version`
+    - Commits the changes into a commit with a message like `Bump inspect-tool-support version: 1.0.2 → 1.1.0`
+    - Tags the commit with the new version number `inspect-tool-support-1.1.0`
 
 All changelog items are consumed during the release process and converted into entries in the `CHANGELOG.md` file. After the release, the `unreleased_changes/` directory will be empty, ready to collect changes for the next release cycle.
 
+### Publishing to PyPi
+
+```bash
+# Build the package putting the artifacts into /dist
+python -m build
+
+# Publish to testpypi
+python -m twine upload --repository testpypi dist/*
+
+# Publish the real thing
+python -m twine upload dist/*
+```
+
+Pro tip:
+
+Add `.devn` to the version (e.g. `0.1.9.dev1`) for test versions since once a specific version is published, it cannot be changed.
 
 ## Testing
+
 When running `pytest` with inspect to test interactions with this package, you may wish to test your _local_ version of the `inspect_tool_support` code instead of the latest published package. Passing the flag `--local-inspect-tools` to pytest when running tests from `test_inspect_tool_support.py` will build and install the package from source, for example:
 
 ```sh

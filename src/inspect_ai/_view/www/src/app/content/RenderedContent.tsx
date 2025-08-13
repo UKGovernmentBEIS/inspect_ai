@@ -11,6 +11,11 @@ import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
 import { MetaDataGrid } from "./MetaDataGrid";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer, RenderOptions } from "./types";
+import {
+  isMessageContent,
+  MessageContent,
+} from "../samples/chat/MessageContent";
+import { defaultContext } from "../samples/chat/MessageContents";
 
 interface RenderedContentProps {
   id: string;
@@ -254,6 +259,25 @@ const contentRenderers: (
       render: (_id, entry, _options) => {
         return {
           rendered: entry.value._html,
+        };
+      },
+    },
+    MessageContent: {
+      bucket: Buckets.first,
+      canRender: (entry) => {
+        // Check if the value is an array of chat messages
+        return (
+          Array.isArray(entry.value) &&
+          entry.value.every((item: unknown) => {
+            return isMessageContent(item);
+          })
+        );
+      },
+      render: (_id, entry, _options) => {
+        return {
+          rendered: (
+            <MessageContent contents={entry.value} context={defaultContext()} />
+          ),
         };
       },
     },

@@ -1,0 +1,42 @@
+.mcpToolUse {
+  margin-left: 0.5em;
+  margin-top: 2em;
+  margin-bottom: 2em;
+  padding: 0.25em 0.75em;
+  border-left: solid 5px var(--bs-border-color);
+}
+
+.title {
+  margin-bottom: 0.25em;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 0.3em;
+  align-items: baseline;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+.titleText {
+  margin-bottom: 0;
+}
+
+.args {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.5em;
+  row-gap: 0.1em;
+  margin-bottom: 1em;
+  align-items: baseline;
+}
+
+.argLabel pre {
+  margin: 0;
+}
+
+.error {
+  color: red;
+  font-weight: bold;
+}
+
+.toolPanel {
+  display: contents;
+}

@@ -39,6 +39,7 @@ title: "inspect_ai.log"
 ### EvalSampleLimit
 ### EvalSampleReductions
 ### EvalSampleScore
+### WriteConflictError
 
 ## Transcript API
 

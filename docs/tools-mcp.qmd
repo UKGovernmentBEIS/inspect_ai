@@ -20,6 +20,7 @@ from inspect_ai.tool import mcp_server_stdio
 @task
 def git_task():
     git_server = mcp_server_stdio(
+        name="Git",
         command="python3", 
         args=["-m", "mcp_server_git", "--repository", "."]
     )
@@ -40,7 +41,7 @@ MCP servers can use a variety of transports. There are two transports built-in t
 
 -   **Standard I/O (stdio).** The stdio transport enables communication to a local process through standard input and output streams.
 
--   **Server-Sent Events (sse).** SSE transport enables server-to-client streaming with HTTP POST requests for client-to-server communication, typically to a remote host.
+-   **HTTP Servers (http).** The http transport enables server-to-client streaming with HTTP POST requests for client-to-server communication, typically to a remote host.
 
 In addition, the Inspect implementation of MCP adds another transport:
 
@@ -48,16 +49,16 @@ In addition, the Inspect implementation of MCP adds another transport:
 
 You can use the following functions to create interfaces to the various types of servers:
 
-|                        |                                                                                           |
+|  |  |
 |------------------------------------|------------------------------------|
-| `mcp_server_stdio()`   | Stdio interface to MCP server. Use this for MCP servers that run locally.                 |
-| `mcp_server_http()` | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint.
+| `mcp_server_stdio()` | Stdio interface to MCP server. Use this for MCP servers that run locally. |
+| `mcp_server_http()` | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint. |
 | `mcp_server_sandbox()` | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
-| `mcp_server_sse()`     | SSE interface to MCP server (NOTE: The SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/))       |
+| `mcp_server_sse()` | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)) |
 
 : {tbl-colwidths=\[40,60\]}
 
-We'll cover using stdio and sse based servers in the section below. Sandbox servers require some additional container configuration, and are covered separately in [Sandboxes](#sandboxes).
+We'll cover using stdio and http based servers in the section below. Sandbox servers require some additional container configuration, and are covered separately in [Sandboxes](#sandboxes).
 
 ### Server Command
 
@@ -86,6 +87,7 @@ When using MCP servers with Inspect, you only need to provide the inner argument
 
 ``` python
 maps_server = mcp_server_stdio(
+    name="Google Maps",
     command="npx", 
     args=["-y", "@modelcontextprotocol/server-google-maps"],
     env={ "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>" }
@@ -106,6 +108,7 @@ Each MCP server makes available a set of tools. For example, the Google Maps ser
 @task
 def map_task():
     maps_server = mcp_server_stdio(
+        name="Google Maps",
         command="npx", 
         args=["-y", "@modelcontextprotocol/server-google-maps"]
     )
@@ -120,10 +123,9 @@ def map_task():
 
 In this example we use all of the tool made available by the server. You can also select a subset of tools (this is covered below in [Tool Selection](#tool-selection)).
 
-::: {.callout-note}
-### ToolSource
+#### ToolSource
 
-The `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect generation methods that take `Tool` or `ToolDef` now also take `ToolSource`. 
+The `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect generation methods that take `Tool` or `ToolDef` now also take `ToolSource`.
 
 If you are creating your own agents or functions that take `tools` arguments, we recommend you do this same if you are going to be using MCP servers. For example:
 
@@ -132,7 +134,35 @@ If you are creating your own agents or functions that take `tools` arguments, we
 def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     ...
 ```
+
+## Remote MCP
+
+::: callout-note
+Support for Remote MCP servers is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
 :::
+
+[OpenAI](https://platform.openai.com/docs/guides/tools-remote-mcp) and [Anthropic](https://docs.anthropic.com/en/docs/agents-and-tools/remote-mcp-servers) both provide a facility for HTTP-based MCP Servers to be called remotely by the model provider. This is especially useful for scenarios where you want the model to make a series of tool calls in a single generation (e.g. when you want to provide custom tools to a deep research model).
+
+You can specify that you'd like an HTTP-based MCP Server to be executed remotely by passing the `execution="remote"` option. For example:
+
+``` python
+deepwiki = mcp_server_http(
+    name="deepwiki", 
+    url="https://mcp.deepwiki.com/mcp", 
+    authorization="$DEEPWIKI_API_KEY"
+    execution="remote" # <1>
+)
+```
+
+1.  This is what indicates that the MCP Server should be executed remotely. Pass `execution="local"` for local execution (the default).
+
+Note that some remote MCP servers will require credentials---in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or pass `headers` to provide credentials using another scheme.
+
+Before using remote servers, you should review OpenAI's [Risks and Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety) guidance for Remote MCP.
 
 ## Tool Selection {#tool-selection}
 
@@ -150,20 +180,6 @@ return Task(
 )
 ```
 
-You can also use glob wildcards in the `tools` list:
-
-``` python
-return Task(
-    ...,
-    solver=react(tools=[
-        mcp_tools(
-            maps_server, 
-            tools=["*_geocode"]
-        )
-    ])
-)
-```
-
 ## Connections
 
 MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
@@ -172,12 +188,13 @@ In the case that you using stateful servers, you will want to establish a longer
 
 #### ReAct Agent
 
-The `mcp_connection()` context manager is used **automatically** by the `react()` agent, with the server connection being maintained for the duration of the agent loop. 
+The `mcp_connection()` context manager is used **automatically** by the `react()` agent, with the server connection being maintained for the duration of the agent loop.
 
 For example, the following will establish a single connection to the memory server and preserve its state across calls:
 
 ``` python
 memory_server = mcp_server_stdio(
+    name="Memory",
     command="npx", 
     args=["-y", "@modelcontextprotocol/server-memory"]
 )
@@ -209,6 +226,7 @@ def web_surfer() -> Agent:
 
         # interface to memory server
         memory_server = mcp_server_stdio(
+            name="Memory",
             command="npx", 
             args=["-y", "@modelcontextprotocol/server-memory"]
         )
@@ -279,7 +297,8 @@ Installing the package globally means we'll want to invoke it using its global e
 We can now use the `mcp_server_sandbox()` function to run the server as follows:
 
 ``` python
-maps_server = mcp_server_sandbox(
+filesystem_server = mcp_server_sandbox(
+    name="Filesystem",
     command="mcp-server-filesystem", 
     args=["/"]
 )
