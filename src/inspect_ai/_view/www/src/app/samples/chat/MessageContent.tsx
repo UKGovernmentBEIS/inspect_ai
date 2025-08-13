@@ -4,6 +4,7 @@ import { FC, ReactNode } from "react";
 import {
   ContentAudio,
   ContentData,
+  ContentDocument,
   ContentImage,
   ContentReasoning,
   ContentText,
@@ -29,6 +30,7 @@ type ContentObject =
   | ContentImage
   | ContentAudio
   | ContentVideo
+  | ContentDocument
   | ContentTool
   | ContentData
   | ContentToolUse;
