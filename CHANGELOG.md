@@ -9,6 +9,7 @@
 - ModelOutput: Setting the `completion` property now does not affect the underlying `message` content.
 - Inspect View: Improved handling of scores and messages with large or complex metadata.
 - Inspect View: Web search and other server-side tool calls (e.g. remote MCP) are now shown in the transcript.
+- Bugfix: Don't inspect stack in `span()` function until required for logging.
 
 ## 0.3.122 (11 August 2025)
 
