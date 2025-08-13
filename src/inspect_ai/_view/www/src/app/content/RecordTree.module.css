@@ -4,6 +4,9 @@
   column-gap: 0.5em;
   padding-top: 4px;
   padding-bottom: 4px;
+}
+
+.keyPairBordered {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
