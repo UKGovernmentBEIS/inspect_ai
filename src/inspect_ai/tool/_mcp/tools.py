@@ -4,8 +4,6 @@ from typing import Literal
 from inspect_ai.tool._tool_def import ToolDef
 
 from .._tool import Tool, ToolSource
-from ._local import MCPServerLocal
-from ._remote import MCPServerRemote
 from ._types import MCPServer
 
 
@@ -25,6 +23,9 @@ def mcp_tools(
     Returns:
        ToolSource: Source for specified MCP server tools.
     """
+    from ._local import MCPServerLocal
+    from ._remote import MCPServerRemote
+
     if isinstance(server, MCPServerLocal):
         return MCPToolSourceLocal(server, tools)
     elif isinstance(server, MCPServerRemote):
@@ -36,9 +37,7 @@ def mcp_tools(
 
 
 class MCPToolSourceLocal(ToolSource):
-    def __init__(
-        self, server: MCPServerLocal, tools: Literal["all"] | list[str]
-    ) -> None:
+    def __init__(self, server: MCPServer, tools: Literal["all"] | list[str]) -> None:
         self._server = server
         self._tools = tools
         self._cached_tool_list: list[Tool] | None = None
