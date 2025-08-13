@@ -4,6 +4,7 @@ from transformer_lens import HookedTransformer  # type: ignore
 
 from inspect_ai._util.content import (
     ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentVideo,
 )
@@ -88,7 +89,9 @@ def message_content_to_string(messages: list[ChatMessage]) -> str:
     for message in messages:
         if isinstance(message.content, list):
             is_multimodal = any(
-                isinstance(item, ContentAudio | ContentImage | ContentVideo)
+                isinstance(
+                    item, ContentAudio | ContentImage | ContentVideo | ContentDocument
+                )
                 for item in message.content
             )
             if is_multimodal:

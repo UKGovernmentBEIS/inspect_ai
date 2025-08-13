@@ -430,7 +430,9 @@ async def mistral_content_chunk(content: Content) -> ContentChunk:
     elif isinstance(content, ContentReasoning):
         raise TypeError("Mistral models use <think> tags for reasoning.")
     else:
-        raise RuntimeError("Mistral models do not support audio or video inputs.")
+        raise RuntimeError(
+            "Mistral models do not support audio, video, and document inputs."
+        )
 
 
 def mistral_tool_call(tool_call: ToolCall) -> MistralToolCall:

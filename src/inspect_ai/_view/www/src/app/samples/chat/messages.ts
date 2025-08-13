@@ -5,6 +5,7 @@ import {
   ChatMessageUser,
   ContentAudio,
   ContentData,
+  ContentDocument,
   ContentImage,
   ContentReasoning,
   ContentText,
@@ -65,6 +66,7 @@ export const resolveMessages = (messages: Messages) => {
     | ContentImage
     | ContentAudio
     | ContentVideo
+    | ContentDocument
     | ContentReasoning
     | ContentData
     | ContentToolUse
@@ -121,6 +123,7 @@ const normalizeContent = (
     | ContentImage
     | ContentAudio
     | ContentVideo
+    | ContentDocument
     | ContentReasoning
     | ContentData
     | ContentToolUse
@@ -130,6 +133,7 @@ const normalizeContent = (
   | ContentImage
   | ContentAudio
   | ContentVideo
+  | ContentDocument
   | ContentReasoning
   | ContentData
   | ContentToolUse => {

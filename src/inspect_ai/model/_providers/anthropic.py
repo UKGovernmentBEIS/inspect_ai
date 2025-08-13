@@ -17,9 +17,13 @@ from anthropic import (
 )
 from anthropic._types import Body
 from anthropic.types import (
+    Base64PDFSourceParam,
+    ContentBlockSourceParam,
+    DocumentBlockParam,
     ImageBlockParam,
     Message,
     MessageParam,
+    PlainTextSourceParam,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
     ServerToolUseBlock,
@@ -33,6 +37,7 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
+    URLPDFSourceParam,
     WebSearchResultBlockParam,
     WebSearchTool20250305Param,
     WebSearchToolRequestErrorParam,
@@ -53,12 +58,14 @@ from anthropic.types.beta import (
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
 )
+from anthropic.types.document_block_param import Source
 from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -66,11 +73,11 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import file_as_data, file_as_data_uri
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -919,6 +926,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 str
                 | list[
                     TextBlockParam
+                    | DocumentBlockParam
                     | ImageBlockParam
                     | ThinkingBlockParam
                     | RedactedThinkingBlockParam
@@ -963,6 +971,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             TextBlockParam
             | ThinkingBlockParam
             | RedactedThinkingBlockParam
+            | DocumentBlockParam
             | ImageBlockParam
             | ToolUseBlockParam
             | ServerToolUseBlockParam
@@ -1236,6 +1245,7 @@ async def message_param_content(
     content: Content,
 ) -> list[
     TextBlockParam
+    | DocumentBlockParam
     | ImageBlockParam
     | ThinkingBlockParam
     | RedactedThinkingBlockParam
@@ -1263,24 +1273,8 @@ async def message_param_content(
             )
         ]
     elif isinstance(content, ContentImage):
-        # resolve to url
-        image = await file_as_data_uri(content.image)
+        return [await image_block_param(content.image)]
 
-        # resolve mime type and base64 content
-        media_type = data_uri_mime_type(image) or "image/png"
-        image = data_uri_to_base64(image)
-
-        if media_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
-            raise ValueError(f"Unable to read image of type {media_type}")
-
-        return [
-            ImageBlockParam(
-                type="image",
-                source=dict(
-                    type="base64", media_type=cast(Any, media_type), data=image
-                ),
-            )
-        ]
     elif isinstance(content, ContentReasoning):
         if content.redacted:
             return [
@@ -1338,6 +1332,28 @@ async def message_param_content(
             raise RuntimeError(
                 f"Unexpected tool use: {content.tool_type}/{content.name}"
             )
+    elif isinstance(content, ContentDocument):
+        if content.mime_type == "application/pdf":
+            if is_http_url(content.document):
+                source: Source = URLPDFSourceParam(type="url", url=content.document)
+            else:
+                pdf_data_uri = await file_as_data_uri(content.document)
+                pdf_data = data_uri_to_base64(pdf_data_uri)
+                source = Base64PDFSourceParam(
+                    type="base64", data=pdf_data, media_type="application/pdf"
+                )
+        elif is_image_type(content.mime_type):
+            source = ContentBlockSourceParam(
+                type="content", content=[await image_block_param(content.document)]
+            )
+        else:
+            file_bytes, _ = await file_as_data(content.document)
+            source = PlainTextSourceParam(
+                type="text", media_type="text/plain", data=file_bytes.decode()
+            )
+        return [
+            DocumentBlockParam(type="document", source=source, title=content.filename)
+        ]
 
     else:
         raise RuntimeError(
@@ -1385,3 +1401,24 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 def _content_list(input: str | list[Content]) -> list[Content]:
     return [ContentText(text=input)] if isinstance(input, str) else input
+
+
+async def image_block_param(image: str) -> ImageBlockParam:
+    # resolve to url
+    image = await file_as_data_uri(image)
+
+    # resolve mime type and base64 content
+    media_type = data_uri_mime_type(image) or "image/png"
+    image = data_uri_to_base64(image)
+
+    if not is_image_type(media_type):
+        raise ValueError(f"Unable to read image of type {media_type}")
+
+    return ImageBlockParam(
+        type="image",
+        source=dict(type="base64", media_type=cast(Any, media_type), data=image),
+    )
+
+
+def is_image_type(media_type: str) -> bool:
+    return media_type in ["image/jpeg", "image/png", "image/gif", "image/webp"]

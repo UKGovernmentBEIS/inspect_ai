@@ -10,6 +10,7 @@ from inspect_ai._util.content import (
     Content,
     ContentAudio,
     ContentData,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -358,3 +359,5 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
         return content.model_copy(
             update=dict(data=walk_json_value(content.data, content_fn))
         )
+    elif isinstance(content, ContentDocument):
+        return content.model_copy(update=dict(document=content_fn(content.document)))

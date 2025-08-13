@@ -368,6 +368,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -507,6 +510,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -617,6 +623,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -765,6 +774,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -998,6 +1010,50 @@
         "data"
       ],
       "title": "ContentData",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentDocument": {
+      "description": "Document content (e.g. a PDF).",
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "document",
+          "default": "document",
+          "title": "Type",
+          "type": "string"
+        },
+        "document": {
+          "title": "Document",
+          "type": "string"
+        },
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "mime_type": {
+          "title": "Mime Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "document",
+        "filename",
+        "mime_type"
+      ],
+      "title": "ContentDocument",
       "type": "object",
       "additionalProperties": false
     },

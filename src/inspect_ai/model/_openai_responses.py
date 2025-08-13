@@ -11,6 +11,7 @@ from openai.types.responses import (
     ResponseFunctionWebSearch,
     ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
+    ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
     ResponseInputMessageContentListParam,
@@ -66,10 +67,13 @@ from pydantic import JsonValue
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
     Content,
+    ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
     ContentToolUse,
+    ContentVideo,
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
@@ -167,6 +171,25 @@ async def _openai_responses_content_param(
                 if is_http_url(content.image)
                 else await file_as_data_uri(content.image)
             ),
+        )
+    elif isinstance(content, ContentAudio | ContentVideo | ContentDocument):
+        match content:
+            case ContentAudio():
+                contents = content.audio
+                filename = f"audio.{content.format}"
+            case ContentVideo():
+                contents = content.video
+                filename = f"video.{content.format}"
+            case ContentDocument():
+                contents = content.document
+                filename = content.filename
+            case _:
+                raise TypeError(f"Unexpected content type: {type(content)}")
+
+        file_data_uri = await file_as_data_uri(contents)
+
+        return ResponseInputFileParam(
+            type="input_file", file_data=file_data_uri, filename=filename
         )
     else:
         # TODO: support for files (PDFs) and audio and video whenever

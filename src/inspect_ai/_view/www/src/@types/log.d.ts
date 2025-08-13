@@ -207,6 +207,7 @@ export type Content =
       | ContentVideo
       | ContentData
       | ContentToolUse
+      | ContentDocument
     )[];
 export type Type3 = "text";
 export type Text = string;
@@ -257,6 +258,10 @@ export type Id2 = string;
 export type Name8 = string;
 export type Context = string | null;
 export type Error = string | null;
+export type Type14 = "document";
+export type Document = string;
+export type Filename = string;
+export type MimeType = string;
 export type Source = ("input" | "generate") | null;
 export type Metadata5 = {
   [k: string]: unknown;
@@ -273,6 +278,7 @@ export type Content1 =
       | ContentVideo
       | ContentData
       | ContentToolUse
+      | ContentDocument
     )[];
 export type Source1 = ("input" | "generate") | null;
 export type Metadata6 = {
@@ -291,6 +297,7 @@ export type Content2 =
       | ContentVideo
       | ContentData
       | ContentToolUse
+      | ContentDocument
     )[];
 export type Source2 = ("input" | "generate") | null;
 export type Metadata7 = {
@@ -304,7 +311,7 @@ export type ParseError = string | null;
 export type Title3 = string | null;
 export type Format3 = "text" | "markdown";
 export type Content3 = string;
-export type Type14 = string | null;
+export type Type15 = string | null;
 export type Model2 = string | null;
 export type Id6 = string | null;
 export type Content4 =
@@ -317,6 +324,7 @@ export type Content4 =
       | ContentVideo
       | ContentData
       | ContentToolUse
+      | ContentDocument
     )[];
 export type Source3 = ("input" | "generate") | null;
 export type Metadata8 = {
@@ -325,7 +333,7 @@ export type Metadata8 = {
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
-export type Type15 =
+export type Type16 =
   | "parsing"
   | "timeout"
   | "unicode_decode"
@@ -422,7 +430,7 @@ export type Metadata14 = {
 } | null;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type16 =
+export type Type17 =
   | "message"
   | "time"
   | "working"
@@ -492,7 +500,7 @@ export type Input3 = (
 )[];
 export type Name9 = string;
 export type Description2 = string;
-export type Type17 = "object";
+export type Type18 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
 export type Options3 = {
@@ -516,7 +524,7 @@ export type Metadata19 = {
 } | null;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
-export type Type18 = "function";
+export type Type19 = "function";
 export type Id8 = string;
 export type Function2 = string;
 export type Result1 =
@@ -599,7 +607,7 @@ export type Level =
   | "critical";
 export type Message4 = string;
 export type Created1 = number;
-export type Filename = string;
+export type Filename1 = string;
 export type Module = string;
 export type Lineno = number;
 export type Uuid12 = string | null;
@@ -623,7 +631,7 @@ export type Pending13 = boolean | null;
 export type Event13 = "span_begin";
 export type Id9 = string;
 export type ParentId = string | null;
-export type Type19 = string | null;
+export type Type20 = string | null;
 export type Name12 = string;
 export type Uuid14 = string | null;
 export type SpanId14 = string | null;
@@ -645,7 +653,7 @@ export type Metadata28 = {
 export type Pending15 = boolean | null;
 export type Event15 = "step";
 export type Action1 = "begin" | "end";
-export type Type20 = string | null;
+export type Type21 = string | null;
 export type Name13 = string;
 export type Uuid16 = string | null;
 export type SpanId16 = string | null;
@@ -657,7 +665,7 @@ export type Metadata29 = {
 export type Pending16 = boolean | null;
 export type Event16 = "subtask";
 export type Name14 = string;
-export type Type21 = string | null;
+export type Type22 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -726,7 +734,7 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid17 = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type Type22 =
+export type Type23 =
   | "context"
   | "time"
   | "working"
@@ -1268,6 +1276,16 @@ export interface ContentToolUse {
   error: Error;
 }
 /**
+ * Document content (e.g. a PDF).
+ */
+export interface ContentDocument {
+  internal: unknown;
+  type: Type14;
+  document: Document;
+  filename: Filename;
+  mime_type: MimeType;
+}
+/**
  * User chat message.
  */
 export interface ChatMessageUser {
@@ -1299,7 +1317,7 @@ export interface ToolCall {
   internal: unknown;
   parse_error: ParseError;
   view: ToolCallContent | null;
-  type: Type14;
+  type: Type15;
 }
 export interface Arguments {
   [k: string]: unknown;
@@ -1327,7 +1345,7 @@ export interface ChatMessageTool {
   error: ToolCallError | null;
 }
 export interface ToolCallError {
-  type: Type15;
+  type: Type16;
   message: Message1;
 }
 /**
@@ -1426,7 +1444,7 @@ export interface SampleLimitEvent {
   metadata: Metadata14;
   pending: Pending1;
   event: Event1;
-  type: Type16;
+  type: Type17;
   message: Message2;
   limit: Limit1;
 }
@@ -1551,7 +1569,7 @@ export interface ToolInfo {
  * Description of tool parameters object in JSON Schema format.
  */
 export interface ToolParams {
-  type: Type17;
+  type: Type18;
   properties: Properties1;
   required: Required1;
   additionalProperties: Additionalproperties1;
@@ -1587,7 +1605,7 @@ export interface ToolEvent {
   metadata: Metadata19;
   pending: Pending6;
   event: Event6;
-  type: Type18;
+  type: Type19;
   id: Id8;
   function: Function2;
   arguments: Arguments1;
@@ -1701,7 +1719,7 @@ export interface LoggingMessage {
   level: Level;
   message: Message4;
   created: Created1;
-  filename: Filename;
+  filename: Filename1;
   module: Module;
   lineno: Lineno;
 }
@@ -1732,7 +1750,7 @@ export interface SpanBeginEvent {
   event: Event13;
   id: Id9;
   parent_id: ParentId;
-  type: Type19;
+  type: Type20;
   name: Name12;
 }
 /**
@@ -1760,7 +1778,7 @@ export interface StepEvent {
   pending: Pending15;
   event: Event15;
   action: Action1;
-  type: Type20;
+  type: Type21;
   name: Name13;
 }
 /**
@@ -1775,7 +1793,7 @@ export interface SubtaskEvent {
   pending: Pending16;
   event: Event16;
   name: Name14;
-  type: Type21;
+  type: Type22;
   input: Input5;
   result: Result2;
   events: Events2;
@@ -1798,7 +1816,7 @@ export interface Attachments {
  * Limit encountered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type22;
+  type: Type23;
   limit: Limit2;
 }
 /**
