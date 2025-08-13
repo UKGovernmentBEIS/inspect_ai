@@ -3,22 +3,22 @@
 
 ## Overview
 
-Many models now support multimodal inputs, including images, audio, and
-video. This article describes how to how to create evaluations that
-include these data types.
+Many models now support multimodal inputs, including images, audio,
+video, and PDFs. This article describes how to how to create evaluations
+that include these data types.
 
 The following providers currently have support for multimodal inputs:
 
-| Provider  | Images | Audio | Video |
-|-----------|:------:|:-----:|:-----:|
-| OpenAI    |   •    |   •   |       |
-| Anthropic |   •    |       |       |
-| Google    |   •    |   •   |   •   |
-| Mistral   |   •    |   •   |       |
-| Grok      |   •    |       |       |
-| Bedrock   |   •    |       |       |
-| AzureAI   |   •    |       |       |
-| Groq      |   •    |       |       |
+| Provider  | Images | Audio | Video | PDF |
+|-----------|:------:|:-----:|:-----:|:---:|
+| OpenAI    |   •    |   •   |       |  •  |
+| Anthropic |   •    |       |       |  •  |
+| Google    |   •    |   •   |   •   |  •  |
+| Mistral   |   •    |   •   |       |     |
+| Grok      |   •    |       |       |     |
+| Bedrock   |   •    |       |       |     |
+| AzureAI   |   •    |       |       |     |
+| Groq      |   •    |       |       |     |
 
 Note that model providers only support multimodal inputs for a subset of
 their models. In the sections below on images, audio, and video we’ll
@@ -188,6 +188,62 @@ You can provide video files in one of three formats:
 
 As demonstrated above, you should specify the format explicitly when
 including video input.
+
+## PDF
+
+> [!NOTE]
+>
+> Support for PDF inputs is available only in the development version of
+> Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The following model providers support PDF inputs:
+
+- [OpenAI](https://platform.openai.com/docs/guides/pdf-files?api-mode=responses)
+- [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/pdf-support)
+- [Google](https://ai.google.dev/api/files)
+
+To include PDF in a [dataset](datasets.qmd) you should use JSON input
+format (either standard JSON or JSON Lines). For example, here we
+include a PDF alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "Please describe the contents of the attached PDF."
+      },
+      {
+        "type": "document",
+        "document": "attention.pdf"
+      }
+    ]
+  }
+]
+```
+
+The “attention.pdf” path is resolved relative to the directory
+containing the dataset file. The video file can be specified either as a
+file path or a base64 encoded [Data
+URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the
+equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content=[
+         ContentText(text="Please describe the contents of the attached PDF."),
+        ContentDocument(video="attention.pdf")
+    ])
+]
+```
 
 ## Uploads
 

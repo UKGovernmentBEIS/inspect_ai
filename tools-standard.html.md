@@ -300,10 +300,12 @@ Dependencies** below for additional instructions.
 >
 > ``` dockerfile
 > RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/* && \
->     pipx ensurepath
-> ENV PATH="$PATH:/root/.local/bin"
-> RUN pipx install inspect-tool-support && inspect-tool-support post-install
+>     apt-get clean && rm -rf /var/lib/apt/lists/*
+> ENV PATH="$PATH:/opt/inspect/bin"
+> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+>     pipx install inspect-tool-support && \
+>     chmod -R 755 /opt/inspect && \
+>     inspect-tool-support post-install
 > ```
 >
 > Note that Playwright (used for the `web_browser()` tool) does not
@@ -377,10 +379,12 @@ below for additional instructions.
 >
 > ``` dockerfile
 > RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/* && \
->     pipx ensurepath
-> ENV PATH="$PATH:/root/.local/bin"
-> RUN pipx install inspect-tool-support && inspect-tool-support post-install
+>     apt-get clean && rm -rf /var/lib/apt/lists/*
+> ENV PATH="$PATH:/opt/inspect/bin"
+> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+>     pipx install inspect-tool-support && \
+>     chmod -R 755 /opt/inspect && \
+>     inspect-tool-support post-install
 > ```
 >
 > Note that Playwright (used for the `web_browser()` tool) does not
@@ -472,10 +476,12 @@ support some versions of Linux (e.g. Kali Linux).
 >
 > ``` dockerfile
 > RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/* && \
->     pipx ensurepath
-> ENV PATH="$PATH:/root/.local/bin"
-> RUN pipx install inspect-tool-support && inspect-tool-support post-install
+>     apt-get clean && rm -rf /var/lib/apt/lists/*
+> ENV PATH="$PATH:/opt/inspect/bin"
+> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+>     pipx install inspect-tool-support && \
+>     chmod -R 755 /opt/inspect && \
+>     inspect-tool-support post-install
 > ```
 >
 > If you don’t have a custom Dockerfile, you can alternatively use the

@@ -431,14 +431,20 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcp_server_sse" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mcp_server_sse</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcp_server_http" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_server_http</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#mcp_server_sandbox" class="sidebar-item-text sidebar-link">
  <span class="menu-text">mcp_server_sandbox</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#mcp_server_sse" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_server_sse</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1028,8 +1034,20 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentdocument" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentDocument</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#contentdata" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ContentData</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contenttooluse" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentToolUse</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1453,6 +1471,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#evalsamplescore" class="sidebar-item-text sidebar-link">
  <span class="menu-text">EvalSampleScore</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#writeconflicterror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">WriteConflictError</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2671,8 +2695,8 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td><code>--reasoning-effort</code></td>
-<td>choice (<code>low</code> | <code>medium</code> | <code>high</code>)</td>
-<td>Constrains effort on reasoning for reasoning models (defaults to <code>medium</code>). Open AI o-series models only.</td>
+<td>choice (<code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code>)</td>
+<td>Constrains effort on reasoning for reasoning models (defaults to <code>medium</code>). Open AI o-series and gpt-5 models only.</td>
 <td>None</td>
 </tr>
 <tr class="odd">

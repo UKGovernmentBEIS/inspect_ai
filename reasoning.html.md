@@ -80,8 +80,8 @@ documentation.
 
 You can condition the amount of reasoning done via the
 [`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort)
-option, which can be set to `low`, `medium`, or `high` (the default is
-`medium` if not specified). For example:
+option, which can be set to `minimal`, `low`, `medium`, or `high` (the
+default is `medium` if not specified). For example:
 
 ``` bash
 inspect eval math.py --model openai/o3 --reasoning-effort high

@@ -29,6 +29,7 @@ from inspect_ai.tool import mcp_server_stdio
 @task
 def git_task():
     git_server = mcp_server_stdio(
+        name="Git",
         command="python3", 
         args=["-m", "mcp_server_git", "--repository", "."]
     )
@@ -55,7 +56,7 @@ built-in to the core implementation:
 - **Standard I/O (stdio).** The stdio transport enables communication to
   a local process through standard input and output streams.
 
-- **Server-Sent Events (sse).** SSE transport enables server-to-client
+- **HTTP Servers (http).** The http transport enables server-to-client
   streaming with HTTP POST requests for client-to-server communication,
   typically to a remote host.
 
@@ -71,10 +72,11 @@ types of servers:
 |  |  |
 |----|----|
 | `mcp_server_stdio()` | Stdio interface to MCP server. Use this for MCP servers that run locally. |
-| `mcp_server_sse()` | SSE interface to MCP server. Use this for MCP servers available via a URL endpoint. |
+| `mcp_server_http()` | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint. |
 | `mcp_server_sandbox()` | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
+| `mcp_server_sse()` | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)) |
 
-We’ll cover using stdio and sse based servers in the section below.
+We’ll cover using stdio and http based servers in the section below.
 Sandbox servers require some additional container configuration, and are
 covered separately in [Sandboxes](#sandboxes).
 
@@ -113,6 +115,7 @@ arguments. For example, to use the Google Maps server with Inspect:
 
 ``` python
 maps_server = mcp_server_stdio(
+    name="Google Maps",
     command="npx", 
     args=["-y", "@modelcontextprotocol/server-google-maps"],
     env={ "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>" }
@@ -141,6 +144,7 @@ alongside other standard `tools`. For example:
 @task
 def map_task():
     maps_server = mcp_server_stdio(
+        name="Google Maps",
         command="npx", 
         args=["-y", "@modelcontextprotocol/server-google-maps"]
     )
@@ -157,23 +161,64 @@ In this example we use all of the tool made available by the server. You
 can also select a subset of tools (this is covered below in [Tool
 Selection](#tool-selection)).
 
+#### ToolSource
+
+The `MCPServer` interface is a `ToolSource`, which is a new interface
+for dynamically providing a set of tools. Inspect generation methods
+that take `Tool` or `ToolDef` now also take `ToolSource`.
+
+If you are creating your own agents or functions that take `tools`
+arguments, we recommend you do this same if you are going to be using
+MCP servers. For example:
+
+``` python
+@agent
+def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
+    ...
+```
+
+## Remote MCP
+
 > [!NOTE]
 >
-> ### ToolSource
+> Support for Remote MCP servers is available only in the development
+> version of Inspect. To install the development version from GitHub:
 >
-> The `MCPServer` interface is a `ToolSource`, which is a new interface
-> for dynamically providing a set of tools. Inspect generation methods
-> that take `Tool` or `ToolDef` now also take `ToolSource`.
->
-> If you are creating your own agents or functions that take `tools`
-> arguments, we recommend you do this same if you are going to be using
-> MCP servers. For example:
->
-> ``` python
-> @agent
-> def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
->     ...
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 > ```
+
+[OpenAI](https://platform.openai.com/docs/guides/tools-remote-mcp) and
+[Anthropic](https://docs.anthropic.com/en/docs/agents-and-tools/remote-mcp-servers)
+both provide a facility for HTTP-based MCP Servers to be called remotely
+by the model provider. This is especially useful for scenarios where you
+want the model to make a series of tool calls in a single generation
+(e.g. when you want to provide custom tools to a deep research model).
+
+You can specify that you’d like an HTTP-based MCP Server to be executed
+remotely by passing the `execution="remote"` option. For example:
+
+``` python
+deepwiki = mcp_server_http(
+    name="deepwiki", 
+    url="https://mcp.deepwiki.com/mcp", 
+    authorization="$DEEPWIKI_API_KEY"
+    execution="remote"
+)
+```
+
+Line 5  
+This is what indicates that the MCP Server should be executed remotely.
+Pass `execution="local"` for local execution (the default).
+
+Note that some remote MCP servers will require credentials—in this case
+pass the `authorization` option (as shown above) to provide an OAuth
+Bearer Token or pass `headers` to provide credentials using another
+scheme.
+
+Before using remote servers, you should review OpenAI’s [Risks and
+Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety)
+guidance for Remote MCP.
 
 ## Tool Selection
 
@@ -188,20 +233,6 @@ return Task(
         mcp_tools(
             maps_server, 
             tools=["maps_geocode", "maps_reverse_geocode"]
-        )
-    ])
-)
-```
-
-You can also use glob wildcards in the `tools` list:
-
-``` python
-return Task(
-    ...,
-    solver=react(tools=[
-        mcp_tools(
-            maps_server, 
-            tools=["*_geocode"]
         )
     ])
 )
@@ -234,6 +265,7 @@ memory server and preserve its state across calls:
 
 ``` python
 memory_server = mcp_server_stdio(
+    name="Memory",
     command="npx", 
     args=["-y", "@modelcontextprotocol/server-memory"]
 )
@@ -268,6 +300,7 @@ def web_surfer() -> Agent:
 
         # interface to memory server
         memory_server = mcp_server_stdio(
+            name="Memory",
             command="npx", 
             args=["-y", "@modelcontextprotocol/server-memory"]
         )
@@ -352,10 +385,12 @@ Base Image** below for details on how to do this.
 >
 > ``` dockerfile
 > RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/* && \
->     pipx ensurepath
-> ENV PATH="$PATH:/root/.local/bin"
-> RUN pipx install inspect-tool-support && inspect-tool-support post-install
+>     apt-get clean && rm -rf /var/lib/apt/lists/*
+> ENV PATH="$PATH:/opt/inspect/bin"
+> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+>     pipx install inspect-tool-support && \
+>     chmod -R 755 /opt/inspect && \
+>     inspect-tool-support post-install
 > ```
 
 ### Running the Server
@@ -370,7 +405,8 @@ We can now use the `mcp_server_sandbox()` function to run the server as
 follows:
 
 ``` python
-maps_server = mcp_server_sandbox(
+filesystem_server = mcp_server_sandbox(
+    name="Filesystem",
     command="mcp-server-filesystem", 
     args=["/"]
 )

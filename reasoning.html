@@ -611,7 +611,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>OpenAI has several reasoning models available including the o1, o3, and o4 famillies of models. Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
 <section id="reasoning-effort" class="level4">
 <h4 class="anchored" data-anchor-id="reasoning-effort">Reasoning Effort</h4>
-<p>You can condition the amount of reasoning done via the <a href="https://platform.openai.com/docs/guides/reasoning#reasoning-effort"><code>reasoning_effort</code></a> option, which can be set to <code>low</code>, <code>medium</code>, or <code>high</code> (the default is <code>medium</code> if not specified). For example:</p>
+<p>You can condition the amount of reasoning done via the <a href="https://platform.openai.com/docs/guides/reasoning#reasoning-effort"><code>reasoning_effort</code></a> option, which can be set to <code>minimal</code>, <code>low</code>, <code>medium</code>, or <code>high</code> (the default is <code>medium</code> if not specified). For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o3 <span class="at">--reasoning-effort</span> high</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="reasoning-summary" class="level4">

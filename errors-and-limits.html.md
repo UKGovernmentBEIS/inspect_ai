@@ -220,8 +220,8 @@ resources (e.g. Docker containers or subprocess execution).
 > In order to distinguish successful generate requests from rate limited
 > and retried requests, Inspect installs hooks into the HTTP client of
 > various model packages. This is not possible for some models
-> (`azureai`) and in these cases the `working_time` will include any
-> internal retries that the model client performs.
+> (`azureai` and `goodfire`) and in these cases the `working_time` will
+> include any internal retries that the model client performs.
 
 Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each
 sample within a task:
@@ -440,8 +440,8 @@ resources (e.g. Docker containers or subprocess execution).
 > In order to distinguish successful generate requests from rate limited
 > and retried requests, Inspect installs hooks into the HTTP client of
 > various model packages. This is not possible for some models
-> (`azureai`) and in these cases the `working_time` will include any
-> internal retries that the model client performs.
+> (`azureai` and `goodfire`) and in these cases the `working_time` will
+> include any internal retries that the model client performs.
 
 To limit the working time to 10 minutes:
 

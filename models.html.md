@@ -11,7 +11,7 @@ providers is built in to Inspect:
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock) and [Azure AI](providers.qmd#azure-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [Fireworks AI](providers.qmd#fireworks-ai) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
 If the provider you are using is not listed above, you may still be able
@@ -230,6 +230,43 @@ Or with `eval()`:
 ``` python
 eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
 ```
+
+### Role Resolution
+
+Model roles are resolved based on what is passed to `eval()`. This means
+that if you fully construct tasks before calling `eval()` (e.g. by
+calling their `@task` function) then the initialization code for tasks,
+solvers, and scorers for can’t see the model role definitions.
+
+Given this, you should always call `get_model()` *inside* the
+implementation of your solver or scorer function rather than during
+initialization. For example:
+
+**Don’t do this (model role not yet visible)**
+
+``` python
+@scorer(metrics=[accuracy(), stderr()])
+def model_grader() -> Scorer:
+    model = get_model(role="grader")
+    async def score(state: TaskState, target: Target):   
+        ...
+```
+
+Line 3  
+Role is not yet visible when `@task` function is called before `eval()`.
+
+**Rather do this (defer until role is visible)**
+
+``` python
+@scorer(metrics=[accuracy(), stderr()])
+def model_grader() -> Scorer:
+    async def score(state: TaskState, target: Target):  
+        model = get_model(role="grader")
+        ...
+```
+
+Line 4  
+Role is visible since we are calling this after `eval()`.
 
 ### Role Defaults
 

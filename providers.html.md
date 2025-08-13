@@ -11,7 +11,7 @@ providers is built in to Inspect:
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock) and [Azure AI](providers.qmd#azure-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [Fireworks AI](providers.qmd#fireworks-ai) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
 If the provider you are using is not listed above, you may still be able
@@ -39,17 +39,6 @@ export OPENAI_API_KEY=your-openai-api-key
 inspect eval arc.py --model openai/gpt-4o-mini
 ```
 
-The `openai` provider supports the `user` custom model arg (`-M`), which
-is a unique identifier representing your end-user, which can help OpenAI
-to monitor and detect abuse. For example:
-
-``` bash
-inspect eval arc.py --model openai/gpt-4o-mini -M user=my-user
-```
-
-Other model args are forwarded to the constructor of the `AsyncOpenAI`
-class.
-
 The following environment variables are supported by the OpenAI provider
 
 | Variable | Description |
@@ -58,6 +47,36 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+
+### Model Args
+
+The `openai` provider supports the following custom model args (other
+model args are forwarded to the constructor of the `AsyncOpenAI` class):
+
+| Model Arg | Description |
+|----|----|
+| `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
+| `service_tier` | Processing type used for serving the request (“auto”, “default”, or “flex”). |
+| `background` | Run generate requests asynchronously, polling response objects to check status over time. |
+| `safety_identifier` | A stable identifier used to help detect users of your application. |
+| `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
+| `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
+
+For example:
+
+``` bash
+inspect eval arc.py --model openai/gpt-4o-mini \ 
+   -M responses_api=true
+```
+
+Or from Python:
+
+``` python
+eval(
+    "arc.py", model=" openai/gpt-4o-mini", 
+    model_args= { "responses_api": True }
+)
+```
 
 ### Responses API
 
@@ -263,6 +282,9 @@ gcloud auth application-default login
 If you have authorised the CLI then no additional auth is needed for the
 model API.
 
+You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override
+the default base URL for Vertex.
+
 ### Safety Settings
 
 Google models make available [safety
@@ -363,7 +385,7 @@ environment variables then refer to models with
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
 
 ## Grok
@@ -548,6 +570,32 @@ provider
 | `FIREWORKS_API_KEY` | API key credentials (required). |
 | `FIREWORKS_BASE_URL` | Base URL for requests (optional, defaults to `https://api.fireworks.ai/inference/v1`) |
 
+## SambaNova
+
+To use the [SambaNova](https://sambanova.ai/) provider, install the
+`openai` package (which the SambaNova service provides a compatible
+backend for), set your credentials, and specify a model using the
+`--model` option:
+
+``` bash
+pip install openai
+export SAMABANOVA_API_KEY=your-sambanova-api-key
+inspect eval arc.py --model sambanova/DeepSeek-V1-0324
+```
+
+For the `sambanova` provider, you can enable [Tool
+Emulation](#tool-emulation-openai) using the `emulate_tools` custom
+model arg (`-M`). Other custom model args are forwarded to the
+constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the SambaNova
+provider
+
+| Variable | Description |
+|----|----|
+| `SAMBANOVA_API_KEY` | API key credentials (required). |
+| `SAMBANOVA_BASE_URL` | Base URL for requests (optional, defaults to `https://api.sambanova.ai/v1`) |
+
 ## Cloudflare
 
 To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/)
@@ -596,6 +644,29 @@ Perplexity responses include citations when available. These are
 surfaced as `UrlCitation`s attached to the assistant message. Additional
 usage metrics such as `reasoning_tokens` and `citation_tokens` are
 recorded in `ModelOutput.metadata`.
+
+## Goodfire
+
+To use the [Goodfire](https://platform.goodfire.ai/) provider, install
+the `goodfire` package, set your credentials, and specify a model using
+the `--model` option:
+
+``` bash
+pip install goodfire
+export GOODFIRE_API_KEY=your-goodfire-api-key
+inspect eval arc.py --model goodfire/meta-llama/Meta-Llama-3.1-8B-Instruct
+```
+
+For the `goodfire` provider, custom model args (`-M`) are forwarded to
+`chat.completions.create` method of the `AsyncClient` class.
+
+The following environment variables are supported by the Goodfire
+provider
+
+| Variable | Description |
+|----|----|
+| `GOODFIRE_API_KEY` | API key credentials (required). |
+| `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
 
 ## Hugging Face
 
@@ -659,8 +730,8 @@ $ inspect eval arc.py --model hf/openai-community/gpt2 -M hidden_states=true
 Or from Python:
 
 ``` python
-model = get_model( 
-    model="hf/meta-llama/Llama-3.1-8B-Instruct", 
+model = get_model(
+    model="hf/meta-llama/Llama-3.1-8B-Instruct",
     hidden_states=True
 )
 ```
@@ -968,7 +1039,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
 
 ### Tool Emulation

@@ -516,6 +516,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#model-roles" id="toc-model-roles" class="nav-link" data-scroll-target="#model-roles">Model Roles</a>
   <ul class="collapse">
+  <li><a href="#role-resolution" id="toc-role-resolution" class="nav-link" data-scroll-target="#role-resolution">Role Resolution</a></li>
   <li><a href="#role-defaults" id="toc-role-defaults" class="nav-link" data-scroll-target="#role-defaults">Role Defaults</a></li>
   <li><a href="#roles-for-tasks" id="toc-roles-for-tasks" class="nav-link" data-scroll-target="#roles-for-tasks">Roles for Tasks</a></li>
   </ul></li>
@@ -560,7 +561,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td>Open (Hosted)</td>
-<td><a href="./providers.html#groq">Groq</a>, <a href="./providers.html#together-ai">Together AI</a>, <a href="./providers.html#fireworks-ai">Fireworks AI</a>, <a href="./providers.html#cloudflare">Cloudflare</a>, <a href="./providers.html#fireworks-ai">Fireworks AI</a></td>
+<td><a href="./providers.html#groq">Groq</a>, <a href="./providers.html#together-ai">Together AI</a>, <a href="./providers.html#fireworks-ai">Fireworks AI</a>, <a href="./providers.html#cloudflare">Cloudflare</a></td>
 </tr>
 <tr class="even">
 <td>Open (Local)</td>
@@ -660,6 +661,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model-role</span> grader=google/gemini-2.0-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"math.py"</span>, model_roles <span class="op">=</span> { <span class="st">"grader"</span>: <span class="st">"google/gemini-2.0-flash"</span> })</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="role-resolution" class="level3">
+<h3 class="anchored" data-anchor-id="role-resolution">Role Resolution</h3>
+<p>Model roles are resolved based on what is passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>. This means that if you fully construct tasks before calling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> (e.g.&nbsp;by calling their <code>@task</code> function) then the initialization code for tasks, solvers, and scorers for can’t see the model role definitions.</p>
+<p>Given this, you should always call <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> <em>inside</em> the implementation of your solver or scorer function rather than during initialization. For example:</p>
+<p><strong>Don’t do this (model role not yet visible)</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-18"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-18-1"><a href="#annotated-cell-18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="annotated-cell-18-2"><a href="#annotated-cell-18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-18" data-target-annotation="1">1</button><span id="annotated-cell-18-3" class="code-annotation-target"><a href="#annotated-cell-18-3" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
+<span id="annotated-cell-18-4"><a href="#annotated-cell-18-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):   </span>
+<span id="annotated-cell-18-5"><a href="#annotated-cell-18-5" aria-hidden="true" tabindex="-1"></a>        ...</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<dl class="code-annotation-container-hidden code-annotation-container-grid">
+<dt data-target-cell="annotated-cell-18" data-target-annotation="1">1</dt>
+<dd>
+<span data-code-cell="annotated-cell-18" data-code-lines="3" data-code-annotation="1">Role is not yet visible when <code>@task</code> function is called before <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</span>
+</dd>
+</dl>
+<p><strong>Rather do this (defer until role is visible)</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-19"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-19-1"><a href="#annotated-cell-19-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="annotated-cell-19-2"><a href="#annotated-cell-19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
+<span id="annotated-cell-19-3"><a href="#annotated-cell-19-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):  </span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-19" data-target-annotation="1">1</button><span id="annotated-cell-19-4" class="code-annotation-target"><a href="#annotated-cell-19-4" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
+<span id="annotated-cell-19-5"><a href="#annotated-cell-19-5" aria-hidden="true" tabindex="-1"></a>        ...</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<dl class="code-annotation-container-hidden code-annotation-container-grid">
+<dt data-target-cell="annotated-cell-19" data-target-annotation="1">1</dt>
+<dd>
+<span data-code-cell="annotated-cell-19" data-code-lines="4" data-code-annotation="1">Role is visible since we are calling this after <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</span>
+</dd>
+</dl>
+</section>
 <section id="role-defaults" class="level3">
 <h3 class="anchored" data-anchor-id="role-defaults">Role Defaults</h3>
 <p>By default if there is a no role explicitly defined then <code>get_model(role="...")</code> will return the default model for the evaluation. You can specify an alternate default model as follows:</p>
