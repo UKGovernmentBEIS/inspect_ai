@@ -2,11 +2,11 @@ import { FC, ReactNode } from "react";
 import { ContentToolUse } from "../../../../@types/log";
 
 import clsx from "clsx";
+import ExpandablePanel from "../../../../components/ExpandablePanel";
 import { ApplicationIcons } from "../../../appearance/icons";
+import { RecordTree } from "../../../content/RecordTree";
 import { RenderedContent } from "../../../content/RenderedContent";
 import styles from "./ServerToolCall.module.css";
-import { RecordTree } from "../../../content/RecordTree";
-import ExpandablePanel from "../../../../components/ExpandablePanel";
 
 interface ServerToolCallProps {
   id?: string;
@@ -64,32 +64,41 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
 
           return (
             <>
-              <div
-                className={clsx(
-                  styles.argLabel,
-                  "text-style-secondary",
-                  "text-size-smaller",
-                )}
-              >
-                <pre>{key}</pre>
-              </div>
+              <LabelDiv label={key} />
               {valueRecord ? (
                 <RecordTree id={`${id}-val-${index}`} record={valueRecord} />
               ) : (
-                <div className={clsx("text-size-smaller")}>
-                  {value as ReactNode}
-                </div>
+                <ValueDiv>{value as ReactNode}</ValueDiv>
               )}
             </>
           );
         })}
+
+        {isWebSearchResult(content) ? (
+          <>
+            <LabelDiv label={"results"} />
+            <ValueDiv>
+              {(content.result as WebResult[]).map((result, index) => (
+                <div key={index} className={styles.result}>
+                  <a
+                    href={result.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {result.title}
+                  </a>
+                </div>
+              ))}
+            </ValueDiv>
+          </>
+        ) : undefined}
       </div>
 
       {content.error ? (
         <div className={styles.error}>
           <span>Error: {content.error}</span>
         </div>
-      ) : (
+      ) : !isWebSearchResult(content) ? (
         <ExpandablePanel id={`${id}-output`} collapse={true}>
           <RenderedContent
             id={`${id}-output`}
@@ -97,7 +106,47 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
             renderOptions={{ renderString: "markdown" }}
           />
         </ExpandablePanel>
-      )}
+      ) : undefined}
     </div>
   );
 };
+
+const isWebSearchResult = (
+  content: ContentToolUse,
+): content is ContentToolUse & { result: WebResult[] } => {
+  return (
+    content.name === "web_search" &&
+    Array.isArray(content.result) &&
+    content.result.every(
+      (item) =>
+        typeof item === "object" &&
+        "title" in item &&
+        "url" in item &&
+        "type" in item,
+    )
+  );
+};
+
+const LabelDiv: FC<{ label: string }> = ({ label }) => {
+  return (
+    <div
+      className={clsx(
+        styles.argLabel,
+        "text-style-secondary",
+        "text-size-smaller",
+      )}
+    >
+      <pre>{label}</pre>
+    </div>
+  );
+};
+
+const ValueDiv: FC<{ children: ReactNode }> = ({ children }) => {
+  return <div className={clsx("text-size-smaller")}>{children}</div>;
+};
+
+interface WebResult {
+  title: string;
+  url: string;
+  type: string;
+}
