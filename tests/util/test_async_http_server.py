@@ -61,7 +61,8 @@ async def test_post_request(http_server: tuple[AsyncHTTPServer, str]) -> None:
     # Register a POST handler
     @server.route("/echo", method="POST")
     async def echo_handler(request: dict[str, Any]) -> dict[str, Any]:
-        return {"status": 200, "body": {"echo": request.get("body"), "method": "POST"}}
+        # New server provides json, text, or raw_body instead of body
+        return {"status": 200, "body": {"echo": request.get("json"), "method": "POST"}}
 
     # Make request
     test_data = {"test": "data", "number": 42}
@@ -83,9 +84,10 @@ async def test_openai_chat_completions(
     # Register OpenAI chat completions handler
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
-        body = request.get("body", {})
-        messages = body.get("messages", [])
-        model = body.get("model", "gpt-3.5-turbo")
+        # New server provides json instead of body
+        json_body = request.get("json", {})
+        messages = json_body.get("messages", [])
+        model = json_body.get("model", "gpt-3.5-turbo")
 
         # Simple echo response
         response_content = "Test response"
@@ -225,7 +227,7 @@ async def test_request_headers_and_body(
             "status": 200,
             "body": {
                 "headers_received": "content-type" in request.get("headers", {}),
-                "body_received": request.get("body") is not None,
+                "body_received": request.get("json") is not None,
             },
         }
 
@@ -245,7 +247,7 @@ async def test_request_headers_and_body(
             # Verify the request was properly parsed
             assert received_request["method"] == "POST"
             assert received_request["path"] == "/inspect"
-            assert received_request["body"] == test_body
+            assert received_request["json"] == test_body
             assert "content-type" in received_request["headers"]
 
 
