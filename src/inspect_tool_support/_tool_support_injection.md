@@ -152,23 +152,20 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 
 ## Implementation Phases
 
-### Phase 1: Core Runtime Injection - ✅ **COMPLETED**
+### ✅ **COMPLETED**
 
 - ✅ Cross-platform build system with portable executables
 - ✅ Container reconnaissance and injection mechanics
 - ✅ Validation across Ubuntu, Debian, and Kali Linux containers
 - **Next**: Community testing and feedback collection
 
-### Phase 2: Installation Method Support - 🔄 **IN PROGRESS**
+### 🔄 **IN PROGRESS**
 
-- **Remaining**: Git reference installation binary distribution (Case 2)
-- **Remaining**: Editable installation automation (Case 3)
 - **Remaining**: CI/CD integration for PyPI packaging (Case 1)
 
-### Phase 3: Remaining Requirements - ⏳ **PENDING**
+### ⏳ **PENDING**
 
 1. **Case 2 Git Installation Support**: Design and implement pre-built binary hosting solution for git reference installations
 2. **Case 3 On-Demand Build Integration**: Integrate `build_within_container.sh` calling into the injection flow for editable installations when binaries are missing
-3. **CI/CD Integration**: Integrate build system into inspect_ai's existing CI and deployment processes for automated binary generation
 4. **Web Browser Tools**: Resolve PyInstaller/StaticX conflicts with Playwright's bundled shell scripts to re-enable web browser functionality
 
