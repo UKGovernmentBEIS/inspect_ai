@@ -23,6 +23,7 @@ import { MessagesContext } from "./MessageContents";
 import { ToolOutput } from "./tools/ToolOutput";
 import { Citation } from "./types";
 import { ServerToolCall } from "./server-tools/ServerToolCall";
+import { ContentDocumentView } from "./documents/ContentDocumentView";
 
 type ContentObject =
   | ContentText
@@ -226,6 +227,12 @@ const messageRenderers: Record<string, MessageRenderer> = {
     render: (key, content) => {
       const c = content as ContentData;
       return <ContentDataView id={key} contentData={c} />;
+    },
+  },
+  document: {
+    render: (key, content) => {
+      const c = content as ContentDocument;
+      return <ContentDocumentView id={key} document={c} />;
     },
   },
 };
