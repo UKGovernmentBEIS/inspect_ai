@@ -9,7 +9,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
 
 import anyio
-from typing_extensions import Self
+from typing_extensions import Self, override
 
 from inspect_ai._util.logger import warn_once
 
@@ -194,6 +194,11 @@ class SampleLimits:
 
 def sample_limits() -> SampleLimits:
     """Get the top-level limits applied to the current `Sample`."""
+    # if there is _sample_limit_data recorded then the limit trees have
+    # gone out of scope for the sample so we just return that snapshot
+    limit_data = _sample_limit_data.get()
+    if limit_data is not None:
+        return limit_data
 
     def get_root_node(node: TNode | None, name: str) -> TNode:
         if node is None:
@@ -210,6 +215,23 @@ def sample_limits() -> SampleLimits:
         working=get_root_node(working_limit_tree.get(), "working"),
         time=get_root_node(time_limit_tree.get(), "time"),
     )
+
+
+def record_sample_limit_data(message_usage: float) -> None:
+    current_limits = sample_limits()
+    _sample_limit_data.set(
+        SampleLimits(
+            token=_LimitData(current_limits.token),
+            message=_LimitData(current_limits.message, usage=message_usage),
+            working=_LimitData(current_limits.working),
+            time=_LimitData(current_limits.time),
+        )
+    )
+
+
+_sample_limit_data: ContextVar[SampleLimits | None] = ContextVar(
+    "SampleLimitData", default=None
+)
 
 
 def token_limit(limit: int | None) -> _TokenLimit:
@@ -734,3 +756,34 @@ def _validate_time_limit(name: str, value: float | None) -> None:
         raise ValueError(
             f"{name} limit value must be a non-negative float or None: {value}"
         )
+
+
+class _LimitData(Limit):
+    """Limit which copies its values from another limit."""
+
+    def __init__(self, limit: Limit, *, usage: float | None = None) -> None:
+        self._limit = limit.limit
+        self._usage = usage if usage is not None else limit.usage
+
+    @override
+    def __enter__(self) -> Limit:
+        return self
+
+    @override
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        pass
+
+    @property
+    @override
+    def limit(self) -> float | None:
+        return self._limit
+
+    @property
+    @override
+    def usage(self) -> float:
+        return self._usage

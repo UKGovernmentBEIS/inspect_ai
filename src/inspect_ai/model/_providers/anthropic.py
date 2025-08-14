@@ -112,6 +112,7 @@ class AnthropicAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         streaming: bool | Literal["auto"] = "auto",
+        betas: str | list[str] = [],
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -121,8 +122,9 @@ class AnthropicAPI(ModelAPI):
         else:
             self.service = None
 
-        # record steraming pref
+        # record steraming and betas prefs
         self.streaming = streaming
+        self.betas = betas if isinstance(betas, list) else [str(betas)]
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -266,6 +268,7 @@ class AnthropicAPI(ModelAPI):
             if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
                 betas.append("computer-use-2024-10-22")
             if len(betas) > 0:
+                betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
 
             request["extra_headers"] = extra_headers
@@ -280,9 +283,9 @@ class AnthropicAPI(ModelAPI):
                     request["extra_body"] = dict()
                 request["extra_body"]["mcp_servers"] = mcp_servers_param
 
-            # make request (unless overridden, stream if we are using reasoning)
+            # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (
-                self.is_using_thinking(config)
+                self.auto_streaming(config)
                 if self.streaming == "auto"
                 else self.streaming
             )
@@ -380,7 +383,7 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = {}
-        betas: list[str] = []
+        betas: list[str] = self.betas.copy()
 
         # temperature not compatible with extended thinking
         THINKING_WARNING = "anthropic models do not support the '{parameter}' parameter when using extended thinking."
@@ -435,6 +438,12 @@ class AnthropicAPI(ModelAPI):
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
         return self.is_thinking_model() and config.reasoning_tokens is not None
+
+    # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
+    def auto_streaming(self, config: GenerateConfig) -> bool:
+        return self.is_using_thinking(config) or (
+            config.max_tokens is not None and config.max_tokens >= 8192
+        )
 
     def is_thinking_model(self) -> bool:
         return not self.is_claude_3() and not self.is_claude_3_5()

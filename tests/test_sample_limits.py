@@ -4,7 +4,7 @@ from typing import Generator
 import anyio
 import pytest
 from test_helpers.limits import check_limit_event, find_limit_event
-from test_helpers.utils import skip_if_no_docker, sleep_for_solver
+from test_helpers.utils import skip_if_no_docker, skip_if_no_openai, sleep_for_solver
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -20,6 +20,7 @@ from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver, generate
 from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._limit import sample_limits
 
 
 @solver
@@ -230,6 +231,36 @@ def test_time_limit_scorer():
     )[0]
     assert log.status == "success"
     check_limit_event(log, "time")
+
+
+@skip_if_no_openai
+def test_sample_limits_available_to_scorer():
+    def check_limits() -> None:
+        limits = sample_limits()
+        assert limits.message.limit == 2
+        assert limits.message.usage == 2
+        assert limits.token.limit == 20
+        assert limits.token.usage == 13
+
+    @scorer(metrics=[mean()])
+    def limit_checking_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            check_limits()
+            return Score(value=1)
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="Say Hello only.", target="Hello")],
+        solver=[generate()],
+        cleanup=check_limits,
+        scorer=limit_checking_scorer(),
+        message_limit=2,
+        token_limit=20,
+    )
+
+    log = eval(task, model="openai/gpt-4o")[0]
+    assert log.status == "success"
 
 
 def test_solver_scorer_combined_timeout():
