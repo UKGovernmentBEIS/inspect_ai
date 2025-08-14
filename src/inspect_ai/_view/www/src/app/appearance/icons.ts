@@ -8,6 +8,16 @@ const loggingIcons: Record<string, string> = {
   critical: "bi bi-fire",
 };
 
+export const iconForMimeType = (mimeType: string): string => {
+  if (mimeType === "application/pdf") {
+    return "bi bi-file-pdf";
+  } else if (mimeType.startsWith("image/")) {
+    return "bi bi-file-image";
+  } else {
+    return "bi bi-file-earmark";
+  }
+};
+
 export const ApplicationIcons = {
   agent: "bi bi-grid", // bi bi-x-diamond
   approve: "bi bi-shield",
