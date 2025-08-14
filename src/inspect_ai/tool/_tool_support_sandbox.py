@@ -1,4 +1,3 @@
-import os
 from importlib import resources
 from typing import Literal, TypedDict, cast
 

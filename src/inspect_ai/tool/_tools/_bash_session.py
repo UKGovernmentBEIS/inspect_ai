@@ -1,10 +1,7 @@
-from textwrap import dedent
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
-from semver import Version
 
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool import ToolResult
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
