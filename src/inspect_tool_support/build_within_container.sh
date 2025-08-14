@@ -2,6 +2,9 @@
 
 set -e
 
+# Save the current directory to restore at the end
+ORIGINAL_DIR="$(pwd)"
+
 # Parse command line arguments
 TARGET_ARCH=""
 BUILD_ALL=false
@@ -30,6 +33,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Change to the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 if [ "$BUILD_ALL" = true ]; then
     echo "Building for all architectures..."
@@ -85,13 +92,18 @@ mkdir -p container_build
 # Note: Using --rm flag, so no need to manage container lifecycle
 
 # Run the container with mounts and execute build script
+# As currently coded, this must be run from src/inspect_tool_support relative
+# to the inspect_ai repo
 echo "Starting container and building executable..."
 docker run --rm --platform "$PLATFORM" \
-    -v "$(pwd):/src:ro" \
-    -v "$(pwd)/container_build:/output:rw" \
-    -w /src \
+    -v ".:/inspect_tool_support:ro" \
+    -v "../inspect_ai/binaries:/output:rw" \
+    -w /inspect_tool_support \
     -e "ARCH_SUFFIX=$ARCH_SUFFIX" \
     "$IMAGE_NAME" \
-    /src/build_executable.sh
+    /inspect_tool_support/build_executable.sh
 
-echo "Build completed. Executable available in container_build/inspect-tool-support-$ARCH_SUFFIX"
+echo "Build completed. Executable(s) available in container_build/inspect-tool-support-$ARCH_SUFFIX"
+
+# Restore the original directory
+cd "$ORIGINAL_DIR"

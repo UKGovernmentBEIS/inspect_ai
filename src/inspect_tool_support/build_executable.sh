@@ -9,9 +9,9 @@ EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX"
 echo "Building maximally portable executable for $ARCH_SUFFIX..."
 
 # Copy source and setup
-rm -rf /tmp/src-copy # This makes it easier to run multiple times when debugging the container.
-cp -r /src /tmp/src-copy
-cd /tmp/src-copy
+rm -rf /tmp/inspect_tool_support-copy # This makes it easier to run multiple times when debugging the container.
+cp -r /inspect_tool_support /tmp/inspect_tool_support-copy
+cd /tmp/inspect_tool_support-copy
 
 echo "Installing package..."
 pip install .
