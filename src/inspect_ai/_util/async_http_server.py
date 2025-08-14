@@ -1,17 +1,3 @@
-#!/usr/bin/env python3
-"""
-Async HTTP server with minimal dependencies for OpenAI-compatible proxying.
-
-Features:
-- Robust request parsing (timeouts, size limits, chunked bodies, 100-continue)
-- Streaming responses (SSE) and upstream passthrough relay (no double-chunking)
-- CORS + OPTIONS preflight
-- Wildcard routes (prefix match via trailing '*')
-- Minimal OpenAI forwarder (HTTPS) that preserves headers and streaming
-
-No third-party packages required.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -623,53 +609,3 @@ class AsyncHTTPServer:
                 "content_length": cl,
             }
         }
-
-
-# ---------- Example usage ----------
-if __name__ == "__main__":
-    server = AsyncHTTPServer(host="127.0.0.1", port=8000)
-
-    @server.route("/v1/health", method="GET")
-    async def health(_req: dict[str, Any]) -> dict[str, Any]:
-        return {"status": 200, "body": {"ok": True}}
-
-    @server.route("/echo", method="POST")
-    async def echo(req: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "status": 200,
-            "body": {
-                "headers": req["headers"],
-                "json": req["json"],
-                "text": req["text"],
-            },
-        }
-
-    # Demo SSE endpoint
-    async def sse_gen() -> AsyncIterator[bytes]:
-        for i in range(5):
-            yield f"data: tick {i}\n\n".encode("utf-8")
-            await asyncio.sleep(0.2)
-        yield b"data: [DONE]\n\n"
-
-    @server.route("/stream", method="GET")
-    async def stream(_req: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "status": 200,
-            "headers": {"Content-Type": "text/event-stream; charset=utf-8"},
-            "body_iter": sse_gen(),
-            "chunked": True,
-        }
-
-    # Forward ANY /v1/* request to OpenAI (both GET and POST)
-    @server.route("/v1/*", method="POST")
-    async def openai_post(req: dict[str, Any]) -> dict[str, Any]:
-        return await server.forward_openai(req)
-
-    @server.route("/v1/*", method="GET")
-    async def openai_get(req: dict[str, Any]) -> dict[str, Any]:
-        return await server.forward_openai(req)
-
-    try:
-        asyncio.run(server.start())
-    except KeyboardInterrupt:
-        print("\nShutting down...")
