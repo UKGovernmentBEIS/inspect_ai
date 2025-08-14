@@ -82,9 +82,6 @@ Phase 1 core implementation is **functionally complete** and ready for broader c
 
 #### Build Process
 
-> [!WARNING]
-> **Network Access Required**: The build process requires network access at multiple stages - both during Docker image creation (for downloading build tools) and during container execution (for installing Python dependencies via `pip install .`). The build system cannot operate in air-gapped environments.
-
 - **Docker Image Build**: Creates a container image with PyInstaller, StaticX, and all build dependencies (requires network access for package downloads)
 - **Source Mount**: Mounts the source code read-only at `/inspect_tool_support` in the container  
 - **Output Mount**: Mounts `../inspect_ai/binaries/` directory for direct package integration
@@ -94,6 +91,10 @@ Phase 1 core implementation is **functionally complete** and ready for broader c
   3. Runs PyInstaller to create the executable
   4. Uses StaticX to create a fully static binary (~13MB)
   5. Copies the final executable to the output directory with proper naming
+
+> [!NOTE]
+> **Network Access Required**: The build process requires network access at multiple stages - both during Docker image creation (for downloading build tools) and during container execution (for installing Python dependencies via `pip install .`). The build system cannot operate in air-gapped environments.
+
 
 ### 2. On Demand Executable Injection
 
