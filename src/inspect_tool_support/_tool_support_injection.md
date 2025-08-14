@@ -150,24 +150,6 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 - **Runtime Access**: Same `importlib.resources` pattern as other installation methods
 - **Version Management**: Executables built from current source tree ensure perfect version alignment with development code
 
-## Remaining Work
-
-### High Priority
-
-1. **Case 2 Git Installation Support**: Design and implement pre-built binary hosting solution for git reference installations
-2. **Case 3 On-Demand Build Integration**: Integrate `build_within_container.sh` calling into the injection flow for editable installations when binaries are missing
-3. **CI/CD Integration**: Integrate build system into inspect_ai's existing CI and deployment processes for automated binary generation
-
-### Medium Priority
-
-1. **Web Browser Tools**: Resolve PyInstaller/StaticX conflicts with Playwright's bundled shell scripts to re-enable web browser functionality
-2. **Playwright Dependencies**: Consult PyInstaller's explicit Playwright documentation for proper bundling strategies in air-gapped containers
-
-### Future Considerations
-
-1. **Build Tool Migration**: Evaluate migration from StaticX (unmaintained) to Nuitka for improved long-term sustainability
-
-
 ## Implementation Phases
 
 ### Phase 1: Core Runtime Injection - ✅ **COMPLETED**
@@ -185,5 +167,8 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 
 ### Phase 3: Remaining Requirements - ⏳ **PENDING**
 
-- Web browser tools re-enablement
-- Full air-gap support for all installation methods
+1. **Case 2 Git Installation Support**: Design and implement pre-built binary hosting solution for git reference installations
+2. **Case 3 On-Demand Build Integration**: Integrate `build_within_container.sh` calling into the injection flow for editable installations when binaries are missing
+3. **CI/CD Integration**: Integrate build system into inspect_ai's existing CI and deployment processes for automated binary generation
+4. **Web Browser Tools**: Resolve PyInstaller/StaticX conflicts with Playwright's bundled shell scripts to re-enable web browser functionality
+
