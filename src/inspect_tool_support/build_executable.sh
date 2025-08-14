@@ -33,6 +33,9 @@ pyinstaller \
 echo "Creating statically linked executable (eliminating system dependencies)..."
 staticx --strip "dist/$EXECUTABLE_NAME" "/output/$EXECUTABLE_NAME"
 
+echo "Making executable..."
+chmod +x "/output/$EXECUTABLE_NAME"
+
 echo "Verifying portability..."
 # This should show "not a dynamic executable" or similar
 ldd "/output/$EXECUTABLE_NAME" 2>/dev/null || echo "✅ Fully static - maximum portability achieved"
