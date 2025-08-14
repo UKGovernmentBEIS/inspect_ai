@@ -515,7 +515,9 @@ async def run_model_proxy(port: int) -> None:
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         try:
             json_body = request.get("json", {})
-            completion = await call_bridge_model_service_async("generate", json_body)
+            completion = await call_bridge_model_service_async(
+                "generate", json_data=json_body
+            )
             return {"status": 200, "body": completion}
         except Exception as ex:
             return {"status": 500, "body": {"error": str(ex)}}
