@@ -2,6 +2,8 @@ from textwrap import dedent
 
 from inspect_ai.agent import Agent, AgentState, agent, sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.bridge import SandboxAgentBridge
+from inspect_ai.model._model import get_model
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.util import sandbox
 
 
@@ -28,6 +30,9 @@ def codex_agent() -> Agent:
                     "inspect",
                     "--skip-git-repo-check",
                     "--dangerously-bypass-approvals-and-sandbox",
+                    "--color",
+                    "never",
+                    "--json",
                     "--output-last-message",
                     agent_output,
                     prompt,
@@ -35,7 +40,8 @@ def codex_agent() -> Agent:
             )
 
         if result.success:
-            state.output = await sandbox().read_file(agent_output)
+            output = await sandbox().read_file(agent_output)
+            state.output = ModelOutput.from_content(str(get_model()), output)
             return state
         else:
             raise RuntimeError(f"Error executing codex agent: {result.stderr}")
