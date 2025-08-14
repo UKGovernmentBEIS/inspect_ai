@@ -16,7 +16,7 @@ async def run_model_service(sandbox: SandboxEnvironment, started: anyio.Event) -
     await sandbox_service(
         name=MODEL_SERVICE,
         methods=[generate],
-        until=lambda: True,
+        until=lambda: False,
         sandbox=sandbox,
         started=started,
     )
