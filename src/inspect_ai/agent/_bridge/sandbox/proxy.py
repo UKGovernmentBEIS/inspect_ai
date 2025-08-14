@@ -11,8 +11,6 @@ from http import HTTPStatus
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .service import MODEL_SERVICE
-
 # ---------- Types ----------
 RequestHandler: TypeAlias = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 RouteMap: TypeAlias = dict[str, RequestHandler]
@@ -503,14 +501,11 @@ def _http_date() -> str:
     return formatdate(timeval=None, usegmt=True)
 
 
-MODEL_PROXY_PORT = 3131
-
-
-async def run_model_proxy(port: int = MODEL_PROXY_PORT) -> None:
+async def run_model_proxy(port: int) -> None:
     # get generate method
-    sys.path.append(f"/var/tmp/sandbox-services/{MODEL_SERVICE}")
+    sys.path.append("/var/tmp/sandbox-services/bridge_model_service")
     from bridge_model_service import (  # type: ignore[import-not-found]
-        generate_async,
+        call_bridge_model_service_async,
     )
 
     # setup server
@@ -520,7 +515,7 @@ async def run_model_proxy(port: int = MODEL_PROXY_PORT) -> None:
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         try:
             json_body = request.get("json", {})
-            completion = await generate_async(json_body)
+            completion = await call_bridge_model_service_async("generate", json_body)
             return {"status": 200, "body": completion}
         except Exception as ex:
             return {"status": 500, "body": {"error": str(ex)}}
@@ -533,4 +528,6 @@ async def run_model_proxy(port: int = MODEL_PROXY_PORT) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(run_model_proxy())
+    DEFAULT_PROXY_PORT = 13131
+    port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PROXY_PORT
+    asyncio.run(run_model_proxy(port=port_arg))

@@ -1,21 +1,31 @@
+import anyio
 from pydantic import JsonValue
 
-from inspect_ai.util._sandbox import sandbox, sandbox_service
+from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from ..request import inspect_model_request
 
 MODEL_SERVICE = "bridge_model_service"
 
+from logging import getLogger  # noqa: E402
 
-async def run_model_service() -> None:
+logger = getLogger(__file__)
+
+
+async def run_model_service(sandbox: SandboxEnvironment, started: anyio.Event) -> None:
     await sandbox_service(
         name=MODEL_SERVICE,
         methods=[generate],
         until=lambda: True,
-        sandbox=sandbox(),
+        sandbox=sandbox,
+        started=started,
     )
 
 
 async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-    completion = await inspect_model_request(json_data)
-    return completion.model_dump(mode="json")
+    try:
+        completion = await inspect_model_request(json_data)
+        return completion.model_dump(mode="json")
+    except Exception as ex:
+        logger.warning(f"Error occurred in model proxy call: {ex}")
+        raise

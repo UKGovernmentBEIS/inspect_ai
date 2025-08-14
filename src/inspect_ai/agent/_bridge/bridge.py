@@ -1,4 +1,3 @@
-import contextlib
 from typing import Any, Awaitable, Callable
 
 from jsonschema import Draft7Validator
@@ -11,16 +10,11 @@ from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.providers import validate_openai_client
-from inspect_ai.util._sandbox import SandboxEnvironment
-from inspect_ai.util._sandbox import sandbox as default_sandbox
-
-from .sandbox.bridge import create_sandbox_agent
 
 
 @agent
 def bridge(
-    agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]] | str,
-    sandbox: SandboxEnvironment | None = None,
+    agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
 ) -> Agent:
     """Bridge an external agent into an Inspect Agent.
 
@@ -28,10 +22,6 @@ def bridge(
 
     Args:
       agent: Callable which takes a sample `dict` and returns a result `dict`.
-        Alternatively, a `str` pointing to the path to an agent script/executable
-        in the specified `sandbox`.
-      sandbox: Sandbox to run `agent` within (if the passed `agent` is a path
-        rather than a function.
 
     Returns:
       Inspect agent.
@@ -64,11 +54,6 @@ def bridge(
     result_schema = BridgeResult.model_json_schema()
     result_validator = Draft7Validator(result_schema)
 
-    # if this is a sandbox agent then resolve it
-    if isinstance(agent, str):
-        sandbox = sandbox or default_sandbox()
-        agent = create_sandbox_agent(agent, sandbox)
-
     # validate that the agent is an async function
     if not is_callable_coroutine(agent):
         raise TypeError(f"'{agent.__name__}' is not declared as an async callable.")
@@ -80,13 +65,8 @@ def bridge(
         messages = await openai_chat_messages(state.messages)
         input = BridgeInput(messages=messages, metadata=metadata, input=messages)
 
-        # run target function (only patch if we are running in the scaffold not the sandbox)
-        request_cm = (
-            openai_request_to_inspect_model()
-            if sandbox is None
-            else contextlib.nullcontext()
-        )
-        async with request_cm:
+        # run target function with patch applied
+        async with openai_request_to_inspect_model():
             # call the function
             result_dict = await agent(input.model_dump())
             try:
