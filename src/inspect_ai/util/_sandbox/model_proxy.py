@@ -32,10 +32,6 @@ HOP_BY_HOP = {
 }
 
 
-def _http_date() -> str:
-    return formatdate(timeval=None, usegmt=True)
-
-
 class AsyncHTTPServer:
     """Async HTTP server supporting GET/POST/OPTIONS with streaming + proxy utilities."""
 
@@ -496,3 +492,7 @@ class AsyncHTTPServer:
             self.server.close()
             await self.server.wait_closed()
             self.server = None
+
+
+def _http_date() -> str:
+    return formatdate(timeval=None, usegmt=True)

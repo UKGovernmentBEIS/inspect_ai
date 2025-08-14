@@ -10,7 +10,7 @@ from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
-from inspect_ai._util.async_http_server import AsyncHTTPServer
+from inspect_ai.util._sandbox.model_proxy import AsyncHTTPServer
 
 
 @pytest.fixture
@@ -39,13 +39,15 @@ async def http_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
 
 
 @pytest.mark.asyncio
-async def test_get_request(http_server: tuple[AsyncHTTPServer, str]) -> None:
+async def test_model_proxy_get_request(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
     """Test GET request handling."""
     server, base_url = http_server
 
     # Register a GET handler
     @server.route("/test", method="GET")
-    async def test_handler(_request: dict[str, Any]) -> dict[str, Any]:
+    async def test_model_proxy_handler(_request: dict[str, Any]) -> dict[str, Any]:
         return {"status": 200, "body": {"message": "GET successful", "method": "GET"}}
 
     # Make request
@@ -58,7 +60,9 @@ async def test_get_request(http_server: tuple[AsyncHTTPServer, str]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_post_request(http_server: tuple[AsyncHTTPServer, str]) -> None:
+async def test_model_proxy_post_request(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
     """Test POST request handling."""
     server, base_url = http_server
 
@@ -79,7 +83,7 @@ async def test_post_request(http_server: tuple[AsyncHTTPServer, str]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_openai_chat_completions(
+async def test_model_proxy_openai_chat_completions(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test OpenAI-compatible chat completions endpoint."""
@@ -140,7 +144,9 @@ async def test_openai_chat_completions(
 
 
 @pytest.mark.asyncio
-async def test_openai_models_list(http_server: tuple[AsyncHTTPServer, str]) -> None:
+async def test_model_proxy_openai_models_list(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
     """Test OpenAI-compatible models list endpoint."""
     server, base_url = http_server
 
@@ -179,7 +185,9 @@ async def test_openai_models_list(http_server: tuple[AsyncHTTPServer, str]) -> N
 
 
 @pytest.mark.asyncio
-async def test_404_not_found(http_server: tuple[AsyncHTTPServer, str]) -> None:
+async def test_model_proxy_404_not_found(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
     """Test 404 response for unregistered paths."""
     _server, base_url = http_server
 
@@ -193,7 +201,7 @@ async def test_404_not_found(http_server: tuple[AsyncHTTPServer, str]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_add_route_programmatically(
+async def test_model_proxy_add_route_programmatically(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test adding routes programmatically instead of with decorator."""
@@ -215,7 +223,7 @@ async def test_add_route_programmatically(
 
 
 @pytest.mark.asyncio
-async def test_request_headers_and_body(
+async def test_model_proxy_request_headers_and_body(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test that headers and body are properly parsed and passed to handlers."""
@@ -256,7 +264,9 @@ async def test_request_headers_and_body(
 
 
 @pytest.mark.asyncio
-async def test_non_json_response(http_server: tuple[AsyncHTTPServer, str]) -> None:
+async def test_model_proxy_non_json_response(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
     """Test returning non-JSON response."""
     server, base_url = http_server
 
@@ -277,7 +287,7 @@ async def test_non_json_response(http_server: tuple[AsyncHTTPServer, str]) -> No
 
 
 @pytest.mark.asyncio
-async def test_error_handling_in_handler(
+async def test_model_proxy_error_handling_in_handler(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test that errors in handlers return 500 status."""
@@ -297,7 +307,7 @@ async def test_error_handling_in_handler(
 
 
 @pytest.mark.asyncio
-async def test_multiple_methods_same_path(
+async def test_model_proxy_multiple_methods_same_path(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test different methods on the same path."""
@@ -330,7 +340,9 @@ async def test_multiple_methods_same_path(
 
 @pytest.mark.asyncio
 @skip_if_no_openai
-async def test_openai_sdk_models_list(http_server: tuple[AsyncHTTPServer, str]) -> None:
+async def test_model_proxy_openai_sdk_models_list(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
     """Test OpenAI SDK models.list() with our server."""
     server, base_url = http_server
 
@@ -370,7 +382,7 @@ async def test_openai_sdk_models_list(http_server: tuple[AsyncHTTPServer, str]) 
 
 @pytest.mark.asyncio
 @skip_if_no_openai
-async def test_openai_sdk_chat_completion(
+async def test_model_proxy_openai_sdk_chat_completion(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test OpenAI SDK chat.completions.create() with our server."""
@@ -431,7 +443,9 @@ async def test_openai_sdk_chat_completion(
 
 @pytest.mark.asyncio
 @skip_if_no_openai
-async def test_openai_sdk_streaming(http_server: tuple[AsyncHTTPServer, str]) -> None:
+async def test_model_proxy_openai_sdk_streaming(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
     """Test OpenAI SDK streaming response with SSE."""
     server, base_url = http_server
 
@@ -550,7 +564,7 @@ async def test_openai_sdk_streaming(http_server: tuple[AsyncHTTPServer, str]) ->
 
 @pytest.mark.asyncio
 @skip_if_no_openai
-async def test_openai_sdk_error_handling(
+async def test_model_proxy_openai_sdk_error_handling(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test OpenAI SDK error handling with our server."""
@@ -621,7 +635,7 @@ async def test_openai_sdk_error_handling(
 
 @pytest.mark.asyncio
 @skip_if_no_anthropic
-async def test_anthropic_sdk_chat_completion(
+async def test_model_proxy_anthropic_sdk_chat_completion(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test Anthropic SDK messages.create() with our server."""
@@ -688,7 +702,7 @@ async def test_anthropic_sdk_chat_completion(
 
 @pytest.mark.asyncio
 @skip_if_no_anthropic
-async def test_anthropic_sdk_streaming(
+async def test_model_proxy_anthropic_sdk_streaming(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test Anthropic SDK streaming response."""
@@ -841,7 +855,7 @@ async def test_anthropic_sdk_streaming(
 
 @pytest.mark.asyncio
 @skip_if_no_anthropic
-async def test_anthropic_sdk_error_handling(
+async def test_model_proxy_anthropic_sdk_error_handling(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
     """Test Anthropic SDK error handling with our server."""
