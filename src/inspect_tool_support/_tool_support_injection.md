@@ -31,7 +31,7 @@ Runtime injection of `inspect-tool-support` into arbitrary running containers el
 The technical foundation for runtime injection has been successfully implemented and tested:
 
 #### Build System Infrastructure
-- **Cross-platform build orchestration**: `build_within_container.sh` supports both amd64 and arm64 architectures with `--all` flag
+- **Cross-platform build orchestration**: `build_within_container.py` supports both amd64 and arm64 architectures with `--all` flag
 - **Portable executable generation**: `build_executable.sh` uses PyInstaller + StaticX pipeline to create fully static ~13MB Linux binaries
 - **Container validation**: `test_distros.sh` confirms executable compatibility across Ubuntu, Debian, and Kali Linux containers
 - **CI integration ready**: Build system outputs directly to `src/inspect_ai/binaries/` for package bundling
@@ -125,7 +125,7 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 **Status**: ⚠️ **CI integration needed**
 
 - **Build Process**: Executables pre-built during package publishing process
-  - CI/CD pipeline runs `./build_within_container.sh --all` to create both amd64 and arm64 binaries
+  - CI/CD pipeline runs `./build_within_container.py --all` to create both amd64 and arm64 binaries
   - Total size impact: ~26MB (13MB × 2 architectures) added to package
 - **Distribution**: Executables bundled in the wheel file via package data, ensuring exact version matching
 - **Runtime Access**: Using `importlib.resources` to locate bundled executables (✅ implemented)
@@ -145,7 +145,7 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 
 **Status**: 🔄 **Working manually, but not yet automated** - Build script functional but requires manual execution
 
-- **Build Process**: Manual calling of `build_within_container.sh` (automation integration pending)
+- **Build Process**: Manual calling of `build_within_container.py` (automation integration pending)
 - **Distribution**: Build system outputs directly to `src/inspect_ai/binaries/` for immediate availability
 - **Runtime Access**: Same `importlib.resources` pattern as other installation methods
 - **Version Management**: Executables built from current source tree ensure perfect version alignment with development code
@@ -166,6 +166,6 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 ### ⏳ **PENDING**
 
 1. **Case 2 Git Installation Support**: Design and implement pre-built binary hosting solution for git reference installations
-2. **Case 3 On-Demand Build Integration**: Integrate `build_within_container.sh` calling into the injection flow for editable installations when binaries are missing
+2. **Case 3 On-Demand Build Integration**: Integrate `build_within_container.py` calling into the injection flow for editable installations when binaries are missing
 4. **Web Browser Tools**: Resolve PyInstaller/StaticX conflicts with Playwright's bundled shell scripts to re-enable web browser functionality
 
