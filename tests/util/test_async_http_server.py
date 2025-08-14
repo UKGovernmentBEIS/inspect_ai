@@ -1,10 +1,12 @@
 """Tests for async HTTP server."""
 
 import asyncio
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, AsyncIterator
 
 import pytest
 from aiohttp import ClientSession
+from openai import AsyncOpenAI
+from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai._util.async_http_server import AsyncHTTPServer
 
@@ -320,3 +322,293 @@ async def test_multiple_methods_same_path(
             data = await response.json()
             assert data["method"] == "POST"
 
+
+# ============ OpenAI SDK Tests ============
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_sdk_models_list(http_server: tuple[AsyncHTTPServer, str]) -> None:
+    """Test OpenAI SDK models.list() with our server."""
+    server, base_url = http_server
+
+    # Register models endpoint
+    @server.route("/v1/models", method="GET")
+    async def list_models(_request: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": 200,
+            "body": {
+                "object": "list",
+                "data": [
+                    {
+                        "id": "gpt-3.5-turbo",
+                        "object": "model",
+                        "created": 1677610602,
+                        "owned_by": "openai",
+                    },
+                    {
+                        "id": "gpt-4",
+                        "object": "model",
+                        "created": 1687882411,
+                        "owned_by": "openai",
+                    },
+                ],
+            },
+        }
+
+    # Use OpenAI SDK
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    models = await client.models.list()
+    model_ids = [model.id for model in models.data]
+    assert "gpt-3.5-turbo" in model_ids
+    assert "gpt-4" in model_ids
+    assert len(model_ids) == 2
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_sdk_chat_completion(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI SDK chat.completions.create() with our server."""
+    server, base_url = http_server
+
+    # Register chat completions endpoint
+    @server.route("/v1/chat/completions", method="POST")
+    async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
+        json_body = request.get("json", {})
+        messages = json_body.get("messages", [])
+        model = json_body.get("model", "gpt-3.5-turbo")
+
+        # Echo the last user message
+        response_content = "Default response"
+        if messages:
+            last_message = messages[-1]
+            if last_message.get("role") == "user":
+                response_content = f"You said: {last_message.get('content', '')}"
+
+        return {
+            "status": 200,
+            "body": {
+                "id": "chatcmpl-test123",
+                "object": "chat.completion",
+                "created": 1234567890,
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": response_content},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 15,
+                    "total_tokens": 25,
+                },
+            },
+        }
+
+    # Use OpenAI SDK
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    response = await client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello, world!"},
+        ],
+    )
+
+    assert response.choices[0].message.content == "You said: Hello, world!"
+    assert response.model == "gpt-3.5-turbo"
+    assert response.usage
+    assert response.usage.total_tokens == 25
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_sdk_streaming(http_server: tuple[AsyncHTTPServer, str]) -> None:
+    """Test OpenAI SDK streaming response with SSE."""
+    server, base_url = http_server
+
+    # SSE generator for streaming response
+    async def stream_generator(messages: list[dict[str, Any]]) -> AsyncIterator[bytes]:
+        """Generate SSE events for streaming chat completion."""
+        # Get the last user message for echo
+        content = "Hello"
+        if messages:
+            for msg in reversed(messages):
+                if msg.get("role") == "user":
+                    content = msg.get("content", "Hello")
+                    break
+
+        # Stream the response word by word
+        words = f"You said: {content}".split()
+
+        # Initial message
+        yield b'data: {"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}\n\n'
+
+        # Stream each word
+        for word in words:
+            chunk = {
+                "id": "chatcmpl-stream",
+                "object": "chat.completion.chunk",
+                "created": 1234567890,
+                "model": "gpt-3.5-turbo",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": word + " "},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            import json
+
+            yield f"data: {json.dumps(chunk)}\n\n".encode()
+            await asyncio.sleep(0.01)  # Small delay to simulate streaming
+
+        # Final message
+        yield b'data: {"id":"chatcmpl-stream","object":"chat.completion.chunk","created":1234567890,"model":"gpt-3.5-turbo","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+        yield b"data: [DONE]\n\n"
+
+    # Register streaming endpoint
+    @server.route("/v1/chat/completions", method="POST")
+    async def chat_completions_stream(request: dict[str, Any]) -> dict[str, Any]:
+        json_body = request.get("json", {})
+        messages = json_body.get("messages", [])
+        stream = json_body.get("stream", False)
+
+        if not stream:
+            # Non-streaming response
+            response_content = "Non-streaming response"
+            if messages:
+                last_msg = messages[-1]
+                if last_msg.get("role") == "user":
+                    response_content = f"You said: {last_msg.get('content', '')}"
+
+            return {
+                "status": 200,
+                "body": {
+                    "id": "chatcmpl-test",
+                    "object": "chat.completion",
+                    "created": 1234567890,
+                    "model": "gpt-3.5-turbo",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": response_content,
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 15,
+                        "total_tokens": 25,
+                    },
+                },
+            }
+        else:
+            # Streaming response
+            return {
+                "status": 200,
+                "headers": {
+                    "Content-Type": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                },
+                "body_iter": stream_generator(messages),
+                "chunked": True,
+            }
+
+    # Use OpenAI SDK with streaming
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Test streaming response
+    stream = await client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Hello AI!"}],
+        stream=True,
+    )
+
+    # Collect streamed chunks
+    collected_content = []
+    async for chunk in stream:
+        if chunk.choices[0].delta.content:
+            collected_content.append(chunk.choices[0].delta.content)
+
+    full_response = "".join(collected_content)
+    assert "You said: Hello AI!" in full_response
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_sdk_error_handling(
+    http_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI SDK error handling with our server."""
+    server, base_url = http_server
+
+    # Register endpoint that returns an error
+    @server.route("/v1/chat/completions", method="POST")
+    async def chat_completions_error(request: dict[str, Any]) -> dict[str, Any]:
+        json_body = request.get("json", {})
+        model = json_body.get("model", "")
+
+        if model == "invalid-model":
+            return {
+                "status": 400,
+                "body": {
+                    "error": {
+                        "message": "Invalid model specified",
+                        "type": "invalid_request_error",
+                        "code": "model_not_found",
+                    }
+                },
+            }
+
+        return {
+            "status": 200,
+            "body": {
+                "id": "chatcmpl-ok",
+                "object": "chat.completion",
+                "created": 1234567890,
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "OK"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "total_tokens": 2,
+                },
+            },
+        }
+
+    # Use OpenAI SDK
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Test successful request
+    response = await client.chat.completions.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": "Hi"}]
+    )
+    assert response.choices[0].message.content == "OK"
+
+    # Test error handling
+    from openai import BadRequestError
+
+    with pytest.raises(BadRequestError) as exc_info:
+        await client.chat.completions.create(
+            model="invalid-model", messages=[{"role": "user", "content": "Hi"}]
+        )
+
+    assert "Invalid model specified" in str(exc_info.value)
