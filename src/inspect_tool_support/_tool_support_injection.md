@@ -33,7 +33,7 @@ The technical foundation for runtime injection has been successfully implemented
 #### Build System Infrastructure
 - **Cross-platform build orchestration**: `build_within_container.py` supports both amd64 and arm64 architectures with `--all` flag
 - **Portable executable generation**: `build_executable.sh` uses PyInstaller + StaticX pipeline to create fully static ~13MB Linux binaries
-- **Container validation**: `test_distros.sh` confirms executable compatibility across Ubuntu, Debian, and Kali Linux containers
+- **Container validation**: `test_distros.py` confirms executable compatibility across Ubuntu, Debian, and Kali Linux containers
 - **CI integration ready**: Build system outputs directly to `src/inspect_ai/binaries/` for package bundling
 
 #### Runtime Injection System
