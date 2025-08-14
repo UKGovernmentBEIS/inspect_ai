@@ -115,7 +115,7 @@ The injection system performs container reconnaissance to determine the appropri
 
 ### 3. Executable Distribution
 
-**Status**: 🔄 **Partially Implemented** - Working for editable installs, other cases need additional work
+**Status**: 🔄 **Partially Implemented** - Working (manually) for editable installs, other cases need additional work
 
 Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by installation method. Ultimately, the executables will end up in a common location (`/binaries`), but the way that get there will differ based on three distinct installation cases below:
 
