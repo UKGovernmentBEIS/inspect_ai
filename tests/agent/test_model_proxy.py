@@ -10,7 +10,7 @@ from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
-from inspect_ai.agent._bridge.model_proxy import AsyncHTTPServer
+from inspect_ai.agent._bridge.sandbox.proxy import AsyncHTTPServer
 
 
 @pytest.fixture

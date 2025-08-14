@@ -1,12 +1,17 @@
+#!/usr/bin/env python3
+
 from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import time
 from email.utils import formatdate
 from http import HTTPStatus
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional, TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
+
+from .service import MODEL_SERVICE
 
 # ---------- Types ----------
 RequestHandler: TypeAlias = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -496,3 +501,36 @@ class AsyncHTTPServer:
 
 def _http_date() -> str:
     return formatdate(timeval=None, usegmt=True)
+
+
+MODEL_PROXY_PORT = 3131
+
+
+async def run_model_proxy(port: int = MODEL_PROXY_PORT) -> None:
+    # get generate method
+    sys.path.append(f"/var/tmp/sandbox-services/{MODEL_SERVICE}")
+    from bridge_model_service import (  # type: ignore[import-not-found]
+        generate_async,
+    )
+
+    # setup server
+    server = AsyncHTTPServer(port=port)
+
+    @server.route("/v1/chat/completions", method="POST")
+    async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            json_body = request.get("json", {})
+            completion = await generate_async(json_body)
+            return {"status": 200, "body": completion}
+        except Exception as ex:
+            return {"status": 500, "body": {"error": str(ex)}}
+
+    # run server
+    try:
+        await server.start()
+    except Exception as ex:
+        sys.stderr.write(f"Unexpected error running model proxy: {ex}")
+
+
+if __name__ == "__main__":
+    asyncio.run(run_model_proxy())
