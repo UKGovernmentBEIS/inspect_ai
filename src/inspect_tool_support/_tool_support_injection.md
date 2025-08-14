@@ -37,7 +37,7 @@ The technical foundation for runtime injection has been successfully implemented
 - **CI integration ready**: Build system outputs directly to `src/inspect_ai/binaries/` for package bundling
 
 #### Runtime Injection System
-- **Container reconnaissance**: Comprehensive OS/architecture detection in `_tool_support_sandbox.py` with robust fallback mechanisms
+- **Container reconnaissance**: Comprehensive OS/architecture detection in `_tool_support_sandbox.py`
 - **Dynamic injection**: `inject_tool_support_code()` uses `importlib.resources` to access bundled executables and inject via `SandboxEnvironment.write_file()`
 - **Position independence**: Executable achieves location independence using `sys.argv[0]` for server subprocess spawning
 - **PyInstaller compatibility**: Replaced dynamic module loading in `load_tools.py` with static imports and registry for build-time analysis
@@ -77,7 +77,7 @@ Phase 1 core implementation is **functionally complete** and ready for broader c
 - **StaticX**: Post-processes PyInstaller output to create a fully static binary that includes all shared libraries, eliminating runtime dependencies on the target system. StaticX bundles all system libraries directly into the executable, making it truly portable across different Linux distributions and versions
 
 > [!WARNING]
-> **StaticX Project Status**: StaticX is no longer actively maintained and hasn't received updates in years. Consider migration to **Nuitka** as a potential replacement for both PyInstaller and StaticX in future iterations.
+> **StaticX Project Status**: StaticX is no longer actively maintained and hasn't received updates in years. Consider migration to **[Nuitka](https://nuitka.net/)** as a potential replacement for both PyInstaller and StaticX in future iterations.
 
 
 #### Build Process
