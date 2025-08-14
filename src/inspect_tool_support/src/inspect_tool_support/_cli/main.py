@@ -34,12 +34,19 @@ class JSONRPCNotification(JSONRPCIncoming):
 def main() -> None:
     args = _parse_args()
     match args.command:
+        case "healthcheck":
+            healthcheck()
         case "exec":
             asyncio.run(_exec(args.request))
         case "post-install":
             post_install(no_web_browser=args.no_web_browser)
         case "server":
             server_main()
+
+
+def healthcheck():
+    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "version", "id": 666}'))
+    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "remote_version", "id": 667}'))
 
 
 # Example/testing requests
@@ -77,7 +84,7 @@ def _ensure_server_is_running() -> None:
 
     # Start server (it will handle socket cleanup on startup)
     subprocess.Popen(
-        ["inspect-tool-support", "server"],
+        [sys.argv[0], "server"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -116,6 +123,7 @@ def _parse_args() -> argparse.Namespace:
     exec_parser = subparsers.add_parser("exec")
     exec_parser.add_argument(dest="request", type=str, nargs="?")
     subparsers.add_parser("server")
+    subparsers.add_parser("healthcheck")
     post_install_parser = subparsers.add_parser("post-install")
     post_install_parser.add_argument("--no-web-browser", action="store_true")
 
