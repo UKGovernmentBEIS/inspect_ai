@@ -29,6 +29,7 @@ def codex_agent() -> Agent:
                     "--profile",
                     "inspect",
                     "--skip-git-repo-check",
+                    # "--full-auto",
                     "--dangerously-bypass-approvals-and-sandbox",
                     "--color",
                     "never",
@@ -36,11 +37,15 @@ def codex_agent() -> Agent:
                     "--output-last-message",
                     agent_output,
                     prompt,
-                ]
+                ],
+                env={"RUST_LOG": "codex_core=trace,codex_tui=trace"},
             )
 
         if result.success:
-            output = await sandbox().read_file(agent_output)
+            # output = await sandbox().read_file(agent_output)
+            output = result.stdout
+            with open("stderr.txt", "w") as f:
+                f.write(result.stderr)
             state.output = ModelOutput.from_content(str(get_model()), output)
             return state
         else:
