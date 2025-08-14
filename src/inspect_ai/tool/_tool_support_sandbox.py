@@ -39,7 +39,7 @@ class ContainerOSInfo(TypedDict, total=False):
 # TODO: Currently, this logic relies on a specific file existing at a specific path
 # this may need to be enhanced to use a dynamic predicate instead. otherwise, how
 # would we work on os's with a different directory structure?
-SANDBOX_CLI = "/opt/eric"
+SANDBOX_CLI = "/opt/inspect-tool-support"
 
 
 async def inject_tool_support_code(sandbox: SandboxEnvironment) -> None:
