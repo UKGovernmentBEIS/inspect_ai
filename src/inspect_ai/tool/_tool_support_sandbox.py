@@ -5,8 +5,11 @@ from importlib import resources
 from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Literal, TypeAlias, TypedDict
 
+from rich.prompt import Prompt
+
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.util import input_screen
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 Architecture: TypeAlias = Literal[
@@ -216,18 +219,19 @@ async def _go_get_it(arch: Architecture, executable: str) -> None:
 
     elif installation_type == "editable":
         # Case 3: Editable installation - prompt user to build
-        # response = (
-        #     input(
-        #         f"Tool support executable {executable} is missing. Build it now? (y/N): "
-        #     )
-        #     .strip()
-        #     .lower()
-        # )
-        # if response not in ("y", "yes"):
-        #     raise PrerequisiteError(
-        #         f"Tool support executable {executable} is required but not present. "
-        #         f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch}"
-        #     )
+
+        with input_screen():
+            response = Prompt.ask(
+                f"Tool support executable {executable} is missing. Build it now?",
+                choices=["y", "n"],
+                default="y",
+                case_sensitive=False,
+            )
+            if response != "y":
+                raise PrerequisiteError(
+                    f"Tool support executable {executable} is required but not present. "
+                    f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch}"
+                )
 
         # Find the build script
         build_script_path = (
