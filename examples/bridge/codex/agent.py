@@ -42,9 +42,9 @@ def codex_agent() -> Agent:
 
         if result.success:
             # output = await sandbox().read_file(agent_output)
-            output = result.stdout
-            with open("stderr.txt", "w") as f:
-                f.write(result.stderr)
+            output = await sandbox().read_file(agent_output)
+            # with open("stderr.txt", "w") as f:
+            #     f.write(result.stderr)
             state.output = ModelOutput.from_content(str(get_model()), output)
             return state
         else:
