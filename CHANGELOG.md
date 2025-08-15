@@ -16,6 +16,7 @@
 - Inspect View: Improved handling of scores and messages with large or complex metadata.
 - Inspect View: Web search and other server-side tool calls (e.g. remote MCP) are now shown in the transcript.
 - Inspect View: Properly display scores with list values.
+- Tests: Added @flaky_retry(max_retries=) decorator for necessarily flaky tests.
 - Bugfix: Don't inspect stack in `span()` function until required for logging.
 
 ## 0.3.122 (11 August 2025)
