@@ -515,10 +515,98 @@ async def run_model_proxy(port: int) -> None:
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         try:
             json_body = request.get("json", {})
+            stream = json_body.get("stream", False)
+
             completion = await call_bridge_model_service_async(
                 "generate", json_data=json_body
             )
-            return {"status": 200, "body": completion}
+
+            if stream:
+                # Convert complete response to OpenAI streaming format with deltas
+                async def stream_response() -> AsyncIterator[bytes]:
+                    # Create base chunk structure
+                    base_chunk = {
+                        "id": completion.get("id", ""),
+                        "object": "chat.completion.chunk",
+                        "created": completion.get("created", 0),
+                        "model": completion.get("model", ""),
+                        "system_fingerprint": completion.get("system_fingerprint"),
+                        "service_tier": completion.get("service_tier"),
+                    }
+
+                    # Get the complete message from the response
+                    choices = completion.get("choices", [])
+                    if choices:
+                        choice = choices[0]
+                        message = choice.get("message", {})
+
+                        # First chunk: role
+                        first_chunk = {**base_chunk}
+                        first_chunk["choices"] = [
+                            {
+                                "index": 0,
+                                "delta": {"role": message.get("role", "assistant")},
+                                "finish_reason": None,
+                            }
+                        ]
+                        yield f"data: {json.dumps(first_chunk)}\n\n".encode("utf-8")
+
+                        # Second chunk: content (if present)
+                        if message.get("content"):
+                            content_chunk = {**base_chunk}
+                            content_chunk["choices"] = [
+                                {
+                                    "index": 0,
+                                    "delta": {"content": message["content"]},
+                                    "finish_reason": None,
+                                }
+                            ]
+                            yield f"data: {json.dumps(content_chunk)}\n\n".encode(
+                                "utf-8"
+                            )
+
+                        # Tool calls chunks (if present)
+                        if message.get("tool_calls"):
+                            for tool_call in message["tool_calls"]:
+                                tool_chunk = {**base_chunk}
+                                tool_chunk["choices"] = [
+                                    {
+                                        "index": 0,
+                                        "delta": {"tool_calls": [tool_call]},
+                                        "finish_reason": None,
+                                    }
+                                ]
+                                yield f"data: {json.dumps(tool_chunk)}\n\n".encode(
+                                    "utf-8"
+                                )
+
+                        # Final chunk with finish_reason
+                        final_chunk = {**base_chunk}
+                        final_chunk["choices"] = [
+                            {
+                                "index": 0,
+                                "delta": {},
+                                "finish_reason": choice.get("finish_reason", "stop"),
+                            }
+                        ]
+                        if completion.get("usage"):
+                            final_chunk["usage"] = completion["usage"]
+                        yield f"data: {json.dumps(final_chunk)}\n\n".encode("utf-8")
+
+                    # Send [DONE] marker
+                    yield b"data: [DONE]\n\n"
+
+                return {
+                    "status": 200,
+                    "body_iter": stream_response(),
+                    "headers": {
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                    },
+                    "chunked": True,
+                }
+            else:
+                return {"status": 200, "body": completion}
         except Exception as ex:
             return {"status": 500, "body": {"error": str(ex)}}
 
