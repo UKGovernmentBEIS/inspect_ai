@@ -535,17 +535,18 @@ async def run_model_proxy(port: int) -> None:
             json_body = request.get("json", {}) or {}
             stream = json_body.get("stream", False)
 
+            # the openai codex cli seems to have a bug that causes
+            # it to concatenate the 'arguments' of multiple tool_calls
+            # when receiving them w/ stream=True (reproduced this as
+            # well w/ the SDK going live against the ChatCompletion
+            # API). Disable so we can side-step the bug.
+            json_body["parallel_tool_calls"] = False
+
             completion = await call_bridge_model_service_async(
                 "generate", json_data=json_body
             )
 
             if stream:
-                # the openai codex cli seems to have a bug that causes
-                # it to concatenate the 'arguments' of multiple tool_calls
-                # when receiving them w/ stream=True (reproduced this as
-                # well w/ the SDK going live against the ChatCompletion
-                # API). Disable so we can side-step the bug.
-                json_body["parallel_tool_calls"] = False
 
                 async def stream_response() -> AsyncIterator[bytes]:
                     comp = (
