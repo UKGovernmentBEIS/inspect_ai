@@ -147,6 +147,12 @@ export const sampleFilterItems = (
       throw new Error("Unable to create a canonical name for a score");
     }
     const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
+
+    // This is not a filterable score
+    if (descriptor.filterable === false) {
+      return;
+    }
+
     const scoreType = descriptor?.scoreType;
     if (!descriptor) {
       items.push({
