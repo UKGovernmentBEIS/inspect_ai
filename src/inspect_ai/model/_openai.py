@@ -250,6 +250,10 @@ def openai_completion_params(
     return params
 
 
+INTERNAL_TAG = "internal"
+CONTENT_INTERNAL_TAG = "content-internal"
+
+
 def openai_assistant_content(message: ChatMessageAssistant) -> str:
     # In agent bridge scenarios, we could encounter concepts such as reasoning and
     # .internal use in the ChatMessageAssistant that are not supported by the OpenAI
@@ -270,13 +274,19 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
                 content = f"{content}\n<think{attribs}>\n{c.reasoning}\n</think>\n"
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
+                if c.internal is not None:
+                    content = f"{content}\n<{CONTENT_INTERNAL_TAG}>{
+                        base64.b64encode(json.dumps(c.internal).encode('utf-8')).decode(
+                            'utf-8'
+                        )
+                    }</{CONTENT_INTERNAL_TAG}>"
 
     if message.internal:
-        content = f"""{content}\n<internal>{
+        content = f"""{content}\n<{INTERNAL_TAG}>{
             base64.b64encode(json.dumps(message.internal).encode("utf-8")).decode(
                 "utf-8"
             )
-        }</internal>\n"""
+        }</{INTERNAL_TAG}>\n"""
     return content
 
 
@@ -409,9 +419,14 @@ def chat_messages_from_openai(
                 # we could be transforming from OpenAI choices to Inspect for agent
                 # bridge scenarios where a different model (that does use .internal)
                 # is the actual model being used.
-                asst_content, internal = _parse_content_with_internal(asst_content)
+                asst_content, internal = _parse_content_with_internal(
+                    asst_content, INTERNAL_TAG
+                )
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
                     asst_content
+                )
+                asst_content, content_internal = _parse_content_with_internal(
+                    asst_content, CONTENT_INTERNAL_TAG
                 )
                 if smuggled_reasoning:
                     content = [
@@ -420,7 +435,7 @@ def chat_messages_from_openai(
                             signature=smuggled_reasoning.signature,
                             redacted=smuggled_reasoning.redacted,
                         ),
-                        ContentText(text=asst_content),
+                        ContentText(text=asst_content, internal=content_internal),
                     ]
                 else:
                     content = asst_content
@@ -476,7 +491,7 @@ def chat_messages_from_openai(
                 # of it to support agent bridge scenarios. We have to strip that
                 # data. To be clear, if it's <think>, we'll strip the <think> tag,
                 # but the reasoning summary itself will remain in the content.
-                content, _ = _parse_content_with_internal(tool_content)
+                content, _ = _parse_content_with_internal(tool_content, INTERNAL_TAG)
                 content, _ = parse_content_with_reasoning(content)
             else:
                 content = []
@@ -548,6 +563,9 @@ def content_from_openai(
         content["type"] = list(content.keys())[0]  # type: ignore[arg-type]
     if content["type"] == "text":
         text = content["text"]
+        text, content_internal = _parse_content_with_internal(
+            text, CONTENT_INTERNAL_TAG
+        )
         if parse_reasoning:
             content_text, reasoning = parse_content_with_reasoning(text)
             if reasoning:
@@ -557,12 +575,12 @@ def content_from_openai(
                         signature=reasoning.signature,
                         redacted=reasoning.redacted,
                     ),
-                    ContentText(text=content_text),
+                    ContentText(text=content_text, internal=content_internal),
                 ]
             else:
-                return [ContentText(text=text)]
+                return [ContentText(text=text, internal=content_internal)]
         else:
-            return [ContentText(text=text)]
+            return [ContentText(text=text, internal=content_internal)]
     elif content["type"] == "reasoning":  # type: ignore[comparison-overlap]
         return [ContentReasoning(reasoning=content["reasoning"])]
     elif content["type"] == "image_url":
@@ -756,7 +774,7 @@ class OpenAIAsyncHttpxClient(httpx.AsyncClient):
 
 
 def _parse_content_with_internal(
-    content: str,
+    content: str, tag: str
 ) -> tuple[str, JsonValue | None]:
     """
     Extracts and removes a smuggled <internal>...</internal> tag from the content string, if present.
@@ -769,6 +787,7 @@ def _parse_content_with_internal(
     Args:
         content: The input string, possibly containing an <internal> tag with
         base64-encoded JSON.
+        tag: The name of the tag for internal data (e.g. <internal>)
 
     Returns:
         tuple[str, JsonValue | None]:
@@ -779,8 +798,8 @@ def _parse_content_with_internal(
         json.JSONDecodeError: If the content of the <internal> tag is not valid JSON after decoding.
         UnicodeDecodeError: If the content of the <internal> tag is not valid UTF-8 after base64 decoding.
     """
-    internal_pattern = r"<internal>(.*?)</internal>"
-    internal_match = re.search(r"<internal>(.*?)</internal>", content, re.DOTALL)
+    internal_pattern = rf"<{tag}>(.*?)</{tag}>"
+    internal_match = re.search(rf"<{tag}>(.*?)</{tag}>", content, re.DOTALL)
 
     return (
         (
