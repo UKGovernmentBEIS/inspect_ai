@@ -8,7 +8,15 @@ import sys
 import time
 from email.utils import formatdate
 from http import HTTPStatus
-from typing import Any, AsyncIterator, Awaitable, Callable, Optional, TypeAlias
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterator,
+    Optional,
+    TypeAlias,
+)
 from urllib.parse import parse_qs, unquote, urlparse
 
 # ---------- Types ----------
@@ -511,10 +519,20 @@ async def run_model_proxy(port: int) -> None:
     # setup server
     server = AsyncHTTPServer(port=port)
 
+    def _sse_bytes(payload: dict[str, Any]) -> bytes:
+        # data-only SSE, as used by OpenAI's Chat Completions stream
+        # https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
+        return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+    def _iter_chunks(text: str, max_len: int = 48) -> Iterator[str]:
+        # Simple fixed-width chunking; adjust max_len to change granularity
+        for i in range(0, len(text), max_len):
+            yield text[i : i + max_len]
+
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            json_body = request.get("json", {})
+            json_body = request.get("json", {}) or {}
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
@@ -522,78 +540,181 @@ async def run_model_proxy(port: int) -> None:
             )
 
             if stream:
-                # Convert complete response to OpenAI streaming format with deltas
+                # the openai codex cli was having trouble disambigurating
+                # multiple tools calls with streamed responses. inspect
+                # itself excutes tool calls serially so we turn this off
+                # to sidestep the problem.
+                json_body["parallel_tool_calls"] = False
+
                 async def stream_response() -> AsyncIterator[bytes]:
-                    # Create base chunk structure
-                    base_chunk = {
-                        "id": completion.get("id", ""),
-                        "object": "chat.completion.chunk",
-                        "created": completion.get("created", 0),
-                        "model": completion.get("model", ""),
-                        "system_fingerprint": completion.get("system_fingerprint"),
-                        "service_tier": completion.get("service_tier"),
-                    }
+                    comp = (
+                        completion
+                        if isinstance(completion, dict)
+                        else json.loads(completion)
+                    )
 
-                    # Get the complete message from the response
-                    choices = completion.get("choices", [])
-                    if choices:
-                        choice = choices[0]
-                        message = choice.get("message", {})
+                    comp_id = comp.get("id", "chatcmpl-simulated")
+                    created = comp.get("created", int(time.time()))
+                    model = comp.get("model", "")
+                    sys_fp = comp.get("system_fingerprint")
 
-                        # First chunk: role
-                        first_chunk = {**base_chunk}
-                        first_chunk["choices"] = [
+                    def base_chunk() -> dict[str, Any]:
+                        obj = {
+                            "id": comp_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model,
+                            "choices": [],
+                        }
+                        if sys_fp is not None:
+                            obj["system_fingerprint"] = sys_fp
+                        return obj
+
+                    # Stream each choice independently (common clients support this).
+                    for choice_idx, choice in enumerate(comp.get("choices", [])):
+                        msg = choice.get("message") or {}
+                        role = msg.get("role", "assistant")
+
+                        # 1) Initial role chunk
+                        chunk = base_chunk()
+                        chunk["choices"] = [
                             {
-                                "index": 0,
-                                "delta": {"role": message.get("role", "assistant")},
+                                "index": choice_idx,
+                                "delta": {
+                                    "role": role
+                                },  # spec: role appears once at start
                                 "finish_reason": None,
                             }
                         ]
-                        yield f"data: {json.dumps(first_chunk)}\n\n".encode("utf-8")
+                        yield _sse_bytes(chunk)
 
-                        # Second chunk: content (if present)
-                        if message.get("content"):
-                            content_chunk = {**base_chunk}
-                            content_chunk["choices"] = [
-                                {
-                                    "index": 0,
-                                    "delta": {"content": message["content"]},
-                                    "finish_reason": None,
-                                }
-                            ]
-                            yield f"data: {json.dumps(content_chunk)}\n\n".encode(
-                                "utf-8"
-                            )
-
-                        # Tool calls chunks (if present)
-                        if message.get("tool_calls"):
-                            for tool_call in message["tool_calls"]:
-                                tool_chunk = {**base_chunk}
-                                tool_chunk["choices"] = [
+                        # 2) Text content chunks
+                        content = msg.get("content")
+                        if isinstance(content, str) and content:
+                            for piece in _iter_chunks(content):
+                                chunk = base_chunk()
+                                chunk["choices"] = [
                                     {
-                                        "index": 0,
-                                        "delta": {"tool_calls": [tool_call]},
+                                        "index": choice_idx,
+                                        "delta": {"content": piece},
                                         "finish_reason": None,
                                     }
                                 ]
-                                yield f"data: {json.dumps(tool_chunk)}\n\n".encode(
-                                    "utf-8"
-                                )
+                                yield _sse_bytes(chunk)
+                                # Optional tiny yield to event loop; uncomment if you want pacing
+                                # await asyncio.sleep(0)
 
-                        # Final chunk with finish_reason
-                        final_chunk = {**base_chunk}
-                        final_chunk["choices"] = [
+                        # 3) Legacy function_call streaming (older models/libs)
+                        fn_call = msg.get("function_call") or None
+                        if isinstance(fn_call, dict):
+                            fn_name = fn_call.get("name") or ""
+                            fn_args = fn_call.get("arguments") or ""
+
+                            # name first
+                            chunk = base_chunk()
+                            chunk["choices"] = [
+                                {
+                                    "index": choice_idx,
+                                    "delta": {"function_call": {"name": fn_name}},
+                                    "finish_reason": None,
+                                }
+                            ]
+                            yield _sse_bytes(chunk)
+
+                            # arguments as incremental deltas
+                            for piece in _iter_chunks(fn_args):
+                                chunk = base_chunk()
+                                chunk["choices"] = [
+                                    {
+                                        "index": choice_idx,
+                                        "delta": {
+                                            "function_call": {"arguments": piece}
+                                        },
+                                        "finish_reason": None,
+                                    }
+                                ]
+                                yield _sse_bytes(chunk)
+
+                        # 4) Modern tool_calls streaming (fixed: repeat id/type on every delta)
+                        tool_calls = msg.get("tool_calls") or []
+                        if isinstance(tool_calls, list) and tool_calls:
+                            for tc_i, tc in enumerate(tool_calls):
+                                tc_id = tc.get("id")
+                                tc_type = tc.get("type", "function")
+                                fn = tc.get("function") or {}
+                                fn_name = fn.get("name") or ""
+                                fn_args = fn.get("arguments") or ""
+
+                                # Emit initial tool_call with id/type/name
+                                chunk = base_chunk()
+                                chunk["choices"] = [
+                                    {
+                                        "index": choice_idx,
+                                        "delta": {
+                                            "tool_calls": [
+                                                {
+                                                    "index": tc_i,
+                                                    "id": tc_id,
+                                                    "type": tc_type,
+                                                    "function": {"name": fn_name},
+                                                }
+                                            ]
+                                        },
+                                        "finish_reason": None,
+                                    }
+                                ]
+                                yield _sse_bytes(chunk)
+
+                                # Emit arguments in pieces — NOTE: repeat id/type every time
+                                for piece in _iter_chunks(
+                                    fn_args, max_len=len(fn_args) or 1
+                                ):
+                                    chunk = base_chunk()
+                                    chunk["choices"] = [
+                                        {
+                                            "index": choice_idx,
+                                            "delta": {
+                                                "tool_calls": [
+                                                    {
+                                                        "index": tc_i,
+                                                        "id": tc_id,  # ← repeat
+                                                        "type": tc_type,  # ← repeat
+                                                        "function": {
+                                                            "arguments": piece
+                                                        },
+                                                    }
+                                                ]
+                                            },
+                                            "finish_reason": None,
+                                        }
+                                    ]
+                                    yield _sse_bytes(chunk)
+
+                        # 5) Final chunk for this choice with finish_reason
+                        finish_reason = choice.get(
+                            "finish_reason"
+                        )  # e.g., "stop", "length", "tool_calls"
+                        chunk = base_chunk()
+                        chunk["choices"] = [
                             {
-                                "index": 0,
-                                "delta": {},
-                                "finish_reason": choice.get("finish_reason", "stop"),
+                                "index": choice_idx,
+                                "delta": {},  # end-of-stream sentinel for this choice
+                                "finish_reason": finish_reason,
                             }
                         ]
-                        if completion.get("usage"):
-                            final_chunk["usage"] = completion["usage"]
-                        yield f"data: {json.dumps(final_chunk)}\n\n".encode("utf-8")
+                        yield _sse_bytes(chunk)
 
-                    # Send [DONE] marker
+                    # 6) Optional usage chunk (if client requested include_usage and we have it)
+                    stream_opts = json_body.get("stream_options") or {}
+                    if stream_opts.get("include_usage") and comp.get("usage"):
+                        chunk = base_chunk()
+                        chunk[
+                            "choices"
+                        ] = []  # per OpenAI: last chunk contains only usage
+                        chunk["usage"] = comp["usage"]
+                        yield _sse_bytes(chunk)
+
+                    # 7) Overall terminal sentinel
                     yield b"data: [DONE]\n\n"
 
                 return {
