@@ -1,5 +1,5 @@
 import pytest
-from tests.test_helpers.utils import flaky_retry
+from test_helpers.utils import flaky_retry
 
 
 class TestFlakyRetry:
