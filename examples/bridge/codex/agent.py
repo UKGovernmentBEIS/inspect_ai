@@ -29,7 +29,6 @@ def codex_agent() -> Agent:
                     "--profile",
                     "inspect",
                     "--skip-git-repo-check",
-                    # "--full-auto",
                     "--dangerously-bypass-approvals-and-sandbox",
                     "--color",
                     "never",
@@ -60,6 +59,8 @@ async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
     [model_providers.inspect]
     name = "inspect"
     base_url = "http://localhost:{bridge.port}/v1"
+    request_max_retries = 0
+    wire_api = "chat"
 
     [profiles.inspect]
     model_provider = "inspect"
