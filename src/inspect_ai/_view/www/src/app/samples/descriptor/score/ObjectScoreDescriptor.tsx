@@ -25,6 +25,7 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
   return {
     scoreType: kScoreTypeObject,
     categories,
+    filterable: false,
     compare: () => {
       return 0;
     },
@@ -38,7 +39,7 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
       keys.forEach((key) => {
         if (typeof score !== "object" || Array.isArray(score)) {
           throw new Error(
-            "Unexpected us of object score descriptor for non-score object",
+            "Unexpected use of object score descriptor for non-score object",
           );
         }
         const value = score[key];
