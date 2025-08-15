@@ -1,4 +1,5 @@
 import base64
+import functools
 import json
 import re
 import socket
@@ -370,6 +371,9 @@ def chat_messages_from_openai(
     model: str,
     messages: list[ChatCompletionMessageParam],
 ) -> list[ChatMessage]:
+    # some cleanup operations to compensate for various scaffolds
+    messages = functools.reduce(openai_assistant_message_reducer, messages, [])
+
     # track tool names by id
     tool_names: dict[str, str] = {}
 
@@ -489,6 +493,41 @@ def chat_messages_from_openai(
             raise ValueError(f"Unexpected message param type: {type(message)}")
 
     return chat_messages
+
+
+def openai_assistant_message_reducer(
+    messages: list[ChatCompletionMessageParam], message: ChatCompletionMessageParam
+) -> list[ChatCompletionMessageParam]:
+    # some scaffolds (e.g. codex cli) split assistant messages with
+    # content and tool calls into:
+    #
+    #    assistant[tool_calls] -> tool -> assistant[content].
+    #
+    # unfortunately for the case of assistant messages that have
+    # reasoning embedded w/ <think> this breaks GPT-5 (which always
+    # wants the reasoning before tool calls). fix this up as required.
+    if (
+        # dealing with at least 2 existing messages
+        len(messages) >= 2
+        # new message is an assistant message w/ content and no tool calls
+        and message["role"] == "assistant"
+        and "tool_calls" not in message
+        and "content" in message
+        # last existing message is a tool result
+        and messages[-1]["role"] == "tool"
+        # second to last existing message is an assistant message w/ tool
+        # calls and no content
+        and messages[-2]["role"] == "assistant"
+        and "tool_calls" in messages[-2]
+        and messages[-2].get("content", None) is None
+    ):
+        # move content from new assistant message (which is not appended)
+        # to previous assistant message
+        messages[-2]["content"] = message["content"]
+    else:
+        messages.append(message)
+
+    return messages
 
 
 def tool_call_from_openai(tool_call: ChatCompletionMessageToolCallParam) -> ToolCall:
