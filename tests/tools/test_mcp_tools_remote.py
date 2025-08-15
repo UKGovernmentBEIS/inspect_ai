@@ -18,7 +18,10 @@ def test_openai_remote_mcp() -> None:
 
 
 @skip_if_no_anthropic
+@pytest.mark.flaky
 def test_anthropic_remote_mcp() -> None:
+    # This test is flaky because, sometimes, the model gets confused and does not
+    # make do a remote tool use.
     check_remote_mcp("anthropic/claude-3-7-sonnet-latest")
 
 

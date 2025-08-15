@@ -240,7 +240,9 @@ def test_sample_limits_available_to_scorer():
         assert limits.message.limit == 2
         assert limits.message.usage == 2
         assert limits.token.limit == 20
-        assert limits.token.usage == 13
+        # The model usually returns "Hello!" or "Hello.", but sometimes it returns
+        # "Hello" - which is one fewer token.
+        assert limits.token.usage in (12, 13)
 
     @scorer(metrics=[mean()])
     def limit_checking_scorer() -> Scorer:
