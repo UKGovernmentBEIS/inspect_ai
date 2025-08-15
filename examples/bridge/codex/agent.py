@@ -32,7 +32,6 @@ def codex_agent() -> Agent:
                     "--dangerously-bypass-approvals-and-sandbox",
                     "--color",
                     "never",
-                    "--json",
                     "--output-last-message",
                     agent_output,
                     prompt,
@@ -41,10 +40,7 @@ def codex_agent() -> Agent:
             )
 
         if result.success:
-            # output = await sandbox().read_file(agent_output)
             output = await sandbox().read_file(agent_output)
-            # with open("stderr.txt", "w") as f:
-            #     f.write(result.stderr)
             state.output = ModelOutput.from_content(str(get_model()), output)
             return state
         else:
@@ -59,22 +55,11 @@ async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
     [model_providers.inspect]
     name = "inspect"
     base_url = "http://localhost:{bridge.port}/v1"
-    request_max_retries = 0
     wire_api = "chat"
 
     [profiles.inspect]
     model_provider = "inspect"
     model = "inspect"
-
-    [model_providers.passthrough]
-    name = "passthrough"
-    base_url = "https://api.openai.com/v1"
-    env_key="OPENAI_API_KEY"
-
-    [profiles.passthrough]
-    model_provider = "passthrough"
-    model = "gpt-4o"
-
     """)
     await sandbox().exec(["mkdir", ".codex"])
     await sandbox().write_file(".codex/config.toml", CODEX_CONFIG)
