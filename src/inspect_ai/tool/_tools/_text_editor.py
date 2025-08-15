@@ -102,7 +102,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        (sandbox, _) = await tool_support_sandbox("editor")
+        sandbox = await tool_support_sandbox()
 
         # Create a dictionary of the parameters
         params = {
