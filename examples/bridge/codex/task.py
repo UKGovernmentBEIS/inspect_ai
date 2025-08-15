@@ -11,5 +11,5 @@ def system_explorer() -> Task:
         dataset=json_dataset("dataset.json"),
         solver=codex_agent(),
         scorer=model_graded_qa(),
-        sandbox=("docker", "Dockerfile"),
+        sandbox=("docker", "compose.yaml"),
     )

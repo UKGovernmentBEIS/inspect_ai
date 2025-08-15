@@ -540,10 +540,11 @@ async def run_model_proxy(port: int) -> None:
             )
 
             if stream:
-                # the openai codex cli was having trouble disambigurating
-                # multiple tools calls with streamed responses. inspect
-                # itself excutes tool calls serially so we turn this off
-                # to sidestep the problem.
+                # the openai codex cli seems to have a bug that causes
+                # it to concatenate the 'arguments' of multiple tool_calls
+                # when receiving them w/ stream=True (reproduced this as
+                # well w/ the SDK going live against the ChatCompletion
+                # API). Disable so we can side-step the bug.
                 json_body["parallel_tool_calls"] = False
 
                 async def stream_response() -> AsyncIterator[bytes]:

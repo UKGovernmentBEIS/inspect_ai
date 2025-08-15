@@ -1,0 +1,9 @@
+services:
+  default:
+    build:
+      context: "."
+    command: "tail -f /dev/null"
+    init: true
+    network_mode: bridge
+    stop_grace_period: 1s
+  

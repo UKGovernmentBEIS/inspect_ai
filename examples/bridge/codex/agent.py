@@ -64,6 +64,16 @@ async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
     [profiles.inspect]
     model_provider = "inspect"
     model = "inspect"
+
+    [model_providers.passthrough]
+    name = "passthrough"
+    base_url = "https://api.openai.com/v1"
+    env_key="OPENAI_API_KEY"
+
+    [profiles.passthrough]
+    model_provider = "passthrough"
+    model = "gpt-4o"
+
     """)
     await sandbox().exec(["mkdir", ".codex"])
     await sandbox().write_file(".codex/config.toml", CODEX_CONFIG)
