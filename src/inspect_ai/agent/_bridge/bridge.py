@@ -29,6 +29,14 @@ from inspect_ai.model._providers.providers import validate_openai_client
 async def agent_bridge() -> AsyncGenerator[None, None]:
     """Agent bridge.
 
+    ::: callout-note
+    The `agent_bridge()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
     Provide Inspect integration for 3rd party agents that use the
     OpenAI Completions API. The bridge patches the OpenAI client
     library to redirect any model named "inspect" (or prefaced with

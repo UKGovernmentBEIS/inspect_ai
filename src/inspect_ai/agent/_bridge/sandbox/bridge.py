@@ -29,6 +29,14 @@ async def sandbox_agent_bridge(
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
+    ::: callout-note
+    The `sandbox_agent_bridge()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
     Provide Inspect integration for agents running inside sandboxes. Runs
     an OpenAI-compatible proxy server in the container -- this proxy server
     runs on port 13131 and routes requests to the current Inspect model provider.
