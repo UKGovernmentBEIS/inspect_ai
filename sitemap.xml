@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.aisi.org.uk/dataframe.html</loc>
-    <lastmod>2025-08-16T11:26:30.053Z</lastmod>
+    <lastmod>2025-08-16T11:57:58.618Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.util.html</loc>
@@ -14,7 +14,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.agent.html</loc>
-    <lastmod>2025-05-16T16:15:53.014Z</lastmod>
+    <lastmod>2025-08-16T21:51:28.878Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_list.html</loc>
@@ -98,7 +98,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/agent-bridge.html</loc>
-    <lastmod>2025-08-02T14:48:50.357Z</lastmod>
+    <lastmod>2025-08-16T21:51:28.877Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/models.html</loc>
@@ -146,7 +146,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
-    <lastmod>2025-08-16T11:42:07.683Z</lastmod>
+    <lastmod>2025-08-16T21:51:28.877Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/agent-custom.html</loc>
@@ -154,11 +154,11 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/multimodal.html</loc>
-    <lastmod>2025-08-16T11:42:17.479Z</lastmod>
+    <lastmod>2025-08-16T11:57:58.619Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/tools-mcp.html</loc>
-    <lastmod>2025-08-16T11:42:23.178Z</lastmod>
+    <lastmod>2025-08-16T11:57:58.619Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/scorers.html</loc>
@@ -210,7 +210,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.analysis.html</loc>
-    <lastmod>2025-08-16T11:26:30.054Z</lastmod>
+    <lastmod>2025-08-16T11:57:58.619Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.log.html</loc>
@@ -230,7 +230,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.model.html</loc>
-    <lastmod>2025-08-16T11:20:28.553Z</lastmod>
+    <lastmod>2025-08-16T21:51:28.879Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_cache.html</loc>

@@ -1,6 +1,20 @@
 # Agent Bridge
 
 
+> [!NOTE]
+>
+> The `agent_bridge()` and `sandbox_agent_bridge()` functions described
+> below are available only in the development version of Inspect. To
+> install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+>
+> Note that a previous (and now deprecated) variation of the agent
+> bridge is available in all versions of Inspect via the `bridge()`
+> function.
+
 ## Overview
 
 While Inspect provides facilities for native agent development, you can
@@ -8,265 +22,170 @@ also very easily integrate agents created with 3rd party frameworks like
 [AutoGen](https://microsoft.github.io/autogen/stable/) or
 [LangChain](https://python.langchain.com/docs/introduction/), or use
 fully custom agents you have developed or ported from a research paper.
-The basic mechanism for integrating external agents works like this:
+You can also use CLI based agents that run within sandboxes (e.g. [Codex
+CLI](https://github.com/openai/codex)).
 
-1.  Write an agent function that takes a sample `dict` as input and a
-    returns a results `dict` with output. This function won’t have any
-    dependencies on Inspect, rather it will depend on whatever agent
-    framework or custom code you are using.
+Agents are *bridged* into Inspect such that their native model calling
+functions are routed through the current Inspect model provider. There
+are two types of agent bridges supported:
 
-2.  This function should use the OpenAI API for model access, however
-    calls to the OpenAI API will be *redirected* to Inspect (using
-    whatever model is configured for the current task).
+1.  Bridging to Python-based agents that run in the same process as
+    Inspect via the `agent_bridge()` context manager.
 
-3.  Use the agent function with Inspect by passing it to the `bridge()`
-    function, which will turn it into a standard Inspect `Agent`.
+2.  Bridging to agents that run in a sandbox via the
+    `sandbox_agent_bridge()` context manager (these agents can be
+    written in any language).
 
-## Agent Function
+We’ll cover each of these configurations in turn below.
 
-An external agent function is similar to an Inspect `Agent` but without
-`AgentState`. Rather, it takes a sample `dict` as input and returns a
-result `dict` as output.
+## Agent Bridge
 
-Here is a very simple agent function definition (it just calls generate
-and returns the output). It is structured similar to an Inspect `Agent`
-where an enclosing function returns the function that handles the sample
-(this enables you to share initialisation code and pass options to
-configure the behaviour of the agent):
+To bridge a Python based agent running in the same process as Inspect:
 
-**agent.py**
+1.  Write your custom Python agent as normal using the OpenAI connector
+    provided by your agent system, specifying “inspect” as the model
+    name.
+
+2.  Run your custom Python agent within the `agent_bridge()` context
+    manager which redirects OpenAI calls to the current Inspect model
+    provider.
+
+For example, here we build an agent that uses the OpenAI SDK directly
+(imaging using your favourite agent framework in its place):
 
 ``` python
 from openai import AsyncOpenAI
+from inspect_ai.agent import (
+    Agent, AgentState, agent, agent_bridge
+)
+from inspect_ai.model import messages_to_openai
 
-def my_agent():
+@agent
+def my_agent() -> AgentState:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge():
+            client = AsyncOpenAI()
+            
+            completion = await client.chat.completions.create(
+                model="inspect",
+                messages=messages_to_openai(state.messages),
+            )
+    
+            message = ChatMessageAssistant(
+                content=completion.choices[0].message.content
+            )
+            state.output = ModelOutput.from_message(message)
+            state.messages.append(message)
+            return state
 
-    async def run(sample: dict[str, Any]) -> dict[str, Any]:
-        client = AsyncOpenAI()
-        completion = await client.chat.completions.create(
-            model="inspect",
-            messages=sample["input"],
-        )
-        return {
-            "output": completion.choices[0].message.content
-        }
-
-    return run
+    return execute
 ```
 
-We use the OpenAI API with `model="inspect"`, which enables Inspect to
+Line 10  
+Use the `agent_bridge()` context manager to redirect the OpenAI API to
+the Inspect model provider.
+
+Line 14  
+Use the OpenAI API with `model="inspect"`, which enables Inspect to
 intercept the request and send it to the Inspect model being evaluated
 for the task.
 
-We read the input from `sample["input"]` (a list of OpenAI compatible
-messages) and return `output` as a string in the result `dict`.
+Line 15  
+Convert the `state.messages` input into native OpenAI messages using the
+`messages_to_openai()` function.
 
-Here is how you can use the `bridge()` function to use this agent as a
-solver:
+Lines 18,23  
+Update the `state` with the received completion.
 
-**task.py**
+The following examples further demonstrate how to integrate other agent
+frameworks with Inspect:
 
-``` python
-from inspect_ai import Task, task
-from inspect_ai.agent import bridge
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
+|  |  |
+|----|----|
+| [AutoGen](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen) | Demonstrates using a native [AutoGen](https://microsoft.github.io/autogen/) agent with Inspect to perform web research using the using the AutoGen [MultiModalWebSurfer](https://microsoft.github.io/autogen/stable//reference/python/autogen_ext.agents.web_surfer.html#autogen_ext.agents.web_surfer.MultimodalWebSurfer) |
+| [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent with Inspect to perform Q/A using the [Tavili Search API](https://tavily.com/) |
 
-from agents import my_agent
+## Sandbox Bridge
 
-@task
-def hello():
-    return Task(
-        dataset=[Sample(input="Please print the word 'hello'?", target="hello")],
-        solver=bridge(my_agent()),
-        scorer=includes(),
-    )
-```
+To bridge an agent running within a sandbox into Inspect:
 
-Line 6  
-Import custom agent from `agent.py` file (shown above)
+1.  Configure your sandbox (e.g. via its Dockerfile) to contain the
+    agent that you want to run. The agent should be configured to talk
+    to the OpenAI API on localhost port 3131
+    (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`).
 
-Line 12  
-Adapt custom agent into an Inspect agent with the `bridge()` function.
+2.  Write a standard Inspect agent that uses the
+    `sandbox_agent_bridge()` context manager and the `sandbox().exec()`
+    method to invoke the custom agent.
 
-For more in-depth examples that make use of popular agent frameworks,
-see:
+The sandbox bridge works via running a proxy server inside the sandbox
+container which receives requests for the OpenAI Completions API. This
+proxy server in turn relays requests to the current Inspect model
+provider.
 
-- [AutoGen
-  Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen)
-
-- [LangChain
-  Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
-
-We’ll walk through the AutoGen example in more depth below.
-
-### Example: AutoGen
-
-Here is an agent written with the
-[AutoGen](https://microsoft.github.io/autogen/stable/) framework. You’ll
-notice that it is structured similar to an Inspect `Agent` where an
-enclosing function returns the function which handles the sample (this
-enables you to share initialisation code and pass options to configure
-the behaviour of the agent):
-
-**agent.py**
+For example, here we build an agent that runs a custom agent binary
+(passing it input on the command line and reading output from stdout):
 
 ``` python
-from typing import Any, cast
+from openai import AsyncOpenAI
+from inspect_ai.agent import (
+    Agent, AgentState, agent, sandbox_agent_bridge
+)
+from inspect_ai.model import user_prompt
+from inspect_ai.util import sandbox
 
-from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.conditions import SourceMatchTermination
-from autogen_agentchat.messages import TextMessage
-from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_core.models import ModelInfo
-from autogen_ext.agents.web_surfer import MultimodalWebSurfer
-from autogen_ext.models.openai import OpenAIChatCompletionClient
+@agent
+def my_agent() -> AgentState:
+    async def execute(state: AgentState) -> AgentState:
+        async with sandbox_agent_bridge():
+            
+            prompt = user_prompt(state.messages)
+            
+            result = sandbox().exec(
+                cmd=[
+                    "/opt/my_agent",
+                    "--prompt",
+                    prompt.text
+                ],
+                env={"OPENAI_BASE_URL": "http://localhost:13131/v1"}
+            )
+            if not result.success:
+                raise RuntimeError(f"Agent error: {result.stderr}")
 
-def web_surfer_agent():
-   
-    # Use OpenAI interface (redirected to Inspect model)
-    model = OpenAIChatCompletionClient(
-        model="inspect",
-        model_info=ModelInfo(
-            vision=True, function_calling=True,
-            json_output=False, family="unknown"
-        ),
-    )
+            message = ChatMessageAssistant(
+                content=result.stdout
+            )
+            state.output = ModelOutput.from_message(message)
+            state.messages.append(message)
+            return state
 
-    # Sample handler
-    async def run(sample: dict[str, Any]) -> dict[str, Any]:
-        # Read input (convert from OpenAI format)                         
-        input = [
-            TextMessage(source=msg["role"], content=str(msg["content"]))
-            for msg in sample["input"]
-        ]
-
-        # Create agents and team
-        web_surfer = MultimodalWebSurfer("web_surfer", model)
-        assistant = AssistantAgent("assistant", model)
-        termination = SourceMatchTermination("assistant")
-        team = RoundRobinGroupChat(
-            [web_surfer, assistant],
-            termination_condition=termination
-        )
-
-        # Run team
-        result = await team.run(task=input)
-
-        # Extract output from last message and return
-        message = cast(TextMessage, result.messages[-1])
-        return dict(output=message.content)
-
-    return run
+    return execute
 ```
 
-Lines 14-18  
-Use the OpenAI API with `model="inspect"` to interface with the model
-for the running Inspect task.
+Line 11  
+Use the `sandbox_agent_bridge()` context manager to redirect the OpenAI
+API to the Inspect model provider.
 
-Line 23  
-The `sample` includes `input` (chat messages) and the `result` includes
-model `output` as a string.
+Line 13  
+Extract the last user message from the message history with
+`user_prompt()`.
 
-Lines 25-28  
-Input is based using OpenAI API compatible messages—here we convert them
-to native AutoGen `TextMessage` objects.
+Line 15  
+Run the agent, using a CLI argument for input and stdout for output
+(other agents may use more sophisticated encoding schemes for messages
+in and out).
 
-Lines 31-36  
-Configure and create AutoGen multi-agent team. This can use any
-combination of agents and any team structure including custom ones.
+Line 21  
+Redirect the OpenAI API to talk to a proxy server that communicates back
+to the current Inspect model provider.
 
-Lines 43-44  
-Extract content from final assistant message and return it as `output`.
+Lines 26,31  
+Update and return the `state` with the received completion.
 
-To use this agent in an Inspect `Task`, import it and use the `bridge()`
-function:
-
-**task.py**
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.agent import bridge
-from inspect_ai.dataset import json_dataset
-from inspect_ai.scorer import model_graded_fact
-
-from agent import web_surfer_agent
-
-@task
-def research() -> Task:
-    return Task(
-        dataset=json_dataset("dataset.json"),
-        solver=bridge(web_surfer_agent()),
-        scorer=model_graded_fact(),
-    )
-```
-
-Line 6  
-Import custom agent from `agent.py` file (shown above)
-
-Line 12  
-Adapt custom agent into an Inspect agent with the `bridge()` function.
-
-The `bridge()` function takes the agent function and hooks it up to a
-standard Inspect `Agent`, updating the `AgentState` and providing the
-means of redirecting OpenAI calls to the current Inspect model.
-
-## Bridge Types
-
-In the examples above we reference two `dict` fields from the agent
-function interface:
-
-|                    |                                    |
-|--------------------|------------------------------------|
-| `sample["input"]`  | `list[ChatCompletionMessageParam]` |
-| `result["output"]` | `str`                              |
-
-Here are the full type declarations for the `sample` and `result`:
-
-``` python
-from typing import NotRequired, TypedDict
-
-from openai.types.chat import ChatCompletionMessageParam
-
-class SampleDict(TypedDict):
-    messages: list[ChatCompletionMessageParam]
-
-class ResultDict(TypedDict):
-    output: str
-    messages: NotRequired[list[ChatCompletionMessageParam]]
-```
-
-You aren’t required to use these types exactly (they merely document the
-interface) so long as you consume and produce `dict` values that match
-their declarations (the result `dict` is type validated at runtime).
-
-Returning `messages` is not required as messages are automatically
-synced to the agent state during generate (return `messages` only if you
-want to customise the default behaviour).
-
-## CLI Usage
-
-Above we import the `web_surfer_agent()` directly as a Python function.
-It’s also possible to reference external agents at the command line
-using the `--solver` parameter. For example:
-
-``` bash
-inspect eval task.py --solver agent.py
-```
-
-This also works with `--solver` arguments passed via `-S`. For example:
-
-``` bash
-inspect eval task.py --solver agent.py -S max_requests=5
-```
-
-The `agent.py` source file will be searched for public top level
-functions that include `agent` in their name. If you want to explicitly
-reference an agent function you can do this as follows:
-
-``` bash
-inspect eval task.py --solver agent.py@web_surfer_agent
-```
+The [Codex
+CLI](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex)
+example provides a more in-depth demonstration of running custom agents
+in sandboxes.
 
 ## Models
 
@@ -302,17 +221,12 @@ delegates to the `sandbox().exec()` function.
 
 ## Transcript
 
-Custom agents run through the `bridge()` function still get most of the
-benefit of the Inspect transcript and log viewer. All model calls are
-captured and produce the same transcript output as when using
-conventional agents. The message history is also automatically captured
-and logged.
-
-Calls to the Python `logging` module for levels `info` and above are
-also handled as normal and show up within sample transcripts.
+Custom agents run through a bridge still get most of the benefit of the
+Inspect transcript and log viewer. All model calls are captured and
+produce the same transcript output as when using conventional agents.
 
 If you want to use additional features of Inspect transcripts
-(e.g. steps, markdown output, etc.) you can still import and use the
+(e.g. spans, markdown output, etc.) you can still import and use the
 `transcript` function as normal. For example:
 
 ``` python
@@ -320,6 +234,3 @@ from inspect_ai.log import transcript
 
 transcript().info("custom *markdown* content")
 ```
-
-This code will no-op when running outside of Inspect, so it is safe to
-include in agents that are also run in other environments.

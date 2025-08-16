@@ -24,7 +24,7 @@ are permitted).
 By default, the model will be urged to continue if it fails to call a
 tool. Customise this behavior using the `on_continue` option.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_react.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_react.py#L36)
 
 ``` python
 @agent
@@ -84,22 +84,6 @@ overflow. Defaults to “disabled” which does no truncation. Pass “auto”
 to use `trim_messages()` to reduce the context size. Pass a
 `MessageFilter` function to do custom truncation.
 
-### bridge
-
-Bridge an external agent into an Inspect Agent.
-
-See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_bridge/bridge.py#L15)
-
-``` python
-@agent
-def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agent
-```
-
-`agent` Callable\[\[dict\[str, Any\]\], Awaitable\[dict\[str, Any\]\]\]  
-Callable which takes a sample `dict` and returns a result `dict`.
-
 ### human_cli
 
 Human CLI agent for tasks that run in a sandbox.
@@ -114,7 +98,7 @@ If the user is running in VS Code with the Inspect extension, they will
 also be presented with links to login to the sandbox using a VS Code
 Window or Terminal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_human/agent.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_human/agent.py#L16)
 
 ``` python
 @agent
@@ -146,7 +130,7 @@ User to login as. Defaults to the sandbox environment’s default user.
 
 Create a tool that enables models to handoff to agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_handoff.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_handoff.py#L19)
 
 ``` python
 def handoff(
@@ -195,7 +179,7 @@ Run an agent.
 The input messages(s) will be copied prior to running so are not
 modified in place.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_run.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_run.py#L33)
 
 ``` python
 async def run(
@@ -235,7 +219,7 @@ of type `str`). Provide optional `agent_kwargs` to mask out agent
 parameters with default values (these parameters will not be presented
 to the model as part of the tool interface)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_as_tool.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_as_tool.py#L19)
 
 ``` python
 @tool
@@ -270,7 +254,7 @@ Note that agents used as solvers will only receive their first parameter
 (`state`). Any other parameters must provide appropriate defaults or be
 explicitly specified in `agent_kwargs`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_as_solver.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_as_solver.py#L20)
 
 ``` python
 def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> Solver
@@ -287,6 +271,74 @@ Sample ends and proceeds to scoring.
 Arguments to curry to Agent function (required if the agent has
 parameters without default values).
 
+## Bridging
+
+### agent_bridge
+
+Agent bridge.
+
+> [!NOTE]
+>
+> The `agent_bridge()` function is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Provide Inspect integration for 3rd party agents that use the OpenAI
+Completions API. The bridge patches the OpenAI client library to
+redirect any model named “inspect” (or prefaced with “inspect/” for
+non-default models) into the Inspect model API.
+
+See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
+documentation for additional details.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_bridge/bridge.py#L28)
+
+``` python
+@contextlib.asynccontextmanager
+async def agent_bridge() -> AsyncGenerator[None, None]
+```
+
+### sandbox_agent_bridge
+
+Sandbox agent bridge.
+
+> [!NOTE]
+>
+> The `sandbox_agent_bridge()` function is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Provide Inspect integration for agents running inside sandboxes. Runs an
+OpenAI-compatible proxy server in the container – this proxy server runs
+on port 13131 and routes requests to the current Inspect model provider.
+
+You should set `OPENAI_BASE_URL=http://localhost:13131/v1` when
+executing the agent within the container and ensure that your agent
+targets the model name “inspect” when calling OpenAI. Use “inspect/” to
+target other Inspect model providers.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_bridge/sandbox/bridge.py#L26)
+
+``` python
+@contextlib.asynccontextmanager
+async def sandbox_agent_bridge(
+    sandbox: SandboxEnvironment | None = None, port: int = 13131
+) -> AsyncIterator[SandboxAgentBridge]
+```
+
+`sandbox` [SandboxEnvironment](inspect_ai.util.qmd#sandboxenvironment) \| None  
+Sandbox to run model proxy server within.
+
+`port` int  
+Port to run proxy server on.
+
 ## Filters
 
 ### remove_tools
@@ -296,7 +348,7 @@ Remove tool calls from messages.
 Removes all instances of `ChatMessageTool` as well as the `tool_calls`
 field from `ChatMessageAssistant`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_filter.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_filter.py#L13)
 
 ``` python
 async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -309,7 +361,7 @@ Messages to remove tool calls from.
 
 Remove all but the last message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_filter.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_filter.py#L36)
 
 ``` python
 async def last_message(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -322,7 +374,7 @@ Target messages.
 
 Filter messages sent to or received from agent handoffs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_filter.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_filter.py#L9)
 
 ``` python
 MessageFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
@@ -344,7 +396,7 @@ the `handoff()` function.
 You can create a simple tool (that receives a string as input) from an
 agent using `as_tool()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_agent.py#L92)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_agent.py#L92)
 
 ``` python
 class Agent(Protocol):
@@ -369,7 +421,7 @@ Keyword arguments for the agent.
 
 Agent state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_agent.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_agent.py#L33)
 
 ``` python
 class AgentState
@@ -387,7 +439,7 @@ Model output.
 
 Decorator for registering agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_agent.py#L140)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_agent.py#L140)
 
 ``` python
 def agent(
@@ -417,7 +469,7 @@ This function modifies the passed agent in place and returns it. If you
 want to create multiple variations of a single agent using
 `agent_with()` you should create the underlying agent multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_agent.py#L214)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_agent.py#L214)
 
 ``` python
 def agent_with(
@@ -445,7 +497,7 @@ Determines if the provided object is registered as an Agent in the
 system registry. When this function returns True, type checkers will
 recognize ‘obj’ as an Agent type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_agent.py#L273)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_agent.py#L273)
 
 ``` python
 def is_agent(obj: Any) -> TypeGuard[Agent]
@@ -460,7 +512,7 @@ Object to check against the registry.
 
 Prompt for agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_types.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_types.py#L33)
 
 ``` python
 class AgentPrompt(NamedTuple)
@@ -496,7 +548,7 @@ Submissions are evaluated using the task’s main scorer, with value of
 (e.g. “C” becomes 1.0) using the standard value_to_float() function.
 Provide an alternate conversion scheme as required via `score_value`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_types.py#L76)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_types.py#L76)
 
 ``` python
 class AgentAttempts(NamedTuple)
@@ -523,7 +575,7 @@ Returns `True` to continue (with no additional messages inserted),
 return `False` to stop. Returns `str` to continue with an additional
 custom user message inserted.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_types.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_types.py#L67)
 
 ``` python
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
@@ -533,7 +585,7 @@ AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
 
 Configure the submit tool of a react agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/b2a9af94b0a53967e26feaef97be38c93b7bfbee/src/inspect_ai/agent/_types.py#L98)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_types.py#L98)
 
 ``` python
 class AgentSubmit(NamedTuple)
@@ -579,3 +631,31 @@ presence of `submit()` calls in the history can cause coordinator agents
 to terminate early because they think they are done. You should
 therefore not set this to `True` if you are using `handoff()` in a
 multi-agent system.
+
+## Deprecated
+
+### bridge
+
+Bridge an external agent into an Inspect Agent.
+
+> [!NOTE]
+>
+> Note that this function is deprecated in favor of the `agent_bridge()`
+> function. If you are creating a new agent bridge we recommend you use
+> this function rather than `bridge()`.
+>
+> If you do choose to use the `bridge()` function, these
+> [examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/b4670e798dc8d9ff379d4da4ef469be2468d916f/examples/bridge)
+> demostrate its basic usage.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/agent/_bridge/bridge.py#L112)
+
+``` python
+@agent
+def bridge(
+    agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
+) -> Agent
+```
+
+`agent` Callable\[\[dict\[str, Any\]\], Awaitable\[dict\[str, Any\]\]\]  
+Callable which takes a sample `dict` and returns a result `dict`.

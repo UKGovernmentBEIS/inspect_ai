@@ -179,15 +179,6 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 ## Remote MCP
 
-> [!NOTE]
->
-> Support for Remote MCP servers is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 [OpenAI](https://platform.openai.com/docs/guides/tools-remote-mcp) and
 [Anthropic](https://docs.anthropic.com/en/docs/agents-and-tools/remote-mcp-servers)
 both provide a facility for HTTP-based MCP Servers to be called remotely

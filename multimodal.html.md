@@ -191,15 +191,6 @@ including video input.
 
 ## PDF
 
-> [!NOTE]
->
-> Support for PDF inputs is available only in the development version of
-> Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The following model providers support PDF inputs:
 
 - [OpenAI](https://platform.openai.com/docs/guides/pdf-files?api-mode=responses)

@@ -365,6 +365,26 @@ df = prepare(df, [
 ])
 ```
 
+### score_to_float()
+
+Converts one or more score columns to a float representation of the
+score.
+
+For each column specified, this operation will convert the values to
+floats using the provided `value_to_float` function. The column value
+will be replaced with the float value.
+
+``` python
+from inspect_ai.analysis import (
+    samples_df, frontier, model_info, prepare, score_to_float
+)
+
+df = samples_df("logs")
+df = prepare(df, [
+    score_to_float("score_includes")
+])
+```
+
 ## Column Definitions
 
 The examples above all use built-in column specifications

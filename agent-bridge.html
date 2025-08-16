@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-99.9.9">
+<meta name="generator" content="quarto-1.7.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -69,15 +69,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./agent-custom.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-3aa970819e70fbc78806154e5a1fcd28.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-97528fa06055cec07c0063956ced4fc7.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-871b74c1c552ddee99e75c490274fea0.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -129,8 +128,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
-    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo light-content">
-    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo">
     </a>
     <a class="navbar-brand" href="./index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -190,10 +188,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
-    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
-      <a href="./index.html" class="sidebar-logo-link">
-      </a>
-      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
@@ -506,12 +500,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#agent-function" id="toc-agent-function" class="nav-link" data-scroll-target="#agent-function">Agent Function</a>
-  <ul class="collapse">
-  <li><a href="#example-autogen" id="toc-example-autogen" class="nav-link" data-scroll-target="#example-autogen">Example: AutoGen</a></li>
-  </ul></li>
-  <li><a href="#bridge-types" id="toc-bridge-types" class="nav-link" data-scroll-target="#bridge-types">Bridge Types</a></li>
-  <li><a href="#cli-usage" id="toc-cli-usage" class="nav-link" data-scroll-target="#cli-usage">CLI Usage</a></li>
+  <li><a href="#agent-bridge" id="toc-agent-bridge" class="nav-link" data-scroll-target="#agent-bridge">Agent Bridge</a></li>
+  <li><a href="#sandbox-bridge" id="toc-sandbox-bridge" class="nav-link" data-scroll-target="#sandbox-bridge">Sandbox Bridge</a></li>
   <li><a href="#models" id="toc-models" class="nav-link" data-scroll-target="#models">Models</a></li>
   <li><a href="#sandboxes" id="toc-sandboxes" class="nav-link" data-scroll-target="#sandboxes">Sandboxes</a></li>
   <li><a href="#transcript" id="toc-transcript" class="nav-link" data-scroll-target="#transcript">Transcript</a></li>
@@ -540,233 +530,171 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> functions described below are available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that a previous (and now deprecated) variation of the agent bridge is available in all versions of Inspect via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</p>
+</div>
+</div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> or <a href="https://python.langchain.com/docs/introduction/">LangChain</a>, or use fully custom agents you have developed or ported from a research paper. The basic mechanism for integrating external agents works like this:</p>
+<p>While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> or <a href="https://python.langchain.com/docs/introduction/">LangChain</a>, or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g.&nbsp;<a href="https://github.com/openai/codex">Codex CLI</a>).</p>
+<p>Agents are <em>bridged</em> into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:</p>
 <ol type="1">
-<li><p>Write an agent function that takes a sample <code>dict</code> as input and a returns a results <code>dict</code> with output. This function won’t have any dependencies on Inspect, rather it will depend on whatever agent framework or custom code you are using.</p></li>
-<li><p>This function should use the OpenAI API for model access, however calls to the OpenAI API will be <em>redirected</em> to Inspect (using whatever model is configured for the current task).</p></li>
-<li><p>Use the agent function with Inspect by passing it to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function, which will turn it into a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span>.</p></li>
+<li><p>Bridging to Python-based agents that run in the same process as Inspect via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager.</p></li>
+<li><p>Bridging to agents that run in a sandbox via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager (these agents can be written in any language).</p></li>
 </ol>
+<p>We’ll cover each of these configurations in turn below.</p>
 </section>
-<section id="agent-function" class="level2">
-<h2 class="anchored" data-anchor-id="agent-function">Agent Function</h2>
-<p>An external agent function is similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> but without <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>. Rather, it takes a sample <code>dict</code> as input and returns a result <code>dict</code> as output.</p>
-<p>Here is a very simple agent function definition (it just calls generate and returns the output). It is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>agent.py</strong></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" data-filename="agent.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai <span class="im">import</span> AsyncOpenAI</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent():</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> run(sample: <span class="bu">dict</span>[<span class="bu">str</span>, Any]) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, Any]:</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        client <span class="op">=</span> AsyncOpenAI()</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        completion <span class="op">=</span> <span class="cf">await</span> client.chat.completions.create(</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            model<span class="op">=</span><span class="st">"inspect"</span>,</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>            messages<span class="op">=</span>sample[<span class="st">"input"</span>],</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">"output"</span>: completion.choices[<span class="dv">0</span>].message.content</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        }</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> run</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>We use the OpenAI API with <code>model="inspect"</code>, which enables Inspect to intercept the request and send it to the Inspect model being evaluated for the task.</p>
-<p>We read the input from <code>sample["input"]</code> (a list of OpenAI compatible messages) and return <code>output</code> as a string in the result <code>dict</code>.</p>
-<p>Here is how you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function to use this agent as a solver:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>task.py</strong></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-2" data-filename="task.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> bridge</span>
-<span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
-<span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
-<span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="1">1</button><span id="annotated-cell-2-6" class="code-annotation-target"><a href="#annotated-cell-2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agents <span class="im">import</span> my_agent</span>
-<span id="annotated-cell-2-7"><a href="#annotated-cell-2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-8"><a href="#annotated-cell-2-8" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="annotated-cell-2-9"><a href="#annotated-cell-2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hello():</span>
-<span id="annotated-cell-2-10"><a href="#annotated-cell-2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="annotated-cell-2-11"><a href="#annotated-cell-2-11" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>[Sample(<span class="bu">input</span><span class="op">=</span><span class="st">"Please print the word 'hello'?"</span>, target<span class="op">=</span><span class="st">"hello"</span>)],</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="2">2</button><span id="annotated-cell-2-12" class="code-annotation-target"><a href="#annotated-cell-2-12" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>bridge(my_agent()),</span>
-<span id="annotated-cell-2-13"><a href="#annotated-cell-2-13" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
-<span id="annotated-cell-2-14"><a href="#annotated-cell-2-14" aria-hidden="true" tabindex="-1"></a>    )</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
+<section id="agent-bridge" class="level2">
+<h2 class="anchored" data-anchor-id="agent-bridge">Agent Bridge</h2>
+<p>To bridge a Python based agent running in the same process as Inspect:</p>
+<ol type="1">
+<li><p>Write your custom Python agent as normal using the OpenAI connector provided by your agent system, specifying “inspect” as the model name.</p></li>
+<li><p>Run your custom Python agent within the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager which redirects OpenAI calls to the current Inspect model provider.</p></li>
+</ol>
+<p>For example, here we build an agent that uses the OpenAI SDK directly (imaging using your favourite agent framework in its place):</p>
+<div class="sourceCode" id="annotated-cell-1"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-1-1"><a href="#annotated-cell-1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai <span class="im">import</span> AsyncOpenAI</span>
+<span id="annotated-cell-1-2"><a href="#annotated-cell-1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
+<span id="annotated-cell-1-3"><a href="#annotated-cell-1-3" aria-hidden="true" tabindex="-1"></a>    Agent, AgentState, agent, agent_bridge</span>
+<span id="annotated-cell-1-4"><a href="#annotated-cell-1-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="annotated-cell-1-5"><a href="#annotated-cell-1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> messages_to_openai</span>
+<span id="annotated-cell-1-6"><a href="#annotated-cell-1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-1-7"><a href="#annotated-cell-1-7" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="annotated-cell-1-8"><a href="#annotated-cell-1-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent() <span class="op">-&gt;</span> AgentState:</span>
+<span id="annotated-cell-1-9"><a href="#annotated-cell-1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="1">1</button><span id="annotated-cell-1-10" class="code-annotation-target"><a href="#annotated-cell-1-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> agent_bridge():</span>
+<span id="annotated-cell-1-11"><a href="#annotated-cell-1-11" aria-hidden="true" tabindex="-1"></a>            client <span class="op">=</span> AsyncOpenAI()</span>
+<span id="annotated-cell-1-12"><a href="#annotated-cell-1-12" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="annotated-cell-1-13"><a href="#annotated-cell-1-13" aria-hidden="true" tabindex="-1"></a>            completion <span class="op">=</span> <span class="cf">await</span> client.chat.completions.create(</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="2">2</button><span id="annotated-cell-1-14" class="code-annotation-target"><a href="#annotated-cell-1-14" aria-hidden="true" tabindex="-1"></a>                model<span class="op">=</span><span class="st">"inspect"</span>,</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="3">3</button><span id="annotated-cell-1-15" class="code-annotation-target"><a href="#annotated-cell-1-15" aria-hidden="true" tabindex="-1"></a>                messages<span class="op">=</span>messages_to_openai(state.messages),</span>
+<span id="annotated-cell-1-16"><a href="#annotated-cell-1-16" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="annotated-cell-1-17"><a href="#annotated-cell-1-17" aria-hidden="true" tabindex="-1"></a>    </span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="4">4</button><span id="annotated-cell-1-18" class="code-annotation-target"><a href="#annotated-cell-1-18" aria-hidden="true" tabindex="-1"></a>            message <span class="op">=</span> ChatMessageAssistant(</span>
+<span id="annotated-cell-1-19"><a href="#annotated-cell-1-19" aria-hidden="true" tabindex="-1"></a>                content<span class="op">=</span>completion.choices[<span class="dv">0</span>].message.content</span>
+<span id="annotated-cell-1-20"><a href="#annotated-cell-1-20" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="annotated-cell-1-21"><a href="#annotated-cell-1-21" aria-hidden="true" tabindex="-1"></a>            state.output <span class="op">=</span> ModelOutput.from_message(message)</span>
+<span id="annotated-cell-1-22"><a href="#annotated-cell-1-22" aria-hidden="true" tabindex="-1"></a>            state.messages.append(message)</span>
+<span id="annotated-cell-1-23"><a href="#annotated-cell-1-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
+<span id="annotated-cell-1-24"><a href="#annotated-cell-1-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-1-25"><a href="#annotated-cell-1-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-2" data-target-annotation="1">1</dt>
+<dt data-target-cell="annotated-cell-1" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="6" data-code-annotation="1">Import custom agent from <code>agent.py</code> file (shown above)</span>
+<span data-code-cell="annotated-cell-1" data-code-lines="10" data-code-annotation="1">Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager to redirect the OpenAI API to the Inspect model provider.</span>
 </dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="2">2</dt>
+<dt data-target-cell="annotated-cell-1" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
+<span data-code-cell="annotated-cell-1" data-code-lines="14" data-code-annotation="2">Use the OpenAI API with <code>model="inspect"</code>, which enables Inspect to intercept the request and send it to the Inspect model being evaluated for the task.</span>
+</dd>
+<dt data-target-cell="annotated-cell-1" data-target-annotation="3">3</dt>
+<dd>
+<span data-code-cell="annotated-cell-1" data-code-lines="15" data-code-annotation="3">Convert the <code>state.messages</code> input into native OpenAI messages using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> function.</span>
+</dd>
+<dt data-target-cell="annotated-cell-1" data-target-annotation="4">4</dt>
+<dd>
+<span data-code-cell="annotated-cell-1" data-code-lines="18,23" data-code-annotation="4">Update the <code>state</code> with the received completion.</span>
 </dd>
 </dl>
-<p>For more in-depth examples that make use of popular agent frameworks, see:</p>
-<ul>
-<li><p><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen">AutoGen Example</a></p></li>
-<li><p><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain Example</a></p></li>
-</ul>
-<p>We’ll walk through the AutoGen example in more depth below.</p>
-<section id="example-autogen" class="level3">
-<h3 class="anchored" data-anchor-id="example-autogen">Example: AutoGen</h3>
-<p>Here is an agent written with the <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> framework. You’ll notice that it is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> where an enclosing function returns the function which handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>agent.py</strong></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-3" data-filename="agent.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-3-1"><a href="#annotated-cell-3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Any, cast</span>
-<span id="annotated-cell-3-2"><a href="#annotated-cell-3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-3"><a href="#annotated-cell-3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> autogen_agentchat.agents <span class="im">import</span> AssistantAgent</span>
-<span id="annotated-cell-3-4"><a href="#annotated-cell-3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> autogen_agentchat.conditions <span class="im">import</span> SourceMatchTermination</span>
-<span id="annotated-cell-3-5"><a href="#annotated-cell-3-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> autogen_agentchat.messages <span class="im">import</span> TextMessage</span>
-<span id="annotated-cell-3-6"><a href="#annotated-cell-3-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> autogen_agentchat.teams <span class="im">import</span> RoundRobinGroupChat</span>
-<span id="annotated-cell-3-7"><a href="#annotated-cell-3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> autogen_core.models <span class="im">import</span> ModelInfo</span>
-<span id="annotated-cell-3-8"><a href="#annotated-cell-3-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> autogen_ext.agents.web_surfer <span class="im">import</span> MultimodalWebSurfer</span>
-<span id="annotated-cell-3-9"><a href="#annotated-cell-3-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> autogen_ext.models.openai <span class="im">import</span> OpenAIChatCompletionClient</span>
-<span id="annotated-cell-3-10"><a href="#annotated-cell-3-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-11"><a href="#annotated-cell-3-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_surfer_agent():</span>
-<span id="annotated-cell-3-12"><a href="#annotated-cell-3-12" aria-hidden="true" tabindex="-1"></a>   </span>
-<span id="annotated-cell-3-13"><a href="#annotated-cell-3-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Use OpenAI interface (redirected to Inspect model)</span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="1">1</button><span id="annotated-cell-3-14" class="code-annotation-target"><a href="#annotated-cell-3-14" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> OpenAIChatCompletionClient(</span>
-<span id="annotated-cell-3-15"><a href="#annotated-cell-3-15" aria-hidden="true" tabindex="-1"></a>        model<span class="op">=</span><span class="st">"inspect"</span>,</span>
-<span id="annotated-cell-3-16"><a href="#annotated-cell-3-16" aria-hidden="true" tabindex="-1"></a>        model_info<span class="op">=</span>ModelInfo(</span>
-<span id="annotated-cell-3-17"><a href="#annotated-cell-3-17" aria-hidden="true" tabindex="-1"></a>            vision<span class="op">=</span><span class="va">True</span>, function_calling<span class="op">=</span><span class="va">True</span>,</span>
-<span id="annotated-cell-3-18"><a href="#annotated-cell-3-18" aria-hidden="true" tabindex="-1"></a>            json_output<span class="op">=</span><span class="va">False</span>, family<span class="op">=</span><span class="st">"unknown"</span></span>
-<span id="annotated-cell-3-19"><a href="#annotated-cell-3-19" aria-hidden="true" tabindex="-1"></a>        ),</span>
-<span id="annotated-cell-3-20"><a href="#annotated-cell-3-20" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="annotated-cell-3-21"><a href="#annotated-cell-3-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-22"><a href="#annotated-cell-3-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Sample handler</span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="2">2</button><span id="annotated-cell-3-23" class="code-annotation-target"><a href="#annotated-cell-3-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> run(sample: <span class="bu">dict</span>[<span class="bu">str</span>, Any]) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, Any]:</span>
-<span id="annotated-cell-3-24"><a href="#annotated-cell-3-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Read input (convert from OpenAI format)                         </span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="3">3</button><span id="annotated-cell-3-25" class="code-annotation-target"><a href="#annotated-cell-3-25" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span> <span class="op">=</span> [</span>
-<span id="annotated-cell-3-26"><a href="#annotated-cell-3-26" aria-hidden="true" tabindex="-1"></a>            TextMessage(source<span class="op">=</span>msg[<span class="st">"role"</span>], content<span class="op">=</span><span class="bu">str</span>(msg[<span class="st">"content"</span>]))</span>
-<span id="annotated-cell-3-27"><a href="#annotated-cell-3-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> msg <span class="kw">in</span> sample[<span class="st">"input"</span>]</span>
-<span id="annotated-cell-3-28"><a href="#annotated-cell-3-28" aria-hidden="true" tabindex="-1"></a>        ]</span>
-<span id="annotated-cell-3-29"><a href="#annotated-cell-3-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-30"><a href="#annotated-cell-3-30" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Create agents and team</span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="4">4</button><span id="annotated-cell-3-31" class="code-annotation-target"><a href="#annotated-cell-3-31" aria-hidden="true" tabindex="-1"></a>        web_surfer <span class="op">=</span> MultimodalWebSurfer(<span class="st">"web_surfer"</span>, model)</span>
-<span id="annotated-cell-3-32"><a href="#annotated-cell-3-32" aria-hidden="true" tabindex="-1"></a>        assistant <span class="op">=</span> AssistantAgent(<span class="st">"assistant"</span>, model)</span>
-<span id="annotated-cell-3-33"><a href="#annotated-cell-3-33" aria-hidden="true" tabindex="-1"></a>        termination <span class="op">=</span> SourceMatchTermination(<span class="st">"assistant"</span>)</span>
-<span id="annotated-cell-3-34"><a href="#annotated-cell-3-34" aria-hidden="true" tabindex="-1"></a>        team <span class="op">=</span> RoundRobinGroupChat(</span>
-<span id="annotated-cell-3-35"><a href="#annotated-cell-3-35" aria-hidden="true" tabindex="-1"></a>            [web_surfer, assistant],</span>
-<span id="annotated-cell-3-36"><a href="#annotated-cell-3-36" aria-hidden="true" tabindex="-1"></a>            termination_condition<span class="op">=</span>termination</span>
-<span id="annotated-cell-3-37"><a href="#annotated-cell-3-37" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="annotated-cell-3-38"><a href="#annotated-cell-3-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-39"><a href="#annotated-cell-3-39" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Run team</span></span>
-<span id="annotated-cell-3-40"><a href="#annotated-cell-3-40" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> team.run(task<span class="op">=</span><span class="bu">input</span>)</span>
-<span id="annotated-cell-3-41"><a href="#annotated-cell-3-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-42"><a href="#annotated-cell-3-42" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Extract output from last message and return</span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-3" data-target-annotation="5">5</button><span id="annotated-cell-3-43" class="code-annotation-target"><a href="#annotated-cell-3-43" aria-hidden="true" tabindex="-1"></a>        message <span class="op">=</span> cast(TextMessage, result.messages[<span class="op">-</span><span class="dv">1</span>])</span>
-<span id="annotated-cell-3-44"><a href="#annotated-cell-3-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">dict</span>(output<span class="op">=</span>message.content)</span>
-<span id="annotated-cell-3-45"><a href="#annotated-cell-3-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-3-46"><a href="#annotated-cell-3-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> run</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-3" data-target-annotation="1">1</dt>
-<dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="14,15,16,17,18" data-code-annotation="1">Use the OpenAI API with <code>model="inspect"</code> to interface with the model for the running Inspect task.</span>
-</dd>
-<dt data-target-cell="annotated-cell-3" data-target-annotation="2">2</dt>
-<dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="23" data-code-annotation="2">The <code>sample</code> includes <code>input</code> (chat messages) and the <code>result</code> includes model <code>output</code> as a string.</span>
-</dd>
-<dt data-target-cell="annotated-cell-3" data-target-annotation="3">3</dt>
-<dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="25,26,27,28" data-code-annotation="3">Input is based using OpenAI API compatible messages—here we convert them to native AutoGen <code>TextMessage</code> objects.</span>
-</dd>
-<dt data-target-cell="annotated-cell-3" data-target-annotation="4">4</dt>
-<dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="31,32,33,34,35,36" data-code-annotation="4">Configure and create AutoGen multi-agent team. This can use any combination of agents and any team structure including custom ones.</span>
-</dd>
-<dt data-target-cell="annotated-cell-3" data-target-annotation="5">5</dt>
-<dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="43,44" data-code-annotation="5">Extract content from final assistant message and return it as <code>output</code>.</span>
-</dd>
-</dl>
-<p>To use this agent in an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>, import it and use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>task.py</strong></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-4" data-filename="task.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="annotated-cell-4-2"><a href="#annotated-cell-4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> bridge</span>
-<span id="annotated-cell-4-3"><a href="#annotated-cell-4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
-<span id="annotated-cell-4-4"><a href="#annotated-cell-4-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
-<span id="annotated-cell-4-5"><a href="#annotated-cell-4-5" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="1">1</button><span id="annotated-cell-4-6" class="code-annotation-target"><a href="#annotated-cell-4-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent <span class="im">import</span> web_surfer_agent</span>
-<span id="annotated-cell-4-7"><a href="#annotated-cell-4-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-8"><a href="#annotated-cell-4-8" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="annotated-cell-4-9"><a href="#annotated-cell-4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> research() <span class="op">-&gt;</span> Task:</span>
-<span id="annotated-cell-4-10"><a href="#annotated-cell-4-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="annotated-cell-4-11"><a href="#annotated-cell-4-11" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>json_dataset(<span class="st">"dataset.json"</span>),</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="2">2</button><span id="annotated-cell-4-12" class="code-annotation-target"><a href="#annotated-cell-4-12" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>bridge(web_surfer_agent()),</span>
-<span id="annotated-cell-4-13"><a href="#annotated-cell-4-13" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
-<span id="annotated-cell-4-14"><a href="#annotated-cell-4-14" aria-hidden="true" tabindex="-1"></a>    )</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-4" data-target-annotation="1">1</dt>
-<dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="6" data-code-annotation="1">Import custom agent from <code>agent.py</code> file (shown above)</span>
-</dd>
-<dt data-target-cell="annotated-cell-4" data-target-annotation="2">2</dt>
-<dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
-</dd>
-</dl>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function takes the agent function and hooks it up to a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span>, updating the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> and providing the means of redirecting OpenAI calls to the current Inspect model.</p>
-</section>
-</section>
-<section id="bridge-types" class="level2">
-<h2 class="anchored" data-anchor-id="bridge-types">Bridge Types</h2>
-<p>In the examples above we reference two <code>dict</code> fields from the agent function interface:</p>
+<p>The following examples further demonstrate how to integrate other agent frameworks with Inspect:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 35%">
-<col style="width: 65%">
+<col style="width: 30%">
+<col style="width: 70%">
 </colgroup>
 <tbody>
 <tr class="odd">
-<td><code>sample["input"]</code></td>
-<td><code>list[ChatCompletionMessageParam]</code></td>
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen">AutoGen</a></td>
+<td>Demonstrates using a native <a href="https://microsoft.github.io/autogen/">AutoGen</a> agent with Inspect to perform web research using the using the AutoGen <a href="https://microsoft.github.io/autogen/stable//reference/python/autogen_ext.agents.web_surfer.html#autogen_ext.agents.web_surfer.MultimodalWebSurfer">MultiModalWebSurfer</a></td>
 </tr>
 <tr class="even">
-<td><code>result["output"]</code></td>
-<td><code>str</code></td>
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain</a></td>
+<td>Demonstrates using a native <a href="https://www.langchain.com/">LangChain</a> agent with Inspect to perform Q/A using the <a href="https://tavily.com/">Tavili Search API</a></td>
 </tr>
 </tbody>
 </table>
-<p>Here are the full type declarations for the <code>sample</code> and <code>result</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> NotRequired, TypedDict</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai.types.chat <span class="im">import</span> ChatCompletionMessageParam</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleDict(TypedDict):</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatCompletionMessageParam]</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ResultDict(TypedDict):</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    output: <span class="bu">str</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    messages: NotRequired[<span class="bu">list</span>[ChatCompletionMessageParam]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>You aren’t required to use these types exactly (they merely document the interface) so long as you consume and produce <code>dict</code> values that match their declarations (the result <code>dict</code> is type validated at runtime).</p>
-<p>Returning <code>messages</code> is not required as messages are automatically synced to the agent state during generate (return <code>messages</code> only if you want to customise the default behaviour).</p>
 </section>
-<section id="cli-usage" class="level2">
-<h2 class="anchored" data-anchor-id="cli-usage">CLI Usage</h2>
-<p>Above we import the <code>web_surfer_agent()</code> directly as a Python function. It’s also possible to reference external agents at the command line using the <code>--solver</code> parameter. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This also works with <code>--solver</code> arguments passed via <code>-S</code>. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py <span class="at">-S</span> max_requests=5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <code>agent.py</code> source file will be searched for public top level functions that include <code>agent</code> in their name. If you want to explicitly reference an agent function you can do this as follows:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py@web_surfer_agent</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="sandbox-bridge" class="level2">
+<h2 class="anchored" data-anchor-id="sandbox-bridge">Sandbox Bridge</h2>
+<p>To bridge an agent running within a sandbox into Inspect:</p>
+<ol type="1">
+<li><p>Configure your sandbox (e.g.&nbsp;via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI API on localhost port 3131 (e.g.&nbsp;<code>OPENAI_BASE_URL=http://localhost:13131/v1</code>).</p></li>
+<li><p>Write a standard Inspect agent that uses the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager and the <code>sandbox().exec()</code> method to invoke the custom agent.</p></li>
+</ol>
+<p>The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI Completions API. This proxy server in turn relays requests to the current Inspect model provider.</p>
+<p>For example, here we build an agent that runs a custom agent binary (passing it input on the command line and reading output from stdout):</p>
+<div class="sourceCode" id="annotated-cell-2"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai <span class="im">import</span> AsyncOpenAI</span>
+<span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
+<span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a>    Agent, AgentState, agent, sandbox_agent_bridge</span>
+<span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> user_prompt</span>
+<span id="annotated-cell-2-6"><a href="#annotated-cell-2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
+<span id="annotated-cell-2-7"><a href="#annotated-cell-2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-2-8"><a href="#annotated-cell-2-8" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="annotated-cell-2-9"><a href="#annotated-cell-2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent() <span class="op">-&gt;</span> AgentState:</span>
+<span id="annotated-cell-2-10"><a href="#annotated-cell-2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="1">1</button><span id="annotated-cell-2-11" class="code-annotation-target"><a href="#annotated-cell-2-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge():</span>
+<span id="annotated-cell-2-12"><a href="#annotated-cell-2-12" aria-hidden="true" tabindex="-1"></a>            </span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="2">2</button><span id="annotated-cell-2-13" class="code-annotation-target"><a href="#annotated-cell-2-13" aria-hidden="true" tabindex="-1"></a>            prompt <span class="op">=</span> user_prompt(state.messages)</span>
+<span id="annotated-cell-2-14"><a href="#annotated-cell-2-14" aria-hidden="true" tabindex="-1"></a>            </span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="3">3</button><span id="annotated-cell-2-15" class="code-annotation-target"><a href="#annotated-cell-2-15" aria-hidden="true" tabindex="-1"></a>            result <span class="op">=</span> sandbox().<span class="bu">exec</span>(</span>
+<span id="annotated-cell-2-16"><a href="#annotated-cell-2-16" aria-hidden="true" tabindex="-1"></a>                cmd<span class="op">=</span>[</span>
+<span id="annotated-cell-2-17"><a href="#annotated-cell-2-17" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"/opt/my_agent"</span>,</span>
+<span id="annotated-cell-2-18"><a href="#annotated-cell-2-18" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"--prompt"</span>,</span>
+<span id="annotated-cell-2-19"><a href="#annotated-cell-2-19" aria-hidden="true" tabindex="-1"></a>                    prompt.text</span>
+<span id="annotated-cell-2-20"><a href="#annotated-cell-2-20" aria-hidden="true" tabindex="-1"></a>                ],</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="4">4</button><span id="annotated-cell-2-21" class="code-annotation-target"><a href="#annotated-cell-2-21" aria-hidden="true" tabindex="-1"></a>                env<span class="op">=</span>{<span class="st">"OPENAI_BASE_URL"</span>: <span class="st">"http://localhost:13131/v1"</span>}</span>
+<span id="annotated-cell-2-22"><a href="#annotated-cell-2-22" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="annotated-cell-2-23"><a href="#annotated-cell-2-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> result.success:</span>
+<span id="annotated-cell-2-24"><a href="#annotated-cell-2-24" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="ss">f"Agent error: </span><span class="sc">{</span>result<span class="sc">.</span>stderr<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="annotated-cell-2-25"><a href="#annotated-cell-2-25" aria-hidden="true" tabindex="-1"></a></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="5">5</button><span id="annotated-cell-2-26" class="code-annotation-target"><a href="#annotated-cell-2-26" aria-hidden="true" tabindex="-1"></a>            message <span class="op">=</span> ChatMessageAssistant(</span>
+<span id="annotated-cell-2-27"><a href="#annotated-cell-2-27" aria-hidden="true" tabindex="-1"></a>                content<span class="op">=</span>result.stdout</span>
+<span id="annotated-cell-2-28"><a href="#annotated-cell-2-28" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="annotated-cell-2-29"><a href="#annotated-cell-2-29" aria-hidden="true" tabindex="-1"></a>            state.output <span class="op">=</span> ModelOutput.from_message(message)</span>
+<span id="annotated-cell-2-30"><a href="#annotated-cell-2-30" aria-hidden="true" tabindex="-1"></a>            state.messages.append(message)</span>
+<span id="annotated-cell-2-31"><a href="#annotated-cell-2-31" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
+<span id="annotated-cell-2-32"><a href="#annotated-cell-2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-2-33"><a href="#annotated-cell-2-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl class="code-annotation-container-hidden code-annotation-container-grid">
+<dt data-target-cell="annotated-cell-2" data-target-annotation="1">1</dt>
+<dd>
+<span data-code-cell="annotated-cell-2" data-code-lines="11" data-code-annotation="1">Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager to redirect the OpenAI API to the Inspect model provider.</span>
+</dd>
+<dt data-target-cell="annotated-cell-2" data-target-annotation="2">2</dt>
+<dd>
+<span data-code-cell="annotated-cell-2" data-code-lines="13" data-code-annotation="2">Extract the last user message from the message history with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#user_prompt">user_prompt()</a></span>.</span>
+</dd>
+<dt data-target-cell="annotated-cell-2" data-target-annotation="3">3</dt>
+<dd>
+<span data-code-cell="annotated-cell-2" data-code-lines="15" data-code-annotation="3">Run the agent, using a CLI argument for input and stdout for output (other agents may use more sophisticated encoding schemes for messages in and out).</span>
+</dd>
+<dt data-target-cell="annotated-cell-2" data-target-annotation="4">4</dt>
+<dd>
+<span data-code-cell="annotated-cell-2" data-code-lines="21" data-code-annotation="4">Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider.</span>
+</dd>
+<dt data-target-cell="annotated-cell-2" data-target-annotation="5">5</dt>
+<dd>
+<span data-code-cell="annotated-cell-2" data-code-lines="26,31" data-code-annotation="5">Update and return the <code>state</code> with the received completion.</span>
+</dd>
+</dl>
+<p>The <a href="https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex">Codex CLI</a> example provides a more in-depth demonstration of running custom agents in sandboxes.</p>
 </section>
 <section id="models" class="level2">
 <h2 class="anchored" data-anchor-id="models">Models</h2>
 <p>As demonstrated above, communication with Inspect models is done by using the OpenAI API with <code>model="inspect"</code>. You can use the same technique to interface with other Inspect models. To do this, preface the model name with “inspect” followed by the rest of the fully qualified model name.</p>
 <p>For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="sandboxes" class="level2">
 <h2 class="anchored" data-anchor-id="sandboxes">Sandboxes</h2>
@@ -775,13 +703,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="transcript" class="level2">
 <h2 class="anchored" data-anchor-id="transcript">Transcript</h2>
-<p>Custom agents run through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents. The message history is also automatically captured and logged.</p>
-<p>Calls to the Python <code>logging</code> module for levels <code>info</code> and above are also handled as normal and show up within sample transcripts.</p>
-<p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;steps, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This code will no-op when running outside of Inspect, so it is safe to include in agents that are also run in other environments.</p>
+<p>Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.</p>
+<p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;spans, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
