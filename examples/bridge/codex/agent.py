@@ -1,24 +1,41 @@
+import json
 from textwrap import dedent
+from typing import Literal, TypeAlias, TypedDict
 
-from inspect_ai.agent import Agent, AgentState, agent, sandbox_agent_bridge
-from inspect_ai.agent._bridge.sandbox.bridge import SandboxAgentBridge
-from inspect_ai.model._model import get_model
-from inspect_ai.model._model_output import ModelOutput
+from pydantic import JsonValue
+
+from inspect_ai.agent import (
+    Agent,
+    AgentState,
+    SandboxAgentBridge,
+    agent,
+    sandbox_agent_bridge,
+)
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    ContentText,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.tool import ToolCall
 from inspect_ai.util import sandbox
 
 
 @agent
-def codex_agent() -> Agent:
+def codex() -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        # extract input from first message
+        # extract prompt from first message
         prompt = state.messages[0].text
 
-        # file for agent output
-        agent_output = "agent_output.txt"
+        # file to capture last agent message
+        last_message = "last_message.txt"
 
         # run the agent under the bridge
         async with sandbox_agent_bridge() as bridge:
-            # inspect provider (proxy url, etc.)
+            # register inspect profile w/ code (proxy url, etc.)
             await register_inspect_provider(bridge)
 
             # execute the agent
@@ -33,15 +50,30 @@ def codex_agent() -> Agent:
                     "--color",
                     "never",
                     "--output-last-message",
-                    agent_output,
+                    last_message,
                     prompt,
-                ],
-                env={"RUST_LOG": "codex_core=trace,codex_tui=trace"},
+                ]
             )
 
         if result.success:
-            output = await sandbox().read_file(agent_output)
-            state.output = ModelOutput.from_content(str(get_model()), output)
+            # convert rollout history to messages
+            result = await sandbox().exec(
+                ["bash", "-c", "cat .codex/sessions/*/*/*/*rollout-*.jsonl"]
+            )
+            messages = rollout_to_messages(result.stdout)
+
+            # read and append the last message
+            model_name = str(get_model())
+            last_message = await sandbox().read_file(last_message)
+            messages.append(
+                ChatMessageAssistant(
+                    content=last_message, source="generate", model=model_name
+                )
+            )
+
+            # update and return state
+            state.messages = messages
+            state.output = ModelOutput.from_content(model_name, last_message)
             return state
         else:
             raise RuntimeError(f"Error executing codex agent: {result.stderr}")
@@ -50,7 +82,7 @@ def codex_agent() -> Agent:
 
 
 async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
-    # register a custom open-ai compatible model provider
+    """Register a custom open-ai compatible model provider."""
     CODEX_CONFIG = dedent(f"""
     [model_providers.inspect]
     name = "inspect"
@@ -63,3 +95,125 @@ async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
     """)
     await sandbox().exec(["mkdir", ".codex"])
     await sandbox().write_file(".codex/config.toml", CODEX_CONFIG)
+
+
+class FunctionCall(TypedDict):
+    type: Literal["function_call"]
+    name: str
+    arguments: str
+    call_id: str
+
+
+class FunctionCallOutput(TypedDict):
+    output: str
+    metadata: dict[str, JsonValue] | None
+    duration_seconds: float
+
+
+class FunctionCallResult(TypedDict):
+    type: Literal["function_call_output"]
+    call_id: str
+    output: FunctionCallOutput
+
+
+class MessageContent(TypedDict):
+    type: str
+
+
+class MessageInputText(TypedDict):
+    type: Literal["input_text"]
+    text: str
+
+
+class MessageOutputText(TypedDict):
+    type: Literal["output_text"]
+    text: str
+
+
+class Message(TypedDict):
+    type: Literal["message"]
+    role: Literal["user", "assistant", "tool"]
+    content: list[MessageContent]
+
+
+Record: TypeAlias = Message | FunctionCall | FunctionCallResult
+
+
+def rollout_to_messages(
+    rollout: str,
+) -> list[ChatMessage]:
+    records: list[Record] = [
+        json.loads(line) for line in rollout.splitlines() if len(line) > 0
+    ]
+
+    messages: list[ChatMessage] = []
+    function_names: dict[str, str] = dict()
+    pending_function_call: list[FunctionCall] = []
+    pending_function_call_result: list[FunctionCallResult] = []
+    for record in records:
+        if "type" not in record:
+            continue
+
+        if record["type"] == "message":
+            if record["role"] == "user":
+                messages.append(
+                    ChatMessageUser(
+                        content=[
+                            ContentText(text=c["text"])
+                            for c in record["content"]
+                            if "text" in c
+                        ]
+                    )
+                )
+            if record["role"] == "assistant":
+                messages.append(
+                    ChatMessageAssistant(
+                        content=[
+                            ContentText(text=c["text"])
+                            for c in record["content"]
+                            if "text" in c
+                        ],
+                        tool_calls=[
+                            to_tool_call(call) for call in pending_function_call
+                        ]
+                        if len(pending_function_call) > 0
+                        else None,
+                    )
+                )
+                for result in pending_function_call_result:
+                    if "output" in result:
+                        output: FunctionCallOutput = json.loads(result.get("output"))
+                        if output:
+                            messages.append(
+                                ChatMessageTool(
+                                    name=function_names[result["call_id"]],
+                                    tool_call_id=result.get("call_id", None),
+                                    content=result.get("output", None),
+                                )
+                            )
+                pending_function_call.clear()
+                pending_function_call_result.clear()
+        elif record["type"] == "function_call":
+            pending_function_call.append(record)
+            function_names[record["call_id"]] = record["name"]
+        elif record["type"] == "function_call_output":
+            pending_function_call_result.append(record)
+
+    return messages
+
+
+def to_tool_call(call: FunctionCall) -> ToolCall:
+    args, parse_error = parse_tool_arguments(call["arguments"])
+    return ToolCall(
+        id=call["call_id"],
+        function=call["name"],
+        arguments=args,
+        parse_error=parse_error,
+    )
+
+
+def parse_tool_arguments(arguments: str) -> tuple[dict[str, JsonValue], str | None]:
+    try:
+        return json.loads(arguments), None
+    except Exception as ex:
+        return {}, str(ex)
