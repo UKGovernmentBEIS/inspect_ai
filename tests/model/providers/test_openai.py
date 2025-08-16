@@ -145,7 +145,7 @@ def encode_internal(obj):
     ],
 )
 def test_parse_content_with_internal_valid(s, exp_content, exp_internal):
-    content, internal = _parse_content_with_internal(s)
+    content, internal = _parse_content_with_internal(s, "internal")
     assert content == exp_content
     assert internal == exp_internal
 
@@ -168,4 +168,4 @@ invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 )
 def test_parse_content_with_internal_invalid_encoding(s, expected_exception):
     with pytest.raises(expected_exception):
-        _parse_content_with_internal(s)
+        _parse_content_with_internal(s, "internal")

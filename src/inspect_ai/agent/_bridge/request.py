@@ -1,13 +1,6 @@
-import contextlib
-import re
-from contextvars import ContextVar
-from functools import wraps
 from time import time
-from typing import Any, AsyncGenerator, Type, cast
+from typing import Any
 
-from openai._base_client import AsyncAPIClient, _AsyncStreamT
-from openai._models import FinalRequestOptions
-from openai._types import ResponseT
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageParam,
@@ -17,9 +10,9 @@ from openai.types.chat import (
 from shortuuid import uuid
 
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import get_model, model_roles
 from inspect_ai.model._openai import (
-    chat_messages_from_openai,
+    messages_from_openai,
     openai_chat_choices,
     openai_completion_usage,
 )
@@ -29,87 +22,22 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
 
-@contextlib.asynccontextmanager
-async def openai_request_to_inspect_model() -> AsyncGenerator[None, None]:
-    # ensure one time init
-    init_openai_request_patch()
-
-    # set the patch enabled for this context and child coroutines
-    token = _patch_enabled.set(True)
-    try:
-        yield
-    finally:
-        _patch_enabled.reset(token)
-
-
-_patch_initialised: bool = False
-
-_patch_enabled: ContextVar[bool] = ContextVar(
-    "openai_request_patch_enabled", default=False
-)
-
-
-def init_openai_request_patch() -> None:
-    global _patch_initialised
-    if _patch_initialised:
-        return
-
-    # get reference to original method
-    original_request = getattr(AsyncAPIClient, "request")
-    if original_request is None:
-        raise RuntimeError("Couldn't find 'request' method on AsyncAPIClient")
-
-    @wraps(original_request)
-    async def patched_request(
-        self: AsyncAPIClient,
-        cast_to: Type[ResponseT],
-        options: FinalRequestOptions,
-        *,
-        stream: bool = False,
-        stream_cls: type[_AsyncStreamT] | None = None,
-    ) -> Any:
-        # we have patched the underlying request method so now need to figure out when to
-        # patch and when to stand down
-        if (
-            # enabled for this coroutine
-            _patch_enabled.get()
-            # completions request
-            and options.url == "/chat/completions"
-        ):
-            # must also be an explicit request for an inspect model
-            json_data = cast(dict[str, Any], options.json_data)
-            model_name = str(json_data["model"])
-            if re.match(r"^inspect/?", model_name):
-                return await inspect_model_request(model_name, options)
-
-        # otherwise just delegate
-        return await original_request(
-            self,
-            cast_to,
-            options,
-            stream=stream,
-            stream_cls=stream_cls,
-        )
-
-    setattr(AsyncAPIClient, "request", patched_request)
-    _patch_initialised = True
-
-
-async def inspect_model_request(
-    model_name: str, options: FinalRequestOptions
-) -> ChatCompletion:
-    from inspect_ai.solver._task_state import sample_state
-
-    # resolve model
+async def inspect_model_request(json_data: dict[str, Any]) -> ChatCompletion:
+    # resolve model and model name
+    model_name = str(json_data["model"])
     if model_name == "inspect":
         model = get_model()
     else:
-        model = get_model(model_name.removeprefix("inspect/"))
+        model_name = model_name.removeprefix("inspect/")
+        if model_name in model_roles():
+            model = get_model(role=model_name)
+        else:
+            model = get_model(model_name)
+    model_name = model.api.model_name
 
     # convert openai messages to inspect messages
-    json_data = cast(dict[str, Any], options.json_data)
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
-    input = chat_messages_from_openai(model.api.model_name, messages)
+    input = await messages_from_openai(messages, model.api.model_name)
 
     # convert openai tools to inspect tools
     tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
@@ -146,14 +74,8 @@ async def inspect_model_request(
         input=input,
         tools=inspect_tools,
         tool_choice=inspect_tool_choice,
-        config=generate_config_from_openai(options),
+        config=generate_config_from_openai(json_data),
     )
-
-    # if we are using the "default" inspect model for the task, update state.messages
-    if model_name == "inspect":
-        state = sample_state()
-        if state:
-            state.messages = input + [output.choices[0].message]
 
     # inspect completion to openai completion
     return ChatCompletion(
@@ -166,10 +88,7 @@ async def inspect_model_request(
     )
 
 
-def generate_config_from_openai(options: FinalRequestOptions) -> GenerateConfig:
-    # get options dict
-    json_data = cast(dict[str, Any], options.json_data)
-
+def generate_config_from_openai(json_data: dict[str, Any]) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get(
         "max_completion_tokens", json_data.get("max_tokens", None)

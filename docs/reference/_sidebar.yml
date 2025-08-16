@@ -132,8 +132,6 @@ website:
         contents:
         - text: react
           href: reference/inspect_ai.agent.qmd#react
-        - text: bridge
-          href: reference/inspect_ai.agent.qmd#bridge
         - text: human_cli
           href: reference/inspect_ai.agent.qmd#human_cli
         - text: handoff
@@ -144,6 +142,10 @@ website:
           href: reference/inspect_ai.agent.qmd#as_tool
         - text: as_solver
           href: reference/inspect_ai.agent.qmd#as_solver
+        - text: agent_bridge
+          href: reference/inspect_ai.agent.qmd#agent_bridge
+        - text: sandbox_agent_bridge
+          href: reference/inspect_ai.agent.qmd#sandbox_agent_bridge
         - text: remove_tools
           href: reference/inspect_ai.agent.qmd#remove_tools
         - text: last_message
@@ -168,6 +170,8 @@ website:
           href: reference/inspect_ai.agent.qmd#agentcontinue
         - text: AgentSubmit
           href: reference/inspect_ai.agent.qmd#agentsubmit
+        - text: bridge
+          href: reference/inspect_ai.agent.qmd#bridge
       - section: inspect_ai.scorer
         href: reference/inspect_ai.scorer.qmd
         contents:
@@ -278,6 +282,8 @@ website:
           href: reference/inspect_ai.model.qmd#chatmessagetool
         - text: trim_messages
           href: reference/inspect_ai.model.qmd#trim_messages
+        - text: user_prompt
+          href: reference/inspect_ai.model.qmd#user_prompt
         - text: Content
           href: reference/inspect_ai.model.qmd#content
         - text: ContentText
@@ -328,6 +334,10 @@ website:
           href: reference/inspect_ai.model.qmd#cache_prune
         - text: cache_path
           href: reference/inspect_ai.model.qmd#cache_path
+        - text: messages_to_openai
+          href: reference/inspect_ai.model.qmd#messages_to_openai
+        - text: messages_from_openai
+          href: reference/inspect_ai.model.qmd#messages_from_openai
         - text: modelapi
           href: reference/inspect_ai.model.qmd#modelapi
         - text: ModelAPI

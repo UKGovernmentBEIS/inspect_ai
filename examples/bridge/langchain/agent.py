@@ -1,14 +1,20 @@
-from typing import Any
 from uuid import uuid4
 
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import AIMessage, convert_to_messages
+from langchain_core.messages import (
+    convert_to_messages,
+    convert_to_openai_messages,
+)
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
+from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai.model import ModelOutput, messages_from_openai, messages_to_openai
 
-def web_research_agent(*, max_results: int = 5):
+
+@agent
+def web_research_agent(*, max_results: int = 5) -> Agent:
     """LangChain Tavili search agent.
 
     Args:
@@ -18,7 +24,8 @@ def web_research_agent(*, max_results: int = 5):
        Agent function for handling samples. May be passed to Inspect `bridge()`
        to create a standard Inspect solver.
     """
-    # Use OpenAI interface (will be redirected to current Inspect model)
+    # Use OpenAI interface -- will be redirected to current Inspect model
+    # by the agent_bridge() context manager.
     model = ChatOpenAI(model="inspect")
 
     # Configure web research tools/agent
@@ -30,18 +37,23 @@ def web_research_agent(*, max_results: int = 5):
     )
 
     # Sample handler
-    async def run(sample: dict[str, Any]) -> dict[str, Any]:
-        # Read input (these are standard OpenAI message dicts, convert to LangChain)
-        input = convert_to_messages(sample["input"])
+    async def execute(state: AgentState) -> AgentState:
+        # Use bridge to map OpenAI Completions API to Inspect
+        async with agent_bridge():
+            # Read input (convert to LangChain)
+            openai_messages = await messages_to_openai(state.messages)
+            input = convert_to_messages(openai_messages)
 
-        # Execute the agent
-        result = await executor.ainvoke(
-            input={"messages": input},
-            config={"configurable": {"thread_id": uuid4()}},
-        )
+            # Execute the agent
+            result = await executor.ainvoke(
+                input={"messages": input},
+                config={"configurable": {"thread_id": uuid4()}},
+            )
 
-        # Return output (content of last message)
-        message: AIMessage = result["messages"][-1]
-        return dict(output=str(message.content))
+            # Update and return state
+            openai_messages = convert_to_openai_messages(result["messages"])
+            state.messages = await messages_from_openai(openai_messages)
+            state.output = ModelOutput.from_message(state.messages[-1])
+            return state
 
-    return run
+    return execute

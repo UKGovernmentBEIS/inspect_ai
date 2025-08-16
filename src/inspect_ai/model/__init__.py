@@ -60,6 +60,8 @@ from ._model_output import (
     StopReason,
     TopLogprob,
 )
+from ._openai import messages_from_openai, messages_to_openai
+from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
 from ._trim import trim_messages
@@ -87,6 +89,8 @@ __all__ = [
     "ChatMessageAssistant",
     "ChatMessageTool",
     "ChatCompletionChoice",
+    "messages_from_openai",
+    "messages_to_openai",
     "ModelCall",
     "ModelOutput",
     "ModelConversation",
@@ -102,6 +106,7 @@ __all__ = [
     "execute_tools",
     "ExecuteToolsResult",
     "trim_messages",
+    "user_prompt",
     "cache_clear",
     "cache_list_expired",
     "cache_path",

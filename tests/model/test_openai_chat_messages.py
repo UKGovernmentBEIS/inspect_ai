@@ -1,7 +1,7 @@
 import pytest
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.model._openai import chat_messages_from_openai
+from inspect_ai.model._openai import messages_from_openai
 
 
 # Minimal stubs for OpenAI message params
@@ -15,6 +15,7 @@ class DummyMessage(dict):
             self["tool_call_id"] = tool_call_id
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "tool_content,expected",
     [
@@ -33,18 +34,19 @@ class DummyMessage(dict):
         ),
     ],
 )
-def test_tool_message_smuggled_variants(tool_content, expected):
+async def test_tool_message_smuggled_variants(tool_content, expected):
     messages = [
         DummyMessage("tool", content=tool_content, tool_call_id="abc123"),
     ]
-    chat_msgs = chat_messages_from_openai("test-model", messages)
+    chat_msgs = await messages_from_openai(messages)
     assert len(chat_msgs) == 1
     msg = chat_msgs[0]
     assert hasattr(msg, "tool_call_id")
     assert msg.content == expected
 
 
-def test_assistant_message_with_smuggled_tags():
+@pytest.mark.asyncio
+async def test_assistant_message_with_smuggled_tags():
     # Assistant message with smuggled <think> and <internal> tags
     asst_content = (
         '<think signature="sig">reasoning here</think>'
@@ -54,7 +56,7 @@ def test_assistant_message_with_smuggled_tags():
     messages = [
         DummyMessage("assistant", content=asst_content),
     ]
-    chat_msgs = chat_messages_from_openai("test-model", messages)
+    chat_msgs = await messages_from_openai(messages)
     assert len(chat_msgs) == 1
     msg = chat_msgs[0]
     # Should be a ChatMessageAssistant
@@ -70,13 +72,14 @@ def test_assistant_message_with_smuggled_tags():
             assert "<internal" not in c.text
 
 
-def test_user_message_passthrough():
+@pytest.mark.asyncio
+async def test_user_message_passthrough():
     # User message should be passed through unchanged
     user_content = "user says hello"
     messages = [
         DummyMessage("user", content=user_content),
     ]
-    chat_msgs = chat_messages_from_openai("test-model", messages)
+    chat_msgs = await messages_from_openai(messages)
     assert len(chat_msgs) == 1
     msg = chat_msgs[0]
     assert msg.content == user_content

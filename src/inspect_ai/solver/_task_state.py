@@ -18,6 +18,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import tools_info
 from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
@@ -236,11 +237,7 @@ class TaskState:
         write access to the user chat prompt. Raises an
         exception if there is no user prompt
         """
-        prompt = next((m for m in reversed(self.messages) if m.role == "user"), None)
-        if prompt:
-            return prompt
-        else:
-            raise ValueError("user_prompt requested from TaskState but none available")
+        return user_prompt(self.messages)
 
     @property
     def metadata(self) -> dict[str, Any]:

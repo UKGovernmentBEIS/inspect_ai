@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, JsonValue, model_validator
 from inspect_ai._util.content import Content
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._chat_message import ChatMessageAssistant
+from ._chat_message import ChatMessage, ChatMessageAssistant
 
 
 class ModelUsage(BaseModel):
@@ -175,13 +175,49 @@ class ModelOutput(BaseModel):
         return self
 
     @staticmethod
+    def from_message(
+        message: ChatMessage,
+        stop_reason: StopReason = "stop",
+    ) -> "ModelOutput":
+        """Create ModelOutput from a ChatMessageAssistant.
+
+        Args:
+            message: Assistant message.
+            stop_reason: Stop reason for generation
+        """
+        from inspect_ai.model._model import active_model
+
+        # narrow to assistant message
+        if not isinstance(message, ChatMessageAssistant):
+            message = ChatMessageAssistant(content=message.content, source="generate")
+
+        # try to find an active model if one not specified
+        model = message.model
+        if model is None:
+            active = active_model()
+            if active is not None:
+                model = active.api.model_name
+            else:
+                model = ""
+
+        return ModelOutput(
+            model=model,
+            choices=[
+                ChatCompletionChoice(
+                    message=message,
+                    stop_reason=stop_reason,
+                )
+            ],
+        )
+
+    @staticmethod
     def from_content(
         model: str,
         content: str | list[Content],
         stop_reason: StopReason = "stop",
         error: str | None = None,
     ) -> "ModelOutput":
-        """Create ModelOutput from simple text content.
+        """Create ModelOutput from a `str` or `list[Content]`.
 
         Args:
            model: Model name.
