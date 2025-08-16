@@ -21,8 +21,8 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
     chat_choices_from_openai,
+    messages_to_openai,
     model_output_from_openai,
-    openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
@@ -88,7 +88,7 @@ async def generate_completions(
 
     # prepare request (we do this so we can log the ModelCall)
     request = dict(
-        messages=await openai_chat_messages(input, system_role),
+        messages=await messages_to_openai(input, system_role),
         tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
         tool_choice=openai_chat_tool_choice(tool_choice)
         if len(tools) > 0
