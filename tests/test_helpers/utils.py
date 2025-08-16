@@ -1,4 +1,5 @@
 import contextlib
+import functools
 import importlib.util
 import os
 import signal
@@ -7,7 +8,7 @@ import sys
 from pathlib import Path
 from random import random
 from types import FrameType
-from typing import Generator, Sequence
+from typing import Callable, Generator, Sequence, TypeVar
 
 import anyio
 import pytest
@@ -18,6 +19,48 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
+
+F = TypeVar("F", bound=Callable)
+
+
+def flaky_retry(max_retries: int) -> Callable[[F], F]:
+    """
+    Decorator to retry flaky tests up to max_retries times.
+
+    **Use with discretion and as a last resort.** This decorator should only be used
+    for tests that require specific model behavior to trigger the code under test,
+    where the flakiness is due to inherent non-determinism in model responses
+    rather than bugs in our code.
+
+    Before using this decorator, consider:
+    - Can the test be made more deterministic?
+    - Is the flakiness due to a bug that should be fixed?
+    - Can more lenient assertions be used?
+
+    Args:
+        max_retries: Maximum number of retry attempts
+
+    Returns:
+        Decorated test function that retries on failure
+    """
+
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries + 1):  # +1 for initial attempt
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        continue
+                    else:
+                        raise last_exception
+
+        return wrapper  # type: ignore
+
+    return decorator
 
 
 def skip_if_env_var(var: str, exists=True):
