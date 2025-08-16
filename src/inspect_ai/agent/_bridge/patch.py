@@ -12,7 +12,17 @@ from inspect_ai.agent._bridge.request import inspect_model_request
 
 
 @contextlib.asynccontextmanager
-async def openai_request_to_inspect_model() -> AsyncGenerator[None, None]:
+async def agent_bridge() -> AsyncGenerator[None, None]:
+    """Agent bridge.
+
+    Provide Inspect integration for 3rd party agents that use the
+    OpenAI Completions API. The bridge patches the OpenAI client
+    library to redirect any model named "inspect" (or prefaced with
+    "inspect/" for non-default models) into the Inspect model API.
+
+    See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
+    documentation for additional details.
+    """
     # ensure one time init
     init_openai_request_patch()
 

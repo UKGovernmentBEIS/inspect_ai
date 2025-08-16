@@ -18,7 +18,6 @@ from inspect_ai.model import (
     ChatMessageUser,
     ContentText,
     ModelOutput,
-    get_model,
 )
 from inspect_ai.tool import ToolCall
 from inspect_ai.util import sandbox
@@ -27,14 +26,14 @@ from inspect_ai.util import sandbox
 @agent
 def codex() -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        # extract prompt from first message
-        prompt = state.messages[0].text
-
-        # file to capture last agent message
-        last_message = "last_message.txt"
-
-        # run the agent under the bridge
+        # Use bridge to map OpenAI API to Inspect within the sandbox
         async with sandbox_agent_bridge() as bridge:
+            # extract prompt from first message
+            prompt = state.messages[0].text
+
+            # file to capture last agent message
+            last_message = "last_message.txt"
+
             # register inspect profile w/ code (proxy url, etc.)
             await register_inspect_provider(bridge)
 
@@ -57,20 +56,16 @@ def codex() -> Agent:
 
         if result.success:
             # convert rollout history to messages
-            messages = await read_codex_messages()
+            state.messages = await read_codex_messages()
 
-            # read and append the last message
-            model_name = get_model().api.model_name
-            last_message = await sandbox().read_file(last_message)
-            messages.append(
-                ChatMessageAssistant(
-                    content=last_message, source="generate", model=model_name
-                )
+            # read the response
+            response_message = ChatMessageAssistant(
+                content=await sandbox().read_file(last_message), source="generate"
             )
 
             # update and return state
-            state.messages = messages
-            state.output = ModelOutput.from_content(model_name, last_message)
+            state.output = ModelOutput.from_message(response_message)
+            state.messages.append(response_message)
             return state
         else:
             raise RuntimeError(f"Error executing codex agent: {result.stderr}")

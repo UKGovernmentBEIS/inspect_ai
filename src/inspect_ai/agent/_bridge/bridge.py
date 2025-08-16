@@ -1,15 +1,104 @@
-from typing import Any, Awaitable, Callable
+import contextlib
+import re
+from contextvars import ContextVar
+from functools import wraps
+from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
 
 from jsonschema import Draft7Validator
+from openai._base_client import AsyncAPIClient, _AsyncStreamT
+from openai._models import FinalRequestOptions
+from openai._types import ResponseT
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._bridge.request import inspect_model_request
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._openai import (
+    messages_from_openai,
+    messages_to_openai,
+)
 from inspect_ai.model._providers.providers import validate_openai_client
+
+
+@contextlib.asynccontextmanager
+async def agent_bridge() -> AsyncGenerator[None, None]:
+    """Agent bridge.
+
+    Provide Inspect integration for 3rd party agents that use the
+    OpenAI Completions API. The bridge patches the OpenAI client
+    library to redirect any model named "inspect" (or prefaced with
+    "inspect/" for non-default models) into the Inspect model API.
+
+    See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
+    documentation for additional details.
+    """
+    # ensure one time init
+    init_openai_request_patch()
+
+    # set the patch enabled for this context and child coroutines
+    token = _patch_enabled.set(True)
+    try:
+        yield
+    finally:
+        _patch_enabled.reset(token)
+
+
+_patch_initialised: bool = False
+
+_patch_enabled: ContextVar[bool] = ContextVar(
+    "openai_request_patch_enabled", default=False
+)
+
+
+def init_openai_request_patch() -> None:
+    global _patch_initialised
+    if _patch_initialised:
+        return
+
+    # get reference to original method
+    original_request = getattr(AsyncAPIClient, "request")
+    if original_request is None:
+        raise RuntimeError("Couldn't find 'request' method on AsyncAPIClient")
+
+    @wraps(original_request)
+    async def patched_request(
+        self: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        *,
+        stream: bool = False,
+        stream_cls: type[_AsyncStreamT] | None = None,
+    ) -> Any:
+        # we have patched the underlying request method so now need to figure out when to
+        # patch and when to stand down
+        if (
+            # enabled for this coroutine
+            _patch_enabled.get()
+            # completions request
+            and options.url == "/chat/completions"
+        ):
+            # must also be an explicit request for an inspect model
+            json_data = cast(dict[str, Any], options.json_data)
+            model_name = str(json_data["model"])
+            if re.match(r"^inspect/?", model_name):
+                return await inspect_model_request(json_data)
+
+        # otherwise just delegate
+        return await original_request(
+            self,
+            cast_to,
+            options,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
+
+    setattr(AsyncAPIClient, "request", patched_request)
+    _patch_initialised = True
 
 
 @agent
@@ -18,7 +107,9 @@ def bridge(
 ) -> Agent:
     """Bridge an external agent into an Inspect Agent.
 
-    See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
+    Note that this function is deprecated in favor of the `agent_bridge()`
+    function. See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
+    documentation for additional details.
 
     Args:
       agent: Callable which takes a sample `dict` and returns a result `dict`.
@@ -27,15 +118,6 @@ def bridge(
       Inspect agent.
     """
     validate_openai_client("Agent bridge()")
-
-    from openai.types.chat import ChatCompletionMessageParam
-
-    from inspect_ai.model._openai import (
-        messages_from_openai,
-        messages_to_openai,
-    )
-
-    from .patch import openai_request_to_inspect_model
 
     class BridgeInput(BaseModel):
         messages: list[ChatCompletionMessageParam]
@@ -66,7 +148,7 @@ def bridge(
         input = BridgeInput(messages=messages, metadata=metadata, input=messages)
 
         # run target function with patch applied
-        async with openai_request_to_inspect_model():
+        async with agent_bridge():
             # call the function
             result_dict = await agent(input.model_dump())
             try:
