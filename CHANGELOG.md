@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.123 (16 August 2025)
 
 - Support for [PDF input](https://inspect.aisi.org.uk/multimodal.html#pdf) for OpenAI, Anthropic, and Google via new `ContentDocument` type.
 - MCP: Use [Remote MCP Servers](https://inspect.aisi.org.uk/tools-mcp.html#remote-mcp) with OpenAI and Anthropic models.
