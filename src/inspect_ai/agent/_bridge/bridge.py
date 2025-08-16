@@ -115,9 +115,12 @@ def bridge(
 ) -> Agent:
     """Bridge an external agent into an Inspect Agent.
 
+    ::: callout-note
     Note that this function is deprecated in favor of the `agent_bridge()`
-    function. See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
-    documentation for additional details.
+    function. If you are creating a new agent bridge we recommend you use this function rather than `bridge()`.
+
+    If you do choose to use the `bridge()` function, these [examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/b4670e798dc8d9ff379d4da4ef469be2468d916f/examples/bridge) demostrate its basic usage.
+    :::
 
     Args:
       agent: Callable which takes a sample `dict` and returns a result `dict`.

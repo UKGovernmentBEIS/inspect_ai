@@ -282,6 +282,8 @@ website:
           href: reference/inspect_ai.model.qmd#chatmessagetool
         - text: trim_messages
           href: reference/inspect_ai.model.qmd#trim_messages
+        - text: user_prompt
+          href: reference/inspect_ai.model.qmd#user_prompt
         - text: Content
           href: reference/inspect_ai.model.qmd#content
         - text: ContentText

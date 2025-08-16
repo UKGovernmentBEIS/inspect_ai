@@ -14,7 +14,7 @@ title: "inspect_ai.agent"
 ### as_tool
 ### as_solver
 
-## Bridge
+## Bridging
 
 ### agent_bridge
 ### sandbox_agent_bridge
