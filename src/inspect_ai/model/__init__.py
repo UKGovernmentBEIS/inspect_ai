@@ -37,7 +37,6 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._prompt import user_prompt
 from ._conversation import ModelConversation
 from ._generate_config import (
     BatchConfig,
@@ -62,6 +61,7 @@ from ._model_output import (
     TopLogprob,
 )
 from ._openai import messages_from_openai, messages_to_openai
+from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
 from ._trim import trim_messages
