@@ -9,11 +9,7 @@ from inspect_ai.agent import (
     agent,
     sandbox_agent_bridge,
 )
-from inspect_ai.model import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ModelOutput,
-)
+from inspect_ai.model import ChatMessage, ChatMessageAssistant, ModelOutput, user_prompt
 from inspect_ai.util import sandbox
 
 
@@ -22,8 +18,8 @@ def codex() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         # Use bridge to map OpenAI API to Inspect within the sandbox
         async with sandbox_agent_bridge() as bridge:
-            # extract prompt from first message
-            prompt = state.messages[0].text
+            # extract prompt from last user message
+            prompt = user_prompt(state.messages)
 
             # file to capture last agent message
             last_message = "last_message.txt"
@@ -44,13 +40,13 @@ def codex() -> Agent:
                     "never",
                     "--output-last-message",
                     last_message,
-                    prompt,
+                    prompt.text,
                 ]
             )
 
         if result.success:
-            # convert rollout history to messages
-            state.messages = await read_codex_messages()
+            # append rollout history to messages
+            state.messages.extend((await read_codex_messages())[1:])
 
             # read the response
             response_message = ChatMessageAssistant(

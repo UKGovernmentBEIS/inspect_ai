@@ -9,7 +9,7 @@ from autogen_ext.agents.web_surfer import MultimodalWebSurfer
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
-from inspect_ai.model import ChatMessageAssistant, ModelOutput
+from inspect_ai.model import ChatMessageAssistant, ModelOutput, user_prompt
 
 
 @agent
@@ -37,11 +37,8 @@ def web_surfer_agent() -> Agent:
         # Use bridge to map OpenAI Completions API to Inspect
         async with agent_bridge():
             # Create input message from first message
-            input = [
-                TextMessage(
-                    source=state.messages[0].role, content=state.messages[0].text
-                )
-            ]
+            prompt = user_prompt(state.messages)
+            input = [TextMessage(content=prompt.text)]
 
             # Create agents and team
             web_surfer = MultimodalWebSurfer("web_surfer", model)

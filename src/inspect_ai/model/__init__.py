@@ -37,6 +37,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from ._prompt import user_prompt
 from ._conversation import ModelConversation
 from ._generate_config import (
     BatchConfig,
@@ -105,6 +106,7 @@ __all__ = [
     "execute_tools",
     "ExecuteToolsResult",
     "trim_messages",
+    "user_prompt",
     "cache_clear",
     "cache_list_expired",
     "cache_path",

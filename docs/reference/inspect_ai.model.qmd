@@ -26,6 +26,7 @@ title: "inspect_ai.model"
 ### ChatMessageAssistant
 ### ChatMessageTool
 ### trim_messages
+### user_prompt
 
 ## Content
 
