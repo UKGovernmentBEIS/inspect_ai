@@ -31,8 +31,8 @@ def bridge(
     from openai.types.chat import ChatCompletionMessageParam
 
     from inspect_ai.model._openai import (
-        chat_messages_from_openai,
-        openai_chat_messages,
+        messages_from_openai,
+        messages_to_openai,
     )
 
     from .patch import openai_request_to_inspect_model
@@ -62,7 +62,7 @@ def bridge(
         # create input (use standard gpt-4 message encoding -- i.e. no 'developer' messages)
         sample = sample_active()
         metadata = (sample.sample.metadata if sample is not None else None) or {}
-        messages = await openai_chat_messages(state.messages)
+        messages = await messages_to_openai(state.messages)
         input = BridgeInput(messages=messages, metadata=metadata, input=messages)
 
         # run target function with patch applied
@@ -86,8 +86,8 @@ def bridge(
             model=get_model().name, content=result.output
         )
         if result.messages is not None:
-            state.messages = chat_messages_from_openai(
-                state.output.model, result.messages
+            state.messages = await messages_from_openai(
+                result.messages, state.output.model
             )
 
         return state

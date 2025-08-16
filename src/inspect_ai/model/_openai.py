@@ -197,10 +197,16 @@ async def openai_chat_message(
         raise ValueError(f"Unexpected message role {message.role}")
 
 
-async def openai_chat_messages(
+async def messages_to_openai(
     messages: list[ChatMessage],
     system_role: Literal["user", "system", "developer"] = "system",
 ) -> list[ChatCompletionMessageParam]:
+    """Convert messages to OpenAI Completions API compatible messages.
+
+    Args:
+       messages: List of messages to convert
+       system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
+    """
     return [await openai_chat_message(message, system_role) for message in messages]
 
 
@@ -377,10 +383,16 @@ def chat_tool_calls_from_openai(
         return None
 
 
-def chat_messages_from_openai(
-    model: str,
+async def messages_from_openai(
     messages: list[ChatCompletionMessageParam],
+    model: str | None = None,
 ) -> list[ChatMessage]:
+    """Convert OpenAI Completions API messages into Inspect messages.
+
+    Args:
+        messages: OpenAI Completions API Messages
+        model: Optional model name to tag assistant messages with.
+    """
     # some cleanup operations to compensate for various scaffolds
     messages = functools.reduce(openai_assistant_message_reducer, messages, [])
 

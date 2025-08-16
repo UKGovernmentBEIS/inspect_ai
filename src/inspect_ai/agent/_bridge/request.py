@@ -12,7 +12,7 @@ from shortuuid import uuid
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._model import get_model
 from inspect_ai.model._openai import (
-    chat_messages_from_openai,
+    messages_from_openai,
     openai_chat_choices,
     openai_completion_usage,
 )
@@ -34,7 +34,7 @@ async def inspect_model_request(json_data: dict[str, Any]) -> ChatCompletion:
 
     # convert openai messages to inspect messages
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
-    input = chat_messages_from_openai(model.api.model_name, messages)
+    input = await messages_from_openai(messages, model.api.model_name)
 
     # convert openai tools to inspect tools
     tools: list[ChatCompletionToolParam] = json_data.get("tools", [])

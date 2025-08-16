@@ -60,7 +60,7 @@ def codex() -> Agent:
             messages = await read_codex_messages()
 
             # read and append the last message
-            model_name = str(get_model())
+            model_name = get_model().api.model_name
             last_message = await sandbox().read_file(last_message)
             messages.append(
                 ChatMessageAssistant(

@@ -67,6 +67,11 @@ title: "inspect_ai.model"
 ### cache_prune
 ### cache_path
 
+## Conversion
+
+### messages_to_openai
+### messages_from_openai
+
 ## Provider
 
 ### modelapi
