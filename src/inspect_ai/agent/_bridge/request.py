@@ -10,7 +10,7 @@ from openai.types.chat import (
 from shortuuid import uuid
 
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import get_model, model_roles
 from inspect_ai.model._openai import (
     messages_from_openai,
     openai_chat_choices,
@@ -23,14 +23,17 @@ from inspect_ai.util._json import JSONSchema
 
 
 async def inspect_model_request(json_data: dict[str, Any]) -> ChatCompletion:
-    from inspect_ai.solver._task_state import sample_state
-
-    # resolve model
+    # resolve model and model name
     model_name = str(json_data["model"])
     if model_name == "inspect":
         model = get_model()
     else:
-        model = get_model(model_name.removeprefix("inspect/"))
+        model_name = model_name.removeprefix("inspect/")
+        if model_name in model_roles():
+            model = get_model(role=model_name)
+        else:
+            model = get_model(model_name)
+    model_name = model.api.model_name
 
     # convert openai messages to inspect messages
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
