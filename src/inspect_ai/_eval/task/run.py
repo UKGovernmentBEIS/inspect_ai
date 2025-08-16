@@ -383,8 +383,14 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # collect eval data
             collect_eval_data(stats)
 
-            # finish w/ success status
-            eval_log = await logger.log_finish("success", stats, results, reductions)
+            if any((result is None for result in sample_results)):
+                # finish w/ error status
+                eval_log = await logger.log_finish("error", stats, results, reductions)
+            else:
+                # finish w/ success status
+                eval_log = await logger.log_finish(
+                    "success", stats, results, reductions
+                )
 
             await emit_task_end(logger, eval_log)
 
