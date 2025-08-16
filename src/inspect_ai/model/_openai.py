@@ -290,11 +290,7 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
                 if c.internal is not None:
-                    content = f"{content}\n<{CONTENT_INTERNAL_TAG}>{
-                        base64.b64encode(json.dumps(c.internal).encode('utf-8')).decode(
-                            'utf-8'
-                        )
-                    }</{CONTENT_INTERNAL_TAG}>"
+                    content = f"{content}\n<{CONTENT_INTERNAL_TAG}>{base64.b64encode(json.dumps(c.internal).encode('utf-8')).decode('utf-8')}</{CONTENT_INTERNAL_TAG}>"
 
     if message.internal:
         content = f"""{content}\n<{INTERNAL_TAG}>{
