@@ -148,12 +148,12 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#august-2025" id="toc-august-2025" class="nav-link" data-scroll-target="#august-2025">0.3.122 (11 August 2025)</a></li>
-  <li><a href="#august-2025-1" id="toc-august-2025-1" class="nav-link" data-scroll-target="#august-2025-1">0.3.121 (10 August 2025)</a></li>
-  <li><a href="#august-2025-2" id="toc-august-2025-2" class="nav-link" data-scroll-target="#august-2025-2">0.3.120 (07 August 2025)</a></li>
-  <li><a href="#august-2025-3" id="toc-august-2025-3" class="nav-link" data-scroll-target="#august-2025-3">0.3.119 (04 August 2025)</a></li>
-  <li><a href="#august-2025-4" id="toc-august-2025-4" class="nav-link" data-scroll-target="#august-2025-4">0.3.118 (02 August 2025)</a></li>
+  <li><a href="#august-2025" id="toc-august-2025" class="nav-link active" data-scroll-target="#august-2025">0.3.123 (16 August 2025)</a></li>
+  <li><a href="#august-2025-1" id="toc-august-2025-1" class="nav-link" data-scroll-target="#august-2025-1">0.3.122 (11 August 2025)</a></li>
+  <li><a href="#august-2025-2" id="toc-august-2025-2" class="nav-link" data-scroll-target="#august-2025-2">0.3.121 (10 August 2025)</a></li>
+  <li><a href="#august-2025-3" id="toc-august-2025-3" class="nav-link" data-scroll-target="#august-2025-3">0.3.120 (07 August 2025)</a></li>
+  <li><a href="#august-2025-4" id="toc-august-2025-4" class="nav-link" data-scroll-target="#august-2025-4">0.3.119 (04 August 2025)</a></li>
+  <li><a href="#august-2025-5" id="toc-august-2025-5" class="nav-link" data-scroll-target="#august-2025-5">0.3.118 (02 August 2025)</a></li>
   <li><a href="#july-2025" id="toc-july-2025" class="nav-link" data-scroll-target="#july-2025">0.3.117 (31 July 2025)</a></li>
   <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.116 (27 July 2025)</a></li>
   <li><a href="#july-2025-2" id="toc-july-2025-2" class="nav-link" data-scroll-target="#july-2025-2">0.3.115 (26 July 2025)</a></li>
@@ -279,30 +279,39 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="august-2025" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025">0.3.123 (16 August 2025)</h2>
 <ul>
 <li>Support for <a href="https://inspect.aisi.org.uk/multimodal.html#pdf">PDF input</a> for OpenAI, Anthropic, and Google via new <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentdocument">ContentDocument</a></span> type.</li>
 <li>MCP: Use <a href="https://inspect.aisi.org.uk/tools-mcp.html#remote-mcp">Remote MCP Servers</a> with OpenAI and Anthropic models.</li>
 <li>OpenAI: Use types from latest SDK (v1.99.7) and make that the minimum required version of the <code>openai</code> package.</li>
 <li>OpenAI: Automatically use background-mode for deep research models.</li>
+<li>Anthropic: Automatically use streaming when <code>max_tokens</code> is 8k or higher.</li>
+<li>Anthropic: Improved retry behavior via detection of more “overloaded” error conditions.</li>
+<li>Anthropic: Add <code>betas</code> custom model arg (<code>-M</code>) for opting in to beta features.</li>
 <li>Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.</li>
+<li>Scoring: String to float conversion now extracts the first valid float from the string (ignoring trailing characters that are invalid for floats).</li>
+<li>Scoring: Provide access to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sample_limits">sample_limits()</a></span> within scorers.</li>
+<li>Prepare: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#score_to_float">score_to_float()</a></span> function for converting score columns to float values.</li>
 <li>Eval logs: Add <code>if_match_etag</code> parameter for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#write_eval_log">write_eval_log()</a></span> and <code>etag</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> for safe concurrent log modification.</li>
 <li>ModelOutput: Setting the <code>completion</code> property now does not affect the underlying <code>message</code> content.</li>
 <li>Inspect View: Improved handling of scores and messages with large or complex metadata.</li>
 <li>Inspect View: Web search and other server-side tool calls (e.g.&nbsp;remote MCP) are now shown in the transcript.</li>
+<li>Inspect View: Properly display scores with list values.</li>
+<li>Tests: Added <span class="citation" data-cites="flaky_retry">@flaky_retry</span>(max_retries=) decorator for necessarily flaky tests.</li>
+<li>Bugfix: Don’t inspect stack in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#span">span()</a></span> function until required for logging.</li>
 </ul>
 </section>
-<section id="august-2025" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025">0.3.122 (11 August 2025)</h2>
+<section id="august-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-1">0.3.122 (11 August 2025)</h2>
 <ul>
 <li>OpenAI: Enable native <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool for GPT-5.</li>
 <li>OpenAI: Convert “web_search” tool choice to native “web_search_preview” type.</li>
 <li>Apply <code>sample_shuffle</code> for eval retry.</li>
 </ul>
 </section>
-<section id="august-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-1">0.3.121 (10 August 2025)</h2>
+<section id="august-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-2">0.3.121 (10 August 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/providers.html#sambanova">SambaNova</a> model provider.</li>
 <li><a href="https://inspect.aisi.org.uk/providers.html#goodfire">Goodfire</a> model provider.</li>
@@ -331,8 +340,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that <code>model_roles</code> are available within task initialization code.</li>
 </ul>
 </section>
-<section id="august-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-2">0.3.120 (07 August 2025)</h2>
+<section id="august-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-3">0.3.120 (07 August 2025)</h2>
 <ul>
 <li>OpenAI: Update model version checks for GPT-5.</li>
 <li>OpenAI: Support for specifying “minimal” for <code>reasoning_effort</code>.</li>
@@ -340,15 +349,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that <code>sample_shuffle</code> is <code>None</code> (rather than 0) when not specified on the command line.</li>
 </ul>
 </section>
-<section id="august-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-3">0.3.119 (04 August 2025)</h2>
+<section id="august-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-4">0.3.119 (04 August 2025)</h2>
 <ul>
 <li>Analysis functions are out of beta (<code>inspect_ai.analysis.beta</code> is deprecated in favor of <code>inspect_ai.analysis</code>).</li>
 <li>Scoring: Provide access to sample <code>store</code> for scorers run on existing log files.</li>
 </ul>
 </section>
-<section id="august-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-4">0.3.118 (02 August 2025)</h2>
+<section id="august-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-5">0.3.118 (02 August 2025)</h2>
 <ul>
 <li>Remove support for <code>vertex</code> provider as the google-cloud-aiplatform package has <a href="https://pypi.org/project/google-cloud-aiplatform/">deprecated</a> its support for Vertex generative models. Vertex can still be used via the native <code>google</code> and <code>anthropic</code> providers.</li>
 <li>Tool calling: Added support for emulated tool calling (<code>emulate_tools</code> model arg) to OpenAI API compatible providers.</li>
