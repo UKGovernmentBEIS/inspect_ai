@@ -13,13 +13,15 @@ from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
     EvalLog,
+    ScoreEvent,
 )
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.log._model import model_roles_config_to_model_roles
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer import Metric, Scorer, Target
-from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
     ScoreReducers,
@@ -33,6 +35,7 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
+from inspect_ai.util._span import span
 from inspect_ai.util._store import init_subtask_store
 
 from .task.results import eval_results
@@ -138,7 +141,9 @@ async def score_async(
             p.update(1)
 
         # do scoring
-        scores: list[dict[str, SampleScore]] = await tg_collect(
+        sample_scores: list[
+            tuple[dict[str, SampleScore], Transcript]
+        ] = await tg_collect(
             [
                 functools.partial(
                     run_score_task, log, state, Target(sample.target), scorers, progress
@@ -148,23 +153,35 @@ async def score_async(
         )
 
         # write them back (gather ensures that they come back in the same order)
-        for index, score in enumerate(scores):
+        for idx_sample, (scores, transcript) in enumerate(sample_scores):
+            sample = log.samples[idx_sample]
             if action == "overwrite":
-                log.samples[index].scores = {k: v.score for k, v in score.items()}
-            else:
-                existing_scores = log.samples[index].scores or {}
-                new_scores = {k: v.score for k, v in score.items()}
+                sample.scores = {}
+                sample.events = [
+                    *(
+                        event
+                        for event in sample.events
+                        if event.event != "score" or event.intermediate
+                    ),
+                    *transcript.events,
+                ]
+                for key, score in scores.items():
+                    sample.scores[key] = score.score
 
-                for key, value in new_scores.items():
+            else:
+                existing_scores: dict[str, Score] = sample.scores or {}
+                for key, score in scores.items():
                     if key not in existing_scores:
-                        existing_scores[key] = value
+                        existing_scores[key] = score.score
                     else:
                         # This key already exists, dedupe its name
                         count = 1
                         while f"{key}-{count}" in existing_scores.keys():
                             count = count + 1
-                        existing_scores[f"{key}-{count}"] = value
-                log.samples[index].scores = existing_scores
+                        existing_scores[f"{key}-{count}"] = score.score
+
+                log.samples[idx_sample].scores = existing_scores
+                sample.events.extend(transcript.events)
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
@@ -179,7 +196,11 @@ async def score_async(
 
         # compute metrics
         log.results, log.reductions = eval_results(
-            len(log.samples), scores, epochs_reducer, scorers, log_metrics
+            len(log.samples),
+            [scores for (scores, _) in sample_scores],
+            epochs_reducer,
+            scorers,
+            log_metrics,
         )
 
     return log
@@ -242,7 +263,7 @@ async def run_score_task(
     target: Target,
     scorers: list[Scorer],
     progress: Callable[..., None],
-) -> dict[str, SampleScore]:
+) -> tuple[dict[str, SampleScore], Transcript]:
     # get the model then initialize the async context
     model = get_model(
         model=log.eval.model,
@@ -256,21 +277,29 @@ async def run_score_task(
     # initialize active model and store
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
+    transcript = Transcript()
+    init_transcript(transcript)
 
     results: dict[str, SampleScore] = {}
     for scorer in scorers:
-        result = await scorer(state, target)
         scorer_name = unique_scorer_name(scorer, list(results.keys()))
-
-        results[scorer_name] = SampleScore(
-            score=result,
-            sample_id=state.sample_id,
-            sample_metadata=state.metadata,
-            scorer=registry_unqualified_name(scorer),
-        )
+        async with span(name=scorer_name, type="scorer"):
+            result = await scorer(state, target)
+            results[scorer_name] = SampleScore(
+                score=result,
+                sample_id=state.sample_id,
+                sample_metadata=state.metadata,
+                scorer=registry_unqualified_name(scorer),
+            )
+            transcript._event(
+                ScoreEvent(
+                    score=result,
+                    target=target.target,
+                )
+            )
 
     progress()
-    return results
+    return results, transcript
 
 
 def metrics_from_log(log: EvalLog) -> list[Metric] | dict[str, list[Metric]] | None:
