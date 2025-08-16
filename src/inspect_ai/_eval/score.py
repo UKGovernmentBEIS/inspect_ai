@@ -15,9 +15,10 @@ from inspect_ai.log import (
     EvalLog,
     ScoreEvent,
 )
-from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.log._log import EvalMetricDefinition
+from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._model import model_roles_config_to_model_roles
+from inspect_ai.log._transcript import Event, Transcript, init_transcript
+from inspect_ai.log._tree import SpanNode, event_sequence, event_tree, walk_node_spans
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer import Metric, Scorer, Target
@@ -86,6 +87,67 @@ def score(
         )
 
 
+def _get_updated_scores(
+    sample: EvalSample, scores: dict[str, SampleScore], action: ScoreAction
+) -> dict[str, Score]:
+    if action == "overwrite":
+        return {k: v.score for k, v in scores.items()}
+
+    updated_scores: dict[str, Score] = {**(sample.scores or {})}
+    for key, score in scores.items():
+        new_key = key
+        count = 0
+        while new_key in updated_scores:
+            # This key already exists, dedupe its name
+            count = count + 1
+            new_key = f"{key}-{count}"
+
+        updated_scores[new_key] = score.score
+
+    return updated_scores
+
+
+def _get_updated_events(
+    sample: EvalSample, transcript: Transcript, action: ScoreAction
+) -> list[Event]:
+    final_scorers_node: SpanNode | None = None
+    sample_event_tree = event_tree(sample.events)
+    for node in walk_node_spans(sample_event_tree):
+        if node.type == "scorers" and node.name == "scorers":
+            final_scorers_node = node
+
+    if final_scorers_node is None:
+        return [*sample.events, *transcript.events]
+
+    (new_scorers_tree,) = event_tree(transcript.events)
+    assert isinstance(new_scorers_tree, SpanNode)
+    if action == "append":
+        # Add the new score nodes to the existing scorer node's children
+        for child in new_scorers_tree.children:
+            if isinstance(child, SpanNode):
+                child.parent_id = final_scorers_node.id
+        final_scorers_node.children.extend(new_scorers_tree.children)
+    else:
+        # Entirely replace the existing scorer node and its children, which will
+        # also mean updating the timestamps associated with the scorers span
+        if final_scorers_node.parent_id is None:
+            siblings = sample_event_tree
+        else:
+            scorer_insert_point = None
+            for node in walk_node_spans(sample_event_tree):
+                if node.id == final_scorers_node.parent_id:
+                    scorer_insert_point = node
+                    break
+
+            assert scorer_insert_point is not None
+            siblings = scorer_insert_point.children
+
+        idx_scorer_event = siblings.index(final_scorers_node)
+        siblings[idx_scorer_event] = new_scorers_tree
+        new_scorers_tree.parent_id = final_scorers_node.parent_id
+    return list(event_sequence(sample_event_tree))
+
+
 async def score_async(
     log: EvalLog,
     scorers: list[Scorer],
@@ -141,7 +203,7 @@ async def score_async(
             p.update(1)
 
         # do scoring
-        sample_scores: list[
+        scores_and_events: list[
             tuple[dict[str, SampleScore], Transcript]
         ] = await tg_collect(
             [
@@ -153,35 +215,11 @@ async def score_async(
         )
 
         # write them back (gather ensures that they come back in the same order)
-        for idx_sample, (scores, transcript) in enumerate(sample_scores):
+        action = action or "append"
+        for idx_sample, (scores, transcript) in enumerate(scores_and_events):
             sample = log.samples[idx_sample]
-            if action == "overwrite":
-                sample.scores = {}
-                sample.events = [
-                    *(
-                        event
-                        for event in sample.events
-                        if event.event != "score" or event.intermediate
-                    ),
-                    *transcript.events,
-                ]
-                for key, score in scores.items():
-                    sample.scores[key] = score.score
-
-            else:
-                existing_scores: dict[str, Score] = sample.scores or {}
-                for key, score in scores.items():
-                    if key not in existing_scores:
-                        existing_scores[key] = score.score
-                    else:
-                        # This key already exists, dedupe its name
-                        count = 1
-                        while f"{key}-{count}" in existing_scores.keys():
-                            count = count + 1
-                        existing_scores[f"{key}-{count}"] = score.score
-
-                log.samples[idx_sample].scores = existing_scores
-                sample.events.extend(transcript.events)
+            sample.scores = _get_updated_scores(sample, scores, action=action)
+            sample.events = _get_updated_events(sample, transcript, action=action)
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
@@ -197,7 +235,7 @@ async def score_async(
         # compute metrics
         log.results, log.reductions = eval_results(
             len(log.samples),
-            [scores for (scores, _) in sample_scores],
+            [scores for (scores, _) in scores_and_events],
             epochs_reducer,
             scorers,
             log_metrics,
@@ -281,22 +319,23 @@ async def run_score_task(
     init_transcript(transcript)
 
     results: dict[str, SampleScore] = {}
-    for scorer in scorers:
-        scorer_name = unique_scorer_name(scorer, list(results.keys()))
-        async with span(name=scorer_name, type="scorer"):
-            result = await scorer(state, target)
-            results[scorer_name] = SampleScore(
-                score=result,
-                sample_id=state.sample_id,
-                sample_metadata=state.metadata,
-                scorer=registry_unqualified_name(scorer),
-            )
-            transcript._event(
-                ScoreEvent(
+    async with span(name="scorers"):
+        for scorer in scorers:
+            scorer_name = unique_scorer_name(scorer, list(results.keys()))
+            async with span(name=scorer_name, type="scorer"):
+                result = await scorer(state, target)
+                results[scorer_name] = SampleScore(
                     score=result,
-                    target=target.target,
+                    sample_id=state.sample_id,
+                    sample_metadata=state.metadata,
+                    scorer=registry_unqualified_name(scorer),
                 )
-            )
+                transcript._event(
+                    ScoreEvent(
+                        score=result,
+                        target=target.target,
+                    )
+                )
 
     progress()
     return results, transcript
