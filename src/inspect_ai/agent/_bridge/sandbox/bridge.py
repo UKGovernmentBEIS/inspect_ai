@@ -45,18 +45,6 @@ async def sandbox_agent_bridge(
     # resolve sandbox
     sandbox = sandbox or default_sandbox()
 
-    # copy the model proxy script to the container
-    MODEL_PROXY_PY = "/var/tmp/inspect-sandbox/model-proxy.py"
-    with open(Path(__file__).parent / "proxy.py", "r") as f:
-        proxy_script = f.read()
-        await sandbox.write_file(MODEL_PROXY_PY, proxy_script)
-    await sandbox.exec(["chmod", "+x", MODEL_PROXY_PY])
-
-    # function we'll use to run the script
-    async def run_model_proxy(started: anyio.Event) -> None:
-        await started.wait()
-        await sandbox.exec([MODEL_PROXY_PY, str(port)])
-
     try:
         async with anyio.create_task_group() as tg:
             # event to signal startup of model service
@@ -66,7 +54,7 @@ async def sandbox_agent_bridge(
             tg.start_soon(run_model_service, sandbox, started)
 
             # proxy server that runs in container and forwards to sandbox service
-            tg.start_soon(run_model_proxy, started)
+            tg.start_soon(run_model_proxy, sandbox, port, started)
 
             # ensure services are up
             await anyio.sleep(0.1)
@@ -78,3 +66,28 @@ async def sandbox_agent_bridge(
                 tg.cancel_scope.cancel()
     except Exception as ex:
         raise inner_exception(ex)
+
+
+async def run_model_proxy(
+    sandbox: SandboxEnvironment, port: int, started: anyio.Event
+) -> None:
+    # wait for model service to be started up
+    await started.wait()
+
+    # install the model proxy script in the container
+    MODEL_PROXY_PY = "/var/tmp/inspect-sandbox/model-proxy.py"
+    with open(Path(__file__).parent / "proxy.py", "r") as f:
+        proxy_script = f.read()
+        await sandbox.write_file(MODEL_PROXY_PY, proxy_script)
+    result = await sandbox.exec(["chmod", "+x", MODEL_PROXY_PY])
+    if not result.success:
+        raise RuntimeError(
+            f"Error installing model proxy script for agent bridge: {result.stderr}"
+        )
+
+    # run the model proxy script
+    result = await sandbox.exec([MODEL_PROXY_PY, str(port)])
+    if not result.success:
+        raise RuntimeError(
+            f"Error running model proxy script for agent bridge: {result.stderr}"
+        )

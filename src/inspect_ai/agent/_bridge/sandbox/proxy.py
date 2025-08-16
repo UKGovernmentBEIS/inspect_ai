@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import time
 from email.utils import formatdate
@@ -731,13 +732,31 @@ async def run_model_proxy(port: int) -> None:
             else:
                 return {"status": 200, "body": completion}
         except Exception as ex:
-            return {"status": 500, "body": {"error": str(ex)}}
+            # Any error that occurs in here is essentially fatal to the entire
+            # agent. The exception results either from:
+            #
+            #  - The call to generate (which already benefits from Inspect's std
+            #    model retry behavior). In normal Inspect agents if generate fails
+            #    after requisite retries the sample fails, same here
+            #  - A logic error or unexpected data condition in our simulated
+            #    streaming -- if we are unable to stream a request back then
+            #    the agent can't proceed, so we fail the script hard
+            #
+            # Writing to stderr and exiting the script is seen as preferable to
+            # returning 500 to the proxied agent. This is because we are in a
+            # hard failure anyway so we need the user to see the error message
+            # and have the task fail (the 500 error would just result in retries)
+            sys.stderr.write(f"Unexpected error during model proxy call: {ex}")
+            sys.stderr.flush()
+            os._exit(1)
 
     # run server
     try:
         await server.start()
     except Exception as ex:
         sys.stderr.write(f"Unexpected error running model proxy: {ex}")
+        sys.stderr.flush()
+        os._exit(1)
 
 
 if __name__ == "__main__":

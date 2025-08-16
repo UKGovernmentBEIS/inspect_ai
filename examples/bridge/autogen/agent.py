@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import cast
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.conditions import SourceMatchTermination

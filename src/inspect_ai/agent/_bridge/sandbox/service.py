@@ -23,9 +23,5 @@ async def run_model_service(sandbox: SandboxEnvironment, started: anyio.Event) -
 
 
 async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-    try:
-        completion = await inspect_model_request(json_data)
-        return completion.model_dump(mode="json")
-    except Exception as ex:
-        logger.warning(f"Error occurred in model proxy call: {ex}")
-        raise
+    completion = await inspect_model_request(json_data)
+    return completion.model_dump(mode="json")

@@ -74,12 +74,6 @@ async def inspect_model_request(json_data: dict[str, Any]) -> ChatCompletion:
         config=generate_config_from_openai(json_data),
     )
 
-    # if we are using the "default" inspect model for the task, update state.messages
-    if model_name == "inspect":
-        state = sample_state()
-        if state:
-            state.messages = input + [output.choices[0].message]
-
     # inspect completion to openai completion
     return ChatCompletion(
         id=uuid(),
