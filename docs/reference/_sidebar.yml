@@ -550,6 +550,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#task_info
         - text: frontier
           href: reference/inspect_ai.analysis.qmd#frontier
+        - text: score_to_float
+          href: reference/inspect_ai.analysis.qmd#score_to_float
         - text: Operation
           href: reference/inspect_ai.analysis.qmd#operation
         - text: ModelInfo

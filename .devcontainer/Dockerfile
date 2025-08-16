@@ -1,7 +1,7 @@
 ARG AWS_CLI_VERSION=2.27.17
 ARG KUBECTL_VERSION=1.33.1
 ARG PYTHON_VERSION=3.13.3
-ARG UV_VERSION=0.7.5
+ARG UV_VERSION=0.8.11
 
 FROM amazon/aws-cli:${AWS_CLI_VERSION} AS aws-cli
 FROM bitnami/kubectl:${KUBECTL_VERSION} AS kubectl
@@ -39,19 +39,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --no-editable
 
 FROM builder-base AS builder-dev
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+ && apt-get install -y \
+        cmake
+
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_INSPECT_AI=0.0.1
-# quarto-cli has some bug that doesn't let it be installed via `uv sync` or `uv
-# pip install`. But it works using `pip install`. So, let's install it manually
-# first, then `uv sync` will fill in the rest. Yes, this is ugly.
 RUN --mount=type=cache,target=/root/.cache/uv \
     mkdir src \
  && touch src/__init__.py \
- && QUARTO_CLI_VERSION="$(uv export --all-extras --locked --no-hashes | grep -oP '(?<=^quarto-cli==).+')" \
- && pip install \
-    --no-deps \
-    --no-cache-dir \
-    --prefix=${UV_PROJECT_ENVIRONMENT} \
-        quarto-cli==${QUARTO_CLI_VERSION} \
  && uv sync \
     --all-extras \
     --all-groups \

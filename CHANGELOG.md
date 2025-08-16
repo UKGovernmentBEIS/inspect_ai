@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.123 (16 August 2025)
 
 - Support for [PDF input](https://inspect.aisi.org.uk/multimodal.html#pdf) for OpenAI, Anthropic, and Google via new `ContentDocument` type.
 - MCP: Use [Remote MCP Servers](https://inspect.aisi.org.uk/tools-mcp.html#remote-mcp) with OpenAI and Anthropic models.
@@ -10,10 +10,13 @@
 - Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
 - Scoring: String to float conversion now extracts the first valid float from the string (ignoring trailing characters that are invalid for floats).
 - Scoring: Provide access to `sample_limits()` within scorers.
+- Prepare: Added `score_to_float()` function for converting score columns to float values.
 - Eval logs: Add `if_match_etag` parameter for `write_eval_log()` and `etag` field to `EvalLog` for safe concurrent log modification.
 - ModelOutput: Setting the `completion` property now does not affect the underlying `message` content.
 - Inspect View: Improved handling of scores and messages with large or complex metadata.
 - Inspect View: Web search and other server-side tool calls (e.g. remote MCP) are now shown in the transcript.
+- Inspect View: Properly display scores with list values.
+- Tests: Added @flaky_retry(max_retries=) decorator for necessarily flaky tests.
 - Bugfix: Don't inspect stack in `span()` function until required for logging.
 
 ## 0.3.122 (11 August 2025)

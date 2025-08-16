@@ -168,7 +168,7 @@ class ModelOutput(BaseModel):
 
     @model_validator(mode="after")
     def set_completion(self) -> "ModelOutput":
-        if not self.completion:
+        if getattr(self, "completion", None) is None or not self.completion:
             self.completion = (
                 self.choices[0].message.text if len(self.choices) > 0 else ""
             )
