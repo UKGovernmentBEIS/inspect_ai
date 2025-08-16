@@ -57,10 +57,7 @@ def codex() -> Agent:
 
         if result.success:
             # convert rollout history to messages
-            result = await sandbox().exec(
-                ["bash", "-c", "cat .codex/sessions/*/*/*/*rollout-*.jsonl"]
-            )
-            messages = rollout_to_messages(result.stdout)
+            messages = await read_codex_messages()
 
             # read and append the last message
             model_name = str(get_model())
@@ -82,7 +79,7 @@ def codex() -> Agent:
 
 
 async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
-    """Register a custom open-ai compatible model provider."""
+    """Register a custom OpenAI-compatible model provider for the bridge."""
     CODEX_CONFIG = dedent(f"""
     [model_providers.inspect]
     name = "inspect"
@@ -93,8 +90,19 @@ async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
     model_provider = "inspect"
     model = "inspect"
     """)
-    await sandbox().exec(["mkdir", ".codex"])
+    result = await sandbox().exec(["mkdir", ".codex"])
+    if not result.success:
+        raise RuntimeError(f"Error creating codex config directory: {result.stderr}")
     await sandbox().write_file(".codex/config.toml", CODEX_CONFIG)
+
+
+async def read_codex_messages() -> list[ChatMessage]:
+    result = await sandbox().exec(
+        ["bash", "-c", "cat .codex/sessions/*/*/*/*rollout-*.jsonl"]
+    )
+    if not result.success:
+        raise RuntimeError(f"Error reading codex messages: {result.stderr}")
+    return rollout_to_messages(result.stdout)
 
 
 class FunctionCall(TypedDict):
@@ -118,16 +126,6 @@ class FunctionCallResult(TypedDict):
 
 class MessageContent(TypedDict):
     type: str
-
-
-class MessageInputText(TypedDict):
-    type: Literal["input_text"]
-    text: str
-
-
-class MessageOutputText(TypedDict):
-    type: Literal["output_text"]
-    text: str
 
 
 class Message(TypedDict):
