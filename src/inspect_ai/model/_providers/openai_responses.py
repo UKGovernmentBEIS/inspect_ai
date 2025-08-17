@@ -29,6 +29,7 @@ from .._openai import (
 )
 from .._openai_responses import (
     openai_responses_chat_choices,
+    openai_responses_extra_body_fields,
     openai_responses_inputs,
     openai_responses_tool_choice,
     openai_responses_tools,
@@ -88,7 +89,6 @@ async def generate_responses(
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
         else NOT_GIVEN,
-        truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         background=background,
         **completion_params_responses(
@@ -96,13 +96,11 @@ async def generate_responses(
             openai_api=openai_api,
             config=config,
             service_tier=service_tier,
+            prompt_cache_key=prompt_cache_key,
+            safety_identifier=safety_identifier,
             tools=len(tools) > 0,
         ),
     )
-    if isinstance(prompt_cache_key, str):
-        request["prompt_cache_key"] = prompt_cache_key
-    if isinstance(safety_identifier, str):
-        request["safety_identifier"] = safety_identifier
 
     try:
         # generate response
@@ -197,6 +195,8 @@ def completion_params_responses(
     openai_api: "OpenAIAPI",
     config: GenerateConfig,
     service_tier: str | None,
+    prompt_cache_key: str | NotGiven,
+    safety_identifier: str | NotGiven,
     tools: bool,
 ) -> dict[str, Any]:
     # TODO: we'll need a computer_use_preview bool for the 'include'
@@ -210,6 +210,13 @@ def completion_params_responses(
     params: dict[str, Any] = dict(model=model_name)
     if service_tier is not None:
         params["service_tier"] = service_tier
+    if isinstance(prompt_cache_key, str):
+        params["prompt_cache_key"] = prompt_cache_key
+    if isinstance(safety_identifier, str):
+        params["safety_identifier"] = safety_identifier
+    if openai_api.is_computer_use_preview():
+        params["truncation"] = "auto"
+
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
     if config.frequency_penalty is not None:
@@ -231,7 +238,13 @@ def completion_params_responses(
         else:
             params["temperature"] = config.temperature
     if config.top_p is not None:
-        params["top_p"] = config.top_p
+        if openai_api.is_o_series() or openai_api.is_gpt_5():
+            warn_once(
+                logger,
+                "gpt-5 and o-series models do not support the 'top_p' parameter.",
+            )
+        else:
+            params["top_p"] = config.top_p
     if config.num_choices is not None:
         unsupported_warning("num_choices")
     if config.logprobs is not None:
@@ -268,5 +281,11 @@ def completion_params_responses(
                 strict=config.response_schema.strict,
             )
         )
+
+    # look for any of our native fields not in GenerateConfig in extra_body
+    if config.extra_body is not None:
+        for field in openai_responses_extra_body_fields():
+            if field in config.extra_body and field not in params:
+                params[field] = config.extra_body[field]
 
     return params

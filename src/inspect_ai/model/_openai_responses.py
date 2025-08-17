@@ -57,14 +57,14 @@ from openai.types.responses.response_output_item import (
     McpCall,
     McpListTools,
 )
-from openai.types.responses.response_output_message import Content as ResponsesContent
 from openai.types.responses.response_output_text import (
     Annotation,
     AnnotationFileCitation,
     AnnotationFilePath,
     AnnotationURLCitation,
 )
-from openai.types.responses.response_reasoning_item_param import Summary
+from openai.types.responses.response_reasoning_item import Summary
+from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
 from openai.types.responses.response_usage import (
     InputTokensDetails,
     OutputTokensDetails,
@@ -205,15 +205,19 @@ async def _openai_responses_content_param(
             type="input_file", file_data=file_data_uri, filename=filename
         )
     else:
-        # TODO: support for files (PDFs) and audio and video whenever
-        # that is supported by the responses API (was not on initial release)
-
-        # TODO: note that when doing this we should ensure that the
-        # openai_media_filter is properly screening out base64 encoded
-        # audio and video (if it exists, looks like it may all be done
-        # w/ file uploads in the responses API)
-
         raise ValueError("Unsupported content type.")
+
+
+def openai_responses_extra_body_fields() -> list[str]:
+    return [
+        "service_tier",
+        "max_tool_calls",
+        "metadata",
+        "previous_response_id",
+        "prompt_cache_key",
+        "safety_identifier",
+        "truncation",
+    ]
 
 
 def openai_responses_tool_choice(
@@ -552,7 +556,7 @@ def _openai_input_items_from_chat_message_assistant(
                     ResponseReasoningItemParam(
                         type="reasoning",
                         id=content.signature,
-                        summary=[Summary(type="summary_text", text=reasoning)]
+                        summary=[SummaryParam(type="summary_text", text=reasoning)]
                         if reasoning
                         else [],
                     )
@@ -723,39 +727,43 @@ def _tool_call_items_from_assistant_message(
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
 ) -> list[ResponseOutputItem]:
-    items: list[ResponseOutputItem] = []
-
     content = (
         [ContentText(text=message.content)]
         if isinstance(message.content, str)
         else message.content
     )
 
-    items.append(
-        ResponseOutputMessage(
-            type="message",
-            role="assistant",
-            id=message.id or uuid(),
-            content=[_responses_content_from_content(c) for c in content],
-            status="completed",
-        )
-    )
-
-    return items
+    return [_response_output_item_from_content(c) for c in content]
 
 
-def _responses_content_from_content(content: Content) -> ResponsesContent:
+def _response_output_item_from_content(content: Content) -> ResponseOutputItem:
     if isinstance(content, ContentText):
-        if content.refusal:
-            return ResponseOutputRefusal(type="refusal", refusal=content.text)
+        if isinstance(content.internal, dict) and "id" in content.internal:
+            id = str(content.internal["id"])
         else:
-            return ResponseOutputText(
+            id = uuid()
+        message_content = (
+            ResponseOutputRefusal(type="refusal", refusal=content.text)
+            if content.refusal
+            else ResponseOutputText(
                 type="output_text", annotations=[], text=content.text
             )
-    else:
-        raise RuntimeError(
-            f"Unsupported content type for ResponseContent: {type(content)}"
         )
+        return ResponseOutputMessage(
+            type="message",
+            role="assistant",
+            id=id,
+            content=[message_content],
+            status="completed",
+        )
+    elif isinstance(content, ContentReasoning):
+        return ResponseReasoningItem(
+            type="reasoning",
+            summary=[Summary(type="summary_text", text=content.reasoning)],
+            id=content.signature or "",
+        )
+    else:
+        raise RuntimeError(f"Unsupported content type: {type(content)}")
 
 
 def _ids_from_assistant_internal(

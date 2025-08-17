@@ -1,3 +1,4 @@
+from logging import getLogger
 from time import time
 from typing import Any
 
@@ -8,8 +9,10 @@ from openai.types.chat import (
     ChatCompletionToolParam,
 )
 from openai.types.responses import Response, ResponseInputItemParam
+from pydantic_core import to_json
 from shortuuid import uuid
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._model import Model, get_model, model_roles
 from inspect_ai.model._openai import (
@@ -19,6 +22,7 @@ from inspect_ai.model._openai import (
 )
 from inspect_ai.model._openai_responses import (
     messages_from_responses_input,
+    openai_responses_extra_body_fields,
     responses_output_items_from_assistant_message,
     responses_usage_from_model_usage,
 )
@@ -26,6 +30,8 @@ from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
+
+logger = getLogger(__file__)
 
 
 async def inspect_completions_api_request(json_data: dict[str, Any]) -> ChatCompletion:
@@ -71,7 +77,7 @@ async def inspect_completions_api_request(json_data: dict[str, Any]) -> ChatComp
         input=input,
         tools=inspect_tools,
         tool_choice=inspect_tool_choice,
-        config=generate_config_from_openai(json_data),
+        config=generate_config_from_openai_completions(json_data),
     )
 
     # inspect completion to openai completion
@@ -95,9 +101,10 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
     messages = messages_from_responses_input(input, model_name)
 
     # run inference
-    # TODO: generate config!!!!!
     # TODO: tools!!!!
-    output = await model.generate(input=messages)
+    output = await model.generate(
+        input=messages, config=generate_config_from_openai_responses(json_data)
+    )
 
     # return response
     return Response(
@@ -125,7 +132,9 @@ def resolve_inspect_model(model_name: str) -> Model:
     return model
 
 
-def generate_config_from_openai(json_data: dict[str, Any]) -> GenerateConfig:
+def generate_config_from_openai_completions(
+    json_data: dict[str, Any],
+) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get(
         "max_completion_tokens", json_data.get("max_tokens", None)
@@ -157,4 +166,42 @@ def generate_config_from_openai(json_data: dict[str, Any]) -> GenerateConfig:
                 strict=json_schema.get("strict", None),
             )
 
+    return config
+
+
+def generate_config_from_openai_responses(json_data: dict[str, Any]) -> GenerateConfig:
+    # warn for unsupported params
+    def warn_unsupported(param: str) -> None:
+        if param in json_data:
+            warn_once(logger, f"'{param}' option not supported for agent bridge")
+
+    warn_unsupported("background")
+    warn_unsupported("prompt")
+    warn_unsupported("text")
+    warn_unsupported("top_logprobs")
+
+    print(to_json(json_data, indent=2).decode())
+
+    config = GenerateConfig()
+    config.system_message = json_data.get("instructions", None)
+    config.max_tokens = json_data.get("max_output_tokens", None)
+    config.parallel_tool_calls = json_data.get("parallel_tool_calls", None)
+    reasoning = json_data.get("reasoning", None)
+    if reasoning:
+        if "effort" in reasoning:
+            config.reasoning_effort = reasoning["effort"]
+        if "summary" in reasoning:
+            config.reasoning_summary = reasoning["summary"]
+    config.temperature = json_data.get("temperature", None)
+    config.top_p = json_data.get("top_p", None)
+
+    # extra_body params (i.e. passthrough for native responses)
+    extra_body: dict[str, Any] = {}
+    for field in openai_responses_extra_body_fields():
+        if field in json_data:
+            extra_body[field] = json_data[field]
+    if len(extra_body) > 0:
+        config.extra_body = extra_body
+
+    # return config
     return config

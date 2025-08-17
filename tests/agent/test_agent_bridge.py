@@ -73,6 +73,21 @@ def completions_agent(tools: bool) -> Agent:
     return execute
 
 
+def check_openai_responses_log_json(log_json: str, tools: bool):
+    # assert r'"model": "gpt-5"' in log_json
+    assert r'"You are a dope model."' in log_json
+    assert r'"max_output_tokens": 2048' in log_json
+    assert r'"parallel_tool_calls": true' in log_json
+    assert r'"effort": "low"' in log_json
+    assert r'"summary": "auto"' in log_json
+    assert r'"service_tier": "default"' in log_json
+    assert r'"max_tool_calls": 5' in log_json
+    assert r'"foo": "bar"' in log_json
+    assert r'"prompt_cache_key": "42"' in log_json
+    assert r'"safety_identifier": "42"' in log_json
+    assert r'"truncation": "auto"' in log_json
+
+
 @agent
 def responses_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
@@ -82,6 +97,16 @@ def responses_agent(tools: bool) -> Agent:
             response = await client.responses.create(
                 model="inspect",
                 input="Write a one-sentence bedtime story about a unicorn.",
+                instructions="You are a dope model.",
+                max_output_tokens=2048,
+                parallel_tool_calls=True,
+                reasoning={"effort": "low", "summary": "auto"},
+                service_tier="default",
+                max_tool_calls=5,
+                metadata={"foo": "bar"},
+                prompt_cache_key="42",
+                safety_identifier="42",
+                truncation="auto",
             )
 
             message = ChatMessageAssistant(
@@ -140,10 +165,6 @@ def eval_bridged_task(model: str, agent: Agent) -> str:
     return log.model_dump_json(exclude_none=True, indent=2)
 
 
-def check_openai_responses_log_json(log_json: str, tools: bool):
-    assert r'"model": "gpt-4o"' in log_json
-
-
 def check_openai_log_json(log_json: str, tools: bool):
     assert r'"model": "gpt-4o"' in log_json
     if tools:
@@ -187,7 +208,7 @@ def test_bridged_agent_completions_tools():
 
 @skip_if_no_openai
 def test_bridged_agent_responses():
-    log_json = eval_bridged_task("openai/gpt-4o", agent=responses_agent(False))
+    log_json = eval_bridged_task("openai/gpt-5", agent=responses_agent(False))
     check_openai_responses_log_json(log_json, tools=False)
 
 

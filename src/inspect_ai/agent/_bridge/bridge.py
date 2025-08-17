@@ -97,6 +97,12 @@ def init_openai_request_patch() -> None:
             json_data = cast(dict[str, Any], options.json_data)
             model_name = str(json_data["model"])
             if re.match(r"^inspect/?", model_name):
+                # streaming not currently supported for patch
+                if stream:
+                    raise RuntimeError(
+                        "Streaming not currently supported for agent_bridge()"
+                    )
+
                 if options.url == "/chat/completions":
                     return await inspect_completions_api_request(json_data)
                 else:
