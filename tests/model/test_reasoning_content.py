@@ -21,13 +21,13 @@ from inspect_ai.solver._solver import generate
 @pytest.mark.asyncio
 @skip_if_no_together
 async def test_reasoning_content_together():
-    await check_reasoning_content("together/Qwen/Qwen3-235B-A22B-Thinking-2507")
+    await check_reasoning_content("together/openai/gpt-oss-20b")
 
 
 @pytest.mark.asyncio
 @skip_if_no_groq
 async def test_reasoning_content_groq():
-    await check_reasoning_content("groq/deepseek-r1-distill-llama-70b")
+    await check_reasoning_content("groq/openai/gpt-oss-20b")
 
 
 @pytest.mark.asyncio
@@ -68,7 +68,9 @@ async def check_reasoning_content(
     output = await model.generate(
         "Solve 3*x^3-5*x=1",
         config=config.merge(
-            GenerateConfig(reasoning_effort="low", reasoning_tokens=1024)
+            GenerateConfig(
+                reasoning_effort="low", reasoning_tokens=1024, max_tokens=8192
+            )
         ),
     )
     assert "<think>" not in output.completion
