@@ -5,6 +5,7 @@
 - Agent Bridge: Inspect model roles can now be addressed by bridged agents (e.g. "inspect/red-team").
 - Model API: `user_prompt()` function for getting the last user message from a list of messages.
 - Model API: `messages_to_openai()` and `messages_from_openai()` functions for converting to and from OpenAI-style message dicts. 
+- Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
 
 ## 0.3.123 (16 August 2025)
 
