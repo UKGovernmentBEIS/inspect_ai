@@ -80,7 +80,7 @@ def responses_agent(tools: bool) -> Agent:
             client = AsyncOpenAI()
 
             response = await client.responses.create(
-                model="gpt-4o",
+                model="inspect",
                 input="Write a one-sentence bedtime story about a unicorn.",
             )
 
