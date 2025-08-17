@@ -7,7 +7,7 @@ from openai.types.chat import (
     ChatCompletionToolChoiceOptionParam,
     ChatCompletionToolParam,
 )
-from openai.types.responses import Response
+from openai.types.responses import Response, ResponseInputItemParam
 from shortuuid import uuid
 
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
@@ -16,6 +16,11 @@ from inspect_ai.model._openai import (
     messages_from_openai,
     openai_chat_choices,
     openai_completion_usage,
+)
+from inspect_ai.model._openai_responses import (
+    messages_from_responses_input,
+    responses_output_items_from_assistant_message,
+    responses_usage_from_model_usage,
 )
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
@@ -29,7 +34,7 @@ async def inspect_completions_api_request(json_data: dict[str, Any]) -> ChatComp
 
     # convert openai messages to inspect messages
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
-    input = await messages_from_openai(messages, model.api.model_name)
+    input = await messages_from_openai(messages, model_name)
 
     # convert openai tools to inspect tools
     tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
@@ -81,16 +86,30 @@ async def inspect_completions_api_request(json_data: dict[str, Any]) -> ChatComp
 
 
 async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
-    raise RuntimeError("Hooked it!!!!")
+    # resolve model
+    model = resolve_inspect_model(str(json_data["model"]))
+    model_name = model.api.model_name
+
+    # convert to inspect messages
+    input: list[ResponseInputItemParam] = json_data["input"]
+    messages = messages_from_responses_input(input, model_name)
+
+    # run inference
+    # TODO: generate config!!!!!
+    # TODO: tools!!!!
+    output = await model.generate(input=messages)
+
+    # return response
     return Response(
-        id="foo",
-        created_at=5,
-        model="gpt-4",
+        id=uuid(),
+        created_at=int(time()),
+        model=model_name,
         object="response",
-        output=[],
+        output=responses_output_items_from_assistant_message(output.message),
         parallel_tool_calls=False,
         tool_choice="auto",
         tools=[],
+        usage=responses_usage_from_model_usage(output.usage),
     )
 
 

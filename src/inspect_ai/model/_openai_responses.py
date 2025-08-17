@@ -1,6 +1,6 @@
 import json
 from functools import reduce
-from typing import TYPE_CHECKING, Sequence, TypedDict, cast
+from typing import TYPE_CHECKING, Sequence, TypedDict, TypeGuard, cast
 
 from openai.types.responses import (
     FunctionToolParam,
@@ -16,13 +16,16 @@ from openai.types.responses import (
     ResponseInputItemParam,
     ResponseInputMessageContentListParam,
     ResponseInputTextParam,
+    ResponseOutputItem,
     ResponseOutputMessage,
     ResponseOutputMessageParam,
+    ResponseOutputRefusal,
     ResponseOutputRefusalParam,
     ResponseOutputText,
     ResponseOutputTextParam,
     ResponseReasoningItem,
     ResponseReasoningItemParam,
+    ResponseUsage,
     ToolChoiceFunctionParam,
     ToolChoiceTypesParam,
     ToolParam,
@@ -54,6 +57,7 @@ from openai.types.responses.response_output_item import (
     McpCall,
     McpListTools,
 )
+from openai.types.responses.response_output_message import Content as ResponsesContent
 from openai.types.responses.response_output_text import (
     Annotation,
     AnnotationFileCitation,
@@ -61,8 +65,13 @@ from openai.types.responses.response_output_text import (
     AnnotationURLCitation,
 )
 from openai.types.responses.response_reasoning_item_param import Summary
+from openai.types.responses.response_usage import (
+    InputTokensDetails,
+    OutputTokensDetails,
+)
 from openai.types.responses.tool_param import Mcp
 from pydantic import JsonValue
+from shortuuid import uuid
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
@@ -78,9 +87,13 @@ from inspect_ai._util.content import (
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
+from inspect_ai.model._model_output import ChatCompletionChoice, ModelUsage, StopReason
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -280,6 +293,84 @@ def is_native_tool_configured(
 
 class _AssistantInternal(TypedDict):
     tool_message_ids: dict[str, str]
+
+
+def messages_from_responses_input(
+    input: str | list[ResponseInputItemParam], model_name: str | None = None
+) -> list[ChatMessage]:
+    if isinstance(input, str):
+        input = [
+            Message(
+                type="message",
+                role="user",
+                content=[ResponseInputTextParam(type="input_text", text=input)],
+            )
+        ]
+
+    messages: list[ChatMessage] = []
+    for item in input:
+        match item:
+            case {"type": "message", "role": "user"}:
+                item = cast(Message, item)
+                messages.append(
+                    ChatMessageUser(
+                        content=[
+                            _content_from_response_input_content_param(c)
+                            for c in item["content"]
+                        ]
+                    )
+                )
+
+    return messages
+
+
+def _content_from_response_input_content_param(
+    input: ResponseInputContentParam,
+) -> Content:
+    if is_input_text(input):
+        return ContentText(text=input["text"])
+    elif is_input_image(input):
+        assert input["image_url"]
+        return ContentImage(image=input["image_url"], detail=input["detail"])
+    elif is_input_file(input):
+        return ContentDocument(document=input["file_data"], filename=input["filename"])
+    else:
+        raise RuntimeError(f"Unexpected input from responses API: {input}")
+
+
+def is_input_text(
+    input: ResponseInputContentParam,
+) -> TypeGuard[ResponseInputTextParam]:
+    return input.get("type") == "input_text"
+
+
+def is_input_image(
+    input: ResponseInputContentParam,
+) -> TypeGuard[ResponseInputImageParam]:
+    return input.get("type") == "input_image"
+
+
+def is_input_file(
+    input: ResponseInputContentParam,
+) -> TypeGuard[ResponseInputFileParam]:
+    return input.get("type") == "input_file"
+
+
+def responses_usage_from_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
+    if usage is not None:
+        return ResponseUsage(
+            input_tokens=usage.input_tokens,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=usage.input_tokens_cache_read or 0
+            ),
+            output_tokens=usage.output_tokens,
+            output_tokens_details=OutputTokensDetails(
+                reasoning_tokens=usage.reasoning_tokens or 0
+            ),
+            total_tokens=usage.total_tokens,
+        )
+    else:
+        return None
 
 
 def _chat_message_assistant_from_openai_response(
@@ -627,6 +718,44 @@ def _tool_call_items_from_assistant_message(
             tool_calls.append(tool_call_param)
 
     return tool_calls
+
+
+def responses_output_items_from_assistant_message(
+    message: ChatMessageAssistant,
+) -> list[ResponseOutputItem]:
+    items: list[ResponseOutputItem] = []
+
+    content = (
+        [ContentText(text=message.content)]
+        if isinstance(message.content, str)
+        else message.content
+    )
+
+    items.append(
+        ResponseOutputMessage(
+            type="message",
+            role="assistant",
+            id=message.id or uuid(),
+            content=[_responses_content_from_content(c) for c in content],
+            status="completed",
+        )
+    )
+
+    return items
+
+
+def _responses_content_from_content(content: Content) -> ResponsesContent:
+    if isinstance(content, ContentText):
+        if content.refusal:
+            return ResponseOutputRefusal(type="refusal", refusal=content.text)
+        else:
+            return ResponseOutputText(
+                type="output_text", annotations=[], text=content.text
+            )
+    else:
+        raise RuntimeError(
+            f"Unsupported content type for ResponseContent: {type(content)}"
+        )
 
 
 def _ids_from_assistant_internal(
