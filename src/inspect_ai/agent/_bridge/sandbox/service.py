@@ -3,7 +3,7 @@ from pydantic import JsonValue
 
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
-from ..request import inspect_model_request
+from ..request import inspect_completions_api_request
 
 MODEL_SERVICE = "bridge_model_service"
 
@@ -23,5 +23,5 @@ async def run_model_service(sandbox: SandboxEnvironment, started: anyio.Event) -
 
 
 async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-    completion = await inspect_model_request(json_data)
+    completion = await inspect_completions_api_request(json_data)
     return completion.model_dump(mode="json")

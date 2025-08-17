@@ -1,63 +1,76 @@
 from textwrap import dedent
-from typing import Any
+from typing import Any, cast
 
-from openai import BaseModel
+from openai import AsyncOpenAI, BaseModel
+from openai.types.chat import ChatCompletion
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
+from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.dataset import Sample
-from inspect_ai.model._openai import openai_chat_tools
+from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._openai import (
+    messages_to_openai,
+    openai_chat_tools,
+)
 from inspect_ai.scorer import includes
-from inspect_ai.solver import bridge, solver
+from inspect_ai.solver import solver
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._json import json_schema
 
 
-def agent(tools: bool):
-    async def run(sample: dict[str, Any]) -> dict[str, Any]:
-        from openai import AsyncOpenAI
+@agent
+def completions_agent(tools: bool) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge():
 
-        assert sample["metadata"]["foo"] == "bar"
+            class Message(BaseModel):
+                text: str
 
-        class Message(BaseModel):
-            text: str
-
-        client = AsyncOpenAI()
-        params = dict(
-            model="inspect",
-            messages=sample["input"],
-            temperature=0.8,
-            top_p=0.5,
-            stop=["foo"],
-            frequency_penalty=1,
-            presence_penalty=1.5,
-            seed=42,
-            n=3,
-            # logit bias types are out of sync w/ api docs
-            logit_bias=dict([(42, 10), (43, -10)]),
-            reasoning_effort="low",
-            timeout=200,
-            response_format=dict(
-                type="json_schema",
-                json_schema=dict(
-                    name="message",
-                    schema=json_schema(Message).model_dump(exclude_none=True),
+            client = AsyncOpenAI()
+            params: dict[str, Any] = dict(
+                model="inspect",
+                messages=await messages_to_openai(state.messages),
+                temperature=0.8,
+                top_p=0.5,
+                stop=["foo"],
+                frequency_penalty=1,
+                presence_penalty=1.5,
+                seed=42,
+                n=3,
+                # logit bias types are out of sync w/ api docs
+                logit_bias=dict([(42, 10), (43, -10)]),
+                reasoning_effort="low",
+                timeout=200,
+                response_format=dict(
+                    type="json_schema",
+                    json_schema=dict(
+                        name="message",
+                        schema=json_schema(Message).model_dump(exclude_none=True),
+                    ),
                 ),
-            ),
-        )
-        if tools:
-            params["tools"] = openai_chat_tools([get_testing_tool_info()])
-            params["tool_choice"] = "auto"
-        else:
-            params["logprobs"] = True
-            params["top_logprobs"] = 3
+            )
+            if tools:
+                params["tools"] = openai_chat_tools([get_testing_tool_info()])
+                params["tool_choice"] = "auto"
+            else:
+                params["logprobs"] = True
+                params["top_logprobs"] = 3
 
-        completion = await client.chat.completions.create(**params)
+            completion = cast(
+                ChatCompletion, await client.chat.completions.create(**params)
+            )
 
-        return {"output": completion.choices[0].message.content}
+            message = ChatMessageAssistant(
+                content=completion.choices[0].message.content or "", source="generate"
+            )
+            state.messages.append(message)
+            state.output = ModelOutput.from_message(message)
+            return state
 
-    return run
+    return execute
 
 
 @task
@@ -67,10 +80,9 @@ def bridged_task(tools: bool):
             Sample(
                 input="Please print the word 'hello'?",
                 target="hello",
-                metadata={"foo": "bar"},
             )
         ],
-        solver=bridge(agent(tools)),
+        solver=completions_agent(tools),
         scorer=includes(),
     )
 

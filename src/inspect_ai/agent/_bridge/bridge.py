@@ -14,7 +14,10 @@ from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
-from inspect_ai.agent._bridge.request import inspect_model_request
+from inspect_ai.agent._bridge.request import (
+    inspect_completions_api_request,
+    inspect_responses_api_request,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
@@ -87,14 +90,17 @@ def init_openai_request_patch() -> None:
         if (
             # enabled for this coroutine
             _patch_enabled.get()
-            # completions request
-            and options.url == "/chat/completions"
+            # completions or responses request
+            and options.url in ["/chat/completions", "/responses"]
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
             model_name = str(json_data["model"])
             if re.match(r"^inspect/?", model_name):
-                return await inspect_model_request(json_data)
+                if options.url == "/chat/completions":
+                    return await inspect_completions_api_request(json_data)
+                else:
+                    return await inspect_responses_api_request(json_data)
 
         # otherwise just delegate
         return await original_request(

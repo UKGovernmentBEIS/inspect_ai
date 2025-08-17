@@ -7,10 +7,11 @@ from openai.types.chat import (
     ChatCompletionToolChoiceOptionParam,
     ChatCompletionToolParam,
 )
+from openai.types.responses import Response
 from shortuuid import uuid
 
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
-from inspect_ai.model._model import get_model, model_roles
+from inspect_ai.model._model import Model, get_model, model_roles
 from inspect_ai.model._openai import (
     messages_from_openai,
     openai_chat_choices,
@@ -22,17 +23,8 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
 
-async def inspect_model_request(json_data: dict[str, Any]) -> ChatCompletion:
-    # resolve model and model name
-    model_name = str(json_data["model"])
-    if model_name == "inspect":
-        model = get_model()
-    else:
-        model_name = model_name.removeprefix("inspect/")
-        if model_name in model_roles():
-            model = get_model(role=model_name)
-        else:
-            model = get_model(model_name)
+async def inspect_completions_api_request(json_data: dict[str, Any]) -> ChatCompletion:
+    model = resolve_inspect_model(str(json_data["model"]))
     model_name = model.api.model_name
 
     # convert openai messages to inspect messages
@@ -86,6 +78,32 @@ async def inspect_model_request(json_data: dict[str, Any]) -> ChatCompletion:
         model=model_name,
         usage=openai_completion_usage(output.usage) if output.usage else None,
     )
+
+
+async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
+    raise RuntimeError("Hooked it!!!!")
+    return Response(
+        id="foo",
+        created_at=5,
+        model="gpt-4",
+        object="response",
+        output=[],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[],
+    )
+
+
+def resolve_inspect_model(model_name: str) -> Model:
+    if model_name == "inspect":
+        model = get_model()
+    else:
+        model_name = model_name.removeprefix("inspect/")
+        if model_name in model_roles():
+            model = get_model(role=model_name)
+        else:
+            model = get_model(model_name)
+    return model
 
 
 def generate_config_from_openai(json_data: dict[str, Any]) -> GenerateConfig:
