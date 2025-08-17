@@ -73,6 +73,27 @@ def completions_agent(tools: bool) -> Agent:
     return execute
 
 
+@agent
+def responses_agent(tools: bool) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge():
+            client = AsyncOpenAI()
+
+            response = await client.responses.create(
+                model="gpt-4o",
+                input="Write a one-sentence bedtime story about a unicorn.",
+            )
+
+            message = ChatMessageAssistant(
+                content=response.output_text, source="generate"
+            )
+            state.messages.append(message)
+            state.output = ModelOutput.from_message(message)
+            return state
+
+    return execute
+
+
 @task
 def bridged_task(agent: Agent):
     return Task(
@@ -119,6 +140,10 @@ def eval_bridged_task(model: str, agent: Agent) -> str:
     return log.model_dump_json(exclude_none=True, indent=2)
 
 
+def check_openai_responses_log_json(log_json: str, tools: bool):
+    assert r'"model": "gpt-4o"' in log_json
+
+
 def check_openai_log_json(log_json: str, tools: bool):
     assert r'"model": "gpt-4o"' in log_json
     if tools:
@@ -149,15 +174,21 @@ def check_openai_log_json(log_json: str, tools: bool):
 
 
 @skip_if_no_openai
-def test_bridged_agent():
+def test_bridged_agent_completions():
     log_json = eval_bridged_task("openai/gpt-4o", agent=completions_agent(False))
     check_openai_log_json(log_json, tools=False)
 
 
 @skip_if_no_openai
-def test_bridged_agent_tools():
+def test_bridged_agent_completions_tools():
     log_json = eval_bridged_task("openai/gpt-4o", agent=completions_agent(True))
     check_openai_log_json(log_json, tools=True)
+
+
+@skip_if_no_openai
+def test_bridged_agent_responses():
+    log_json = eval_bridged_task("openai/gpt-4o", agent=responses_agent(False))
+    check_openai_responses_log_json(log_json, tools=False)
 
 
 def check_anthropic_log_json(log_json: str):
@@ -212,4 +243,4 @@ def get_testing_tool_info() -> ToolInfo:
 
 
 if __name__ == "__main__":
-    test_bridged_agent()
+    test_bridged_agent_completions()
