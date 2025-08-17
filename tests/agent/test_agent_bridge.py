@@ -74,7 +74,7 @@ def completions_agent(tools: bool) -> Agent:
 
 
 @task
-def bridged_task(tools: bool):
+def bridged_task(agent: Agent):
     return Task(
         dataset=[
             Sample(
@@ -82,7 +82,7 @@ def bridged_task(tools: bool):
                 target="hello",
             )
         ],
-        solver=completions_agent(tools),
+        solver=agent,
         scorer=includes(),
     )
 
@@ -113,8 +113,8 @@ def openai_api_task():
     return Task(solver=openai_api_solver())
 
 
-def eval_bridged_task(model: str, tools: bool) -> str:
-    log = eval(bridged_task(tools), model=model)[0]
+def eval_bridged_task(model: str, agent: Agent) -> str:
+    log = eval(bridged_task(agent), model=model)[0]
     assert log.status == "success"
     return log.model_dump_json(exclude_none=True, indent=2)
 
@@ -150,13 +150,13 @@ def check_openai_log_json(log_json: str, tools: bool):
 
 @skip_if_no_openai
 def test_bridged_agent():
-    log_json = eval_bridged_task("openai/gpt-4o", tools=False)
+    log_json = eval_bridged_task("openai/gpt-4o", agent=completions_agent(False))
     check_openai_log_json(log_json, tools=False)
 
 
 @skip_if_no_openai
 def test_bridged_agent_tools():
-    log_json = eval_bridged_task("openai/gpt-4o", tools=True)
+    log_json = eval_bridged_task("openai/gpt-4o", agent=completions_agent(True))
     check_openai_log_json(log_json, tools=True)
 
 
@@ -174,7 +174,9 @@ def check_anthropic_log_json(log_json: str):
 @skip_if_no_anthropic
 @skip_if_no_openai
 def test_anthropic_bridged_agent():
-    log_json = eval_bridged_task("anthropic/claude-3-haiku-20240307", tools=False)
+    log_json = eval_bridged_task(
+        "anthropic/claude-3-haiku-20240307", agent=completions_agent(False)
+    )
     check_anthropic_log_json(log_json)
 
 
@@ -182,7 +184,7 @@ def test_anthropic_bridged_agent():
 @skip_if_no_openai
 def test_bridged_agent_context():
     logs = eval(
-        [bridged_task(tools=False), openai_api_task()],
+        [bridged_task(agent=completions_agent(False)), openai_api_task()],
         max_tasks=2,
         model="anthropic/claude-3-haiku-20240307",
     )
