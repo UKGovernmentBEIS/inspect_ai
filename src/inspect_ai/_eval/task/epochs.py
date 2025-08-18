@@ -1,4 +1,4 @@
-from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
+from inspect_ai.scorer._reducer import ScoreReducer, ScoreReducers, create_reducers
 
 
 class Epochs:
@@ -15,7 +15,15 @@ class Epochs:
         Args:
            epochs (int): Number of epochs
            reducer (ScoreReducers): One or more reducers used to combine
-              scores from samples across epochs (defaults to "mean)
+              scores from samples across epochs (defaults to "mean")
         """
         self.epochs = epochs
-        self.reducer = create_reducers(reducer)
+        self._reducer_spec = reducer
+        self._reducer: list[ScoreReducer] | None = None
+
+    @property
+    def reducer(self) -> list[ScoreReducer] | None:
+        """One or more reducers used to combine scores from samples across epochs (defaults to "mean")"""
+        if self._reducer is None:
+            self._reducer = create_reducers(self._reducer_spec)
+        return self._reducer

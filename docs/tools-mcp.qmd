@@ -137,14 +137,6 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 ## Remote MCP
 
-::: callout-note
-Support for Remote MCP servers is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 [OpenAI](https://platform.openai.com/docs/guides/tools-remote-mcp) and [Anthropic](https://docs.anthropic.com/en/docs/agents-and-tools/remote-mcp-servers) both provide a facility for HTTP-based MCP Servers to be called remotely by the model provider. This is especially useful for scenarios where you want the model to make a series of tool calls in a single generation (e.g. when you want to provide custom tools to a deep research model).
 
 You can specify that you'd like an HTTP-based MCP Server to be executed remotely by passing the `execution="remote"` option. For example:

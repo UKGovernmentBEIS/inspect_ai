@@ -38,6 +38,7 @@ from ._prepare.model_data.model_data import ModelInfo
 from ._prepare.model_info import model_info
 from ._prepare.operation import Operation
 from ._prepare.prepare import prepare
+from ._prepare.score_to_float import score_to_float
 from ._prepare.task_info import task_info
 
 __all__ = [
@@ -75,6 +76,7 @@ __all__ = [
     "log_viewer",
     "Operation",
     "model_info",
+    "score_to_float",
     "task_info",
     "ModelInfo",
     "frontier",
