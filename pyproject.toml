@@ -21,6 +21,9 @@ git_describe_command = [
 where = ["src"]
 include = ["inspect_ai*"]
 
+[tool.setuptools.package-data]
+inspect_ai = ["binaries/*"]
+
 
 [tool.ruff]
 extend-exclude = ["docs"]
