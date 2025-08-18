@@ -135,11 +135,32 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 
 **Status**: ❌ **Critical requirement - needs pre-built binary hosting solution**
 
-- **Challenge**: Cannot require Docker for users installing from git references
-- **Proposed Solution**: Pre-built binaries hosted externally (GitHub releases, CDN) tagged with specific commit hashes or version tags
-  - **Remaining question**: Publishing frequency (every commit vs. releases)
-- **Requirement**: Must work without network access in containers, but host can download binaries during installation
-- **Version Management**: Binaries tagged/named with commit hashes to ensure exact version matching with source installation
+**Challenge**: Users installing from git references shouldn't need Docker to build executables locally, but the existing `NotImplementedError` blocks them from using tool support features.
+
+**Proposed Solution: Ordinal-Versioned Artifact Publishing**
+
+The solution involves a versioned artifact system that publishes executables only when the underlying tool support code changes, ensuring efficiency while maintaining immediate availability.
+
+**Architecture:**
+- **Version File**: Single ordinal version number (e.g., `1`, `2`, `3`) stored in `src/inspect_tool_support/VERSION` 
+- **Artifact Naming**: `inspect-tool-support-{arch}-v{N}` (e.g., `inspect-tool-support-amd64-v5`)
+- **Hosting**: GitHub Releases for native repo integration and programmatic access
+- **Download Logic**: Enhanced `_go_get_it()` function downloads versioned executable matching the version file
+
+**Publishing Workflow:**
+1. **Manual Version Bump**: Developer increments version number in VERSION file when `src/inspect_tool_support` code changes
+2. **Pre-Merge Build**: GitHub Actions detects version change and builds/publishes artifacts to GitHub Releases
+3. **Merge Gating**: PR merge only proceeds after successful artifact publication  
+4. **Immediate Availability**: Post-merge, the code immediately references newly available artifacts
+
+**Critical Timing Constraint**: Artifacts must be published *before* merge completion so users cloning the merged commit can immediately access required executables without build delays.
+
+**Implementation Requirements:**
+- Enhance installation type detection to reliably distinguish git vs editable installs
+- Implement download mechanism with GitHub Releases API integration
+- Add version file parsing and executable resolution logic
+- Provide fallback to manual build instructions if download fails
+- Ensure offline operation after initial host-side download
 
 #### Case 3: Editable Installation (`pip install -e .` or `pip install -e git+...`)
 
