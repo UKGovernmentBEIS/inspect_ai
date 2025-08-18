@@ -1,26 +1,81 @@
 from logging import getLogger
 from time import time
-from typing import Any
+from typing import Any, cast
 
-from openai.types.responses import Response, ResponseInputItemParam, ToolParam
-from openai.types.responses.response_create_params import (
-    ToolChoice as ResponsesToolChoice,
+from openai.types.responses import (
+    Response,
+    ResponseComputerToolCall,
+    ResponseInputFileParam,
+    ResponseInputImageParam,
+    ResponseInputItemParam,
+    ResponseInputTextParam,
+    ResponseOutputItem,
+    ToolParam,
 )
+from openai.types.responses import (
+    Tool as ResponsesTool,
+)
+from openai.types.responses.response import ToolChoice as ResponsesToolChoice
+from openai.types.responses.response_create_params import (
+    ToolChoice as ResponsesToolChoiceParam,
+)
+from openai.types.responses.response_input_item_param import Message
+from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
-from inspect_ai._util.logger import warn_once
-from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model, get_model, model_roles
-from inspect_ai.model._openai_responses import (
-    messages_from_responses_input,
-    openai_responses_extra_body_fields,
-    responses_model_usage,
-    responses_output_items_from_assistant_message,
-    responses_tool_choice_param_to_tool_choice,
-    responses_tool_params_to_tools,
-    tool_choice_from_responses_tool_choice,
-    tool_from_responses_tool,
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+    ContentToolUse,
 )
+from inspect_ai._util.logger import warn_once
+from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._openai_responses import (
+    _openai_input_items_from_chat_message_assistant,
+    content_from_response_input_content_param,
+    is_assistant_message_param,
+    is_computer_call_output,
+    is_computer_tool_param,
+    is_function_call_output,
+    is_function_tool_param,
+    is_mcp_tool_param,
+    is_response_computer_tool_call,
+    is_response_function_tool_call,
+    is_response_input_message,
+    is_response_mcp_call,
+    is_response_mcp_list_tools,
+    is_response_output_message,
+    is_response_output_refusal,
+    is_response_output_text,
+    is_response_reasoning_item,
+    is_tool_choice_function_param,
+    is_tool_choice_mcp_param,
+    is_web_search_tool_param,
+    responses_extra_body_fields,
+    responses_model_usage,
+    to_inspect_citation,
+)
+from inspect_ai.model._providers._openai_computer_use import (
+    computer_parmaeters,
+    tool_call_from_openai_computer_tool_call,
+)
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParams
+
+from .util import resolve_inspect_model
 
 logger = getLogger(__file__)
 
@@ -33,7 +88,7 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
     # convert openai tools to inspect tools
     responses_tools: list[ToolParam] = json_data.get("tools", [])
     tools = [tool_from_responses_tool(tool) for tool in responses_tools]
-    responses_tool_choice: ResponsesToolChoice | None = json_data.get(
+    responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
         "tool_choice", None
     )
     tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
@@ -64,16 +119,94 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
     )
 
 
-def resolve_inspect_model(model_name: str) -> Model:
-    if model_name == "inspect":
-        model = get_model()
+def tool_choice_from_responses_tool_choice(
+    tool_choice: ResponsesToolChoiceParam | None,
+) -> ToolChoice | None:
+    inspect_tool_choice: ToolChoice | None = None
+    if tool_choice is not None:
+        if tool_choice == "auto":
+            inspect_tool_choice = tool_choice
+        elif tool_choice == "none":
+            inspect_tool_choice = tool_choice
+        elif tool_choice == "required":
+            inspect_tool_choice = "any"
+        elif is_tool_choice_function_param(tool_choice):
+            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
+        elif is_tool_choice_mcp_param(tool_choice):
+            if tool_choice["name"] is None:
+                raise RuntimeError(
+                    "MCP server tool choice requires 'name' field for agent bridge"
+                )
+            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
+        elif tool_choice.get("type") == "allowed_tools":
+            raise RuntimeError("ToolChoiceAllowedParam not supported by agent bridge")
+        elif tool_choice.get("type") == "custom":
+            raise RuntimeError("ToolChoiceCustomParam not supported by agent bridge")
+        elif "type" in tool_choice:
+            inspect_tool_choice = ToolFunction(name=str(tool_choice.get("type")))
+
+    return inspect_tool_choice
+
+
+tool_choice_adapter = TypeAdapter[ResponsesToolChoice](ResponsesToolChoice)
+
+
+def responses_tool_choice_param_to_tool_choice(
+    tool_choice: ResponsesToolChoiceParam | None,
+) -> ResponsesToolChoice:
+    if tool_choice is None:
+        return "auto"
     else:
-        model_name = model_name.removeprefix("inspect/")
-        if model_name in model_roles():
-            model = get_model(role=model_name)
-        else:
-            model = get_model(model_name)
-    return model
+        return tool_choice_adapter.validate_python(tool_choice)
+
+
+def tool_from_responses_tool(tool_param: ToolParam) -> ToolInfo:
+    if is_function_tool_param(tool_param):
+        return ToolInfo(
+            name=tool_param["name"],
+            description=tool_param["description"] or tool_param["name"],
+            parameters=ToolParams.model_validate(tool_param["parameters"]),
+        )
+    elif is_web_search_tool_param(tool_param):
+        return ToolInfo(
+            name="web_search", description="web_search", options={"openai": True}
+        )
+    elif is_computer_tool_param(tool_param):
+        return ToolInfo(
+            name="computer",
+            description="computer",
+            # this is a fake parameter def so that we match the check for the
+            # computer tool in maybe_computer_use_preview_tool (openai will
+            # provide its own parmeters internally)
+            parameters=ToolParams(properties={k: k for k in computer_parmaeters()}),  # type: ignore[misc]
+        )
+    elif is_mcp_tool_param(tool_param):
+        allowed_tools = tool_param["allowed_tools"]
+        if isinstance(allowed_tools, dict):
+            raise RuntimeError(
+                "McpAllowedToolsMcpAllowedToolsFilter not supported by agent bridge"
+            )
+        config = MCPServerConfigHTTP(
+            type="sse" if "sse" in tool_param["server_url"] else "http",
+            name=tool_param["server_label"],
+            tools=allowed_tools if isinstance(allowed_tools, list) else "all",
+            url=tool_param["server_url"],
+            headers=tool_param["headers"],
+        )
+        return ToolInfo(
+            name=f"mcp_server_{config.name}",
+            description=f"mcp_server_{config.name}",
+            options=config.model_dump(),
+        )
+    else:
+        raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+
+
+tool_list_adapter = TypeAdapter(list[ResponsesTool])
+
+
+def responses_tool_params_to_tools(tool_params: list[ToolParam]) -> list[ResponsesTool]:
+    return tool_list_adapter.validate_python(tool_params)
 
 
 def generate_config_from_openai_responses(json_data: dict[str, Any]) -> GenerateConfig:
@@ -102,7 +235,7 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
 
     # extra_body params (i.e. passthrough for native responses)
     extra_body: dict[str, Any] = {}
-    for field in openai_responses_extra_body_fields():
+    for field in responses_extra_body_fields():
         if field in json_data:
             extra_body[field] = json_data[field]
     if len(extra_body) > 0:
@@ -110,3 +243,198 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
 
     # return config
     return config
+
+
+def messages_from_responses_input(
+    input: str | list[ResponseInputItemParam],
+    tools: list[ToolInfo],
+    model_name: str | None = None,
+) -> list[ChatMessage]:
+    # enture input is a list
+    if isinstance(input, str):
+        input = [
+            Message(
+                type="message",
+                role="user",
+                content=[ResponseInputTextParam(type="input_text", text=input)],
+            )
+        ]
+
+    messages: list[ChatMessage] = []
+    function_calls_by_id: dict[str, str] = {}
+    pending_assistant_message_params: list[ResponseInputItemParam] = []
+
+    def collect_pending_assistant_message() -> None:
+        if len(pending_assistant_message_params) > 0:
+            content: list[Content] = []
+            tool_calls: list[ToolCall] = []
+            for param in pending_assistant_message_params:
+                if is_response_output_message(param):
+                    for output in param["content"]:
+                        if is_response_output_text(output):
+                            content.append(
+                                ContentText(
+                                    text=output["text"],
+                                    internal={"id": param["id"]},
+                                    citations=(
+                                        [
+                                            to_inspect_citation(annotation)
+                                            for annotation in output["annotations"]
+                                        ]
+                                        if output["annotations"]
+                                        else None
+                                    ),
+                                )
+                            )
+                        elif is_response_output_refusal(output):
+                            content.append(
+                                ContentText(
+                                    text=output["refusal"],
+                                    refusal=True,
+                                    internal={"id": param["id"]},
+                                )
+                            )
+
+                elif is_response_function_tool_call(param):
+                    function_calls_by_id[param["call_id"]] = param["name"]
+                    tool_calls.append(
+                        parse_tool_call(
+                            id=param["call_id"],
+                            function=param["name"],
+                            arguments=param["arguments"],
+                            tools=tools,
+                        )
+                    )
+                elif is_response_computer_tool_call(param):
+                    computer_tool_call = ResponseComputerToolCall.model_validate(param)
+                    tool_calls.append(
+                        tool_call_from_openai_computer_tool_call(computer_tool_call)
+                    )
+                elif is_response_reasoning_item(param):
+                    content.append(
+                        ContentReasoning(
+                            reasoning="\n".join([s["text"] for s in param["summary"]]),
+                            signature=param["id"],
+                        )
+                    )
+                elif is_response_mcp_list_tools(param):
+                    content.append(
+                        ContentToolUse(
+                            tool_type="mcp_list_tools",
+                            id=param["id"],
+                            name="mcp_list_tools",
+                            context=param["server_label"],
+                            arguments="",
+                            result=cast(list[JsonValue], param["tools"]),
+                            error=param.get("error", None),
+                        )
+                    )
+                elif is_response_mcp_call(param):
+                    content.append(
+                        ContentToolUse(
+                            tool_type="mcp_call",
+                            id=param["id"],
+                            name=param["name"],
+                            context=param["server_label"],
+                            arguments=param["arguments"],
+                            result=param.get("output", None),
+                            error=param.get("error", None),
+                        )
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Unexpected assitant message type: {param['type']}"
+                    )
+            messages.append(
+                ChatMessageAssistant(
+                    content=content, tool_calls=tool_calls, model=model_name
+                )
+            )
+
+            pending_assistant_message_params.clear()
+
+    for item in input:
+        # accumulate assistant message params until we clear the assistnat message
+        if is_assistant_message_param(item):
+            pending_assistant_message_params.append(item)
+            continue
+
+        # see if we need to collect a pending assistant message
+        collect_pending_assistant_message()
+
+        if is_response_input_message(item):
+            # normalize item content
+            item_content: list[
+                ResponseInputTextParam
+                | ResponseInputImageParam
+                | ResponseInputFileParam
+            ] = (
+                [ResponseInputTextParam(type="input_text", text=item["content"])]
+                if isinstance(item["content"], str)
+                else item["content"]
+                if isinstance(item["content"], list)
+                else cast(
+                    list[
+                        ResponseInputTextParam
+                        | ResponseInputImageParam
+                        | ResponseInputFileParam
+                    ],
+                    [item["content"]],
+                )
+            )
+
+            # create inspect content
+            content = [
+                content_from_response_input_content_param(c) for c in item_content
+            ]
+            if item["role"] == "user":
+                messages.append(ChatMessageUser(content=content))
+            elif item["role"] == "assistant":
+                messages.append(ChatMessageAssistant(content=content))
+            else:
+                messages.append(ChatMessageSystem(content=content))
+        elif is_function_call_output(item):
+            messages.append(
+                ChatMessageTool(
+                    tool_call_id=item["call_id"],
+                    function=function_calls_by_id.get(item["call_id"]),
+                    content=[ContentText(text=item["output"])],
+                )
+            )
+        elif is_computer_call_output(item):
+            messages.append(
+                ChatMessageTool(
+                    tool_call_id=item["call_id"],
+                    function=function_calls_by_id.get(item["call_id"]),
+                    content=[ContentImage(image=item["output"]["image_url"])],
+                )
+            )
+        else:
+            # ImageGenerationCall
+            # ResponseCodeInterpreterToolCallParam
+            # McpApprovalRequest
+            # McpApprovalResponse
+            # ResponseCustomToolCallOutputParam
+            # ResponseCustomToolCallParam
+            # LocalShellCall
+            # LocalShellCallOutput
+            # ResponseFileSearchToolCallParam
+            # ItemReference
+            raise RuntimeError(
+                f"Type {item['type']} is not supported by the agent bridge"
+            )
+
+        # final collect of pending assistant message
+        collect_pending_assistant_message()
+
+    return messages
+
+
+output_item_adapter = TypeAdapter(list[ResponseOutputItem])
+
+
+def responses_output_items_from_assistant_message(
+    message: ChatMessageAssistant,
+) -> list[ResponseOutputItem]:
+    input_items = _openai_input_items_from_chat_message_assistant(message)
+    return output_item_adapter.validate_python(input_items)

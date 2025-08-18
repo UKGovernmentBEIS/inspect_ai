@@ -29,10 +29,10 @@ from .._openai import (
 )
 from .._openai_responses import (
     openai_responses_chat_choices,
-    openai_responses_extra_body_fields,
     openai_responses_inputs,
     openai_responses_tool_choice,
     openai_responses_tools,
+    responses_extra_body_fields,
 )
 from .util.hooks import HttpxHooks
 
@@ -284,7 +284,7 @@ def completion_params_responses(
 
     # look for any of our native fields not in GenerateConfig in extra_body
     if config.extra_body is not None:
-        for field in openai_responses_extra_body_fields():
+        for field in responses_extra_body_fields():
             if field in config.extra_body and field not in params:
                 params[field] = config.extra_body[field]
 

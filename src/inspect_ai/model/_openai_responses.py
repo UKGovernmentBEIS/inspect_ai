@@ -1,6 +1,6 @@
 import json
 from functools import reduce
-from typing import TYPE_CHECKING, Sequence, TypeAlias, TypedDict, TypeGuard, cast
+from typing import TYPE_CHECKING, Sequence, TypedDict, TypeGuard, cast
 
 from openai.types.responses import (
     ComputerToolParam,
@@ -18,7 +18,6 @@ from openai.types.responses import (
     ResponseInputItemParam,
     ResponseInputMessageContentListParam,
     ResponseInputTextParam,
-    ResponseOutputItem,
     ResponseOutputMessage,
     ResponseOutputMessageParam,
     ResponseOutputRefusalParam,
@@ -27,7 +26,6 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseReasoningItemParam,
     ResponseUsage,
-    Tool,
     ToolChoiceFunctionParam,
     ToolChoiceMcpParam,
     ToolChoiceTypesParam,
@@ -36,7 +34,6 @@ from openai.types.responses import (
 )
 from openai.types.responses import Response as OpenAIResponse
 from openai.types.responses.response import IncompleteDetails
-from openai.types.responses.response import ToolChoice as ResponsesToolChoice
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
@@ -79,7 +76,7 @@ from openai.types.responses.response_usage import (
     OutputTokensDetails,
 )
 from openai.types.responses.tool_param import Mcp
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 from shortuuid import uuid
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
@@ -99,22 +96,17 @@ from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageSystem,
-    ChatMessageTool,
-    ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelUsage, StopReason
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.tool._tool_params import ToolParams
 
 from ._providers._openai_computer_use import (
     computer_call_output,
-    computer_parmaeters,
     maybe_computer_use_preview_tool,
     tool_call_from_openai_computer_tool_call,
 )
@@ -221,7 +213,7 @@ async def _openai_responses_content_param(
         raise ValueError("Unsupported content type.")
 
 
-def openai_responses_extra_body_fields() -> list[str]:
+def responses_extra_body_fields() -> list[str]:
     return [
         "service_tier",
         "max_tool_calls",
@@ -312,292 +304,7 @@ class _AssistantInternal(TypedDict):
     tool_message_ids: dict[str, str]
 
 
-AssistantMessageParam: TypeAlias = (
-    ResponseOutputMessageParam
-    | ResponseComputerToolCallParam
-    | ResponseFunctionWebSearchParam
-    | ResponseReasoningItemParam
-    | McpListToolsParam
-    | McpCallParam
-)
-
-
-def messages_from_responses_input(
-    input: str | list[ResponseInputItemParam],
-    tools: list[ToolInfo],
-    model_name: str | None = None,
-) -> list[ChatMessage]:
-    # enture input is a list
-    if isinstance(input, str):
-        input = [
-            Message(
-                type="message",
-                role="user",
-                content=[ResponseInputTextParam(type="input_text", text=input)],
-            )
-        ]
-
-    messages: list[ChatMessage] = []
-    function_calls_by_id: dict[str, str] = {}
-    pending_assistant_message_params: list[ResponseInputItemParam] = []
-
-    def collect_pending_assistant_message() -> None:
-        if len(pending_assistant_message_params) > 0:
-            content: list[Content] = []
-            tool_calls: list[ToolCall] = []
-            for param in pending_assistant_message_params:
-                if is_response_output_message(param):
-                    for output in param["content"]:
-                        if is_response_output_text(output):
-                            content.append(
-                                ContentText(
-                                    text=output["text"],
-                                    internal={"id": param["id"]},
-                                    citations=(
-                                        [
-                                            _to_inspect_citation(annotation)
-                                            for annotation in output["annotations"]
-                                        ]
-                                        if output["annotations"]
-                                        else None
-                                    ),
-                                )
-                            )
-                        elif is_response_output_refusal(output):
-                            content.append(
-                                ContentText(
-                                    text=output["refusal"],
-                                    refusal=True,
-                                    internal={"id": param["id"]},
-                                )
-                            )
-
-                elif is_response_function_tool_call(param):
-                    function_calls_by_id[param["call_id"]] = param["name"]
-                    tool_calls.append(
-                        parse_tool_call(
-                            id=param["call_id"],
-                            function=param["name"],
-                            arguments=param["arguments"],
-                            tools=tools,
-                        )
-                    )
-                elif is_response_computer_tool_call(param):
-                    computer_tool_call = ResponseComputerToolCall.model_validate(param)
-                    tool_calls.append(
-                        tool_call_from_openai_computer_tool_call(computer_tool_call)
-                    )
-                elif is_response_reasoning_item(param):
-                    content.append(
-                        ContentReasoning(
-                            reasoning="\n".join([s["text"] for s in param["summary"]]),
-                            signature=param["id"],
-                        )
-                    )
-                elif is_response_mcp_list_tools(param):
-                    content.append(
-                        ContentToolUse(
-                            tool_type="mcp_list_tools",
-                            id=param["id"],
-                            name="mcp_list_tools",
-                            context=param["server_label"],
-                            arguments="",
-                            result=cast(list[JsonValue], param["tools"]),
-                            error=param.get("error", None),
-                        )
-                    )
-                elif is_response_mcp_call(param):
-                    content.append(
-                        ContentToolUse(
-                            tool_type="mcp_call",
-                            id=param["id"],
-                            name=param["name"],
-                            context=param["server_label"],
-                            arguments=param["arguments"],
-                            result=param.get("output", None),
-                            error=param.get("error", None),
-                        )
-                    )
-                else:
-                    raise RuntimeError(
-                        f"Unexpected assitant message type: {param['type']}"
-                    )
-            messages.append(
-                ChatMessageAssistant(
-                    content=content, tool_calls=tool_calls, model=model_name
-                )
-            )
-
-            pending_assistant_message_params.clear()
-
-    for item in input:
-        # accumulate assistant message params until we clear the assistnat message
-        if is_assistant_message_param(item):
-            pending_assistant_message_params.append(item)
-            continue
-
-        # see if we need to collect a pending assistant message
-        collect_pending_assistant_message()
-
-        if is_response_input_message(item):
-            # normalize item content
-            item_content: list[
-                ResponseInputTextParam
-                | ResponseInputImageParam
-                | ResponseInputFileParam
-            ] = (
-                [ResponseInputTextParam(type="input_text", text=item["content"])]
-                if isinstance(item["content"], str)
-                else item["content"]
-                if isinstance(item["content"], list)
-                else cast(
-                    list[
-                        ResponseInputTextParam
-                        | ResponseInputImageParam
-                        | ResponseInputFileParam
-                    ],
-                    [item["content"]],
-                )
-            )
-
-            # create inspect content
-            content = [
-                _content_from_response_input_content_param(c) for c in item_content
-            ]
-            if item["role"] == "user":
-                messages.append(ChatMessageUser(content=content))
-            elif item["role"] == "assistant":
-                messages.append(ChatMessageAssistant(content=content))
-            else:
-                messages.append(ChatMessageSystem(content=content))
-        elif is_function_call_output(item):
-            messages.append(
-                ChatMessageTool(
-                    tool_call_id=item["call_id"],
-                    function=function_calls_by_id.get(item["call_id"]),
-                    content=[ContentText(text=item["output"])],
-                )
-            )
-        elif is_computer_call_output(item):
-            messages.append(
-                ChatMessageTool(
-                    tool_call_id=item["call_id"],
-                    function=function_calls_by_id.get(item["call_id"]),
-                    content=[ContentImage(image=item["output"]["image_url"])],
-                )
-            )
-        else:
-            # ImageGenerationCall
-            # ResponseCodeInterpreterToolCallParam
-            # McpApprovalRequest
-            # McpApprovalResponse
-            # ResponseCustomToolCallOutputParam
-            # ResponseCustomToolCallParam
-            # LocalShellCall
-            # LocalShellCallOutput
-            # ResponseFileSearchToolCallParam
-            # ItemReference
-            raise RuntimeError(
-                f"Type {item['type']} is not supported by the agent bridge"
-            )
-
-        # final collect of pending assistant message
-        collect_pending_assistant_message()
-
-    return messages
-
-
-def is_response_input_message(
-    param: ResponseInputItemParam,
-) -> TypeGuard[Message | EasyInputMessageParam]:
-    return param["type"] == "message" and not is_response_output_message(param)
-
-
-def is_function_call_output(
-    param: ResponseInputItemParam,
-) -> TypeGuard[FunctionCallOutput]:
-    return param["type"] == "function_call_output"
-
-
-def is_computer_call_output(
-    param: ResponseInputItemParam,
-) -> TypeGuard[ComputerCallOutput]:
-    return param["type"] == "computer_call_output"
-
-
-def is_assistant_message_param(
-    param: ResponseInputItemParam,
-) -> bool:
-    return (
-        is_response_output_message(param)
-        or is_response_computer_tool_call(param)
-        or is_response_web_search_call(param)
-        or is_response_function_tool_call(param)
-        or is_response_reasoning_item(param)
-        or is_response_mcp_list_tools(param)
-        or is_response_mcp_call(param)
-    )
-
-
-def is_response_output_message(
-    param: ResponseInputItemParam,
-) -> TypeGuard[ResponseOutputMessageParam]:
-    return (
-        param["type"] == "message"
-        and param["role"] == "assistant"
-        and "status" in param
-    )
-
-
-def is_response_output_text(
-    output: OutputContent,
-) -> TypeGuard[ResponseOutputTextParam]:
-    return output["type"] == "output_text"
-
-
-def is_response_output_refusal(
-    output: OutputContent,
-) -> TypeGuard[ResponseOutputRefusalParam]:
-    return output["type"] == "refusal"
-
-
-def is_response_computer_tool_call(
-    param: ResponseInputItemParam,
-) -> TypeGuard[ResponseComputerToolCallParam]:
-    return param["type"] == "computer_call"
-
-
-def is_response_web_search_call(
-    param: ResponseInputItemParam,
-) -> TypeGuard[ResponseFunctionWebSearchParam]:
-    return param["type"] == "web_search_call"
-
-
-def is_response_function_tool_call(
-    param: ResponseInputItemParam,
-) -> TypeGuard[ResponseFunctionToolCallParam]:
-    return param["type"] == "function_call"
-
-
-def is_response_reasoning_item(
-    param: ResponseInputItemParam,
-) -> TypeGuard[ResponseReasoningItemParam]:
-    return param["type"] == "reasoning"
-
-
-def is_response_mcp_list_tools(
-    param: ResponseInputItemParam,
-) -> TypeGuard[McpListToolsParam]:
-    return param["type"] == "mcp_list_tools"
-
-
-def is_response_mcp_call(
-    param: ResponseInputItemParam,
-) -> TypeGuard[McpCallParam]:
-    return param["type"] == "mcp_call"
-
-
-def _content_from_response_input_content_param(
+def content_from_response_input_content_param(
     input: ResponseInputContentParam,
 ) -> Content:
     if is_input_text(input):
@@ -609,114 +316,6 @@ def _content_from_response_input_content_param(
         return ContentDocument(document=input["file_data"], filename=input["filename"])
     else:
         raise RuntimeError(f"Unexpected input from responses API: {input}")
-
-
-def is_input_text(
-    input: ResponseInputContentParam,
-) -> TypeGuard[ResponseInputTextParam]:
-    return input.get("type") == "input_text"
-
-
-def is_input_image(
-    input: ResponseInputContentParam,
-) -> TypeGuard[ResponseInputImageParam]:
-    return input.get("type") == "input_image"
-
-
-def is_input_file(
-    input: ResponseInputContentParam,
-) -> TypeGuard[ResponseInputFileParam]:
-    return input.get("type") == "input_file"
-
-
-def tool_from_responses_tool(tool_param: ToolParam) -> ToolInfo:
-    if is_function_tool_param(tool_param):
-        return ToolInfo(
-            name=tool_param["name"],
-            description=tool_param["description"] or tool_param["name"],
-            parameters=ToolParams.model_validate(tool_param["parameters"]),
-        )
-    elif is_web_search_tool_param(tool_param):
-        return ToolInfo(
-            name="web_search", description="web_search", options={"openai": True}
-        )
-    elif is_computer_tool_param(tool_param):
-        return ToolInfo(
-            name="computer",
-            description="computer",
-            # this is a fake parameter def so that we match the check for the
-            # computer tool in maybe_computer_use_preview_tool (openai will
-            # provide its own parmeters internally)
-            parameters=ToolParams(properties={k: k for k in computer_parmaeters()}),  # type: ignore[misc]
-        )
-    elif is_mcp_tool_param(tool_param):
-        allowed_tools = tool_param["allowed_tools"]
-        if isinstance(allowed_tools, dict):
-            raise RuntimeError(
-                "McpAllowedToolsMcpAllowedToolsFilter not supported by agent bridge"
-            )
-        config = MCPServerConfigHTTP(
-            type="sse" if "sse" in tool_param["server_url"] else "http",
-            name=tool_param["server_label"],
-            tools=allowed_tools if isinstance(allowed_tools, list) else "all",
-            url=tool_param["server_url"],
-            headers=tool_param["headers"],
-        )
-        return ToolInfo(
-            name=f"mcp_server_{config.name}",
-            description=f"mcp_server_{config.name}",
-            options=config.model_dump(),
-        )
-    else:
-        raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
-
-
-def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
-    return tool_param.get("type") == "function"
-
-
-def is_web_search_tool_param(tool_param: ToolParam) -> TypeGuard[WebSearchToolParam]:
-    return tool_param.get("type") in [
-        "web_search_preview",
-        "web_search_preview_2025_03_11",
-    ]
-
-
-def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
-    return tool_param.get("type") == "mcp"
-
-
-def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam]:
-    return tool_param.get("type") == "computer_use_preview"
-
-
-def tool_choice_from_responses_tool_choice(
-    tool_choice: ResponsesToolChoiceParam | None,
-) -> ToolChoice | None:
-    inspect_tool_choice: ToolChoice | None = None
-    if tool_choice is not None:
-        if tool_choice == "auto":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "none":
-            inspect_tool_choice = tool_choice
-        elif tool_choice == "required":
-            inspect_tool_choice = "any"
-        elif is_tool_choice_function_param(tool_choice):
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif is_tool_choice_mcp_param(tool_choice):
-            if tool_choice["name"] is None:
-                raise RuntimeError(
-                    "MCP server tool choice requires 'name' field for agent bridge"
-                )
-            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
-        elif tool_choice.get("type") == "allowed_tools":
-            raise RuntimeError("ToolChoiceAllowedParam not supported by agent bridge")
-        elif tool_choice.get("type") == "custom":
-            raise RuntimeError("ToolChoiceCustomParam not supported by agent bridge")
-        elif "type" in tool_choice:
-            inspect_tool_choice = ToolFunction(name=str(tool_choice.get("type")))
-
-    return inspect_tool_choice
 
 
 def is_tool_choice_function_param(
@@ -791,7 +390,7 @@ def _chat_message_assistant_from_openai_response(
                             internal={"id": id},
                             citations=(
                                 [
-                                    _to_inspect_citation(annotation)
+                                    to_inspect_citation(annotation)
                                     for annotation in c.annotations
                                 ]
                                 if c.annotations
@@ -878,35 +477,6 @@ def _chat_message_assistant_from_openai_response(
         ),
         stop_reason,
     )
-
-
-tool_list_adapter = TypeAdapter(list[Tool])
-
-
-def responses_tool_params_to_tools(tool_params: list[ToolParam]) -> list[Tool]:
-    return tool_list_adapter.validate_python(tool_params)
-
-
-tool_choice_adapter = TypeAdapter[ResponsesToolChoice](ResponsesToolChoice)
-
-
-def responses_tool_choice_param_to_tool_choice(
-    tool_choice: ResponsesToolChoiceParam | None,
-) -> ResponsesToolChoice:
-    if tool_choice is None:
-        return "auto"
-    else:
-        return tool_choice_adapter.validate_python(tool_choice)
-
-
-output_item_adapter = TypeAdapter(list[ResponseOutputItem])
-
-
-def responses_output_items_from_assistant_message(
-    message: ChatMessageAssistant,
-) -> list[ResponseOutputItem]:
-    input_items = _openai_input_items_from_chat_message_assistant(message)
-    return output_item_adapter.validate_python(input_items)
 
 
 def _openai_input_items_from_chat_message_assistant(
@@ -1199,7 +769,7 @@ def _from_responses_tool_alias(name: str) -> str:
     return next((k for k, v in _responses_tool_aliases.items() if v == name), name)
 
 
-def _to_inspect_citation(input: Annotation | AnnotationParam) -> Citation:
+def to_inspect_citation(input: Annotation | AnnotationParam) -> Citation:
     if isinstance(input, dict):
         if input["type"] == "url_citation":
             input = AnnotationURLCitation.model_validate(input)
@@ -1250,3 +820,130 @@ def _reasoning_reducer(
         acc.append(curr)
 
     return acc
+
+
+def is_input_text(
+    input: ResponseInputContentParam,
+) -> TypeGuard[ResponseInputTextParam]:
+    return input.get("type") == "input_text"
+
+
+def is_input_image(
+    input: ResponseInputContentParam,
+) -> TypeGuard[ResponseInputImageParam]:
+    return input.get("type") == "input_image"
+
+
+def is_input_file(
+    input: ResponseInputContentParam,
+) -> TypeGuard[ResponseInputFileParam]:
+    return input.get("type") == "input_file"
+
+
+def is_response_input_message(
+    param: ResponseInputItemParam,
+) -> TypeGuard[Message | EasyInputMessageParam]:
+    return param["type"] == "message" and not is_response_output_message(param)
+
+
+def is_function_call_output(
+    param: ResponseInputItemParam,
+) -> TypeGuard[FunctionCallOutput]:
+    return param["type"] == "function_call_output"
+
+
+def is_computer_call_output(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ComputerCallOutput]:
+    return param["type"] == "computer_call_output"
+
+
+def is_assistant_message_param(
+    param: ResponseInputItemParam,
+) -> bool:
+    return (
+        is_response_output_message(param)
+        or is_response_computer_tool_call(param)
+        or is_response_web_search_call(param)
+        or is_response_function_tool_call(param)
+        or is_response_reasoning_item(param)
+        or is_response_mcp_list_tools(param)
+        or is_response_mcp_call(param)
+    )
+
+
+def is_response_output_message(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseOutputMessageParam]:
+    return (
+        param["type"] == "message"
+        and param["role"] == "assistant"
+        and "status" in param
+    )
+
+
+def is_response_output_text(
+    output: OutputContent,
+) -> TypeGuard[ResponseOutputTextParam]:
+    return output["type"] == "output_text"
+
+
+def is_response_output_refusal(
+    output: OutputContent,
+) -> TypeGuard[ResponseOutputRefusalParam]:
+    return output["type"] == "refusal"
+
+
+def is_response_computer_tool_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseComputerToolCallParam]:
+    return param["type"] == "computer_call"
+
+
+def is_response_web_search_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseFunctionWebSearchParam]:
+    return param["type"] == "web_search_call"
+
+
+def is_response_function_tool_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseFunctionToolCallParam]:
+    return param["type"] == "function_call"
+
+
+def is_response_reasoning_item(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseReasoningItemParam]:
+    return param["type"] == "reasoning"
+
+
+def is_response_mcp_list_tools(
+    param: ResponseInputItemParam,
+) -> TypeGuard[McpListToolsParam]:
+    return param["type"] == "mcp_list_tools"
+
+
+def is_response_mcp_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[McpCallParam]:
+    return param["type"] == "mcp_call"
+
+
+def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
+    return tool_param.get("type") == "function"
+
+
+def is_web_search_tool_param(tool_param: ToolParam) -> TypeGuard[WebSearchToolParam]:
+    return tool_param.get("type") in [
+        "web_search_preview",
+        "web_search_preview_2025_03_11",
+    ]
+
+
+def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
+    return tool_param.get("type") == "mcp"
+
+
+def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam]:
+    return tool_param.get("type") == "computer_use_preview"
