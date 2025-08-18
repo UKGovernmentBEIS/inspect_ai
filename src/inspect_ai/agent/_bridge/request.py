@@ -28,6 +28,8 @@ from inspect_ai.model._openai_responses import (
     openai_responses_extra_body_fields,
     responses_model_usage,
     responses_output_items_from_assistant_message,
+    responses_tool_choice_param_to_tool_choice,
+    responses_tool_params_to_tools,
     tool_choice_from_responses_tool_choice,
     tool_from_responses_tool,
 )
@@ -129,8 +131,8 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
         object="response",
         output=responses_output_items_from_assistant_message(output.message),
         parallel_tool_calls=False,
-        tool_choice="auto",
-        tools=[],
+        tool_choice=responses_tool_choice_param_to_tool_choice(responses_tool_choice),
+        tools=responses_tool_params_to_tools(responses_tools),
         usage=responses_model_usage(output.usage),
     )
 

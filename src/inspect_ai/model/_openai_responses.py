@@ -21,13 +21,13 @@ from openai.types.responses import (
     ResponseOutputItem,
     ResponseOutputMessage,
     ResponseOutputMessageParam,
-    ResponseOutputRefusal,
     ResponseOutputRefusalParam,
     ResponseOutputText,
     ResponseOutputTextParam,
     ResponseReasoningItem,
     ResponseReasoningItemParam,
     ResponseUsage,
+    Tool,
     ToolChoiceFunctionParam,
     ToolChoiceMcpParam,
     ToolChoiceTypesParam,
@@ -36,8 +36,9 @@ from openai.types.responses import (
 )
 from openai.types.responses import Response as OpenAIResponse
 from openai.types.responses.response import IncompleteDetails
+from openai.types.responses.response import ToolChoice as ResponsesToolChoice
 from openai.types.responses.response_create_params import (
-    ToolChoice as ResponsesToolChoice,
+    ToolChoice as ResponsesToolChoiceParam,
 )
 from openai.types.responses.response_function_web_search_param import (
     ActionFind,
@@ -79,7 +80,7 @@ from openai.types.responses.response_usage import (
     OutputTokensDetails,
 )
 from openai.types.responses.tool_param import Mcp
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
@@ -235,7 +236,7 @@ def openai_responses_extra_body_fields() -> list[str]:
 
 def openai_responses_tool_choice(
     tool_choice: ToolChoice, tools: list[ToolParam]
-) -> ResponsesToolChoice:
+) -> ResponsesToolChoiceParam:
     match tool_choice:
         case "none" | "auto":
             return tool_choice
@@ -691,7 +692,7 @@ def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam
 
 
 def tool_choice_from_responses_tool_choice(
-    tool_choice: ResponsesToolChoice | None,
+    tool_choice: ResponsesToolChoiceParam | None,
 ) -> ToolChoice | None:
     inspect_tool_choice: ToolChoice | None = None
     if tool_choice is not None:
@@ -720,7 +721,7 @@ def tool_choice_from_responses_tool_choice(
 
 
 def is_tool_choice_function_param(
-    tool_choice: ResponsesToolChoice,
+    tool_choice: ResponsesToolChoiceParam,
 ) -> TypeGuard[ToolChoiceFunctionParam]:
     if not isinstance(tool_choice, str):
         return tool_choice.get("type") == "function"
@@ -729,7 +730,7 @@ def is_tool_choice_function_param(
 
 
 def is_tool_choice_mcp_param(
-    tool_choice: ResponsesToolChoice,
+    tool_choice: ResponsesToolChoiceParam,
 ) -> TypeGuard[ToolChoiceMcpParam]:
     if not isinstance(tool_choice, str):
         return tool_choice.get("type") == "mcp"
@@ -878,6 +879,35 @@ def _chat_message_assistant_from_openai_response(
         ),
         stop_reason,
     )
+
+
+tool_list_adapter = TypeAdapter(list[Tool])
+
+
+def responses_tool_params_to_tools(tool_params: list[ToolParam]) -> list[Tool]:
+    return tool_list_adapter.validate_python(tool_params)
+
+
+tool_choice_adapter = TypeAdapter[ResponsesToolChoice](ResponsesToolChoice)
+
+
+def responses_tool_choice_param_to_tool_choice(
+    tool_choice: ResponsesToolChoiceParam | None,
+) -> ResponsesToolChoice | None:
+    if tool_choice is None:
+        return None
+    else:
+        return tool_choice_adapter.validate_python(tool_choice)
+
+
+output_item_adapter = TypeAdapter(list[ResponseOutputItem])
+
+
+def responses_output_items_from_assistant_message(
+    message: ChatMessageAssistant,
+) -> list[ResponseOutputItem]:
+    input_items = _openai_input_items_from_chat_message_assistant(message)
+    return output_item_adapter.validate_python(input_items)
 
 
 def _openai_input_items_from_chat_message_assistant(
@@ -1099,48 +1129,6 @@ def _tool_call_items_from_assistant_message(
             tool_calls.append(tool_call_param)
 
     return tool_calls
-
-
-def responses_output_items_from_assistant_message(
-    message: ChatMessageAssistant,
-) -> list[ResponseOutputItem]:
-    content = (
-        [ContentText(text=message.content)]
-        if isinstance(message.content, str)
-        else message.content
-    )
-
-    return [_response_output_item_from_content(c) for c in content]
-
-
-def _response_output_item_from_content(content: Content) -> ResponseOutputItem:
-    if isinstance(content, ContentText):
-        if isinstance(content.internal, dict) and "id" in content.internal:
-            id = str(content.internal["id"])
-        else:
-            id = uuid()
-        message_content = (
-            ResponseOutputRefusal(type="refusal", refusal=content.text)
-            if content.refusal
-            else ResponseOutputText(
-                type="output_text", annotations=[], text=content.text
-            )
-        )
-        return ResponseOutputMessage(
-            type="message",
-            role="assistant",
-            id=id,
-            content=[message_content],
-            status="completed",
-        )
-    elif isinstance(content, ContentReasoning):
-        return ResponseReasoningItem(
-            type="reasoning",
-            summary=[Summary(type="summary_text", text=content.reasoning)],
-            id=content.signature or "",
-        )
-    else:
-        raise RuntimeError(f"Unsupported content type: {type(content)}")
 
 
 def _ids_from_assistant_internal(
