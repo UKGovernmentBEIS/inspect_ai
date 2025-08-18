@@ -20358,7 +20358,7 @@ span.ap-marker-container:hover span.ap-marker {
   text-align: center;
   width: 300px;
 }
-._grid_185sx_1 {
+._grid_713lm_1 {
   display: grid;
   padding-top: 1em;
   padding-bottom: 1em;
@@ -20370,45 +20370,56 @@ span.ap-marker-container:hover span.ap-marker {
   padding-right: 1rem;
 }
 
-._selected_185sx_13 {
+._selected_713lm_13 {
   box-shadow: inset 0 0 0px 2px var(--bs-focus-ring-color);
 }
 
-._sampleRowLink_185sx_17 {
+._sampleRowLink_713lm_17 {
   text-decoration: none;
   color: inherit;
   display: block;
 }
 
-._disabled_185sx_23 {
+._sampleLink_713lm_23 {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+._disabledRow_713lm_29 {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-._cell_185sx_28 {
+._disabled_713lm_29 {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+._cell_713lm_39 {
   padding-left: 0;
   padding-right: 0;
 }
 
-._wrapAnywhere_185sx_33 {
+._wrapAnywhere_713lm_44 {
   word-wrap: anywhere;
 }
 
-._noLeft_185sx_37 {
+._noLeft_713lm_48 {
   padding-left: 0;
 }
 
-._score_185sx_41 {
+._score_713lm_52 {
   display: flex;
   justify-self: center;
 }
 
-._centered_185sx_46 {
+._centered_713lm_57 {
   display: flex;
   justify-content: center;
 }
 
-._spinner_185sx_51 {
+._spinner_713lm_62 {
   height: 1.4em;
   width: 1.4em;
   color: var(--bs-focus-ring-color);
