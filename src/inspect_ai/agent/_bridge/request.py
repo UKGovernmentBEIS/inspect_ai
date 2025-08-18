@@ -101,10 +101,6 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
     model = resolve_inspect_model(str(json_data["model"]))
     model_name = model.api.model_name
 
-    # convert to inspect messages
-    input: list[ResponseInputItemParam] = json_data["input"]
-    messages = messages_from_responses_input(input, model_name)
-
     # convert openai tools to inspect tools
     responses_tools: list[ToolParam] = json_data.get("tools", [])
     tools = [tool_from_responses_tool(tool) for tool in responses_tools]
@@ -112,6 +108,10 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
         "tool_choice", None
     )
     tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
+
+    # convert to inspect messages
+    input: list[ResponseInputItemParam] = json_data["input"]
+    messages = messages_from_responses_input(input, tools, model_name)
 
     # run inference
     output = await model.generate(

@@ -3,19 +3,19 @@ from typing import Any, cast
 
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
-from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._openai_responses import _tool_param_for_tool_info
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.dataset import Sample
 from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai import (
     messages_to_openai,
     openai_chat_tools,
 )
+from inspect_ai.model._openai_responses import _tool_param_for_tool_info
 from inspect_ai.scorer import includes
 from inspect_ai.solver import solver
 from inspect_ai.tool._tool_info import ToolInfo
