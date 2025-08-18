@@ -73,7 +73,6 @@ from openai.types.responses.response_output_text import (
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
-from openai.types.responses.response_reasoning_item import Summary
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
 from openai.types.responses.response_usage import (
     InputTokensDetails,
@@ -81,7 +80,6 @@ from openai.types.responses.response_usage import (
 )
 from openai.types.responses.tool_param import Mcp
 from pydantic import JsonValue, TypeAdapter
-from shortuuid import uuid
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
@@ -893,9 +891,9 @@ tool_choice_adapter = TypeAdapter[ResponsesToolChoice](ResponsesToolChoice)
 
 def responses_tool_choice_param_to_tool_choice(
     tool_choice: ResponsesToolChoiceParam | None,
-) -> ResponsesToolChoice | None:
+) -> ResponsesToolChoice:
     if tool_choice is None:
-        return None
+        return "auto"
     else:
         return tool_choice_adapter.validate_python(tool_choice)
 
