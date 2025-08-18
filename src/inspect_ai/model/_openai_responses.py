@@ -80,6 +80,7 @@ from openai.types.responses.response_usage import (
 )
 from openai.types.responses.tool_param import Mcp
 from pydantic import JsonValue, TypeAdapter
+from shortuuid import uuid
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
@@ -1056,7 +1057,9 @@ def _openai_input_items_from_chat_message_assistant(
             # this actually can be `None`, and it will in fact be `None` when the
             # assistant message is synthesized by the scaffold as opposed to being
             # replayed from the model
-            id=msg_id,  # type: ignore[typeddict-item]
+            # TODO: is it okay to dynamically generate this here? We need this in
+            # order to read this back into the equivalent BaseModel for the bridge
+            id=msg_id or uuid(),
             content=content_list,
             status="completed",
         )

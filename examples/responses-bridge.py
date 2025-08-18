@@ -44,4 +44,8 @@ def bridged_task():
 
 
 if __name__ == "__main__":
-    eval(bridged_task(), model="openai/gpt-4o", display="plain")
+    eval(
+        bridged_task(),
+        model="openai/gpt-4o",
+        display="plain",
+    )

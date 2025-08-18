@@ -197,8 +197,6 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
     warn_unsupported("text")
     warn_unsupported("top_logprobs")
 
-    print(to_json(json_data, indent=2).decode())
-
     config = GenerateConfig()
     config.system_message = json_data.get("instructions", None)
     config.max_tokens = json_data.get("max_output_tokens", None)
