@@ -1057,9 +1057,9 @@ def _openai_input_items_from_chat_message_assistant(
             # this actually can be `None`, and it will in fact be `None` when the
             # assistant message is synthesized by the scaffold as opposed to being
             # replayed from the model
-            # TODO: is it okay to dynamically generate this here? We need this in
+            # Is it okay to dynamically generate this here? We need this in
             # order to read this back into the equivalent BaseModel for the bridge
-            id=msg_id or uuid(),
+            id=msg_id or message.id or uuid(),
             content=content_list,
             status="completed",
         )
