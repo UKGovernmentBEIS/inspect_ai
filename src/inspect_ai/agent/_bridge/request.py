@@ -124,7 +124,7 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
 
     # return response
     return Response(
-        id=uuid(),
+        id=output.message.id or uuid(),
         created_at=int(time()),
         model=model_name,
         object="response",
