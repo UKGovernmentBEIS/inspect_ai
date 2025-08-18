@@ -3,7 +3,7 @@ from pydantic import JsonValue
 
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
-from ..request import inspect_completions_api_request
+from ..completions import inspect_completions_api_request
 
 MODEL_SERVICE = "bridge_model_service"
 

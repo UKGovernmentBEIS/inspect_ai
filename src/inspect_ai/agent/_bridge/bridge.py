@@ -14,10 +14,6 @@ from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
-from inspect_ai.agent._bridge.request import (
-    inspect_completions_api_request,
-    inspect_responses_api_request,
-)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
@@ -26,6 +22,9 @@ from inspect_ai.model._openai import (
     messages_to_openai,
 )
 from inspect_ai.model._providers.providers import validate_openai_client
+
+from .completions import inspect_completions_api_request
+from .responses import inspect_responses_api_request
 
 
 @contextlib.asynccontextmanager
