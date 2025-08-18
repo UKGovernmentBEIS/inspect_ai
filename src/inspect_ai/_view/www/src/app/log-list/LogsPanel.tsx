@@ -3,7 +3,7 @@ import { FC, useEffect, useMemo, useRef } from "react";
 
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
-import { useLogs } from "../../state/hooks";
+import { useDocumentTitle, useLogs } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
@@ -53,6 +53,13 @@ export const LogsPanel: FC<LogsPanelProps> = () => {
 
   // Polling for client events
   const { startPolling, stopPolling } = useClientEvents();
+
+  const { setDocumentTitle } = useDocumentTitle();
+  useEffect(() => {
+    setDocumentTitle({
+      logDir: logs.log_dir,
+    });
+  }, [setDocumentTitle, logs.log_dir]);
 
   const previousWatchedLogs = useRef<typeof watchedLogs>(undefined);
 
