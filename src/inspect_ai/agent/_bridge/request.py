@@ -12,7 +12,6 @@ from openai.types.responses import Response, ResponseInputItemParam, ToolParam
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoice,
 )
-from pydantic_core import to_json
 from shortuuid import uuid
 
 from inspect_ai._util.logger import warn_once
