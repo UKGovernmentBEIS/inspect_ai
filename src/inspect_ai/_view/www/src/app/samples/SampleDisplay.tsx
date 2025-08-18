@@ -14,6 +14,7 @@ import {
   MouseEvent,
   RefObject,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
 } from "react";
@@ -31,7 +32,11 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../../constants";
-import { useFilteredSamples, useSampleData } from "../../state/hooks";
+import {
+  useDocumentTitle,
+  useFilteredSamples,
+  useSampleData,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
@@ -69,6 +74,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
 
   const runningSampleData = sampleData.running;
+
+  const evalSpec = useStore((state) => state.log.selectedLogSummary?.eval);
+  const { setDocumentTitle } = useDocumentTitle();
+  useEffect(() => {
+    setDocumentTitle({ evalSpec, sample });
+  }, [setDocumentTitle, sample, evalSpec]);
 
   // Selected tab handling
   const selectedTab = useStore((state) => state.app.tabs.sample);

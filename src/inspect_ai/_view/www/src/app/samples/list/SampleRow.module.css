@@ -14,6 +14,13 @@
   box-shadow: inset 0 0 0px 2px var(--bs-focus-ring-color);
 }
 
+.sampleLink:hover,
+.sampleRowLink:hover {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
 .sampleRowLink {
   text-decoration: none;
   color: inherit;
