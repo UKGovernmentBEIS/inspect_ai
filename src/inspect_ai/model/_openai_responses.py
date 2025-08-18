@@ -3,6 +3,7 @@ from functools import reduce
 from typing import TYPE_CHECKING, Sequence, TypedDict, TypeGuard, cast
 
 from openai.types.responses import (
+    ComputerToolParam,
     FunctionToolParam,
     ResponseComputerToolCall,
     ResponseComputerToolCallParam,
@@ -27,8 +28,10 @@ from openai.types.responses import (
     ResponseReasoningItemParam,
     ResponseUsage,
     ToolChoiceFunctionParam,
+    ToolChoiceMcpParam,
     ToolChoiceTypesParam,
     ToolParam,
+    WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
 from openai.types.responses.response import IncompleteDetails
@@ -97,11 +100,13 @@ from inspect_ai.model._model_output import ChatCompletionChoice, ModelUsage, Sto
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParams
 
 from ._providers._openai_computer_use import (
     computer_call_output,
+    computer_parmaeters,
     maybe_computer_use_preview_tool,
     tool_call_from_openai_computer_tool_call,
 )
@@ -360,7 +365,115 @@ def is_input_file(
     return input.get("type") == "input_file"
 
 
-def responses_usage_from_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
+def tool_from_responses_tool(tool_param: ToolParam) -> ToolInfo:
+    if is_function_tool_param(tool_param):
+        return ToolInfo(
+            name=tool_param["name"],
+            description=tool_param["description"] or tool_param["name"],
+            parameters=ToolParams.model_validate(tool_param["parameters"]),
+        )
+    elif is_web_search_tool_param(tool_param):
+        return ToolInfo(
+            name="web_search", description="web_search", options={"openai": True}
+        )
+    elif is_computer_tool_param(tool_param):
+        return ToolInfo(
+            name="computer",
+            description="computer",
+            # this is a fake parameter def so that we match the check for the
+            # computer tool in maybe_computer_use_preview_tool (openai will
+            # provide its own parmeters internally)
+            parameters=ToolParams(properties={k: k for k in computer_parmaeters()}),  # type: ignore[misc]
+        )
+    elif is_mcp_tool_param(tool_param):
+        allowed_tools = tool_param["allowed_tools"]
+        if isinstance(allowed_tools, dict):
+            raise RuntimeError(
+                "McpAllowedToolsMcpAllowedToolsFilter not supported by agent bridge"
+            )
+        config = MCPServerConfigHTTP(
+            type="sse" if "sse" in tool_param["server_url"] else "http",
+            name=tool_param["server_label"],
+            tools=allowed_tools if isinstance(allowed_tools, list) else "all",
+            url=tool_param["server_url"],
+            headers=tool_param["headers"],
+        )
+        return ToolInfo(
+            name=f"mcp_server_{config.name}",
+            description=f"mcp_server_{config.name}",
+            options=config.model_dump(),
+        )
+    else:
+        raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+
+
+def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
+    return tool_param.get("type") == "function"
+
+
+def is_web_search_tool_param(tool_param: ToolParam) -> TypeGuard[WebSearchToolParam]:
+    return tool_param.get("type") in [
+        "web_search_preview",
+        "web_search_preview_2025_03_11",
+    ]
+
+
+def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
+    return tool_param.get("type") == "mcp"
+
+
+def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam]:
+    return tool_param.get("type") == "computer_use_preview"
+
+
+def tool_choice_from_responses_tool_choice(
+    tool_choice: ResponsesToolChoice | None,
+) -> ToolChoice | None:
+    inspect_tool_choice: ToolChoice | None = None
+    if tool_choice is not None:
+        if tool_choice == "auto":
+            inspect_tool_choice = tool_choice
+        elif tool_choice == "none":
+            inspect_tool_choice = tool_choice
+        elif tool_choice == "required":
+            inspect_tool_choice = "any"
+        elif is_tool_choice_function_param(tool_choice):
+            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
+        elif is_tool_choice_mcp_param(tool_choice):
+            if tool_choice["name"] is None:
+                raise RuntimeError(
+                    "MCP server tool choice requires 'name' field for agent bridge"
+                )
+            inspect_tool_choice = ToolFunction(name=tool_choice["name"])
+        elif tool_choice.get("type") == "allowed_tools":
+            raise RuntimeError("ToolChoiceAllowedParam not supported by agent bridge")
+        elif tool_choice.get("type") == "custom":
+            raise RuntimeError("ToolChoiceCustomParam not supported by agent bridge")
+        elif "type" in tool_choice:
+            inspect_tool_choice = ToolFunction(name=str(tool_choice.get("type")))
+
+    return inspect_tool_choice
+
+
+def is_tool_choice_function_param(
+    tool_choice: ResponsesToolChoice,
+) -> TypeGuard[ToolChoiceFunctionParam]:
+    if not isinstance(tool_choice, str):
+        return tool_choice.get("type") == "function"
+    else:
+        return False
+
+
+def is_tool_choice_mcp_param(
+    tool_choice: ResponsesToolChoice,
+) -> TypeGuard[ToolChoiceMcpParam]:
+    if not isinstance(tool_choice, str):
+        return tool_choice.get("type") == "mcp"
+    else:
+        return False
+
+
+def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
     if usage is not None:
         return ResponseUsage(
             input_tokens=usage.input_tokens,

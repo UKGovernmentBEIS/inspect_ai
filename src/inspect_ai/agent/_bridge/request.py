@@ -8,7 +8,10 @@ from openai.types.chat import (
     ChatCompletionToolChoiceOptionParam,
     ChatCompletionToolParam,
 )
-from openai.types.responses import Response, ResponseInputItemParam
+from openai.types.responses import Response, ResponseInputItemParam, ToolParam
+from openai.types.responses.response_create_params import (
+    ToolChoice as ResponsesToolChoice,
+)
 from pydantic_core import to_json
 from shortuuid import uuid
 
@@ -23,8 +26,10 @@ from inspect_ai.model._openai import (
 from inspect_ai.model._openai_responses import (
     messages_from_responses_input,
     openai_responses_extra_body_fields,
+    responses_model_usage,
     responses_output_items_from_assistant_message,
-    responses_usage_from_model_usage,
+    tool_choice_from_responses_tool_choice,
+    tool_from_responses_tool,
 )
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
@@ -100,10 +105,20 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
     input: list[ResponseInputItemParam] = json_data["input"]
     messages = messages_from_responses_input(input, model_name)
 
+    # convert openai tools to inspect tools
+    responses_tools: list[ToolParam] = json_data.get("tools", [])
+    tools = [tool_from_responses_tool(tool) for tool in responses_tools]
+    responses_tool_choice: ResponsesToolChoice | None = json_data.get(
+        "tool_choice", None
+    )
+    tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
+
     # run inference
-    # TODO: tools!!!!
     output = await model.generate(
-        input=messages, config=generate_config_from_openai_responses(json_data)
+        input=messages,
+        tool_choice=tool_choice,
+        tools=tools,
+        config=generate_config_from_openai_responses(json_data),
     )
 
     # return response
@@ -116,7 +131,7 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
         parallel_tool_calls=False,
         tool_choice="auto",
         tools=[],
-        usage=responses_usage_from_model_usage(output.usage),
+        usage=responses_model_usage(output.usage),
     )
 
 

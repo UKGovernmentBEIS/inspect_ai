@@ -39,22 +39,21 @@ def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
             display_height=768,
         )
         if tool.name == "computer"
-        and (
-            sorted(tool.parameters.properties.keys())
-            == sorted(
-                [
-                    "action",
-                    "coordinate",
-                    "duration",
-                    "scroll_amount",
-                    "scroll_direction",
-                    "start_coordinate",
-                    "text",
-                ]
-            )
-        )
+        and (sorted(tool.parameters.properties.keys()) == sorted(computer_parmaeters()))
         else None
     )
+
+
+def computer_parmaeters() -> list[str]:
+    return [
+        "action",
+        "coordinate",
+        "duration",
+        "scroll_amount",
+        "scroll_direction",
+        "start_coordinate",
+        "text",
+    ]
 
 
 def computer_call_output(

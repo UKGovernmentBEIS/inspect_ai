@@ -1,8 +1,10 @@
 from textwrap import dedent
 from typing import Any, cast
 
-from openai import AsyncOpenAI, BaseModel
+from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._openai_responses import _tool_param_for_tool_info
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
@@ -74,7 +76,7 @@ def completions_agent(tools: bool) -> Agent:
 
 
 def check_openai_responses_log_json(log_json: str, tools: bool):
-    # assert r'"model": "gpt-5"' in log_json
+    assert r'"model": "gpt-5"' in log_json
     assert r'"You are a dope model."' in log_json
     assert r'"max_output_tokens": 2048' in log_json
     assert r'"parallel_tool_calls": true' in log_json
@@ -86,6 +88,9 @@ def check_openai_responses_log_json(log_json: str, tools: bool):
     assert r'"prompt_cache_key": "42"' in log_json
     assert r'"safety_identifier": "42"' in log_json
     assert r'"truncation": "auto"' in log_json
+    if tools:
+        assert r'"name": "testing_tool"' in log_json
+        assert r'"tool_choice": "auto"' in log_json
 
 
 @agent
@@ -94,9 +99,22 @@ def responses_agent(tools: bool) -> Agent:
         async with agent_bridge():
             client = AsyncOpenAI()
 
+            responses_tools = (
+                [
+                    _tool_param_for_tool_info(
+                        get_testing_tool_info(), "inspect", GenerateConfig()
+                    )
+                ]
+                if tools
+                else NOT_GIVEN
+            )
+            tool_choice = "auto" if tools else NOT_GIVEN
+
             response = await client.responses.create(
                 model="inspect",
                 input="Write a one-sentence bedtime story about a unicorn.",
+                tools=responses_tools,
+                tool_choice=tool_choice,  # type: ignore[call-overload]
                 instructions="You are a dope model.",
                 max_output_tokens=2048,
                 parallel_tool_calls=True,
@@ -210,6 +228,12 @@ def test_bridged_agent_completions_tools():
 def test_bridged_agent_responses():
     log_json = eval_bridged_task("openai/gpt-5", agent=responses_agent(False))
     check_openai_responses_log_json(log_json, tools=False)
+
+
+@skip_if_no_openai
+def test_bridged_agent_responses_tools():
+    log_json = eval_bridged_task("openai/gpt-5", agent=responses_agent(True))
+    check_openai_responses_log_json(log_json, tools=True)
 
 
 def check_anthropic_log_json(log_json: str):
