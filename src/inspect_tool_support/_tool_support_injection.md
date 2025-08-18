@@ -105,7 +105,7 @@ The injection system performs container reconnaissance to determine the appropri
 #### 2.1 Container Reconnaissance
 
 - Detects OS/distribution and architecture via shell command probes
-- Normalizes architecture names (amd64→x86_64, arm64→aarch64) for consistent executable selection
+- Normalizes architecture names (x86_64→amd64, aarch64→arm64) for consistent executable selection
 - Multiple fallback mechanisms: `/etc/os-release` → version files → `uname` output
 
 #### 2.2 File Injection Infrastructure

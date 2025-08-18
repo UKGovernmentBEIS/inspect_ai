@@ -13,8 +13,8 @@ from inspect_ai.util import input_screen
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 Architecture: TypeAlias = Literal[
-    "x86_64",  # 64-bit Intel/AMD
-    "aarch64",  # 64-bit ARM
+    "amd64",  # 64-bit Intel/AMD
+    "arm64",  # 64-bit ARM
 ]
 
 
@@ -36,9 +36,7 @@ SANDBOX_CLI = "/opt/inspect-tool-support"
 async def inject_tool_support_code(sandbox: SandboxEnvironment) -> None:
     info = await _detect_sandbox_os(sandbox)
 
-    async with _open_executable_for_arch(
-        "arm64" if info["architecture"] == "aarch64" else "amd64"
-    ) as f:
+    async with _open_executable_for_arch(info["architecture"]) as f:
         await sandbox.write_file(SANDBOX_CLI, f.read())
         # .write_file used `tee` which dropped execute permissions
         await sandbox.exec(["chmod", "+x", SANDBOX_CLI])
@@ -94,10 +92,10 @@ fi
 
     arch = arch_output.lower()
     arch_mapping: dict[str, Architecture] = {
-        "x86_64": "x86_64",
-        "amd64": "x86_64",  # Windows/Docker often reports as amd64
-        "aarch64": "aarch64",
-        "arm64": "aarch64",  # macOS/Docker often reports as arm64
+        "x86_64": "amd64",
+        "amd64": "amd64",  # Windows/Docker often reports as amd64
+        "aarch64": "arm64",
+        "arm64": "arm64",  # macOS/Docker often reports as arm64
     }
 
     if arch not in arch_mapping:
