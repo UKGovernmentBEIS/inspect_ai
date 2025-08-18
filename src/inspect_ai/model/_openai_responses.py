@@ -221,6 +221,7 @@ def responses_extra_body_fields() -> list[str]:
         "previous_response_id",
         "prompt_cache_key",
         "safety_identifier",
+        "background",
         "truncation",
     ]
 

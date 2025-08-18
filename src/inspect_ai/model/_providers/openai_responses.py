@@ -61,6 +61,10 @@ async def generate_responses(
     if batcher:
         background = False
 
+    # background in extra_body should be applied
+    if background is None and config.extra_body:
+        background = config.extra_body.pop("background", None)
+
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 

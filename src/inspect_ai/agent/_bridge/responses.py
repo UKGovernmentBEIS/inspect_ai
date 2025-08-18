@@ -39,7 +39,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
     content_from_response_input_content_param,
@@ -74,6 +74,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.util._json import JSONSchema
 
 from .util import resolve_inspect_model
 
@@ -215,10 +216,8 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
         if param in json_data:
             warn_once(logger, f"'{param}' option not supported for agent bridge")
 
-    warn_unsupported("background")
-    warn_unsupported("prompt")
-    warn_unsupported("text")
-    warn_unsupported("top_logprobs")
+    warn_unsupported("prompt")  # prompt template
+    warn_unsupported("top_logprobs")  # don't have this yet for responses
 
     config = GenerateConfig()
     config.system_message = json_data.get("instructions", None)
@@ -232,6 +231,19 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
             config.reasoning_summary = reasoning["summary"]
     config.temperature = json_data.get("temperature", None)
     config.top_p = json_data.get("top_p", None)
+
+    # response format
+    text: dict[str, Any] | None = json_data.get("text", None)
+    if text is not None:
+        format: dict[str, Any] | None = text.get("format", None)
+        if format is not None:
+            if format.get("type", None) == "json_schema":
+                config.response_schema = ResponseSchema(
+                    name=format.get("name", "schema"),
+                    description=format.get("description", None),
+                    json_schema=JSONSchema.model_validate(format.get("schema", {})),
+                    strict=format.get("strict", None),
+                )
 
     # extra_body params (i.e. passthrough for native responses)
     extra_body: dict[str, Any] = {}
