@@ -14,7 +14,7 @@ export interface TranscriptFilterProps {
 export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
   showing,
   positionEl,
-  setShowing: _setShowing,
+  setShowing,
 }) => {
   const {
     isDefaultFilter,
@@ -32,6 +32,7 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
       id={`transcript-filter-popover`}
       positionEl={positionEl}
       isOpen={showing}
+      setIsOpen={setShowing}
       placement="bottom-end"
       hoverDelay={-1}
     >
