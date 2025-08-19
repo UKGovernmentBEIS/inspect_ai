@@ -225,6 +225,10 @@ def completion_params_responses(
         params["truncation"] = "auto"
 
     if responses_store is False:
+        if openai_api.is_computer_use_preview():
+            raise RuntimeError(
+                "OpenAI computer use model requires responses store=True"
+            )
         params["store"] = False
         params["include"] = ["reasoning.encrypted_content"]
 
