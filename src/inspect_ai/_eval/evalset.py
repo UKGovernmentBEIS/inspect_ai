@@ -290,6 +290,7 @@ def eval_set(
     retry_cleanup = retry_cleanup is not False
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
     max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
+    allow_dirty_log_dir = allow_dirty_log_dir is True
 
     # prepare console/status
     console = rich.get_console()
