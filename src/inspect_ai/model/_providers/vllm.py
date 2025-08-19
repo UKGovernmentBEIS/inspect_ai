@@ -52,6 +52,14 @@ class VLLMAPI(OpenAICompatibleAPI):
     1. Connect to an existing vLLM server (if base_url or port is provided)
     2. Start a new vLLM server for the specified model
 
+    Args:
+        model_name (str): Name or path of the model to use, e.g. "Devstral-Small-2505"
+        base_url (str | None): Base URL of the vLLM server. If not provided, will use localhost.
+        port (int | None): Port of the vLLM server. If not provided, will use a free port on localhost.
+        api_key (str | None): API key for the vLLM server. If not provided, will use "inspectai" as default.
+        config (GenerateConfig): Configuration for generation. Defaults to GenerateConfig().
+        is_mistral (bool): Whether the model is a Mistral model. If True, it will handle folding user messages into tool messages as Mistral does not support a user message immediately after a tool message. Defaults to False.
+
     Additional server_args:
         timeout (int): Timeout for the server (default: 10 minutes)
         host (str): Host to bind the server to (default: "0.0.0.0")
@@ -121,7 +129,9 @@ class VLLMAPI(OpenAICompatibleAPI):
             os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
 
             # Start the server
-            base_url, api_key = self._start_server(model_name, api_key=api_key)
+            base_url, api_key = self._start_server(
+                model_name, api_key=api_key, port=self.port
+            )
             logger.warning(f"vLLM server started at {base_url}")
 
             # Initialize with new server
@@ -138,12 +148,15 @@ class VLLMAPI(OpenAICompatibleAPI):
         self,
         model_path: str,
         api_key: str | None = None,
+        port: int | None = None,
     ) -> tuple[str, str]:
         """Start a new vLLM server and return the base URL and API key.
 
         Args:
             model_path: Path to the model to use
             api_key: API key for the server
+            port: Port for the server. If None, will find a free port.
+
         Returns:
             tuple[str, str]: The base URL for the server and the API key
         """
@@ -170,7 +183,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         base_url, self.server_process, self.port = start_local_server(
             cmd,
             host=host,
-            port=None,  # find a free port
+            port=port,  # If None, find a free port
             api_key=api_key,
             server_type="vLLM",
             timeout=timeout,
