@@ -11,6 +11,7 @@
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
 - Bugifx: Properly handle surrogates in JSON serialization.
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
+- Bugfix: Fix custom json schema generation code for `CitationBase` so that it no longer leads to an invalid schema.
 
 ## 0.3.123 (16 August 2025)
 
