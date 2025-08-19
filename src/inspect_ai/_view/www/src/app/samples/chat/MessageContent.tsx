@@ -137,9 +137,13 @@ const messageRenderers: Record<string, MessageRenderer> = {
 
       const purgeInternalContainers = (text: string): string => {
         // Remove any <internal>...</internal> tags and their contents
-        return text
-          .replace(/<environment_context>[\s\S]*?<\/environment_context>/gm, "")
-          .trim();
+        const internalTags = ["internal", "content-internal", "think"];
+        internalTags.forEach((tag) => {
+          const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, "gm");
+          text = text.replace(regex, "");
+        });
+
+        return text.trim();
       };
 
       return (
