@@ -173,7 +173,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     stats = EvalStats(started_at=iso_now())
 
     # handle sample errors (raise as required)
-    sample_error_handler = SampleErrorHandler(config.fail_on_error, len(task.dataset))
+    sample_error_handler = SampleErrorHandler(
+        config.fail_on_error if config.fail_fast is not False else False,
+        len(task.dataset),
+    )
 
     # resolve some config
     model_name = ModelName(model)

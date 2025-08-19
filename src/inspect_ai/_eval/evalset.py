@@ -230,6 +230,7 @@ def eval_set(
             sample_shuffle=sample_shuffle,
             epochs=epochs,
             fail_on_error=fail_on_error,
+            fail_fast=fail_fast,
             retry_on_error=retry_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
