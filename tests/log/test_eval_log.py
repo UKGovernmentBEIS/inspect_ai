@@ -177,7 +177,7 @@ def test_json_log_writer_handles_invalid_unicode_safely(tmp_path: str):
     assert roundtripped_log.samples and len(roundtripped_log.samples) > 0
     assert (
         roundtripped_log.samples[0].output.choices[0].message.content
-        == "This is a surrogate: ?"
+        == "This is a surrogate: \\udc00"
     )
 
 
@@ -196,7 +196,7 @@ def test_eval_log_writer_handles_invalid_unicode_safely(tmp_path: str):
     assert roundtripped_log.samples and len(roundtripped_log.samples) > 0
     assert (
         roundtripped_log.samples[0].output.choices[0].message.content
-        == "This is a surrogate: ?"
+        == "This is a surrogate: \\udc00"
     )
 
 
