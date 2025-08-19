@@ -1,0 +1,38 @@
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 2em;
+  row-gap: 0.15em;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  cursor: pointer;
+  border-radius: 0.25em;
+  padding: 0.1em;
+}
+
+.row:hover {
+  background-color: var(--bs-secondary-bg);
+}
+
+.links {
+  display: flex;
+  padding-bottom: 0.2em;
+  margin-bottom: 0.4em;
+  column-gap: 0.3em;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+.links a,
+.links a:hover {
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--bs-link-color);
+}
+
+.selected {
+  font-weight: 600;
+}

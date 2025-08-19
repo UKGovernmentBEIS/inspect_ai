@@ -17263,6 +17263,44 @@ a._citationLink_t2k1z_9:hover {
 ._scores_las07_54 {
   padding-top: 1em;
 }
+._grid_h4vly_1 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 2em;
+  row-gap: 0.15em;
+}
+
+._row_h4vly_8 {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  cursor: pointer;
+  border-radius: 0.25em;
+  padding: 0.1em;
+}
+
+._row_h4vly_8:hover {
+  background-color: var(--bs-secondary-bg);
+}
+
+._links_h4vly_21 {
+  display: flex;
+  padding-bottom: 0.2em;
+  margin-bottom: 0.4em;
+  column-gap: 0.3em;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+._links_h4vly_21 a,
+._links_h4vly_21 a:hover {
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--bs-link-color);
+}
+
+._selected_h4vly_36 {
+  font-weight: 600;
+}
 ._eventRow_1dssq_1 {
   display: grid;
   grid-template-columns: 10px 1fr;
