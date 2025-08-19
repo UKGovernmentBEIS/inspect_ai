@@ -98,7 +98,7 @@ class EvalConfig(BaseModel):
     of samples fails.
     """
 
-    fail_fast: bool | int | None = Field(default=None)
+    fail_fast: bool | None = Field(default=None)
     """Fail eval immediately when the `fail_on_error` condition is met.
 
     `True` to fail eval immediately when the `fail_on_error` condition is met (default).
