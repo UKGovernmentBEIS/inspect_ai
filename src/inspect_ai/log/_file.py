@@ -8,7 +8,6 @@ from pydantic import (
     BaseModel,
     Field,
 )
-from pydantic_core import to_json
 
 from inspect_ai._util._async import current_async_backend, run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
@@ -18,7 +17,7 @@ from inspect_ai._util.file import (
     file,
     filesystem,
 )
-from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 
@@ -235,12 +234,7 @@ def write_log_dir_manifest(
     output_dir = output_dir or log_dir
     fs = filesystem(output_dir)
     manifest = f"{output_dir}{fs.sep}{filename}"
-    manifest_json = to_json(
-        value=jsonable_python(manifest_logs),
-        indent=2,
-        exclude_none=True,
-        fallback=lambda _x: None,
-    )
+    manifest_json = to_json_safe(manifest_logs)
     with file(manifest, mode="wb", fs_options=fs_options) as f:
         f.write(manifest_json)
 
@@ -649,12 +643,7 @@ def eval_log_json(log: EvalLog) -> bytes:
     # these values often result from solvers using metadata to
     # pass around 'live' objects -- this is fine to do and we
     # don't want to prevent it at the serialization level
-    return to_json(
-        value=jsonable_python(log),
-        indent=2,
-        exclude_none=True,
-        fallback=lambda _x: None,
-    )
+    return to_json_safe(log)
 
 
 def eval_log_json_str(log: EvalLog) -> str:
@@ -697,12 +686,7 @@ def write_log_listing(
     output_dir = output_dir or log_dir
     fs = filesystem(output_dir)
     manifest = f"{output_dir}{fs.sep}{filename}"
-    manifest_json = to_json(
-        value=jsonable_python(file_overviews),
-        indent=2,
-        exclude_none=True,
-        fallback=lambda _x: None,
-    )
+    manifest_json = to_json_safe(file_overviews)
     with file(manifest, mode="wb", fs_options=fs_options) as f:
         f.write(manifest_json)
 
