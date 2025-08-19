@@ -11,6 +11,8 @@ export interface TranscriptFilterProps {
   positionEl: HTMLElement | null;
 }
 
+// TODO: vending_machine not filtering properly
+
 export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
   showing,
   positionEl,
