@@ -31,7 +31,7 @@ def to_json_safe(x: Any) -> bytes:
 
     def clean_utf8_json(obj: Any) -> Any:
         if isinstance(obj, str):
-            return obj.encode("utf-8", errors="replace").decode("utf-8")
+            return obj.encode("utf-8", errors="backslashreplace").decode("utf-8")
         elif isinstance(obj, dict):
             return {k: clean_utf8_json(v) for k, v in obj.items()}
         elif isinstance(obj, list):
