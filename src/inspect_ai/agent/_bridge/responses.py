@@ -216,6 +216,7 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
         if param in json_data:
             warn_once(logger, f"'{param}' option not supported for agent bridge")
 
+    warn_unsupported("background")  # we don't proxy background polling requests
     warn_unsupported("prompt")  # prompt template
     warn_unsupported("top_logprobs")  # don't have this yet for responses
 
