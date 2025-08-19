@@ -59,34 +59,6 @@ class Log(NamedTuple):
     task_identifier: str
 
 
-def as_previous_tasks(
-    tasks: list[ResolvedTask], failed_logs: list[Log]
-) -> list[PreviousTask]:
-    def task_to_failed_log(task: ResolvedTask) -> Log:
-        resolved_task_identifier = task_identifier(task)
-        return next(
-            log
-            for log in failed_logs
-            if log.task_identifier == resolved_task_identifier
-        )
-
-    previous_tasks: list[PreviousTask] = []
-    for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-        previous_tasks.append(
-            PreviousTask(
-                id=log.header.eval.task_id,
-                task=task.task,
-                task_args=resolve_task_args(task.task),
-                model=task.model,
-                model_roles=task.model_roles,
-                log=read_eval_log(log.info),
-            )
-        )
-
-    return previous_tasks
-
-
-# convert resolved tasks to previous tasks
 def eval_set(
     tasks: Tasks,
     log_dir: str,
@@ -459,6 +431,34 @@ def eval_set(
 
     # return status + results
     return success, results
+
+
+# convert resolved tasks to previous tasks
+def as_previous_tasks(
+    tasks: list[ResolvedTask], failed_logs: list[Log]
+) -> list[PreviousTask]:
+    def task_to_failed_log(task: ResolvedTask) -> Log:
+        resolved_task_identifier = task_identifier(task)
+        return next(
+            log
+            for log in failed_logs
+            if log.task_identifier == resolved_task_identifier
+        )
+
+    previous_tasks: list[PreviousTask] = []
+    for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+        previous_tasks.append(
+            PreviousTask(
+                id=log.header.eval.task_id,
+                task=task.task,
+                task_args=resolve_task_args(task.task),
+                model=task.model,
+                model_roles=task.model_roles,
+                log=read_eval_log(log.info),
+            )
+        )
+
+    return previous_tasks
 
 
 # filters to determine when we are done
