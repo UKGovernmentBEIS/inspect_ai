@@ -419,7 +419,8 @@ def eval_set(
 
     # final sweep to remove failed log files
     if retry_cleanup:
-        cleanup_older_eval_logs(log_dir)
+        task_ids = {result.eval.task_id for result in results}
+        cleanup_older_eval_logs(log_dir, task_ids)
 
     # report final status
     success = all_evals_succeeded(results)
@@ -510,10 +511,13 @@ def list_latest_eval_logs(
 
 
 # cleanup logs that aren't the latest
-def cleanup_older_eval_logs(log_dir: str) -> None:
-    latest_completed_task_eval_logs(
-        logs=list_all_eval_logs(log_dir), cleanup_older=True
-    )
+def cleanup_older_eval_logs(log_dir: str, task_ids: set[str]) -> None:
+    logs = [
+        log
+        for log in list_all_eval_logs(log_dir)
+        if log.header.eval.task_id in task_ids
+    ]
+    latest_completed_task_eval_logs(logs=logs, cleanup_older=True)
 
 
 def latest_completed_task_eval_logs(
