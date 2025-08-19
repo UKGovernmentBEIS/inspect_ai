@@ -1909,6 +1909,7 @@
         "epochs_reducer",
         "approval",
         "fail_on_error",
+        "fail_fast",
         "retry_on_error",
         "message_limit",
         "token_limit",
