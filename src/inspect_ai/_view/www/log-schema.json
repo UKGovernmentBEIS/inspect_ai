@@ -1694,6 +1694,18 @@
           "default": null,
           "title": "Fail On Error"
         },
+        "fail_fast": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fail Fast"
+        },
         "retry_on_error": {
           "anyOf": [
             {

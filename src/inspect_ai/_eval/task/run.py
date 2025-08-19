@@ -343,7 +343,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
                         fails_on_error=(
-                            config.fail_on_error is None or config.fail_on_error is True
+                            (
+                                config.fail_on_error is None
+                                or config.fail_on_error is True
+                            )
+                            and (config.fail_fast is None or config.fail_fast is True)
                         ),
                         retry_on_error=config.retry_on_error or 0,
                         error_retries=[],
@@ -383,14 +387,23 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # collect eval data
             collect_eval_data(stats)
 
-            if any((result is None for result in sample_results)):
-                # finish w/ error status
-                eval_log = await logger.log_finish("error", stats, results, reductions)
+            sample_error_count = sum(result is None for result in sample_results)
+            if config.fail_on_error is None or config.fail_on_error is True:
+                eval_log_success = sample_error_count == 0
+            elif isinstance(config.fail_on_error, float):
+                if config.fail_on_error < 1:
+                    eval_log_success = (
+                        sample_error_count < config.fail_on_error * profile.samples
+                    )
+                else:
+                    eval_log_success = sample_error_count < config.fail_on_error
             else:
-                # finish w/ success status
-                eval_log = await logger.log_finish(
-                    "success", stats, results, reductions
-                )
+                eval_log_success = True
+
+            # finish
+            eval_log = await logger.log_finish(
+                "success" if eval_log_success else "error", stats, results, reductions
+            )
 
             await emit_task_end(logger, eval_log)
 

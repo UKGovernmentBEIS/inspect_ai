@@ -59,6 +59,34 @@ class Log(NamedTuple):
     task_identifier: str
 
 
+def as_previous_tasks(
+    tasks: list[ResolvedTask], failed_logs: list[Log]
+) -> list[PreviousTask]:
+    def task_to_failed_log(task: ResolvedTask) -> Log:
+        resolved_task_identifier = task_identifier(task)
+        return next(
+            log
+            for log in failed_logs
+            if log.task_identifier == resolved_task_identifier
+        )
+
+    previous_tasks: list[PreviousTask] = []
+    for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+        previous_tasks.append(
+            PreviousTask(
+                id=log.header.eval.task_id,
+                task=task.task,
+                task_args=resolve_task_args(task.task),
+                model=task.model,
+                model_roles=task.model_roles,
+                log=read_eval_log(log.info),
+            )
+        )
+
+    return previous_tasks
+
+
+# convert resolved tasks to previous tasks
 def eval_set(
     tasks: Tasks,
     log_dir: str,
@@ -88,6 +116,7 @@ def eval_set(
     sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    fail_fast: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -162,6 +191,8 @@ def eval_set(
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
+        fail_fast: `True` to fail eval immediately when the `fail_on_error` condition is met (default).
+            `False` to continue running and only fail at the end if the `fail_on_error` condition is met.
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -428,34 +459,6 @@ def eval_set(
 
     # return status + results
     return success, results
-
-
-# convert resolved tasks to previous tasks
-def as_previous_tasks(
-    tasks: list[ResolvedTask], failed_logs: list[Log]
-) -> list[PreviousTask]:
-    def task_to_failed_log(task: ResolvedTask) -> Log:
-        resolved_task_identifier = task_identifier(task)
-        return next(
-            log
-            for log in failed_logs
-            if log.task_identifier == resolved_task_identifier
-        )
-
-    previous_tasks: list[PreviousTask] = []
-    for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-        previous_tasks.append(
-            PreviousTask(
-                id=log.header.eval.task_id,
-                task=task.task,
-                task_args=resolve_task_args(task.task),
-                model=task.model,
-                model_roles=task.model_roles,
-                log=read_eval_log(log.info),
-            )
-        )
-
-    return previous_tasks
 
 
 # filters to determine when we are done

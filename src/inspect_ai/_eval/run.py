@@ -193,6 +193,12 @@ async def eval_run(
                 else:
                     task.fail_on_error = task_eval_config.fail_on_error
 
+                # fail_fast
+                if task_eval_config.fail_fast is None:
+                    task_eval_config.fail_fast = task.fail_fast
+                else:
+                    task.fail_fast = task_eval_config.fail_fast
+
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,
