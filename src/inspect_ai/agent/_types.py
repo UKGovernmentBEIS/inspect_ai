@@ -4,6 +4,8 @@ from inspect_ai.agent._agent import AgentState
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.tool._tool import Tool
 
+from src.inspect_ai.tool._tool_def import ToolDef
+
 DEFAULT_HANDOFF_PROMPT = """
 You are part of a multi-agent system designed to make agent coordination and
 execution easy. Agents uses two primary abstraction: **Agents** and **Handoffs**.
@@ -104,7 +106,7 @@ class AgentSubmit(NamedTuple):
     description: str | None = None
     """Description of submit tool (defaults to 'Submit an answer for evaluation')."""
 
-    tool: Tool | None = None
+    tool: Tool | ToolDef | None = None
     """Alternate implementation for submit tool.
 
     The tool can provide its `name` and `description` internally,

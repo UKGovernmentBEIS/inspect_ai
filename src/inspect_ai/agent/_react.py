@@ -137,7 +137,7 @@ def react(
         submit.tool or default_submit_tool(),
         name=submit.name,
         description=submit.description,
-    )
+    ) if not isinstance(submit.tool, ToolDef) else submit.tool
     tools.append(submit_tool)
 
     # resolve prompt / system message

@@ -11,6 +11,7 @@
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
 - Bugifx: Properly handle surrogates in JSON serialization.
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
+- React: Allow for a ToolDef to be passed to an AgentSubmit type.
 
 ## 0.3.123 (16 August 2025)
 
