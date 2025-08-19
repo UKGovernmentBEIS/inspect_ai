@@ -116,6 +116,9 @@ if TYPE_CHECKING:
     from ._providers.openai import OpenAIAPI
 
 
+MESSAGE_ID = "message_id"
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage], openai_api: "OpenAIAPI"
 ) -> list[ResponseInputItemParam]:
@@ -387,7 +390,7 @@ def _chat_message_assistant_from_openai_response(
                     [
                         ContentText(
                             text=c.text,
-                            internal={"id": id},
+                            internal={MESSAGE_ID: id},
                             citations=(
                                 [
                                     to_inspect_citation(annotation)
@@ -399,7 +402,7 @@ def _chat_message_assistant_from_openai_response(
                         )
                         if isinstance(c, ResponseOutputText)
                         else ContentText(
-                            text=c.refusal, refusal=True, internal={"id": id}
+                            text=c.refusal, refusal=True, internal={MESSAGE_ID: id}
                         )
                         for c in content
                     ]
@@ -546,7 +549,7 @@ def _openai_input_items_from_chat_message_assistant(
     has_content_with_ids = any(
         isinstance(c, ContentText)
         and isinstance(c.internal, dict)
-        and "id" in c.internal
+        and MESSAGE_ID in c.internal
         for c in content_items
     )
     suppress_output_message = message.internal is not None and not has_content_with_ids
@@ -626,8 +629,11 @@ def _openai_input_items_from_chat_message_assistant(
 
                 # get the message ID from ContentText.modelJson
                 content_message_id: str | None = None
-                if isinstance(content.internal, dict) and "id" in content.internal:
-                    id_value = content.internal["id"]
+                if (
+                    isinstance(content.internal, dict)
+                    and MESSAGE_ID in content.internal
+                ):
+                    id_value = content.internal[MESSAGE_ID]
                     content_message_id = id_value if isinstance(id_value, str) else None
                 else:
                     content_message_id = None

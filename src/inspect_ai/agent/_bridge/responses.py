@@ -40,6 +40,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai_responses import (
+    MESSAGE_ID,
     _openai_input_items_from_chat_message_assistant,
     content_from_response_input_content_param,
     is_assistant_message_param,
@@ -288,7 +289,7 @@ def messages_from_responses_input(
                             content.append(
                                 ContentText(
                                     text=output["text"],
-                                    internal={"id": param["id"]},
+                                    internal={MESSAGE_ID: param["id"]},
                                     citations=(
                                         [
                                             to_inspect_citation(annotation)
@@ -304,7 +305,7 @@ def messages_from_responses_input(
                                 ContentText(
                                     text=output["refusal"],
                                     refusal=True,
-                                    internal={"id": param["id"]},
+                                    internal={MESSAGE_ID: param["id"]},
                                 )
                             )
 
