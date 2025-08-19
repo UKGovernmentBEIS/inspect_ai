@@ -7,6 +7,7 @@ import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { EventPanel } from "./event/EventPanel";
 
 import clsx from "clsx";
+import { RecordTree } from "../../content/RecordTree";
 import styles from "./ScoreEventView.module.css";
 import { EventNode } from "./types";
 
@@ -68,9 +69,11 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
       </div>
       {event.score.metadata ? (
         <div data-name="Metadata">
-          <MetaDataGrid
-            entries={event.score.metadata}
-            className={styles.metadata}
+          <RecordTree
+            id={`${eventNode.id}-score-metadata`}
+            record={event.score.metadata}
+            className={styles.metadataTree}
+            defaultExpandLevel={0}
           />
         </div>
       ) : undefined}

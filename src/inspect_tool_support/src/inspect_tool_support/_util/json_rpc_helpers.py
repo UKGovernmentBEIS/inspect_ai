@@ -3,6 +3,7 @@ import socket
 import traceback
 from typing import Any, Awaitable, Callable, ParamSpec, Type, TypeVar
 
+import aiohttp
 import httpx
 import jsonrpcserver
 from httpx import URL, ConnectError, ConnectTimeout, HTTPStatusError, ReadTimeout
@@ -107,6 +108,21 @@ async def json_rpc_http_call(
     return JSONRPCResponseJSON(
         (await _retrying_post(url, json.loads(request_json_str))).text
     )
+
+
+async def json_rpc_unix_call(
+    socket_path: str, request_json_str: str
+) -> JSONRPCResponseJSON:
+    """Make a JSON-RPC call over Unix domain socket."""
+    connector = aiohttp.UnixConnector(path=socket_path)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        async with session.post(
+            "http://localhost/",  # URL doesn't matter for Unix socket
+            data=request_json_str,
+            headers={"Content-Type": "application/json"},
+            timeout=aiohttp.ClientTimeout(total=100 * 60 * 60),  # Match DEFAULT_TIMEOUT
+        ) as response:
+            return JSONRPCResponseJSON(await response.text())
 
 
 async def _retrying_post(

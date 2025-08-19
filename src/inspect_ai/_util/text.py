@@ -191,6 +191,12 @@ def str_to_float(s: str) -> float:
     base_value = 0.0
 
     if base_part:
+        # find the first valid float (LLMs may include additional spurious output)
+        match = re.match(r"^([+-]?\d+(?:\.\d+)?)", base_part)
+        if match is None:
+            raise ValueError(f"Value could not be parsed as a float: {s}")
+        base_part = match.group(1)
+
         try:
             base_value = float(base_part)
         except ValueError:

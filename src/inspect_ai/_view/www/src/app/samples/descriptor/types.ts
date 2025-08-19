@@ -32,6 +32,7 @@ export interface ScoreDescriptor {
   categories?: Array<Object>;
   min?: number;
   max?: number;
+  filterable?: boolean;
   compare: (a: SelectedScore, b: SelectedScore) => number;
   render: (score: Value2) => ReactNode;
 }

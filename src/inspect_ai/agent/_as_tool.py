@@ -6,7 +6,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
-from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool import Tool, ToolResult, tool, tool_result_content
 from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
@@ -64,11 +64,11 @@ def as_tool(
 
         # find assistant message to read content from (prefer output)
         if not state.output.empty:
-            return state.output.message.content
+            return tool_result_content(state.output.message.content)
         elif len(state.messages) > 0 and isinstance(
             state.messages[-1], ChatMessageAssistant
         ):
-            return state.messages[-1].content
+            return tool_result_content(state.messages[-1].content)
         else:
             return ""
 

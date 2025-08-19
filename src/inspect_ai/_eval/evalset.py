@@ -14,6 +14,7 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
+from inspect_ai._display import display as display_manager
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
@@ -36,7 +37,11 @@ from inspect_ai.model import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
-from inspect_ai.util._display import display_type_initialized, init_display_type
+from inspect_ai.util._display import (
+    display_type_initialized,
+    display_type_plain,
+    init_display_type,
+)
 
 from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args
@@ -294,14 +299,17 @@ def eval_set(
         kwargs["max_connections"] = max_connections
 
         # print waiting status
-        nonlocal status
-        console.print("")
         msg = (
             f"Evals not complete, waiting {round(retry_state.upcoming_sleep)} "
             + "seconds before retrying...\n"
         )
-        status = console.status(status_msg(msg), spinner="clock")
-        status.start()
+        if display_type_plain():
+            display_manager().print(msg)
+        else:
+            nonlocal status
+            console.print("")
+            status = console.status(status_msg(msg), spinner="clock")
+            status.start()
 
     def before(retry_state: RetryCallState) -> None:
         # clear waiting status

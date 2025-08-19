@@ -5,9 +5,11 @@ from typing import Any
 from inspect_ai._util.content import (
     ContentAudio,
     ContentData,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai.model._chat_message import ChatMessage
@@ -17,7 +19,7 @@ MAX_TEXT_LENGTH = 5120
 
 
 def thin_input(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
-    # Clean the input of any images
+    # Clean the input of any images or documents
     if isinstance(inputs, list):
         input: list[ChatMessage] = []
         for message in inputs:
@@ -25,10 +27,12 @@ def thin_input(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
                 filtered_content: list[
                     ContentText
                     | ContentReasoning
+                    | ContentToolUse
                     | ContentImage
                     | ContentAudio
                     | ContentVideo
                     | ContentData
+                    | ContentDocument
                 ] = []
                 for content in message.content:
                     if content.type == "text":

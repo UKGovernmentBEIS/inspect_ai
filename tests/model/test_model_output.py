@@ -1,4 +1,19 @@
+from pathlib import Path
+
+from inspect_ai.log._file import read_eval_log
 from inspect_ai.model._model_output import ModelUsage
+
+
+def test_completion_deserialization() -> None:
+    log_file = (
+        Path(__file__).parent.parent
+        / "log"
+        / "test_list_logs"
+        / "2024-11-05T13-31-45-05-00_input-task_8zXjbRzCWrL9GXiXo2vus9.json"
+    )
+    log = read_eval_log(log_file)
+    assert log.samples
+    assert len(log.samples[0].output.completion) > 0
 
 
 def test_model_usage_addition() -> None:

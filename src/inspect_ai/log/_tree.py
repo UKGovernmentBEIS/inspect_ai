@@ -109,6 +109,14 @@ def event_sequence(tree: EventTree) -> Iterable[Event]:
             yield item
 
 
+def walk_node_spans(tree: EventTree) -> Iterable[SpanNode]:
+    for item in tree:
+        if not isinstance(item, SpanNode):
+            continue
+        yield item
+        yield from walk_node_spans(item.children)
+
+
 def _print_event_tree(tree: EventTree, indent: str = "") -> None:
     for item in tree:
         if isinstance(item, SpanNode):

@@ -1,3 +1,10 @@
+v1.2.0 (2025-08-11)
+
+### minor
+
+- Converted `inspect_tool_support` to use a Unix socket rather than a tcp port for intra-container RPC.
+
+
 v1.1.2 (2025-07-09)
 
 ### patch

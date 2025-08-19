@@ -30,8 +30,8 @@ from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    messages_to_openai,
     model_output_from_openai,
-    openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
@@ -160,7 +160,7 @@ class OpenAICompatibleAPI(ModelAPI):
         # prepare request (we do this so we can log the ModelCall)
         have_tools = (len(tools) > 0) and not self.emulate_tools
         request = dict(
-            messages=await openai_chat_messages(input),
+            messages=await messages_to_openai(input),
             tools=openai_chat_tools(tools) if have_tools else NOT_GIVEN,
             tool_choice=openai_chat_tool_choice(tool_choice)
             if have_tools

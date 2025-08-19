@@ -365,6 +365,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -501,6 +507,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -608,6 +620,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -753,6 +771,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -989,6 +1013,50 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ContentDocument": {
+      "description": "Document content (e.g. a PDF).",
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "document",
+          "default": "document",
+          "title": "Type",
+          "type": "string"
+        },
+        "document": {
+          "title": "Document",
+          "type": "string"
+        },
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "mime_type": {
+          "title": "Mime Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "document",
+        "filename",
+        "mime_type"
+      ],
+      "title": "ContentDocument",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ContentImage": {
       "description": "Image content.",
       "properties": {
@@ -1165,6 +1233,84 @@
         "citations"
       ],
       "title": "ContentText",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentToolUse": {
+      "description": "Server side tool use.",
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "tool_use",
+          "default": "tool_use",
+          "title": "Type",
+          "type": "string"
+        },
+        "tool_type": {
+          "title": "Tool Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context"
+        },
+        "arguments": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "result": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "tool_type",
+        "id",
+        "name",
+        "context",
+        "arguments",
+        "result",
+        "error"
+      ],
+      "title": "ContentToolUse",
       "type": "object",
       "additionalProperties": false
     },
@@ -4486,6 +4632,11 @@
           "title": "Choices",
           "type": "array"
         },
+        "completion": {
+          "default": "",
+          "title": "Completion",
+          "type": "string"
+        },
         "usage": {
           "anyOf": [
             {
@@ -4540,6 +4691,7 @@
       "required": [
         "model",
         "choices",
+        "completion",
         "usage",
         "time",
         "metadata",
@@ -6416,9 +6568,6 @@
               "$ref": "#/$defs/ContentText"
             },
             {
-              "$ref": "#/$defs/ContentReasoning"
-            },
-            {
               "$ref": "#/$defs/ContentImage"
             },
             {
@@ -6428,16 +6577,10 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
-              "$ref": "#/$defs/ContentData"
-            },
-            {
               "items": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentReasoning"
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
@@ -6447,9 +6590,6 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -6928,6 +7068,18 @@
     "location": {
       "title": "Location",
       "type": "string"
+    },
+    "etag": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Etag"
     }
   },
   "required": [

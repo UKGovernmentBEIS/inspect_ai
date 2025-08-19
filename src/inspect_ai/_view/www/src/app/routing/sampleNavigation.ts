@@ -218,7 +218,7 @@ export const useSampleNavigation = () => {
           epoch,
           currentSampleTabId,
         );
-        return url;
+        return `#${url}`;
       }
       return undefined;
     },

@@ -41,6 +41,7 @@ async def sandbox_service(
     until: Callable[[], bool],
     sandbox: SandboxEnvironment,
     user: str | None = None,
+    started: anyio.Event | None = None,
 ) -> None:
     """Run a service that is callable from within a sandbox.
 
@@ -73,9 +74,10 @@ async def sandbox_service(
         until: Function used to check whether the service should stop.
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
+        started: Event to set when service has been started
     """
     # setup and start service
-    service = SandboxService(name, sandbox, user)
+    service = SandboxService(name, sandbox, user, started)
     if isinstance(methods, list):
         methods = {v.__name__: v for v in methods}
     for name, method in methods.items():
@@ -116,7 +118,11 @@ class SandboxService:
     """
 
     def __init__(
-        self, name: str, sandbox: SandboxEnvironment, user: str | None = None
+        self,
+        name: str,
+        sandbox: SandboxEnvironment,
+        user: str | None = None,
+        started: anyio.Event | None = None,
     ) -> None:
         """Create a SandboxService.
 
@@ -125,10 +131,12 @@ class SandboxService:
             sandbox (SandboxEnvironment): Sandbox to publish service to.
             user (str | None): User to login as. Defaults to the sandbox environment's
               default user.
+            started: Event to set when service has been started
         """
         self._name = name
         self._sandbox = sandbox
         self._user = user
+        self._started = started
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
         self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
@@ -160,6 +168,10 @@ class SandboxService:
         client_code = self._generate_client()
         await self._write_text_file(client_script, client_code)
         self._client_script = client_script
+
+        # set started event if provided
+        if self._started:
+            self._started.set()
 
     async def handle_requests(self) -> None:
         """Handle all pending service requests."""
