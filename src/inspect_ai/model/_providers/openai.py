@@ -1,7 +1,7 @@
 import os
 import re
 from logging import getLogger
-from typing import Any, Literal
+from typing import Any
 
 from openai import (
     AsyncAzureOpenAI,
@@ -14,7 +14,6 @@ from openai.types.chat import ChatCompletion
 from openai.types.responses import Response
 from typing_extensions import override
 
-from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import normalized_batch_config
@@ -60,9 +59,7 @@ class OpenAIAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
-        # Can't use the XxxDeprecatedArgs approach since this already has a **param
-        # but responses_store is deprecated and should not be used.
-        responses_store: Literal["auto"] | bool = "auto",
+        responses_store: bool | None = None,
         service_tier: str | None = None,
         client_timeout: float | None = None,
         background: bool | None = None,
@@ -116,8 +113,7 @@ class OpenAIAPI(ModelAPI):
         )
 
         # resolve whether we are using the responses store
-        if isinstance(responses_store, bool):
-            deprecation_warning("`responses_store` is no longer supported.")
+        self.responses_store = responses_store
 
         # set service tier if specified
         self.service_tier = service_tier
@@ -334,6 +330,7 @@ class OpenAIAPI(ModelAPI):
                 service_tier=self.service_tier,
                 prompt_cache_key=self.prompt_cache_key,
                 safety_identifier=self.safety_identifier,
+                responses_store=self.responses_store,
                 openai_api=self,
                 batcher=self._responses_batcher,
             )

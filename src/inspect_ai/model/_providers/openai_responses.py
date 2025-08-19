@@ -54,6 +54,7 @@ async def generate_responses(
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
     safety_identifier: str | NotGiven,
+    responses_store: bool | None,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[Response] | None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
@@ -102,6 +103,7 @@ async def generate_responses(
             service_tier=service_tier,
             prompt_cache_key=prompt_cache_key,
             safety_identifier=safety_identifier,
+            responses_store=responses_store,
             tools=len(tools) > 0,
         ),
     )
@@ -201,6 +203,7 @@ def completion_params_responses(
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
     safety_identifier: str | NotGiven,
+    responses_store: bool | None,
     tools: bool,
 ) -> dict[str, Any]:
     # TODO: we'll need a computer_use_preview bool for the 'include'
@@ -220,6 +223,10 @@ def completion_params_responses(
         params["safety_identifier"] = safety_identifier
     if openai_api.is_computer_use_preview():
         params["truncation"] = "auto"
+
+    if responses_store is False:
+        params["store"] = False
+        params["include"] = ["reasoning.encrypted_content"]
 
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
