@@ -5,7 +5,6 @@ title: "inspect_ai.agent"
 ## Agents
 
 ### react
-### bridge
 ### human_cli
 
 ## Execution
@@ -14,6 +13,11 @@ title: "inspect_ai.agent"
 ### run
 ### as_tool
 ### as_solver
+
+## Bridging
+
+### agent_bridge
+### sandbox_agent_bridge
 
 ## Filters
 
@@ -36,3 +40,6 @@ title: "inspect_ai.agent"
 ### AgentContinue
 ### AgentSubmit
 
+## Deprecated
+
+### bridge

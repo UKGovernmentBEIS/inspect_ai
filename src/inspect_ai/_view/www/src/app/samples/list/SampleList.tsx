@@ -17,7 +17,11 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
-import { useProperty, useSampleDescriptor } from "../../../state/hooks";
+import {
+  useDocumentTitle,
+  useProperty,
+  useSampleDescriptor,
+} from "../../../state/hooks";
 import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
 import { useSampleNavigation } from "../../routing/sampleNavigation";
@@ -65,6 +69,12 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       defaultValue: !!running,
     },
   );
+
+  const evalSpec = useStore((state) => state.log.selectedLogSummary?.eval);
+  const { setDocumentTitle } = useDocumentTitle();
+  useEffect(() => {
+    setDocumentTitle({ evalSpec });
+  }, [setDocumentTitle, evalSpec]);
 
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
@@ -157,13 +167,6 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
               item.data.id,
               item.data.epoch,
             )}
-            showSample={() => {
-              sampleNavigation.showSample(
-                item.index,
-                item.data.id,
-                item.data.epoch,
-              );
-            }}
           />
         );
       } else if (item.type === "separator") {

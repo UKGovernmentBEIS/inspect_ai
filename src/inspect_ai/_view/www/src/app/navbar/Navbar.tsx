@@ -3,6 +3,7 @@ import { FC, Fragment, ReactNode, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
+import { prettyDirUri } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import styles from "./Navbar.module.css";
@@ -106,12 +107,4 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
       <div className={clsx(styles.right)}>{children}</div>
     </nav>
   );
-};
-
-const prettyDirUri = (uri: string) => {
-  if (uri.startsWith("file://")) {
-    return uri.replace("file://", "");
-  } else {
-    return uri;
-  }
 };
