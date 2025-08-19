@@ -4,7 +4,30 @@ set -e
 
 # Get architecture suffix from environment (set by build_within_container.sh)
 ARCH_SUFFIX=${ARCH_SUFFIX:-"unknown"}
-EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX"
+
+# Parse command line arguments
+INCLUDE_VERSION=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --include-version)
+            INCLUDE_VERSION=true
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            echo "Usage: $0 [--include-version]"
+            exit 1
+            ;;
+    esac
+done
+
+# Set executable name based on whether version should be included
+if [ "$INCLUDE_VERSION" = true ]; then
+    VERSION=$(cat VERSION 2>/dev/null || echo "1")
+    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION"
+else
+    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX"
+fi
 
 echo "Building maximally portable executable for $ARCH_SUFFIX..."
 
@@ -44,5 +67,5 @@ ldd "/output/$EXECUTABLE_NAME" 2>/dev/null || echo "✅ Fully static - maximum p
 ls -lh "/output/$EXECUTABLE_NAME"
 file "/output/$EXECUTABLE_NAME"
 
-echo "✅ Portable executable ready!"
+echo "✅ Portable executable ready: $EXECUTABLE_NAME"
 echo "This should run on any Linux x86_64 system from ~2016 onwards"

@@ -195,6 +195,92 @@ async def _open_executable_for_arch(arch: Architecture) -> AsyncIterator[BinaryI
         yield f
 
 
+def _get_tool_support_version() -> str:
+    """Get the tool support version from VERSION file."""
+    import importlib.resources
+
+    try:
+        # Try to read from the package first
+        with (
+            importlib.resources.files("inspect_ai")
+            .joinpath("../inspect_tool_support/VERSION")
+            .open() as f
+        ):
+            return f.read().strip()
+    except Exception:
+        # Fallback: try to read from filesystem for git/editable installs
+        try:
+            package_path = Path(inspect_ai.__file__).parent
+            version_file = (
+                package_path.parent.parent / "inspect_tool_support" / "VERSION"
+            )
+            if version_file.exists():
+                return version_file.read_text().strip()
+        except Exception:
+            pass
+
+        # Ultimate fallback - version 1
+        return "1"
+
+
+def _get_versioned_executable_name(arch: Architecture) -> str:
+    """Get the versioned executable name for the given architecture."""
+    version = _get_tool_support_version()
+    return f"inspect-tool-support-{arch}-v{version}"
+
+
+async def _download_from_github_releases(arch: Architecture) -> None:
+    """Download the versioned executable from GitHub releases."""
+    from pathlib import Path
+
+    import httpx
+
+    versioned_executable = _get_versioned_executable_name(arch)
+
+    # GitHub release URL pattern
+    repo_url = "https://api.github.com/repos/UKGovernmentBEIS/inspect_ai/releases"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Get releases to find the one with our version
+            response = await client.get(repo_url)
+            response.raise_for_status()
+            releases = response.json()
+
+            # Look for a release that contains our versioned executable
+            download_url = None
+            for release in releases:
+                for asset in release.get("assets", []):
+                    if asset["name"] == versioned_executable:
+                        download_url = asset["browser_download_url"]
+                        break
+                if download_url:
+                    break
+
+            if not download_url:
+                raise RuntimeError(
+                    f"Executable {versioned_executable} not found in any GitHub release"
+                )
+
+            # Download the executable
+            response = await client.get(download_url)
+            response.raise_for_status()
+
+            # Save to binaries directory
+            binaries_path = Path(inspect_ai.__file__).parent / "binaries"
+            binaries_path.mkdir(exist_ok=True)
+
+            # Save with original non-versioned name for compatibility
+            executable_path = binaries_path / f"inspect-tool-support-{arch}"
+            executable_path.write_bytes(response.content)
+            executable_path.chmod(0o755)
+
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"HTTP error downloading executable: {e}")
+    except Exception as e:
+        raise RuntimeError(f"Error downloading executable: {e}")
+
+
 async def _go_get_it(arch: Architecture, executable: str) -> None:
     installation_type = _detect_installation_type()
 
@@ -206,14 +292,14 @@ async def _go_get_it(arch: Architecture, executable: str) -> None:
         )
 
     elif installation_type == "git":
-        # Case 2: Git reference installation - download from external source
-        # TODO: This is where we'll download pre-built binaries from GitHub releases or CDN
-        # based on commit hash or version tag for exact version matching
-        raise NotImplementedError(
-            f"Tool support executable {executable} is not available for git reference installations. "
-            "Pre-built binary hosting solution is not yet implemented. "
-            f"As a workaround, manually build with: python src/inspect_tool_support/build_within_container.py --arch {arch}"
-        )
+        # Case 2: Git reference installation - download from GitHub releases
+        try:
+            await _download_from_github_releases(arch)
+        except Exception as e:
+            raise PrerequisiteError(
+                f"Failed to download tool support executable for git installation: {e}\n"
+                f"As a workaround, manually build with: python src/inspect_tool_support/build_within_container.py --arch {arch}"
+            )
 
     elif installation_type == "editable":
         # Case 3: Editable installation - prompt user to build
@@ -261,42 +347,72 @@ async def _go_get_it(arch: Architecture, executable: str) -> None:
 
 
 def _detect_installation_type() -> Literal["pypi", "git", "editable"]:
-    """Detect the type of installation and return appropriate case identifier."""
+    """Detect the type of installation using multiple heuristics."""
+    import importlib.metadata
+    from importlib.metadata import PackageNotFoundError
+
     package_path = Path(inspect_ai.__file__).parent
 
-    # TODO: FRAGILE DETECTION METHOD - This approach is not robust!
-    # The "site-packages" string matching will fail in many scenarios:
-    # - Alternative package managers (conda, poetry, uv, etc.)
-    # - Custom virtual environments with different directory structures
-    # - Corporate/enterprise Python distributions
-    # - System package managers (apt, yum, brew)
-    # - Non-standard PYTHONPATH configurations
-    # - Docker containers with unusual layouts
-    #
-    # Consider more robust alternatives:
-    # - Check for .egg-link files (editable installs)
-    # - Use importlib.metadata to examine package metadata
-    # - Combine multiple heuristics with fallback strategies
-    # - Examine filesystem structure more intelligently
-    #
-    # For now, this works for common pip-based installations but will
-    # need improvement for production robustness.
+    try:
+        # Use importlib.metadata to get package information
+        dist = importlib.metadata.distribution("inspect-ai")
 
-    # Check if we're in site-packages (indicates pip install, not editable)
-    if "site-packages" in str(package_path):
-        # This could be either Case 1 (PyPI) or Case 2 (git reference)
-        # Both get installed to site-packages, but git installs include source files
-        build_script_path = (
-            package_path.parent.parent
-            / "inspect_tool_support"
-            / "build_within_container.py"
-        )
+        # Check if this is an editable install by looking for .egg-link or direct_url.json
+        if dist.files:
+            # Look for editable install indicators
+            for file_path in dist.files:
+                if file_path.suffix == ".egg-link" or "direct_url.json" in str(
+                    file_path
+                ):
+                    # Check if it's an editable git install vs local editable
+                    try:
+                        direct_url_path = dist.locate_file("direct_url.json")
+                        if direct_url_path and direct_url_path.exists():
+                            import json
 
-        if build_script_path.exists():
-            return "git"  # Case 2: pip install git+https://github.com/...
+                            with open(str(direct_url_path)) as f:
+                                direct_url = json.load(f)
+                                if direct_url.get("vcs_info", {}).get("vcs") == "git":
+                                    return "editable"  # pip install -e git+...
+                    except Exception:
+                        pass
+                    return "editable"  # pip install -e .
+
+        # Check if installed from git by examining the installation path and metadata
+        if "site-packages" in str(package_path):
+            # Look for source files that indicate git installation
+            build_script_path = (
+                package_path.parent.parent
+                / "inspect_tool_support"
+                / "build_within_container.py"
+            )
+
+            version_file_path = (
+                package_path.parent.parent / "inspect_tool_support" / "VERSION"
+            )
+
+            # Git installations include the full source tree
+            if build_script_path.exists() or version_file_path.exists():
+                return "git"  # pip install git+https://github.com/...
+            else:
+                return "pypi"  # pip install inspect-ai (wheel)
         else:
-            return "pypi"  # Case 1: pip install inspect-ai (wheel package)
+            # Not in site-packages, likely development/editable install
+            return "editable"
 
-    else:
-        # Not in site-packages, so this is likely an editable install
-        return "editable"  # Case 3: pip install -e . or pip install -e git+...
+    except PackageNotFoundError:
+        # Fallback to path-based detection if metadata unavailable
+        if "site-packages" in str(package_path):
+            # Check for source files indicating git install
+            build_script_path = (
+                package_path.parent.parent
+                / "inspect_tool_support"
+                / "build_within_container.py"
+            )
+
+            if build_script_path.exists():
+                return "git"
+            else:
+                return "pypi"
+        else:
+            return "editable"
