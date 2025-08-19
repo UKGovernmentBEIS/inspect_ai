@@ -79,3 +79,11 @@ export function encodePathParts(url: string): string {
       .join("/");
   }
 }
+
+export const prettyDirUri = (uri: string) => {
+  if (uri.startsWith("file://")) {
+    return uri.replace("file://", "");
+  } else {
+    return uri;
+  }
+};

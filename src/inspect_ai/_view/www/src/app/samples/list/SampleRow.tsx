@@ -17,7 +17,6 @@ interface SampleRowProps {
   scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
-  showSample: () => void;
   sampleUrl?: string;
 }
 
@@ -30,7 +29,6 @@ export const SampleRow: FC<SampleRowProps> = ({
   scoreRendered,
   gridColumnsTemplate,
   height,
-  showSample,
   sampleUrl,
 }) => {
   const streamSampleData = useStore(
@@ -121,6 +119,15 @@ export const SampleRow: FC<SampleRowProps> = ({
     </div>
   );
 
-  // Render the row content either as a link or directly
-  return <div onClick={showSample}>{rowContent}</div>;
+  // If no sample URL available or not viewable, render as div
+  if (!sampleUrl || !isViewable) {
+    return <div className={styles.disabledRow}>{rowContent}</div>;
+  }
+
+  // Render as a proper link
+  return (
+    <a href={sampleUrl} className={styles.sampleLink}>
+      {rowContent}
+    </a>
+  );
 };

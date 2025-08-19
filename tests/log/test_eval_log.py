@@ -18,8 +18,10 @@ from inspect_ai.log._transcript import (
     SubtaskEvent,
     ToolEvent,
 )
+from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer import exact
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -145,6 +147,59 @@ def test_can_round_trip_serialize_model_event():
     assert original == deserialized
 
 
+def _inject_invalid_unicode_into_log(log: EvalLog) -> EvalLog:
+    # Ensure samples exist
+    assert log.samples is not None and len(log.samples) > 0
+    sample = log.samples[0]
+    # Inject invalid surrogate into the model output content
+    surrogate_input = "\udc00"
+    sample.output = ModelOutput.from_content(
+        model="mockllm/model",
+        content=f"This is a surrogate: {surrogate_input}",
+    )
+    # Sanity check the invalid content is present in the in-memory object
+    assert sample.output.choices[0].message.content == "This is a surrogate: \udc00"
+    return log
+
+
+def test_json_log_writer_handles_invalid_unicode_safely(tmp_path: str):
+    # Read a valid log, mutate it to include invalid unicode in model output
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    log = read_eval_log(log_file)
+    log = _inject_invalid_unicode_into_log(log)
+
+    # Attempt to write as .json should raise due to unsafe serialization path
+    out_path = os.path.join(tmp_path, "bad_unicode_log.json")
+    write_eval_log(log, out_path)
+
+    # Read the log back in
+    roundtripped_log = read_eval_log(out_path)
+    assert roundtripped_log.samples and len(roundtripped_log.samples) > 0
+    assert (
+        roundtripped_log.samples[0].output.choices[0].message.content
+        == "This is a surrogate: \\udc00"
+    )
+
+
+def test_eval_log_writer_handles_invalid_unicode_safely(tmp_path: str):
+    # Read a valid log, mutate it to include invalid unicode in model output
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    log = read_eval_log(log_file)
+    log = _inject_invalid_unicode_into_log(log)
+
+    # Attempt to write as .eval should raise due to unsafe serialization path
+    out_path = os.path.join(tmp_path, "bad_unicode_log.eval")
+    write_eval_log(log, out_path)
+
+    # Read the log back in
+    roundtripped_log = read_eval_log(out_path)
+    assert roundtripped_log.samples and len(roundtripped_log.samples) > 0
+    assert (
+        roundtripped_log.samples[0].output.choices[0].message.content
+        == "This is a surrogate: \\udc00"
+    )
+
+
 def test_can_round_trip_serialize_tool_event():
     original = ToolEvent(
         id="id", function="fn", arguments={}, timestamp=datetime.now(timezone.utc)
@@ -200,3 +255,28 @@ def check_log_raises(log_file):
         read_log(log_file)
     with pytest.raises(ValueError):
         read_log(log_file, header_only=True)
+
+
+def test_unicode_surrogates_are_escaped():
+    task = Task(
+        dataset=[Sample(input="Say hello.", target="Hello")],
+        solver=generate(),
+        scorer=exact(),
+    )
+
+    [log] = eval(
+        tasks=task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(
+                    model="mockllm/model",
+                    content="\udc00\udc00\udc00",
+                )
+            ],
+        ),
+    )
+    assert log.status == "success"
+    sample = log.samples[0]
+    assert sample.output.message.text == "\\udc00\\udc00\\udc00"
+    assert sample.scores["exact"].answer == "\\udc00\\udc00\\udc00"

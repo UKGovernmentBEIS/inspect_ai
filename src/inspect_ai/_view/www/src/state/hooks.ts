@@ -1,6 +1,6 @@
 import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Events } from "../@types/log";
+import { EvalSample, EvalSpec, Events } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
@@ -14,6 +14,7 @@ import {
 import { LogFile, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
+import { prettyDirUri } from "../utils/uri";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";
 import { mergeSampleSummaries } from "./utils";
@@ -674,4 +675,35 @@ export const useLogsListing = () => {
     filteredCount,
     setFilteredCount,
   };
+};
+
+export interface TitleContext {
+  logDir?: string;
+  evalSpec?: EvalSpec;
+  sample?: EvalSample;
+}
+
+export const useDocumentTitle = () => {
+  const setDocumentTitle = (context: TitleContext) => {
+    const title: string[] = [];
+
+    if (context.sample) {
+      title.push(`${context.sample.id}_${context.sample.epoch}`);
+    }
+
+    if (context.evalSpec) {
+      title.push(`${context.evalSpec.model} - ${context.evalSpec.task}`);
+    }
+
+    if (context.logDir) {
+      title.push(prettyDirUri(context.logDir));
+    }
+
+    if (title.length === 0) {
+      title.push("Inspect View");
+    }
+
+    document.title = title.join(" - ");
+  };
+  return { setDocumentTitle };
 };
