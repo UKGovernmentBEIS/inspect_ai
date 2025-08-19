@@ -51,6 +51,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
@@ -230,6 +231,10 @@ class ModelAPI(abc.ABC):
 
     def tools_required(self) -> bool:
         """Any tool use in a message stream means that tools must be passed."""
+        return False
+
+    def supports_remote_mcp(self) -> bool:
+        """Does this provider support remote execution of MCP tools?."""
         return False
 
     def tool_result_images(self) -> bool:
@@ -527,6 +532,15 @@ class Model:
 
         # resolve all tools into tool_info
         tools_info = get_tools_info(resolved_tools)
+
+        # raise error if we don't support remote_mcp and we have an mcp server
+        if not self.api.supports_remote_mcp():
+            for tool in tools_info:
+                if is_mcp_server_tool(tool):
+                    raise RuntimeError(
+                        f"Remote MCP execution is not supported for {self}. "
+                        + 'Please use "local" execution instead.'
+                    )
 
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):

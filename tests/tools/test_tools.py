@@ -98,7 +98,10 @@ def check_tools_calls(model: Model, **model_args) -> None:
     model = get_model(model)
     task = Task(
         dataset=addition_dataset,
-        solver=[use_tools(addition()), generate()],
+        solver=[
+            use_tools(addition(), tool_choice=ToolFunction("addition")),
+            generate(),
+        ],
         scorer=match("any", numeric=True),
     )
 

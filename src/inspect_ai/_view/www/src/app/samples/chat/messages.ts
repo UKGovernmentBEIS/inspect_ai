@@ -5,9 +5,11 @@ import {
   ChatMessageUser,
   ContentAudio,
   ContentData,
+  ContentDocument,
   ContentImage,
   ContentReasoning,
   ContentText,
+  ContentToolUse,
   ContentVideo,
   Events,
   Messages,
@@ -64,8 +66,10 @@ export const resolveMessages = (messages: Messages) => {
     | ContentImage
     | ContentAudio
     | ContentVideo
+    | ContentDocument
     | ContentReasoning
     | ContentData
+    | ContentToolUse
   )[] = [];
   for (const systemMessage of systemMessages) {
     const contents = Array.isArray(systemMessage.content)
@@ -119,16 +123,20 @@ const normalizeContent = (
     | ContentImage
     | ContentAudio
     | ContentVideo
+    | ContentDocument
     | ContentReasoning
     | ContentData
+    | ContentToolUse
     | string,
 ):
   | ContentText
   | ContentImage
   | ContentAudio
   | ContentVideo
+  | ContentDocument
   | ContentReasoning
-  | ContentData => {
+  | ContentData
+  | ContentToolUse => {
   if (typeof content === "string") {
     return {
       type: "text",

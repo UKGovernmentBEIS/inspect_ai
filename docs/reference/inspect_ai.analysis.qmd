@@ -46,6 +46,7 @@ title: "inspect_ai.analysis"
 ### model_info
 ### task_info
 ### frontier
+### score_to_float
 ### Operation
 ### ModelInfo
 

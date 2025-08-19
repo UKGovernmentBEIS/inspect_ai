@@ -4,9 +4,11 @@ import { FC, ReactNode } from "react";
 import {
   ContentAudio,
   ContentData,
+  ContentDocument,
   ContentImage,
   ContentReasoning,
   ContentText,
+  ContentToolUse,
   ContentVideo,
   Format1,
   Format2,
@@ -20,6 +22,8 @@ import styles from "./MessageContent.module.css";
 import { MessagesContext } from "./MessageContents";
 import { ToolOutput } from "./tools/ToolOutput";
 import { Citation } from "./types";
+import { ServerToolCall } from "./server-tools/ServerToolCall";
+import { ContentDocumentView } from "./documents/ContentDocumentView";
 
 type ContentObject =
   | ContentText
@@ -27,8 +31,10 @@ type ContentObject =
   | ContentImage
   | ContentAudio
   | ContentVideo
+  | ContentDocument
   | ContentTool
-  | ContentData;
+  | ContentData
+  | ContentToolUse;
 
 type ContentType = string | string[] | ContentObject;
 
@@ -38,6 +44,17 @@ interface MessageContentProps {
   contents: Contents;
   context: MessagesContext;
 }
+
+export const isMessageContent = (
+  content: unknown,
+): content is ContentObject => {
+  return (
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    typeof content.type === "string"
+  );
+};
 
 /**
  * Renders message content based on its type.
@@ -198,10 +215,24 @@ const messageRenderers: Record<string, MessageRenderer> = {
       return <ToolOutput output={c.content} key={key} />;
     },
   },
+  // server-side tool use
+  tool_use: {
+    render: (key, content) => {
+      const c = content as ContentToolUse;
+      // If the tool use has a tool, render it
+      return <ServerToolCall id={key} content={c} />;
+    },
+  },
   data: {
     render: (key, content) => {
       const c = content as ContentData;
       return <ContentDataView id={key} contentData={c} />;
+    },
+  },
+  document: {
+    render: (key, content) => {
+      const c = content as ContentDocument;
+      return <ContentDocumentView id={key} document={c} />;
     },
   },
 };

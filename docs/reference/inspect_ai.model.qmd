@@ -26,6 +26,7 @@ title: "inspect_ai.model"
 ### ChatMessageAssistant
 ### ChatMessageTool
 ### trim_messages
+### user_prompt
 
 ## Content
 
@@ -35,7 +36,9 @@ title: "inspect_ai.model"
 ### ContentImage
 ### ContentAudio
 ### ContentVideo
+### ContentDocument
 ### ContentData
+### ContentToolUse
 
 ## Citation
 
@@ -64,6 +67,11 @@ title: "inspect_ai.model"
 ### cache_list_expired
 ### cache_prune
 ### cache_path
+
+## Conversion
+
+### messages_to_openai
+### messages_from_openai
 
 ## Provider
 

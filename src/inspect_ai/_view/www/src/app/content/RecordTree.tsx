@@ -63,11 +63,12 @@ export const RecordTree: FC<RecordTreeProps> = ({
 
   // Tree-ify the record (creates a flat lsit of items with depth property)
   const items = useMemo(() => {
-    return toTreeItems(
+    const items = toTreeItems(
       record,
       collapsedIds || {},
       processStore ? [resolveStoreKeys] : [],
     );
+    return items;
   }, [record, collapsedIds, processStore]);
 
   // If collapsedIds is not set, we need to set it to the default state
@@ -76,15 +77,15 @@ export const RecordTree: FC<RecordTreeProps> = ({
       return;
     }
 
-    const defaultCollapsedIds = items.reduce((prev, item) => {
-      if (item.depth >= defaultExpandLevel && item.hasChildren) {
-        return {
-          ...prev,
-          [item.id]: true,
-        };
-      }
-      return prev;
-    }, {});
+    const defaultCollapsedIds = items.reduce(
+      (prev, item) => {
+        if (item.depth >= defaultExpandLevel && item.hasChildren) {
+          prev[item.id] = true;
+        }
+        return prev;
+      },
+      {} as Record<string, true>,
+    );
     setCollapsedIds(id, defaultCollapsedIds);
   }, [collapsedIds, items]);
 
@@ -152,7 +153,11 @@ export const RecordTree: FC<RecordTreeProps> = ({
     return (
       <div
         key={item.id}
-        className={clsx(styles.keyPairContainer, "text-size-small")}
+        className={clsx(
+          styles.keyPairContainer,
+          index < items.length - 1 ? styles.keyPairBordered : undefined,
+          "text-size-small",
+        )}
         style={{
           paddingLeft: `${item.depth * 20}px`,
         }}
@@ -203,6 +208,11 @@ export const RecordTree: FC<RecordTreeProps> = ({
       </div>
     );
   };
+
+  // Don't render until collapsedIds is initialized to avoid flash of all items
+  if (!collapsedIds) {
+    return null;
+  }
 
   if (!scrollRef) {
     // No virtualization - render directly

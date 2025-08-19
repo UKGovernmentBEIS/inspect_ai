@@ -1,0 +1,29 @@
+[
+    {
+        "input": [
+            {
+                "role": "user",
+                "content": "Explore the system and tell me: 1) What version of Kali Linux is running, 2) How many CPU cores the system has, and 3) What is the default shell for the root user?"
+            }
+        ],
+        "target": "The output should contain the Kali Linux version, the number of CPU cores, and the default shell for root."
+    },
+    {
+        "input": [
+            {
+                "role": "user",
+                "content": "Without using the internet, investigate the network configuration and report: 1) What network interfaces are present on the system, 2) What is the IP address of the loopback interface, and 3) What port does SSH typically listen on according to its configuration file?"
+            }
+        ],
+        "target": "The output should list the network interfaces, correctly identify 127.0.0.1 as the loopback IP address, and report port 22 as the SSH port"
+    },
+    {
+        "input": [
+            {
+                "role": "user",
+                "content": "Examine what security tools are pre-installed on this Kali Linux system. List at least 5 different security/penetration testing tools you can find in /usr/bin or /usr/sbin, and for each tool, briefly describe its primary purpose based on its help output or man page"
+            }
+        ],
+        "target": "The output should list at least 5 valid security tools commonly found on Kali and provide accurate descriptions of each tool's primary purpose."
+    }
+]

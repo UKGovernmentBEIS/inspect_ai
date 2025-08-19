@@ -1,7 +1,41 @@
 ## Unreleased
 
+- Agent Bridge: New context-manager based `agent_bridge()` that replaces the deprecated `bridge()` function.
+- Agent Bridge: `sandbox_agent_bridge()` to integrate with CLI based agents running inside sandboxes.
+- Agent Bridge: Inspect model roles can now be addressed by bridged agents (e.g. "inspect/red-team").
+- Model API: `user_prompt()` function for getting the last user message from a list of messages.
+- Model API: `messages_to_openai()` and `messages_from_openai()` functions for converting to and from OpenAI-style message dicts.
+- Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
+- Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
+- Bugifx: Properly handle surrogates in JSON serialization.
+- Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
+
+## 0.3.123 (16 August 2025)
+
+- Support for [PDF input](https://inspect.aisi.org.uk/multimodal.html#pdf) for OpenAI, Anthropic, and Google via new `ContentDocument` type.
+- MCP: Use [Remote MCP Servers](https://inspect.aisi.org.uk/tools-mcp.html#remote-mcp) with OpenAI and Anthropic models.
+- OpenAI: Use types from latest SDK (v1.99.7) and make that the minimum required version of the `openai` package.
+- OpenAI: Automatically use background-mode for deep research models.
+- Anthropic: Automatically use streaming when `max_tokens` is 8k or higher.
+- Anthropic: Improved retry behavior via detection of more "overloaded" error conditions.
+- Anthropic: Add `betas` custom model arg (`-M`) for opting in to beta features.
+- Scoring: NaN values returned from scorers will be excluded from reductions when reducing epochs.
+- Scoring: String to float conversion now extracts the first valid float from the string (ignoring trailing characters that are invalid for floats).
+- Scoring: Provide access to `sample_limits()` within scorers.
+- Prepare: Added `score_to_float()` function for converting score columns to float values.
+- Eval logs: Add `if_match_etag` parameter for `write_eval_log()` and `etag` field to `EvalLog` for safe concurrent log modification.
+- ModelOutput: Setting the `completion` property now does not affect the underlying `message` content.
+- Inspect View: Improved handling of scores and messages with large or complex metadata.
+- Inspect View: Web search and other server-side tool calls (e.g. remote MCP) are now shown in the transcript.
+- Inspect View: Properly display scores with list values.
+- Tests: Added @flaky_retry(max_retries=) decorator for necessarily flaky tests.
+- Bugfix: Don't inspect stack in `span()` function until required for logging.
+
+## 0.3.122 (11 August 2025)
+
 - OpenAI: Enable native `web_search()` tool for GPT-5.
 - OpenAI: Convert "web_search" tool choice to native "web_search_preview" type.
+- Apply `sample_shuffle` for eval retry.
 
 ## 0.3.121 (10 August 2025)
 
@@ -23,6 +57,7 @@
 - Tests: Improve sandbox self_check to handle test failure via `with pytest.raises`, add test for env vars.
 - Tests: Added the ability to provide a generator like callback function for `MockLLM`.
 - Scoring: Improve multiple_choice answer parsing, making it more strict in interpreting answers like `ANSWER: None of the above`. Allow answers to end with full stop (`.`).
+- Tool Support: Converted `inspect_tool_support` to use a Unix socket rather than a tcp port for intra-container RPC. 
 - Bugfix: `background()` task is now scoped to the sample lifetime in the presence of `retry_on_error`.
 - Bugfix: Correct recording of `waiting_time` from within coroutines spawned from the main sample coroutine.
 - Bugfix: Update `inspect-tool-support` reference container to support executing tool code with non-root accounts.

@@ -1,0 +1,25 @@
+.documentFrame {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  row-gap: 0.5em;
+  padding-top: 1em;
+  padding-bottom: 1em;
+}
+
+.documentFrameTitle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.3em;
+  align-items: center;
+}
+
+.downloadLink:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.imageDocument {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+}

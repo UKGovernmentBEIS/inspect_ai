@@ -37,59 +37,27 @@ pass_at_5_threshhold = pass_at(5, 2)
 
 
 def test_simple_reducers() -> None:
-    simple_scores = [
-        Score(value=6),
-        Score(value=0),
-        Score(value=0),
-        Score(value=0),
-        Score(value=8),
-        Score(value=4),
-    ]
-    assert avg_reducer(simple_scores).value == 3
-    assert median_reducer(simple_scores).value == 2
-    assert mode_reducer(simple_scores).value == 0
-    assert max_reducer(simple_scores).value == 8
-    assert at_least_3_reducer(simple_scores).value == 1
-    assert at_least_4_reducer(simple_scores).value == 0
-    assert pass_at_2_no_threshhold(simple_scores).value == 0.8
-    assert pass_at_3_threshhold(simple_scores).value == 0.95
-    assert pass_at_5_no_threshhold(simple_scores).value == 1.0
-    assert pass_at_5_threshhold(simple_scores).value == 1.0
+    _test_simple_reducers_impl(include_nan=False)
+
+
+def test_nan_simple_reducers() -> None:
+    _test_simple_reducers_impl(include_nan=True)
 
 
 def test_list_reducers() -> None:
-    list_scores = [
-        Score(value=[1, 2]),
-        Score(value=[4, 3]),
-        Score(value=[3, 1]),
-        Score(value=[1, 2]),
-        Score(value=[1, 2]),
-    ]
-    assert avg_reducer(list_scores).value == [2, 2]
-    assert median_reducer(list_scores).value == [1, 2]
-    assert mode_reducer(list_scores).value == [1, 2]
-    assert max_reducer(list_scores).value == [4, 3]
-    assert at_least_3_reducer(list_scores).value == [1, 1]
-    assert at_least_4_reducer(list_scores).value == [1, 1]
-    assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
+    _test_list_reducers_impl(include_nan=False)
+
+
+def test_nan_list_reducers() -> None:
+    _test_list_reducers_impl(include_nan=True)
 
 
 def test_dict_reducers() -> None:
-    dict_scores = [
-        Score(value={"coolness": 5, "spiciness": 1}),
-        Score(value={"coolness": 4, "spiciness": 1}),
-        Score(value={"coolness": 3, "spiciness": 1}),
-        Score(value={"coolness": 2, "spiciness": 1}),
-        Score(value={"coolness": 1, "spiciness": 21}),
-    ]
-    assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 5}
-    assert median_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
-    assert mode_reducer(dict_scores).value == {"coolness": 5, "spiciness": 1}
-    assert max_reducer(dict_scores).value == {"coolness": 5, "spiciness": 21}
-    assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
-    assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
-    assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
-    assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    _test_dict_reducers_impl(include_nan=False)
+
+
+def test_nan_dict_reducers() -> None:
+    _test_dict_reducers_impl(include_nan=True)
 
 
 def test_reducer_preserve_metadata() -> None:
@@ -274,3 +242,82 @@ def test_main_reducer():
         Score(value="C"),
     ]
     assert mean_score()(str_scores).value == 0.4
+
+
+def test_main_reducer_nan():
+    str_scores = [
+        Score(value="I"),
+        Score(value="I"),
+        Score(value="I"),
+        Score(value="C"),
+        Score(value="C"),
+        Score(value=float("nan")),
+    ]
+    assert mean_score()(str_scores).value == 0.4
+
+
+def _test_simple_reducers_impl(include_nan: bool = False) -> None:
+    simple_scores = [
+        Score(value=6),
+        Score(value=0),
+        Score(value=0),
+        Score(value=0),
+        Score(value=8),
+        Score(value=4),
+    ]
+    if include_nan:
+        simple_scores.append(Score(value=float("nan")))
+
+    assert avg_reducer(simple_scores).value == 3
+    assert median_reducer(simple_scores).value == 2
+    assert mode_reducer(simple_scores).value == 0
+    assert max_reducer(simple_scores).value == 8
+    assert at_least_3_reducer(simple_scores).value == 1
+    assert at_least_4_reducer(simple_scores).value == 0
+    assert pass_at_2_no_threshhold(simple_scores).value == 0.8
+    assert pass_at_3_threshhold(simple_scores).value == 0.95
+    assert pass_at_5_no_threshhold(simple_scores).value == 1.0
+    assert pass_at_5_threshhold(simple_scores).value == 1.0
+
+
+def _test_list_reducers_impl(include_nan: bool = False) -> None:
+    list_scores = [
+        Score(value=[1, 2]),
+        Score(value=[4, 3]),
+        Score(value=[3, 1]),
+        Score(value=[1, 2]),
+        Score(value=[1, 2]),
+    ]
+    if include_nan:
+        list_scores.append(Score(value=[float("nan"), float("nan")]))
+
+    assert avg_reducer(list_scores).value == [2, 2]
+    assert median_reducer(list_scores).value == [1, 2]
+    assert mode_reducer(list_scores).value == [1, 2]
+    assert max_reducer(list_scores).value == [4, 3]
+    assert at_least_3_reducer(list_scores).value == [1, 1]
+    assert at_least_4_reducer(list_scores).value == [1, 1]
+    assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
+
+
+def _test_dict_reducers_impl(include_nan: bool = False) -> None:
+    dict_scores = [
+        Score(value={"coolness": 5, "spiciness": 1}),
+        Score(value={"coolness": 4, "spiciness": 1}),
+        Score(value={"coolness": 3, "spiciness": 1}),
+        Score(value={"coolness": 2, "spiciness": 1}),
+        Score(value={"coolness": 1, "spiciness": 21}),
+    ]
+    if include_nan:
+        dict_scores.append(
+            Score(value={"coolness": float("nan"), "spiciness": float("nan")})
+        )
+
+    assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 5}
+    assert median_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
+    assert mode_reducer(dict_scores).value == {"coolness": 5, "spiciness": 1}
+    assert max_reducer(dict_scores).value == {"coolness": 5, "spiciness": 21}
+    assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
+    assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
