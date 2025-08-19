@@ -238,7 +238,6 @@ async def execute_tools(
                                     tool_call_id=call.id,
                                     function=call.function,
                                     error=tool_error,
-                                    internal=call.internal,
                                 )
                             ]
                             + messages,
@@ -263,7 +262,6 @@ async def execute_tools(
                 function=call.function,
                 arguments=call.arguments,
                 view=call.view,
-                internal=call.internal,
                 pending=True,
             )
 
@@ -447,7 +445,6 @@ async def agent_handoff(
             content=tool_result,
             tool_call_id=call.id,
             function=call.function,
-            internal=call.internal,
         )
     )
 

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal, TypedDict
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field
 
 from inspect_ai._util.content import Content
 
@@ -43,9 +43,6 @@ class ToolCall:
 
     arguments: dict[str, Any]
     """Arguments to function."""
-
-    internal: JsonValue | None = field(default=None)
-    """Model provider specific payload - typically used to aid transformation back to model types."""
 
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""

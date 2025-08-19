@@ -3,7 +3,7 @@ import os
 import re
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, cast
+from typing import Any, Literal, Optional, Tuple, TypedDict, TypeGuard, cast
 
 from anthropic import (
     APIConnectionError,
@@ -975,6 +975,12 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant" and message.tool_calls:
+        # grab assistnat internal
+        if is_assistant_internal(message.internal):
+            assistant_internal = message.internal
+        else:
+            assistant_internal = _AssistantInternal(tool_call_internal_names={})
+
         # first include content (claude <thinking>)
         tools_content: list[
             TextBlockParam
@@ -1007,7 +1013,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
         # now add tools
         for tool_call in message.tool_calls:
-            internal_name = _internal_name_from_tool_call(tool_call)
+            internal_name = _internal_name_from_tool_call(assistant_internal, tool_call)
             tools_content.append(
                 ToolUseBlockParam(
                     type="tool_use",
@@ -1038,6 +1044,14 @@ async def message_param(message: ChatMessage) -> MessageParam:
         )
 
 
+class _AssistantInternal(TypedDict):
+    tool_call_internal_names: dict[str, str | None]
+
+
+def is_assistant_internal(internal: JsonValue) -> TypeGuard[_AssistantInternal]:
+    return isinstance(internal, dict) and "tool_call_internal_names" in internal
+
+
 async def model_output_from_message(
     client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
     model: str,
@@ -1047,6 +1061,7 @@ async def model_output_from_message(
     # extract content and tool calls
     content: list[Content] = []
     reasoning_tokens = 0
+    assistant_internal = _AssistantInternal(tool_call_internal_names={})
     tool_calls: list[ToolCall] | None = None
 
     pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
@@ -1106,12 +1121,14 @@ async def model_output_from_message(
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
             (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
+            assistant_internal["tool_call_internal_names"][content_block.id] = (
+                internal_name
+            )
             tool_calls.append(
                 ToolCall(
                     id=content_block.id,
                     function=tool_name,
                     arguments=content_block.model_dump().get("input", {}),
-                    internal=internal_name,
                 )
             )
         elif isinstance(content_block, ServerToolUseBlock):
@@ -1189,11 +1206,10 @@ async def model_output_from_message(
     )
 
 
-def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
-    assert isinstance(tool_call.internal, str | None), (
-        f"ToolCall internal must be `str | None`: {tool_call.internal}"
-    )
-    return tool_call.internal
+def _internal_name_from_tool_call(
+    assistant_internal: _AssistantInternal, tool_call: ToolCall
+) -> str | None:
+    return assistant_internal["tool_call_internal_names"].get(tool_call.id, None)
 
 
 def _names_for_tool_call(

@@ -290,15 +290,19 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
                 if c.internal is not None:
-                    content = f"{content}\n<{CONTENT_INTERNAL_TAG}>{base64.b64encode(json.dumps(c.internal).encode('utf-8')).decode('utf-8')}</{CONTENT_INTERNAL_TAG}>"
+                    content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
 
     if message.internal:
-        content = f"""{content}\n<{INTERNAL_TAG}>{
-            base64.b64encode(json.dumps(message.internal).encode("utf-8")).decode(
-                "utf-8"
-            )
-        }</{INTERNAL_TAG}>\n"""
+        content = f"{content}\n<{message_internal_tag(message.internal)}>\n"
     return content
+
+
+def content_internal_tag(internal: JsonValue) -> str:
+    return f"<{CONTENT_INTERNAL_TAG}>{base64.b64encode(json.dumps(internal).encode('utf-8')).decode('utf-8')}</{CONTENT_INTERNAL_TAG}>"
+
+
+def message_internal_tag(internal: JsonValue) -> str:
+    return f"<{INTERNAL_TAG}>{base64.b64encode(json.dumps(internal).encode('utf-8')).decode('utf-8')}</{INTERNAL_TAG}>"
 
 
 def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:

@@ -4,12 +4,16 @@ from typing import Any, cast
 
 from openai.types.responses import (
     Response,
-    ResponseComputerToolCall,
+    ResponseFunctionWebSearch,
     ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
     ResponseInputTextParam,
     ResponseOutputItem,
+    ResponseOutputMessage,
+    ResponseOutputRefusal,
+    ResponseOutputText,
+    ResponseReasoningItem,
     ToolParam,
 )
 from openai.types.responses import (
@@ -19,13 +23,17 @@ from openai.types.responses.response import ToolChoice as ResponsesToolChoice
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
-from openai.types.responses.response_input_item_param import Message
+from openai.types.responses.response_input_item_param import (
+    Message,
+)
+from openai.types.responses.response_output_item import McpCall, McpListTools
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
     Content,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentToolUse,
 )
@@ -39,9 +47,12 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
+from inspect_ai.model._openai import (
+    content_internal_tag,
+    message_internal_tag,
+)
 from inspect_ai.model._openai_responses import (
     MESSAGE_ID,
-    _openai_input_items_from_chat_message_assistant,
     content_from_response_input_content_param,
     is_assistant_message_param,
     is_computer_call_output,
@@ -64,12 +75,13 @@ from inspect_ai.model._openai_responses import (
     reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
+    responses_reasoning_from_reasoning,
     to_inspect_citation,
+    tool_use_to_mcp_call_param,
+    tool_use_to_mcp_list_tools_param,
+    tool_use_to_web_search_param,
 )
-from inspect_ai.model._providers._openai_computer_use import (
-    computer_parmaeters,
-    tool_call_from_openai_computer_tool_call,
-)
+from inspect_ai.model._providers._openai_computer_use import computer_parmaeters
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -320,10 +332,10 @@ def messages_from_responses_input(
                         )
                     )
                 elif is_response_computer_tool_call(param):
-                    computer_tool_call = ResponseComputerToolCall.model_validate(param)
-                    tool_calls.append(
-                        tool_call_from_openai_computer_tool_call(computer_tool_call)
-                    )
+                    # TODO: this needs to come from _AssistantInternal
+                    # Raise or assert that this can't happen b/c it is in internal
+                    pass
+
                 elif is_response_reasoning_item(param):
                     content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_mcp_list_tools(param):
@@ -445,5 +457,67 @@ output_item_adapter = TypeAdapter(list[ResponseOutputItem])
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
 ) -> list[ResponseOutputItem]:
-    input_items = _openai_input_items_from_chat_message_assistant(message)
-    return output_item_adapter.validate_python(input_items)
+    # set aside message internal if we have it
+    if message.internal:
+        message_internal: str | None = f"\n{message_internal_tag(message.internal)}\n"
+    else:
+        message_internal = None
+
+    output: list[ResponseOutputItem] = []
+    for content in message.content:
+        if isinstance(content, ContentText):
+            # check for content.internal
+            if content.internal:
+                internal: str = f"\n{content_internal_tag(content.internal)}\n"
+            else:
+                internal = ""
+            # collect and append message internal (we only send it once)
+            if message_internal is not None:
+                internal = f"{internal}{message_internal}"
+                message_internal = None
+
+            # apply internal to content
+            content_text = f"{content.text}{internal}"
+
+            output.append(
+                ResponseOutputMessage(
+                    type="message",
+                    id=uuid(),
+                    role="assistant",
+                    content=[
+                        ResponseOutputRefusal(type="refusal", refusal=content_text)
+                        if content.refusal
+                        else ResponseOutputText(
+                            type="output_text", text=content_text, annotations=[]
+                        )
+                    ],
+                    status="completed",
+                )
+            )
+        elif isinstance(content, ContentReasoning):
+            reasoning = responses_reasoning_from_reasoning(content)
+            output.append(ResponseReasoningItem.model_validate(reasoning))
+
+        elif isinstance(content, ContentToolUse):
+            if content.tool_type == "mcp_list_tools":
+                mcp_list_tools_param = tool_use_to_mcp_list_tools_param(content)
+                output.append(McpListTools.model_validate(mcp_list_tools_param))
+
+            elif content.tool_type == "mcp_call":
+                mcp_call_param = tool_use_to_mcp_call_param(content)
+                output.append(McpCall.model_validate(mcp_call_param))
+
+            elif content.tool_type == "web_search_call":
+                tool_pweb_search_param = tool_use_to_web_search_param(content)
+                output.append(
+                    ResponseFunctionWebSearch.model_validate(tool_pweb_search_param)
+                )
+
+    # for tool_call in message.tool_calls:
+    #     pass
+    # TODO: grab the standard tool calls and add them
+
+    return output
+
+    # input_items = _openai_input_items_from_chat_message_assistant(message)
+    # return output_item_adapter.validate_python(input_items)

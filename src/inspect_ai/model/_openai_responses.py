@@ -108,7 +108,6 @@ from inspect_ai.tool._tool_info import ToolInfo
 from ._providers._openai_computer_use import (
     computer_call_output,
     maybe_computer_use_preview_tool,
-    tool_call_from_openai_computer_tool_call,
 )
 from ._providers._openai_web_search import maybe_web_search_tool
 
@@ -304,7 +303,7 @@ def is_native_tool_configured(
 
 
 class _AssistantInternal(TypedDict):
-    tool_message_ids: dict[str, str]
+    tool_calls: list[ResponseFunctionToolCallParam | ResponseComputerToolCallParam]
 
 
 def content_from_response_input_content_param(
@@ -382,7 +381,7 @@ def _chat_message_assistant_from_openai_response(
     # collect output and tool calls
     message_content: list[Content] = []
     tool_calls: list[ToolCall] = []
-    internal = _AssistantInternal(tool_message_ids={})
+    internal = _AssistantInternal(tool_calls=[])
     for output in response.output:
         match output:
             case ResponseOutputMessage(content=content, id=id):
@@ -413,20 +412,23 @@ def _chat_message_assistant_from_openai_response(
             case ResponseFunctionToolCall():
                 stop_reason = "tool_calls"
                 if output.id is not None:
-                    internal["tool_message_ids"][output.call_id] = output.id
-                tool_calls.append(
-                    parse_tool_call(
-                        output.call_id,
-                        _from_responses_tool_alias(output.name),
-                        output.arguments,
-                        tools,
+                    internal["tool_calls"].append(
+                        cast(ResponseFunctionToolCallParam, output.model_dump())
                     )
-                )
+                else:
+                    tool_calls.append(
+                        parse_tool_call(
+                            output.call_id,
+                            _from_responses_tool_alias(output.name),
+                            output.arguments,
+                            tools,
+                        )
+                    )
             case ResponseComputerToolCall():
                 stop_reason = "tool_calls"
-                if output.id is not None:
-                    internal["tool_message_ids"][output.call_id] = output.id
-                tool_calls.append(tool_call_from_openai_computer_tool_call(output))
+                internal["tool_calls"].append(
+                    cast(ResponseComputerToolCallParam, output.model_dump())
+                )
 
             case ResponseFunctionWebSearch():
                 message_content.append(
@@ -518,6 +520,53 @@ def responses_reasoning_from_reasoning(
     )
 
 
+def tool_use_to_mcp_list_tools_param(content: ContentToolUse) -> McpListToolsParam:
+    return McpListToolsParam(
+        id=content.id,
+        server_label=content.context or "",
+        tools=cast(list[McpListToolsToolParam], content.result),
+        type="mcp_list_tools",
+        error=content.error,
+    )
+
+
+def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
+    return McpCallParam(
+        id=content.id,
+        arguments=str(content.arguments),
+        name=content.name,
+        server_label=content.context or "",
+        type="mcp_call",
+        output=str(content.result),
+        error=content.error,
+    )
+
+
+def tool_use_to_web_search_param(
+    content: ContentToolUse,
+) -> ResponseFunctionWebSearchParam:
+    match content.arguments:
+        case {"type": "search"}:
+            action: ActionSearch | ActionOpenPage | ActionFind = cast(
+                ActionSearch, content.arguments
+            )
+        case {"type": "open_page"}:
+            action = cast(ActionOpenPage, content.arguments)
+        case {"type": "find"}:
+            action = cast(ActionFind, content.arguments)
+        case _:
+            raise ValueError(
+                f"Unexpected arguments for web_search_call: {content.arguments}"
+            )
+
+    return ResponseFunctionWebSearchParam(
+        id=content.id,
+        action=action,
+        status="failed" if content.error else "completed",
+        type="web_search_call",
+    )
+
+
 def _openai_input_items_from_chat_message_assistant(
     message: ChatMessageAssistant,
 ) -> list[ResponseInputItemParam]:
@@ -529,8 +578,6 @@ def _openai_input_items_from_chat_message_assistant(
     field of the `ChatMessageAssistant` to help it provide the proper id's the
     items in the returned list.
     """
-    tool_message_ids = _ids_from_assistant_internal(message)
-
     # we want to prevent yielding output messages in the case where we have an
     # 'internal' field (so the message came from the model API as opposed to
     # being user synthesized) AND there are no ContentText items with message IDs
@@ -567,58 +614,16 @@ def _openai_input_items_from_chat_message_assistant(
                 items.append(responses_reasoning_from_reasoning(content))
             case ContentToolUse(
                 tool_type=tool_type,
-                id=id,
-                name=name,
-                context=context,
-                arguments=arguments,
-                result=result,
-                error=error,
             ):
                 if tool_type == "mcp_list_tools":
-                    items.append(
-                        McpListToolsParam(
-                            id=id,
-                            server_label=context or "",
-                            tools=cast(list[McpListToolsToolParam], result),
-                            type="mcp_list_tools",
-                            error=error,
-                        )
-                    )
-                elif tool_type == "mcp_call":
-                    items.append(
-                        McpCallParam(
-                            id=id,
-                            arguments=str(arguments),
-                            name=name,
-                            server_label=context or "",
-                            type="mcp_call",
-                            output=str(result),
-                            error=error,
-                        )
-                    )
-                elif tool_type == "web_search_call":
-                    match arguments:
-                        case {"type": "search"}:
-                            action: ActionSearch | ActionOpenPage | ActionFind = cast(
-                                ActionSearch, arguments
-                            )
-                        case {"type": "open_page"}:
-                            action = cast(ActionOpenPage, arguments)
-                        case {"type": "find"}:
-                            action = cast(ActionFind, arguments)
-                        case _:
-                            raise ValueError(
-                                f"Unexpected arguments for web_search_call: {arguments}"
-                            )
+                    items.append(tool_use_to_mcp_list_tools_param(content))
 
-                    items.append(
-                        ResponseFunctionWebSearchParam(
-                            id=id,
-                            action=action,
-                            status="failed" if error else "completed",
-                            type="web_search_call",
-                        )
-                    )
+                elif tool_type == "mcp_call":
+                    items.append(tool_use_to_mcp_call_param(content))
+
+                elif tool_type == "web_search_call":
+                    items.append(tool_use_to_web_search_param(content))
+
                 else:
                     raise ValueError(
                         f"OpenAI Responses: Unspected tool_type '{tool_type}'"
@@ -666,7 +671,7 @@ def _openai_input_items_from_chat_message_assistant(
         )
         items.append(output_message)
 
-    return items + _tool_call_items_from_assistant_message(message, tool_message_ids)
+    return items + _tool_call_items_from_assistant_message(message)
 
 
 def _model_tool_call_for_internal(
@@ -702,48 +707,40 @@ def _maybe_native_tool_param(
 
 
 def _tool_call_items_from_assistant_message(
-    message: ChatMessageAssistant, tool_message_ids: dict[str, str]
+    message: ChatMessageAssistant,
 ) -> list[ResponseInputItemParam]:
     tool_calls: list[ResponseInputItemParam] = []
+
+    # first internal tool calls (calls with ids)
+    tool_calls.extend(_tool_calls_from_assistant_internal(message))
+
+    # now standard tool calls
     for call in message.tool_calls or []:
-        if isinstance(call.internal, dict):
-            tool_calls.append(
-                cast(
-                    _ResponseToolCallParam,
-                    _model_tool_call_for_internal(call.internal).model_dump(),
-                )
-            )
-        else:
-            # create param
-            tool_call_param: ResponseFunctionToolCallParam = dict(
-                type="function_call",
-                call_id=call.id,
-                name=_responses_tool_alias(call.function),
-                arguments=json.dumps(call.arguments),
-            )
+        # create param
+        tool_call_param: ResponseFunctionToolCallParam = dict(
+            type="function_call",
+            call_id=call.id,
+            name=_responses_tool_alias(call.function),
+            arguments=json.dumps(call.arguments),
+        )
 
-            # add id if available
-            tool_message_id = tool_message_ids.get(call.id, None)
-            if tool_message_id is not None:
-                tool_call_param["id"] = tool_message_id
-
-            # append the param
-            tool_calls.append(tool_call_param)
+        # append the param
+        tool_calls.append(tool_call_param)
 
     return tool_calls
 
 
-def _ids_from_assistant_internal(
+def _tool_calls_from_assistant_internal(
     message: ChatMessageAssistant,
-) -> dict[str, str]:
+) -> list[ResponseFunctionToolCallParam | ResponseComputerToolCallParam]:
     if message.internal is not None:
         assert isinstance(message.internal, dict), (
             "OpenAI ChatMessageAssistant internal must be an _AssistantInternal"
         )
         internal = cast(_AssistantInternal, message.internal)
-        return internal["tool_message_ids"]
+        return internal["tool_calls"]
     else:
-        return {}
+        return []
 
 
 _ResponseToolCallParam = (
