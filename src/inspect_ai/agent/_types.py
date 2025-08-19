@@ -3,8 +3,7 @@ from typing import Awaitable, Callable, NamedTuple, TypeAlias
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.tool._tool import Tool
-
-from src.inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_def import ToolDef
 
 DEFAULT_HANDOFF_PROMPT = """
 You are part of a multi-agent system designed to make agent coordination and
