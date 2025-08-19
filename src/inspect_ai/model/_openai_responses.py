@@ -404,12 +404,9 @@ def _chat_message_assistant_from_openai_response(
                         for c in content
                     ]
                 )
-            case ResponseReasoningItem(summary=summary, id=id):
-                message_content.append(
-                    ContentReasoning(
-                        reasoning="\n".join([s.text for s in summary]), signature=id
-                    )
-                )
+            case ResponseReasoningItem():
+                message_content.append(reasoning_from_responses_reasoning(output))
+
             case ResponseFunctionToolCall():
                 stop_reason = "tool_calls"
                 if output.id is not None:
@@ -479,6 +476,45 @@ def _chat_message_assistant_from_openai_response(
     )
 
 
+def reasoning_from_responses_reasoning(
+    item: ResponseReasoningItem | ResponseReasoningItemParam,
+) -> ContentReasoning:
+    if not isinstance(item, ResponseReasoningItem):
+        item = ResponseReasoningItem.model_validate(item)
+
+    if item.encrypted_content is not None:
+        reasoning = item.encrypted_content
+        redacted = True
+    else:
+        reasoning = "\n".join([s.text for s in item.summary])
+        if item.content is not None:
+            reasoning = f"{reasoning}\n" + "\n".join([s.text for s in item.content])
+        redacted = False
+
+    return ContentReasoning(reasoning=reasoning, signature=item.id, redacted=redacted)
+
+
+def responses_reasoning_from_reasoning(
+    content: ContentReasoning,
+) -> ResponseReasoningItemParam:
+    assert content.signature is not None, "reasoning_id must be saved in signature"
+
+    summary: list[SummaryParam] = []
+    if content.redacted:
+        encrypted_content: str | None = content.reasoning
+    else:
+        encrypted_content = None
+        if content.reasoning:
+            summary.append(SummaryParam(type="summary_text", text=content.reasoning))
+
+    return ResponseReasoningItemParam(
+        type="reasoning",
+        id=content.signature,
+        summary=summary,
+        encrypted_content=encrypted_content,
+    )
+
+
 def _openai_input_items_from_chat_message_assistant(
     message: ChatMessageAssistant,
 ) -> list[ResponseInputItemParam]:
@@ -524,19 +560,8 @@ def _openai_input_items_from_chat_message_assistant(
 
     for content in _filter_consecutive_reasoning_blocks(content_items):
         match content:
-            case ContentReasoning(reasoning=reasoning):
-                assert content.signature is not None, (
-                    "reasoning_id must be saved in signature"
-                )
-                items.append(
-                    ResponseReasoningItemParam(
-                        type="reasoning",
-                        id=content.signature,
-                        summary=[SummaryParam(type="summary_text", text=reasoning)]
-                        if reasoning
-                        else [],
-                    )
-                )
+            case ContentReasoning():
+                items.append(responses_reasoning_from_reasoning(content))
             case ContentToolUse(
                 tool_type=tool_type,
                 id=id,

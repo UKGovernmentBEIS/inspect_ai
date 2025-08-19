@@ -26,7 +26,6 @@ from shortuuid import uuid
 from inspect_ai._util.content import (
     Content,
     ContentImage,
-    ContentReasoning,
     ContentText,
     ContentToolUse,
 )
@@ -61,6 +60,7 @@ from inspect_ai.model._openai_responses import (
     is_tool_choice_function_param,
     is_tool_choice_mcp_param,
     is_web_search_tool_param,
+    reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
     to_inspect_citation,
@@ -324,12 +324,7 @@ def messages_from_responses_input(
                         tool_call_from_openai_computer_tool_call(computer_tool_call)
                     )
                 elif is_response_reasoning_item(param):
-                    content.append(
-                        ContentReasoning(
-                            reasoning="\n".join([s["text"] for s in param["summary"]]),
-                            signature=param["id"],
-                        )
-                    )
+                    content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_mcp_list_tools(param):
                     content.append(
                         ContentToolUse(
