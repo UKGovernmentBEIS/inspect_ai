@@ -33,7 +33,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
-from ._util import thin_input, thin_metadata
+from ._util import thin_input, thin_metadata, thin_text
 
 logger = getLogger(__name__)
 
@@ -229,7 +229,19 @@ class EvalSampleSummary(BaseModel):
         # thin score explanations and metadata
         if self.scores is not None:
             self.scores = {
-                key: Score(value=score.value) for key, score in self.scores.items()
+                key: Score(
+                    value=score.value,
+                    answer=thin_text(score.answer)
+                    if score.answer is not None
+                    else None,
+                    explanation=thin_text(score.explanation)
+                    if score.explanation is not None
+                    else None,
+                    metadata=thin_metadata(score.metadata)
+                    if score.metadata is not None
+                    else None,
+                )
+                for key, score in self.scores.items()
             }
         return self
 
