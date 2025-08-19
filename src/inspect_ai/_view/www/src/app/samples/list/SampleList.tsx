@@ -167,6 +167,13 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
               item.data.id,
               item.data.epoch,
             )}
+            showSample={() => {
+              sampleNavigation.showSample(
+                item.index,
+                item.data.id,
+                item.data.epoch,
+              );
+            }}
           />
         );
       } else if (item.type === "separator") {
