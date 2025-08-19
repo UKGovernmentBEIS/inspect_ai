@@ -18,8 +18,10 @@ from inspect_ai.log._transcript import (
     SubtaskEvent,
     ToolEvent,
 )
+from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer import exact
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -253,3 +255,28 @@ def check_log_raises(log_file):
         read_log(log_file)
     with pytest.raises(ValueError):
         read_log(log_file, header_only=True)
+
+
+def test_unicode_surrogates_are_escaped():
+    task = Task(
+        dataset=[Sample(input="Say hello.", target="Hello")],
+        solver=generate(),
+        scorer=exact(),
+    )
+
+    [log] = eval(
+        tasks=task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(
+                    model="mockllm/model",
+                    content="\udc00\udc00\udc00",
+                )
+            ],
+        ),
+    )
+    assert log.status == "success"
+    sample = log.samples[0]
+    assert sample.output.message.text == "\\udc00\\udc00\\udc00"
+    assert sample.scores["exact"].answer == "\\udc00\\udc00\\udc00"
