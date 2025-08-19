@@ -17,13 +17,13 @@ import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { ContentDataView } from "./content-data/ContentDataView";
+import { ContentDocumentView } from "./documents/ContentDocumentView";
 import { MessageCitations } from "./MessageCitations";
 import styles from "./MessageContent.module.css";
 import { MessagesContext } from "./MessageContents";
+import { ServerToolCall } from "./server-tools/ServerToolCall";
 import { ToolOutput } from "./tools/ToolOutput";
 import { Citation } from "./types";
-import { ServerToolCall } from "./server-tools/ServerToolCall";
-import { ContentDocumentView } from "./documents/ContentDocumentView";
 
 type ContentObject =
   | ContentText
@@ -135,11 +135,18 @@ const messageRenderers: Record<string, MessageRenderer> = {
         return undefined;
       }
 
+      const purgeInternalContainers = (text: string): string => {
+        // Remove any <internal>...</internal> tags and their contents
+        return text
+          .replace(/<environment_context>[\s\S]*?<\/environment_context>/gm, "")
+          .trim();
+      };
+
       return (
         <>
           <MarkdownDiv
             key={key}
-            markdown={c.text || ""}
+            markdown={purgeInternalContainers(c.text) || ""}
             className={isLast ? "no-last-para-padding" : ""}
           />
           {c.citations ? (

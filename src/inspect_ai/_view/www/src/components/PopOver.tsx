@@ -84,7 +84,10 @@ export const PopOver: React.FC<PopOverProps> = ({
 
     const handleMouseDown = (event: MouseEvent) => {
       // Only cancel popover on mouse down outside the popover content
-      if (popperRef.current && !popperRef.current.contains(event.target as Node)) {
+      if (
+        popperRef.current &&
+        !popperRef.current.contains(event.target as Node)
+      ) {
         if (hoverTimerRef.current !== null) {
           window.clearTimeout(hoverTimerRef.current);
         }
@@ -97,7 +100,10 @@ export const PopOver: React.FC<PopOverProps> = ({
       setShouldShowPopover(isOpen);
       const listener = (event: MouseEvent) => {
         // Only close if clicking outside the popover content
-        if (popperRef.current && !popperRef.current.contains(event.target as Node)) {
+        if (
+          popperRef.current &&
+          !popperRef.current.contains(event.target as Node)
+        ) {
           setIsOpen(false);
         }
       };
