@@ -105,6 +105,7 @@ def eval_set(
     log_shared: bool | int | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
+    allow_dirty_log_dir: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -194,6 +195,9 @@ def eval_set(
             by this eval set will be bundled into this directory.
         bundle_overwrite: Whether to overwrite files in the bundle_dir.
             (defaults to False).
+        allow_dirty_log_dir: If True, allow the log directory to contain
+            unrelated logs. If False, ensure that the log directory only contains logs
+            for tasks in this eval set (defaults to False).
         **kwargs: Model generation options.
 
     Returns:
@@ -344,7 +348,9 @@ def eval_set(
         # validate that:
         #  (1) All tasks have a unique identifier
         #  (2) All logs have identifiers that map to tasks
-        validate_eval_set_prerequisites(resolved_tasks, all_logs)
+        all_logs = validate_eval_set_prerequisites(
+            resolved_tasks, all_logs, allow_dirty_log_dir
+        )
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
@@ -555,8 +561,10 @@ def latest_completed_task_eval_logs(
 #  (2) all log files have identifiers that map to tasks (so we know we
 #      are running in a log dir created for this eval_set)
 def validate_eval_set_prerequisites(
-    resolved_tasks: list[ResolvedTask], all_logs: list[Log]
-) -> None:
+    resolved_tasks: list[ResolvedTask],
+    all_logs: list[Log],
+    allow_dirty_log_dir: bool,
+) -> list[Log]:
     # do all resolved tasks have unique identfiers?
     task_identifiers: Set[str] = set()
     for task in resolved_tasks:
@@ -569,13 +577,17 @@ def validate_eval_set_prerequisites(
             task_identifiers.add(identifier)
 
     # do all logs in the log directory correspond to task identifiers?
-    for log in all_logs:
-        if log.task_identifier not in task_identifiers:
-            raise PrerequisiteError(
-                f"[bold]ERROR[/bold]: Existing log file '{basename(log.info.name)}' in log_dir is not "
-                + "associated with a task passed to eval_set (you must run eval_set "
-                + "in a fresh log directory)"
-            )
+    if allow_dirty_log_dir:
+        return [log for log in all_logs if log.task_identifier in task_identifiers]
+    else:
+        for log in all_logs:
+            if log.task_identifier not in task_identifiers:
+                raise PrerequisiteError(
+                    f"[bold]ERROR[/bold]: Existing log file '{basename(log.info.name)}' in log_dir is not "
+                    + "associated with a task passed to eval_set (you must run eval_set "
+                    + "in a fresh log directory)"
+                )
+        return all_logs
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
