@@ -540,8 +540,9 @@ async def _eval_async_inner(
 
         # warn and return empty string if we resolved no tasks
         if len(resolved_tasks) == 0:
-            log.warning("No inspect tasks were found at the specified paths.")
-            return []
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
