@@ -39,14 +39,14 @@ or use the `model` argument of the `eval()` function:
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4o-mini
-inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
+inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-4o-mini")
-eval("arc.py", model="anthropic/claude-3-5-sonnet-latest")
+eval("arc.py", model="anthropic/claude-sonnet-4-0")
 ```
 
 Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable

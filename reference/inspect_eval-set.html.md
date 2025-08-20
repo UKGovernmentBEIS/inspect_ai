@@ -22,6 +22,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--no-retry-cleanup` | boolean | Do not cleanup failed log files after retries | `False` |
 | `--bundle-dir` | text | Bundle viewer and logs into output directory | None |
 | `--bundle-overwrite` | text | Overwrite existing bundle dir. | `False` |
+| `--log-dir-allow-dirty` | boolean | Do not fail if the log-dir contains files that are not part of the eval set. | `False` |
 | `--model` | text | Model used to evaluate tasks. | None |
 | `--model-base-url` | text | Base URL for for model API | None |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | None |
@@ -55,6 +56,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--working-limit` | integer | Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. | None |
 | `--fail-on-error` | float | Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. | None |
 | `--no-fail-on-error` | boolean | Do not fail the eval if errors occur within samples (instead, continue running other samples) | `False` |
+| `--continue-on-fail` | boolean | Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval). | `False` |
 | `--retry-on-error` | text | Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times. | None |
 | `--no-log-samples` | boolean | Do not include samples in the log file. | `False` |
 | `--no-log-realtime` | boolean | Do not log events in realtime (affects live viewing of samples in inspect view) | `False` |

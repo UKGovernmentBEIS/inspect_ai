@@ -56,7 +56,7 @@ you should specify both. For example:
 ``` python
  eval(
     task,
-    model=["openai/o3-mini","anthropic/anthropic/claude-3-7-sonnet-20250219"],
+    model=["openai/o3-mini","anthropic/claude-3-7-sonnet-20250219"],
     reasoning_effort="medium",  # openai and grok specific
     reasoning_tokens=4096       # anthropic and gemini specific
     reasoning_summary="auto",   # openai specific

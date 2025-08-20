@@ -2376,7 +2376,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval">eval</h3>
 <p>Evaluate tasks using a Model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/eval.py#L79">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/eval.py#L79">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">eval</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -2402,27 +2402,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    sample_shuffle: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    retry_on_error: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    max_samples: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    max_tasks: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>    max_subprocesses: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    max_sandboxes: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>    log_realtime: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    log_shared: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>    log_header_only: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>    run_samples: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>    score_display: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
-<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    retry_on_error: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    max_samples: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>    max_tasks: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    max_subprocesses: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    max_sandboxes: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    log_realtime: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>    log_shared: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>    log_header_only: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>    run_samples: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>    score_display: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">tasks</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.html#tasks">Tasks</a></span></span></dt>
 <dd>
@@ -2516,6 +2517,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
 </dd>
+<dt><code class="ref-definition">continue_on_fail</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p><code>True</code> to continue running and only fail at the end if the <code>fail_on_error</code> condition is met. <code>False</code> to fail eval immediately when the <code>fail_on_error</code> condition is met (default).</p>
+</dd>
 <dt><code class="ref-definition">retry_on_error</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Number of times to retry samples if they encounter errors (by default, no retries occur).</p>
@@ -2602,7 +2607,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_retry">eval_retry</h3>
 <p>Retry a previously failed evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/eval.py#L717">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/eval.py#L728">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_retry(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    tasks: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo <span class="op">|</span> EvalLog <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[EvalLogInfo] <span class="op">|</span> <span class="bu">list</span>[EvalLog],</span>
@@ -2618,19 +2623,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    display: DisplayType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    retry_on_error: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    log_realtime: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    log_shared: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    score_display: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    max_retries: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    retry_on_error: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    log_realtime: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    log_shared: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    score_display: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    max_retries: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">tasks</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span> | list[<span class="element-type-name">str</span>] | list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span>] | list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span>]</span></dt>
 <dd>
@@ -2682,7 +2688,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt><code class="ref-definition">fail_on_error</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
+<p><code>True</code> to fail on a sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
+</dd>
+<dt><code class="ref-definition">continue_on_fail</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p><code>True</code> to continue running and only fail at the end if the <code>fail_on_error</code> condition is met. <code>False</code> to fail eval immediately when the <code>fail_on_error</code> condition is met (default).</p>
 </dd>
 <dt><code class="ref-definition">retry_on_error</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -2738,7 +2748,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_set">eval_set</h3>
 <p>Evaluate a set of tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/evalset.py#L62">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/evalset.py#L62">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_set(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -2769,25 +2779,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    sample_shuffle: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    retry_on_error: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    max_samples: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    max_tasks: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    max_subprocesses: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    max_sandboxes: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>    log_realtime: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    log_shared: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    bundle_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    bundle_overwrite: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
-<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">tuple</span>[<span class="bu">bool</span>, <span class="bu">list</span>[EvalLog]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    retry_on_error: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    max_samples: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    max_tasks: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    max_subprocesses: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    max_sandboxes: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    log_realtime: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    log_shared: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    bundle_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>    bundle_overwrite: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    log_dir_allow_dirty: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">tuple</span>[<span class="bu">bool</span>, <span class="bu">list</span>[EvalLog]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">tasks</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.html#tasks">Tasks</a></span></span></dt>
 <dd>
@@ -2901,6 +2913,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
 </dd>
+<dt><code class="ref-definition">continue_on_fail</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p><code>True</code> to continue running and only fail at the end if the <code>fail_on_error</code> condition is met. <code>False</code> to fail eval immediately when the <code>fail_on_error</code> condition is met (default).</p>
+</dd>
 <dt><code class="ref-definition">retry_on_error</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Number of times to retry samples if they encounter errors (by default, no retries occur).</p>
@@ -2969,6 +2985,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Whether to overwrite files in the bundle_dir. (defaults to False).</p>
 </dd>
+<dt><code class="ref-definition">log_dir_allow_dirty</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>If True, allow the log directory to contain unrelated logs. If False, ensure that the log directory only contains logs for tasks in this eval set (defaults to False).</p>
+</dd>
 <dt><code class="ref-definition">**kwargs</code> <span class="element-type"><span class="element-type-name">Unpack</span>[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfigargs">GenerateConfigArgs</a></span>]</span></dt>
 <dd>
 <p>Model generation options.</p>
@@ -2979,7 +2999,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="score">score</h3>
 <p>Score an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/score.py#L43">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/score.py#L47">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -3019,7 +3039,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Evaluation task.</p>
 <p>Tasks are the basis for defining and running evaluations.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/task/task.py#L45">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/task/task.py#L45">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -3029,7 +3049,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/task/task.py#L51">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/task/task.py#L51">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -3046,16 +3066,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    display_name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="dv">0</span>,</span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[TaskDeprecatedArgs],</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    display_name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="dv">0</span>,</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[TaskDeprecatedArgs],</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">dataset</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#dataset">Dataset</a></span> | <span class="element-type-name">Sequence</span>[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3109,6 +3130,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
 </dd>
+<dt><code class="ref-definition">continue_on_fail</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p><code>True</code> to continue running and only fail at the end if the <code>fail_on_error</code> condition is met. <code>False</code> to fail eval immediately when the <code>fail_on_error</code> condition is met (default).</p>
+</dd>
 <dt><code class="ref-definition">message_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Limit on total messages used for each sample.</p>
@@ -3155,7 +3180,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task adapted with alternate values for one or more options.</p>
 <p>This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task_with">task_with()</a></span> you should create the underlying task multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/task/task.py#L196">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/task/task.py#L200">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_with(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    task: Task,</span>
@@ -3173,14 +3198,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
 <span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
 <span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">task</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.html#task">Task</a></span></span></dt>
 <dd>
@@ -3238,6 +3264,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
 </dd>
+<dt><code class="ref-definition">continue_on_fail</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
+<dd>
+<p><code>True</code> to continue running and only fail at the end if the <code>fail_on_error</code> condition is met. <code>False</code> to fail eval immediately when the <code>fail_on_error</code> condition is met (default).</p>
+</dd>
 <dt><code class="ref-definition">message_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
 <dd>
 <p>Limit on total messages used for each sample.</p>
@@ -3273,9 +3303,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task epochs.</p>
 <p>Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Epochs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">reducer</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#scorereducer">ScoreReducer</a></span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>One or more reducers used to combine scores from samples across epochs (defaults to “mean”)</p>
+</dd>
+</dl>
+</section>
 <section class="level4 class-methods">
 <h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
 <dl>
@@ -3283,7 +3322,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Task epochs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, epochs: <span class="bu">int</span>, reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -3293,7 +3332,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt><code class="ref-definition">reducer</code> <span class="element-type"><span class="element-type-name">ScoreReducers</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>One or more reducers used to combine scores from samples across epochs (defaults to “mean)</p>
+<p>One or more reducers used to combine scores from samples across epochs (defaults to “mean”)</p>
 </dd>
 </dl>
 </dd>
@@ -3304,7 +3343,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskinfo">TaskInfo</h3>
 <p>Task information (file, name, and attributes).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/task/task.py#L312">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/task/task.py#L321">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3330,7 +3369,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>One or more tasks.</p>
 <p>Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/task/tasks.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/task/tasks.py#L6">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Tasks: TypeAlias <span class="op">=</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
@@ -3357,7 +3396,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="view-1">view</h3>
 <p>Run the Inspect View server.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_view/view.py#L24">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_view/view.py#L24">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> view(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -3406,7 +3445,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="task-1">task</h3>
 <p>Decorator for registering tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/7aecc82080f23b05077c00c6b17ff7de89fd7bae/src/inspect_ai/_eval/registry.py#L97">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/67f4aecd478bc613b40ad5e2bafc0e3f0cbfd04c/src/inspect_ai/_eval/registry.py#L97">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>

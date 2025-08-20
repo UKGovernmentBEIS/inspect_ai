@@ -284,8 +284,22 @@ ul.task-list li input[type="checkbox"] {
 <li>Agent Bridge: New context-manager based <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> that replaces the deprecated <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</li>
 <li>Agent Bridge: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> to integrate with CLI based agents running inside sandboxes.</li>
 <li>Agent Bridge: Inspect model roles can now be addressed by bridged agents (e.g.&nbsp;“inspect/red-team”).</li>
+<li>ReAct Agent: Allow for a ToolDef to be passed to an AgentSubmit type.</li>
 <li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#user_prompt">user_prompt()</a></span> function for getting the last user message from a list of messages.</li>
 <li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_from_openai">messages_from_openai()</a></span> functions for converting to and from OpenAI-style message dicts.</li>
+<li>VLLM: Allow specifying the port when starting up a new vllm server.</li>
+<li>Eval Log: For sample summaries, preserve all sample and score fields that are less than 1k in size.</li>
+<li>CLI: Yield error exit code (1) if no tasks to evaluate are found at the specified path.</li>
+<li>Eval Set: You can now run eval sets in log dirs containing unrelated eval log files using the <code>--log-dir-allow-dirty</code> option.</li>
+<li>Add <code>--continue-on-fail</code> option for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>.</li>
+<li>Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.</li>
+<li>Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.</li>
+<li>Bugifx: Properly handle surrogates in JSON serialization.</li>
+<li>Bugfix: Google and Mistral providers now generate unique tool call IDs to prevent collisions when calling the same tool multiple times.</li>
+<li>Bugfix: Enable use of custom reducers with <code>eval-retry</code> by delaying their creation until after task creation.</li>
+<li>Bugfix: Fix custom json schema generation code for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#citationbase">CitationBase</a></span> so that it no longer leads to an invalid schema.</li>
+<li>Bugfix: Only pass <code>background</code> to OpenAI Responses if specified.</li>
+<li>Bugfix: Do not pass unsupported <code>tool_choice</code> to Anthropic thinking models.</li>
 </ul>
 </section>
 <section id="august-2025" class="level2">

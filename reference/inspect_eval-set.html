@@ -2370,201 +2370,213 @@ ul.task-list li input[type="checkbox"] {
 <td><code>False</code></td>
 </tr>
 <tr class="odd">
+<td><code>--log-dir-allow-dirty</code></td>
+<td>boolean</td>
+<td>Do not fail if the log-dir contains files that are not part of the eval set.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
 <td><code>--model</code></td>
 <td>text</td>
 <td>Model used to evaluate tasks.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--model-base-url</code></td>
 <td>text</td>
 <td>Base URL for for model API</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>-M</code></td>
 <td>text</td>
 <td>One or more native model arguments (e.g.&nbsp;-M arg=value)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--model-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with model arguments.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--model-role</code></td>
 <td>text</td>
 <td>Named model role, e.g.&nbsp;–model-role critic=openai/gpt-4o</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>-T</code></td>
 <td>text</td>
 <td>One or more task arguments (e.g.&nbsp;-T arg=value)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--task-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with task arguments.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--solver</code></td>
 <td>text</td>
 <td>Solver to execute (overrides task default solver)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>-S</code></td>
 <td>text</td>
 <td>One or more solver arguments (e.g.&nbsp;-S arg=value)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--solver-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with solver arguments.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--tags</code></td>
 <td>text</td>
 <td>Tags to associate with this evaluation run.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--metadata</code></td>
 <td>text</td>
 <td>Metadata to associate with this evaluation run (more than one –metadata argument can be specified).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--approval</code></td>
 <td>text</td>
 <td>Config file for tool call approval.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--sandbox</code></td>
 <td>text</td>
 <td>Sandbox environment type (with optional config file). e.g.&nbsp;‘docker’ or ‘docker:compose.yml’</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-sandbox-cleanup</code></td>
 <td>boolean</td>
 <td>Do not cleanup sandbox environments after task completes</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--limit</code></td>
 <td>text</td>
 <td>Limit samples to evaluate e.g.&nbsp;10 or 10-20</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--sample-id</code></td>
 <td>text</td>
 <td>Evaluate specific sample(s) (comma separated list of ids)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--sample-shuffle</code></td>
 <td>text</td>
 <td>Shuffle order of samples (pass a seed to make the order deterministic)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--epochs</code></td>
 <td>integer</td>
 <td>Number of times to repeat dataset (defaults to 1)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--epochs-reducer</code></td>
 <td>text</td>
 <td>Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least_{n}’.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-samples</code></td>
 <td>integer</td>
 <td>Maximum number of samples to run in parallel (default is running all samples in parallel)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-tasks</code></td>
 <td>integer</td>
 <td>Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-subprocesses</code></td>
 <td>integer</td>
 <td>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-sandboxes</code></td>
 <td>integer</td>
 <td>Maximum number of sandboxes (per-provider) to run in parallel.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--message-limit</code></td>
 <td>integer</td>
 <td>Limit on total messages used for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--token-limit</code></td>
 <td>integer</td>
 <td>Limit on total tokens used for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--time-limit</code></td>
 <td>integer</td>
 <td>Limit on total running time for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--working-limit</code></td>
 <td>integer</td>
 <td>Limit on total working time (e.g.&nbsp;model generation, tool calls, etc.) for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--fail-on-error</code></td>
 <td>float</td>
 <td>Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-fail-on-error</code></td>
 <td>boolean</td>
 <td>Do not fail the eval if errors occur within samples (instead, continue running other samples)</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--continue-on-fail</code></td>
+<td>boolean</td>
+<td>Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval).</td>
 <td><code>False</code></td>
 </tr>
 <tr class="even">
