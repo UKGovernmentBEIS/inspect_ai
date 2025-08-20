@@ -559,7 +559,15 @@ async def model_proxy_server(
 
                 async def stream_response() -> AsyncIterator[bytes]:
                     # Import Response type for validation
-                    from openai.types.responses import Response
+                    from openai.types.responses import (
+                        Response,
+                        ResponseComputerToolCall,
+                        ResponseFunctionToolCall,
+                        ResponseOutputMessage,
+                        ResponseOutputRefusal,
+                        ResponseOutputText,
+                        ResponseReasoningItem,
+                    )
 
                     # Parse the completion as a Response object
                     resp = (
@@ -606,33 +614,25 @@ async def model_proxy_server(
 
                     # 3. Process each output item
                     for output_index, output_item in enumerate(resp.output):
-                        # Convert to dict for consistent access
-                        if hasattr(output_item, "model_dump"):
-                            item_dict = output_item.model_dump(mode="json")
-                        elif isinstance(output_item, dict):
-                            item_dict = output_item
-                        else:
-                            # Fallback: convert to dict if possible
-                            item_dict = (
-                                dict(output_item)
-                                if hasattr(output_item, "__dict__")
-                                else {}
-                            )
-
-                        item_id = item_dict.get("id", f"item_{output_index}")
-                        item_type = item_dict.get("type")
+                        # Use the BaseModel directly - output_item is from the discriminated union
+                        item_id = (
+                            output_item.id
+                            if hasattr(output_item, "id")
+                            else f"item_{output_index}"
+                        )
+                        item_type = output_item.type
 
                         # 3a. response.output_item.added
                         seq_num += 1
                         # Set initial status to in_progress for streaming
-                        item_in_progress = dict(item_dict)
-                        if "status" in item_in_progress:
-                            item_in_progress["status"] = "in_progress"
+                        item_dict = output_item.model_dump(mode="json")
+                        if "status" in item_dict:
+                            item_dict["status"] = "in_progress"
 
                         yield _sse_event(
                             "response.output_item.added",
                             {
-                                "item": item_in_progress,
+                                "item": item_dict,
                                 "output_index": output_index,
                                 "sequence_number": seq_num,
                                 "type": "response.output_item.added",
@@ -640,21 +640,24 @@ async def model_proxy_server(
                             seq_num,
                         )
 
-                        # Process based on item type
-                        if item_type == "message":
-                            # Process message content
-                            content_list = item_dict.get("content", [])
-                            for content_index, content in enumerate(content_list):
-                                content_type = content.get("type")
+                        # Process based on item type using proper type narrowing
+                        if item_type == "message" and isinstance(
+                            output_item, ResponseOutputMessage
+                        ):
+                            # Process message content - content is a list of BaseModel objects
+                            for content_index, content in enumerate(
+                                output_item.content
+                            ):
+                                content_type = content.type
 
                                 # 3b. response.content_part.added
                                 seq_num += 1
-                                content_part = dict(content)
+                                content_dict = content.model_dump(mode="json")
                                 if content_type == "output_text":
                                     # Clear text for streaming
-                                    content_part["text"] = ""
+                                    content_dict["text"] = ""
                                 elif content_type == "refusal":
-                                    content_part["refusal"] = ""
+                                    content_dict["refusal"] = ""
 
                                 yield _sse_event(
                                     "response.content_part.added",
@@ -662,16 +665,18 @@ async def model_proxy_server(
                                         "item_id": item_id,
                                         "output_index": output_index,
                                         "content_index": content_index,
-                                        "part": content_part,
+                                        "part": content_dict,
                                         "sequence_number": seq_num,
                                         "type": "response.content_part.added",
                                     },
                                     seq_num,
                                 )
 
-                                # Stream content
-                                if content_type == "output_text":
-                                    text = content.get("text", "")
+                                # Stream content - using proper type narrowing
+                                if content_type == "output_text" and isinstance(
+                                    content, ResponseOutputText
+                                ):
+                                    text = content.text
                                     # Stream text in chunks
                                     for chunk in _iter_chunks(text):
                                         seq_num += 1
@@ -705,8 +710,10 @@ async def model_proxy_server(
                                         seq_num,
                                     )
 
-                                elif content_type == "refusal":
-                                    refusal_text = content.get("refusal", "")
+                                elif content_type == "refusal" and isinstance(
+                                    content, ResponseOutputRefusal
+                                ):
+                                    refusal_text = content.refusal
                                     # Stream refusal in chunks
                                     for chunk in _iter_chunks(refusal_text):
                                         seq_num += 1
@@ -746,16 +753,18 @@ async def model_proxy_server(
                                         "item_id": item_id,
                                         "output_index": output_index,
                                         "content_index": content_index,
-                                        "part": content,
+                                        "part": content.model_dump(mode="json"),
                                         "sequence_number": seq_num,
                                         "type": "response.content_part.done",
                                     },
                                     seq_num,
                                 )
 
-                        elif item_type == "function_call":
+                        elif item_type == "function_call" and isinstance(
+                            output_item, ResponseFunctionToolCall
+                        ):
                             # Handle function call streaming
-                            arguments = item_dict.get("arguments", "")
+                            arguments = output_item.arguments
 
                             # Stream function arguments
                             for chunk in _iter_chunks(arguments, max_len=32):
@@ -786,113 +795,119 @@ async def model_proxy_server(
                                 seq_num,
                             )
 
-                        elif item_type == "computer_call":
+                        elif item_type == "computer_call" and isinstance(
+                            output_item, ResponseComputerToolCall
+                        ):
                             # Computer calls complete immediately (no streaming)
                             pass
 
-                        elif item_type == "reasoning":
+                        elif item_type == "reasoning" and isinstance(
+                            output_item, ResponseReasoningItem
+                        ):
                             # Handle reasoning item streaming
-                            content_list = item_dict.get("content", [])
-                            for content_index, content in enumerate(content_list):
-                                if content.get("type") == "reasoning_text":
-                                    text = content.get("text", "")
-                                    # Stream reasoning text
-                                    for chunk in _iter_chunks(text):
-                                        seq_num += 1
-                                        yield _sse_event(
-                                            "response.reasoning_text.delta",
-                                            {
-                                                "item_id": item_id,
-                                                "output_index": output_index,
-                                                "content_index": content_index,
-                                                "delta": chunk,
-                                                "sequence_number": seq_num,
-                                                "type": "response.reasoning_text.delta",
-                                            },
-                                            seq_num,
-                                        )
-
-                                    # Reasoning text done
-                                    seq_num += 1
-                                    yield _sse_event(
-                                        "response.reasoning_text.done",
-                                        {
-                                            "item_id": item_id,
-                                            "output_index": output_index,
-                                            "content_index": content_index,
-                                            "text": text,
-                                            "sequence_number": seq_num,
-                                            "type": "response.reasoning_text.done",
-                                        },
-                                        seq_num,
-                                    )
-
-                            # Handle reasoning summary if present
-                            summary = item_dict.get("summary", [])
-                            if isinstance(summary, list):
-                                for summary_index, summary_part in enumerate(summary):
-                                    # Add summary part
-                                    seq_num += 1
-                                    yield _sse_event(
-                                        "response.reasoning_summary_part.added",
-                                        {
-                                            "item_id": item_id,
-                                            "output_index": output_index,
-                                            "summary_index": summary_index,
-                                            "part": summary_part,
-                                            "sequence_number": seq_num,
-                                            "type": "response.reasoning_summary_part.added",
-                                        },
-                                        seq_num,
-                                    )
-
-                                    if summary_part.get("type") == "summary_text":
-                                        text = summary_part.get("text", "")
-                                        # Stream summary text
+                            if output_item.content:
+                                for reasoning_idx, reasoning_content in enumerate(
+                                    output_item.content
+                                ):
+                                    if reasoning_content.type == "reasoning_text":
+                                        text = reasoning_content.text
+                                        # Stream reasoning text
                                         for chunk in _iter_chunks(text):
                                             seq_num += 1
                                             yield _sse_event(
-                                                "response.reasoning_summary_text.delta",
+                                                "response.reasoning_text.delta",
                                                 {
                                                     "item_id": item_id,
                                                     "output_index": output_index,
-                                                    "summary_index": summary_index,
+                                                    "content_index": reasoning_idx,
                                                     "delta": chunk,
                                                     "sequence_number": seq_num,
-                                                    "type": "response.reasoning_summary_text.delta",
+                                                    "type": "response.reasoning_text.delta",
                                                 },
                                                 seq_num,
                                             )
 
-                                        # Summary text done
+                                        # Reasoning text done
                                         seq_num += 1
                                         yield _sse_event(
-                                            "response.reasoning_summary_text.done",
+                                            "response.reasoning_text.done",
                                             {
                                                 "item_id": item_id,
                                                 "output_index": output_index,
-                                                "summary_index": summary_index,
+                                                "content_index": reasoning_idx,
                                                 "text": text,
                                                 "sequence_number": seq_num,
-                                                "type": "response.reasoning_summary_text.done",
+                                                "type": "response.reasoning_text.done",
                                             },
                                             seq_num,
                                         )
 
-                                    # Summary part done
+                            # Handle reasoning summary if present
+                            for summary_index, summary_part in enumerate(
+                                output_item.summary
+                            ):
+                                # Add summary part
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.reasoning_summary_part.added",
+                                    {
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "summary_index": summary_index,
+                                        "part": summary_part,
+                                        "sequence_number": seq_num,
+                                        "type": "response.reasoning_summary_part.added",
+                                    },
+                                    seq_num,
+                                )
+
+                                if summary_part.type == "summary_text":
+                                    text = summary_part.text
+                                    # Stream summary text
+                                    for chunk in _iter_chunks(text):
+                                        seq_num += 1
+                                        yield _sse_event(
+                                            "response.reasoning_summary_text.delta",
+                                            {
+                                                "item_id": item_id,
+                                                "output_index": output_index,
+                                                "summary_index": summary_index,
+                                                "delta": chunk,
+                                                "sequence_number": seq_num,
+                                                "type": "response.reasoning_summary_text.delta",
+                                            },
+                                            seq_num,
+                                        )
+
+                                    # Summary text done
                                     seq_num += 1
                                     yield _sse_event(
-                                        "response.reasoning_summary_part.done",
+                                        "response.reasoning_summary_text.done",
                                         {
                                             "item_id": item_id,
                                             "output_index": output_index,
                                             "summary_index": summary_index,
-                                            "part": summary_part,
+                                            "text": text,
                                             "sequence_number": seq_num,
-                                            "type": "response.reasoning_summary_part.done",
+                                            "type": "response.reasoning_summary_text.done",
                                         },
                                         seq_num,
                                     )
+
+                                # Summary part done
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.reasoning_summary_part.done",
+                                    {
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "summary_index": summary_index,
+                                        "part": summary_part,
+                                        "sequence_number": seq_num,
+                                        "type": "response.reasoning_summary_part.done",
+                                    },
+                                    seq_num,
+                                )
 
                         elif item_type == "file_search_call":
                             # File search events
@@ -1222,14 +1237,14 @@ async def model_proxy_server(
                         # 3d. response.output_item.done
                         seq_num += 1
                         # Update status to completed
-                        item_completed = dict(item_dict)
-                        if "status" in item_completed:
-                            item_completed["status"] = "completed"
+                        item_dict_completed = output_item.model_dump(mode="json")
+                        if "status" in item_dict_completed:
+                            item_dict_completed["status"] = "completed"
 
                         yield _sse_event(
                             "response.output_item.done",
                             {
-                                "item": item_completed,
+                                "item": item_dict_completed,
                                 "output_index": output_index,
                                 "sequence_number": seq_num,
                                 "type": "response.output_item.done",
