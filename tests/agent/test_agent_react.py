@@ -96,7 +96,6 @@ def run_react_agent(
         scorer=includes(),
         message_limit=message_limit,
     )
-    # breakpoint()
     model = get_model(
         "mockllm/model",
         custom_outputs=[
