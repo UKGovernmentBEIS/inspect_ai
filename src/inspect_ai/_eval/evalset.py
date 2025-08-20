@@ -88,6 +88,7 @@ def eval_set(
     sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -163,6 +164,8 @@ def eval_set(
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -231,6 +234,7 @@ def eval_set(
             sample_shuffle=sample_shuffle,
             epochs=epochs,
             fail_on_error=fail_on_error,
+            continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,

@@ -17,6 +17,7 @@
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
 - Bugfix: Fix custom json schema generation code for `CitationBase` so that it no longer leads to an invalid schema.
 - Bugfix: Only pass `background` to OpenAI Responses if specified.
+- Add `--continue-on-fail` option for `eval_retry` and `eval_set`.
 
 ## 0.3.123 (16 August 2025)
 

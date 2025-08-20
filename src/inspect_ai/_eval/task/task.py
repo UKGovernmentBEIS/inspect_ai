@@ -63,6 +63,7 @@ class Task:
         approval: str | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
+        continue_on_fail: bool | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
         time_limit: int | None = None,
@@ -96,6 +97,8 @@ class Task:
                 (default); `False` to never fail on sample errors; Value between 0 and 1
                 to fail if a proportion of total samples fails. Value greater than 1 to fail
                 eval if a count of samples fails.
+            continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+                `False` to fail eval immediately when the `fail_on_error` condition is met (default).
             message_limit: Limit on total messages used for each sample.
             token_limit: Limit on total tokens used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
@@ -149,6 +152,7 @@ class Task:
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error
+        self.continue_on_fail = continue_on_fail
         self.message_limit = message_limit
         self.token_limit = token_limit
         self.time_limit = time_limit
@@ -209,6 +213,7 @@ def task_with(
     approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
+    continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
@@ -245,6 +250,8 @@ def task_with(
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
@@ -290,6 +297,8 @@ def task_with(
         task.epochs_reducer = epochs.reducer if epochs else None
     if not isinstance(fail_on_error, NotGiven):
         task.fail_on_error = fail_on_error
+    if not isinstance(continue_on_fail, NotGiven):
+        task.continue_on_fail = continue_on_fail
     if not isinstance(message_limit, NotGiven):
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):
