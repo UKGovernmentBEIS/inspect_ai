@@ -146,8 +146,8 @@ def test_docker_sandbox_setup_fail_on_error():
     assert log.samples[0].error
     assert not log.samples[1].error
 
-    # fail_on_error=True, continue_on_fail=False (entire eval fails, but all samples are evaluated)
-    log = eval(task, model="mockllm/model", fail_on_error=True, continue_on_fail=False)[
+    # fail_on_error=True, continue_on_fail=True (entire eval fails, but all samples are evaluated)
+    log = eval(task, model="mockllm/model", fail_on_error=True, continue_on_fail=True)[
         0
     ]
     assert log.status == "error"

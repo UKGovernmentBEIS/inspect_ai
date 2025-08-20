@@ -174,7 +174,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
     # handle sample errors (raise as required)
     sample_error_handler = SampleErrorHandler(
-        config.fail_on_error if config.continue_on_fail is not False else False,
+        config.fail_on_error if config.continue_on_fail is not True else False,
         len(task.dataset),
     )
 
@@ -346,14 +346,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
                         fails_on_error=(
-                            (
-                                config.fail_on_error is None
-                                or config.fail_on_error is True
-                            )
-                            and (
-                                config.continue_on_fail is None
-                                or config.continue_on_fail is True
-                            )
+                            config.fail_on_error is not False
+                            and config.continue_on_fail is not True
                         ),
                         retry_on_error=config.retry_on_error or 0,
                         error_retries=[],

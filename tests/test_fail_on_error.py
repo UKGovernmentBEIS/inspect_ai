@@ -58,7 +58,7 @@ def test_no_fail_on_error():
 
 def test_continue_on_fail():
     log = eval_failing_task(
-        2, True, continue_on_fail=False, fail=lambda state: state.sample_id == 1
+        2, True, continue_on_fail=True, fail=lambda state: state.sample_id == 1
     )
     assert log.status == "error"
     assert log.results.completed_samples == 1
@@ -80,7 +80,7 @@ def test_fail_on_num_errors_continue_on_fail():
     log = eval_failing_task(
         samples=10,
         fail_on_error=4,
-        continue_on_fail=False,
+        continue_on_fail=True,
         fail=lambda state: state.sample_id < 5,
     )
     assert log.results.completed_samples == 6
@@ -88,7 +88,7 @@ def test_fail_on_num_errors_continue_on_fail():
     log = eval_failing_task(
         samples=10,
         fail_on_error=4,
-        continue_on_fail=False,
+        continue_on_fail=True,
         fail=lambda state: state.sample_id < 3,
     )
     assert log.results.completed_samples == 8
@@ -111,7 +111,7 @@ def test_fail_on_pct_errors_continue_on_fail():
     log = eval_failing_task(
         samples=10,
         fail_on_error=0.35,
-        continue_on_fail=False,
+        continue_on_fail=True,
         fail=lambda state: state.sample_id < 5,
     )
     assert log.results.completed_samples == 6
@@ -119,7 +119,7 @@ def test_fail_on_pct_errors_continue_on_fail():
     log = eval_failing_task(
         samples=10,
         fail_on_error=0.7,
-        continue_on_fail=False,
+        continue_on_fail=True,
         fail=lambda state: state.sample_id < 7,
     )
     assert log.results.completed_samples == 4
@@ -138,7 +138,7 @@ def test_continue_on_fail_override():
     task = create_failing_task(
         samples=10, fail_on_error=True, fail=lambda state: state.sample_id < 7
     )
-    log = eval(task, continue_on_fail=False, model="mockllm/model")[0]
+    log = eval(task, continue_on_fail=True, model="mockllm/model")[0]
     assert log.results.completed_samples == 4
     assert log.status == "error"
 
