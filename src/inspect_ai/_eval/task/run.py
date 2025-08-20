@@ -391,17 +391,17 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             collect_eval_data(stats)
 
             sample_error_count = sum(result is None for result in sample_results)
-            if config.fail_on_error is None or config.fail_on_error is True:
+            if config.fail_on_error is False:
+                eval_log_success = True
+            elif config.fail_on_error is None or config.fail_on_error is True:
                 eval_log_success = sample_error_count == 0
-            elif isinstance(config.fail_on_error, float):
+            else:
                 if config.fail_on_error < 1:
                     eval_log_success = (
                         sample_error_count < config.fail_on_error * profile.samples
                     )
                 else:
                     eval_log_success = sample_error_count < config.fail_on_error
-            else:
-                eval_log_success = True
 
             # finish
             eval_log = await logger.log_finish(
