@@ -843,71 +843,76 @@ async def model_proxy_server(
                                         )
 
                             # Handle reasoning summary if present
-                            for summary_index, summary_part in enumerate(
-                                output_item.summary
-                            ):
-                                # Add summary part
-                                seq_num += 1
-                                yield _sse_event(
-                                    "response.reasoning_summary_part.added",
-                                    {
-                                        "item_id": item_id,
-                                        "output_index": output_index,
-                                        "summary_index": summary_index,
-                                        "part": summary_part,
-                                        "sequence_number": seq_num,
-                                        "type": "response.reasoning_summary_part.added",
-                                    },
-                                    seq_num,
-                                )
-
-                                if summary_part.type == "summary_text":
-                                    text = summary_part.text
-                                    # Stream summary text
-                                    for chunk in _iter_chunks(text):
-                                        seq_num += 1
-                                        yield _sse_event(
-                                            "response.reasoning_summary_text.delta",
-                                            {
-                                                "item_id": item_id,
-                                                "output_index": output_index,
-                                                "summary_index": summary_index,
-                                                "delta": chunk,
-                                                "sequence_number": seq_num,
-                                                "type": "response.reasoning_summary_text.delta",
-                                            },
-                                            seq_num,
-                                        )
-
-                                    # Summary text done
+                            if output_item.summary:
+                                for summary_index, summary_part in enumerate(
+                                    output_item.summary
+                                ):
+                                    # Add summary part
                                     seq_num += 1
                                     yield _sse_event(
-                                        "response.reasoning_summary_text.done",
+                                        "response.reasoning_summary_part.added",
                                         {
                                             "item_id": item_id,
                                             "output_index": output_index,
                                             "summary_index": summary_index,
-                                            "text": text,
+                                            "part": summary_part.model_dump(
+                                                mode="json"
+                                            ),
                                             "sequence_number": seq_num,
-                                            "type": "response.reasoning_summary_text.done",
+                                            "type": "response.reasoning_summary_part.added",
                                         },
                                         seq_num,
                                     )
 
-                                # Summary part done
-                                seq_num += 1
-                                yield _sse_event(
-                                    "response.reasoning_summary_part.done",
-                                    {
-                                        "item_id": item_id,
-                                        "output_index": output_index,
-                                        "summary_index": summary_index,
-                                        "part": summary_part,
-                                        "sequence_number": seq_num,
-                                        "type": "response.reasoning_summary_part.done",
-                                    },
-                                    seq_num,
-                                )
+                                    if summary_part.type == "summary_text":
+                                        text = summary_part.text
+                                        # Stream summary text
+                                        for chunk in _iter_chunks(text):
+                                            seq_num += 1
+                                            yield _sse_event(
+                                                "response.reasoning_summary_text.delta",
+                                                {
+                                                    "item_id": item_id,
+                                                    "output_index": output_index,
+                                                    "summary_index": summary_index,
+                                                    "delta": chunk,
+                                                    "sequence_number": seq_num,
+                                                    "type": "response.reasoning_summary_text.delta",
+                                                },
+                                                seq_num,
+                                            )
+
+                                        # Summary text done
+                                        seq_num += 1
+                                        yield _sse_event(
+                                            "response.reasoning_summary_text.done",
+                                            {
+                                                "item_id": item_id,
+                                                "output_index": output_index,
+                                                "summary_index": summary_index,
+                                                "text": text,
+                                                "sequence_number": seq_num,
+                                                "type": "response.reasoning_summary_text.done",
+                                            },
+                                            seq_num,
+                                        )
+
+                                    # Summary part done
+                                    seq_num += 1
+                                    yield _sse_event(
+                                        "response.reasoning_summary_part.done",
+                                        {
+                                            "item_id": item_id,
+                                            "output_index": output_index,
+                                            "summary_index": summary_index,
+                                            "part": summary_part.model_dump(
+                                                mode="json"
+                                            ),
+                                            "sequence_number": seq_num,
+                                            "type": "response.reasoning_summary_part.done",
+                                        },
+                                        seq_num,
+                                    )
 
                         elif item_type == "file_search_call":
                             # File search events

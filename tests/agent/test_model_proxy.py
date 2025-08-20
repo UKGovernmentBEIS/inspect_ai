@@ -938,13 +938,145 @@ async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
         if method == "generate_responses":
             # Return a mock response for testing
             input_data = json_data.get("input", "")
+
+            # Check for special test triggers in input
+            if "test_web_search" in str(input_data):
+                # Return a ResponseFunctionWebSearch
+                return {
+                    "id": "resp_web_search",
+                    "object": "response",
+                    "created_at": 1234567890,
+                    "model": json_data.get("model", "gpt-4o"),
+                    "output": [
+                        {
+                            "id": "web_search_1",
+                            "type": "function_call",
+                            "call_id": "call_ws123",
+                            "name": "web_search",
+                            "arguments": '{"query": "latest AI news"}',
+                            "status": "completed",
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 10,
+                        "total_tokens": 30,
+                    },
+                }
+            elif "test_computer" in str(input_data):
+                # Return a ResponseComputerToolCall
+                return {
+                    "id": "resp_computer",
+                    "object": "response",
+                    "created_at": 1234567890,
+                    "model": json_data.get("model", "gpt-4o"),
+                    "output": [
+                        {
+                            "id": "computer_1",
+                            "type": "computer_call",
+                            "call_id": "call_comp123",
+                            "function": {
+                                "name": "computer_tool",
+                                "arguments": '{"action": "screenshot"}',
+                            },
+                            "status": "completed",
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 10,
+                        "total_tokens": 30,
+                    },
+                }
+            elif "test_reasoning" in str(input_data):
+                # Return a ResponseReasoningItem
+                return {
+                    "id": "resp_reasoning",
+                    "object": "response",
+                    "created_at": 1234567890,
+                    "model": json_data.get("model", "gpt-4o"),
+                    "output": [
+                        {
+                            "id": "reasoning_1",
+                            "type": "reasoning",
+                            "content": [
+                                {
+                                    "type": "reasoning_text",
+                                    "text": "Let me think about this step by step...",
+                                }
+                            ],
+                            "summary": [
+                                {
+                                    "type": "summary_text",
+                                    "text": "I analyzed the problem carefully.",
+                                }
+                            ],
+                            "status": "completed",
+                        }
+                    ],
+                    "parallel_tool_calls": False,
+                    "tool_choice": "auto",
+                    "tools": [],
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 30,
+                        "input_tokens_details": {"cached_tokens": 0},
+                        "output_tokens_details": {"reasoning_tokens": 0},
+                        "total_tokens": 50,
+                    },
+                }
+            elif "test_mcp_call" in str(input_data):
+                # Return an McpCall
+                return {
+                    "id": "resp_mcp_call",
+                    "object": "response",
+                    "created_at": 1234567890,
+                    "model": json_data.get("model", "gpt-4o"),
+                    "output": [
+                        {
+                            "id": "mcp_call_1",
+                            "type": "mcp_call",
+                            "call_id": "call_mcp123",
+                            "function": {
+                                "name": "mcp_function",
+                                "arguments": '{"param": "value"}',
+                            },
+                            "status": "completed",
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 10,
+                        "total_tokens": 30,
+                    },
+                }
+            elif "test_mcp_list_tools" in str(input_data):
+                # Return an McpListTools
+                return {
+                    "id": "resp_mcp_list",
+                    "object": "response",
+                    "created_at": 1234567890,
+                    "model": json_data.get("model", "gpt-4o"),
+                    "output": [
+                        {
+                            "id": "mcp_list_1",
+                            "type": "mcp_list_tools",
+                            "status": "completed",
+                        }
+                    ],
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 5,
+                        "total_tokens": 25,
+                    },
+                }
+
+            # Default behavior - check if tool calls are requested
             response_text = (
                 f"You said: {input_data}"
                 if isinstance(input_data, str)
                 else "Test response"
             )
-
-            # Check if tool calls are requested
             tools = json_data.get("tools", [])
             if tools:
                 # Return a response with tool calls
@@ -1229,3 +1361,233 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
 
     # Verify the function arguments were streamed correctly
     assert json.loads(function_arguments) == {"location": "San Francisco"}
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_model_proxy_responses_web_search(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI Responses API with web_search function call."""
+    _server, base_url = proxy_server
+
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Make request that triggers web search response
+    response = await client.responses.create(
+        model="gpt-4o",
+        input="test_web_search: Find latest AI news",
+    )
+
+    # Verify response
+    assert response.object == "response"
+    assert len(response.output) == 1
+
+    # Check the web search output
+    output_item = response.output[0]
+    assert output_item.type == "function_call"
+    assert output_item.name == "web_search"
+    assert json.loads(output_item.arguments) == {"query": "latest AI news"}
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_model_proxy_responses_computer_tool(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI Responses API with computer tool call."""
+    _server, base_url = proxy_server
+
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Make request that triggers computer tool response
+    response = await client.responses.create(
+        model="gpt-4o",
+        input="test_computer: Take a screenshot",
+    )
+
+    # Verify response
+    assert response.object == "response"
+    assert len(response.output) == 1
+
+    # Check the computer tool output
+    output_item = response.output[0]
+    assert output_item.type == "computer_call"
+    assert hasattr(output_item, "function")
+    # The function field might be a dict
+    if isinstance(output_item.function, dict):
+        assert output_item.function["name"] == "computer_tool"
+        assert json.loads(output_item.function["arguments"]) == {"action": "screenshot"}
+    else:
+        assert output_item.function.name == "computer_tool"
+        assert json.loads(output_item.function.arguments) == {"action": "screenshot"}
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_model_proxy_responses_reasoning(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI Responses API with reasoning output."""
+    _server, base_url = proxy_server
+
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Make request that triggers reasoning response
+    response = await client.responses.create(
+        model="gpt-4o",
+        input="test_reasoning: Solve this complex problem",
+    )
+
+    # Verify response
+    assert response.object == "response"
+    assert len(response.output) == 1
+
+    # Check the reasoning output
+    output_item = response.output[0]
+    assert output_item.type == "reasoning"
+    assert hasattr(output_item, "content")
+    assert len(output_item.content) > 0
+    assert output_item.content[0].type == "reasoning_text"
+    assert output_item.content[0].text == "Let me think about this step by step..."
+
+    # Check summary
+    assert hasattr(output_item, "summary")
+    assert len(output_item.summary) > 0
+    assert output_item.summary[0].type == "summary_text"
+    assert output_item.summary[0].text == "I analyzed the problem carefully."
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_model_proxy_responses_mcp_call(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI Responses API with MCP call."""
+    _server, base_url = proxy_server
+
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Make request that triggers MCP call response
+    response = await client.responses.create(
+        model="gpt-4o",
+        input="test_mcp_call: Execute MCP function",
+    )
+
+    # Verify response
+    assert response.object == "response"
+    assert len(response.output) == 1
+
+    # Check the MCP call output
+    output_item = response.output[0]
+    assert output_item.type == "mcp_call"
+    assert hasattr(output_item, "function")
+    # The function field might be a dict
+    if isinstance(output_item.function, dict):
+        assert output_item.function["name"] == "mcp_function"
+        assert json.loads(output_item.function["arguments"]) == {"param": "value"}
+    else:
+        assert output_item.function.name == "mcp_function"
+        assert json.loads(output_item.function.arguments) == {"param": "value"}
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_model_proxy_responses_mcp_list_tools(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI Responses API with MCP list tools."""
+    _server, base_url = proxy_server
+
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Make request that triggers MCP list tools response
+    response = await client.responses.create(
+        model="gpt-4o",
+        input="test_mcp_list_tools: List available MCP tools",
+    )
+
+    # Verify response
+    assert response.object == "response"
+    assert len(response.output) == 1
+
+    # Check the MCP list tools output
+    output_item = response.output[0]
+    assert output_item.type == "mcp_list_tools"
+    assert output_item.status == "completed"
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_model_proxy_responses_streaming_reasoning(
+    proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test OpenAI Responses API streaming with reasoning output."""
+    _server, base_url = proxy_server
+
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Stream response with reasoning
+    events = []
+    reasoning_text = ""
+    summary_text = ""
+
+    try:
+        async with client.responses.stream(
+            model="gpt-4o",
+            input="test_reasoning: Think through this problem",
+        ) as stream:
+            async for event in stream:
+                events.append(event)
+
+                # Collect reasoning text
+                if (
+                    hasattr(event, "type")
+                    and event.type == "response.reasoning_text.delta"
+                ):
+                    if hasattr(event, "delta"):
+                        reasoning_text += event.delta
+
+                # Collect summary text
+                if (
+                    hasattr(event, "type")
+                    and event.type == "response.reasoning_summary_text.delta"
+                ):
+                    if hasattr(event, "delta"):
+                        summary_text += event.delta
+    except Exception as e:
+        # Print the error for debugging
+        print(f"Error during streaming: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
+
+    # Verify we received events
+    assert len(events) > 0
+
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "response.created" in event_types
+    assert "response.in_progress" in event_types
+    assert "response.output_item.added" in event_types
+
+    # Check reasoning-specific events
+    assert "response.reasoning_text.delta" in event_types
+    assert "response.reasoning_text.done" in event_types
+    assert "response.reasoning_summary_part.added" in event_types
+    assert "response.reasoning_summary_text.delta" in event_types
+    assert "response.reasoning_summary_text.done" in event_types
+    assert "response.reasoning_summary_part.done" in event_types
+
+    assert "response.completed" in event_types
+
+    # Verify the streamed text
+    assert reasoning_text == "Let me think about this step by step..."
+    assert summary_text == "I analyzed the problem carefully."
