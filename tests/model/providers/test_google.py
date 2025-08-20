@@ -1,4 +1,4 @@
-from google.genai.types import Candidate, Content, FinishReason
+from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
@@ -64,3 +64,49 @@ def test_completion_choice_malformed_function_call():
     assert (
         choice.message.tool_calls is None
     )  # No tool calls for malformed function calls
+
+
+def test_completion_choice_multiple_function_calls():
+    """Test that multiple tool calls to same function get unique IDs"""
+    # Create candidate with multiple calls to same function
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(name="calculator", args={"expr": "2+2"})
+                ),
+                Part(
+                    function_call=FunctionCall(name="calculator", args={"expr": "3+3"})
+                ),
+                Part(
+                    function_call=FunctionCall(name="calculator", args={"expr": "4+4"})
+                ),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+        citation_metadata=None,
+        finish_message=None,
+        token_count=None,
+        avg_logprobs=None,
+        grounding_metadata=None,
+        index=None,
+        logprobs_result=None,
+        safety_ratings=None,
+    )
+
+    choice = completion_choice_from_candidate("test-model", candidate)
+
+    # Verify all IDs are unique
+    tool_calls = choice.message.tool_calls
+    assert tool_calls is not None
+    assert len(tool_calls) == 3
+
+    ids = [call.id for call in tool_calls]
+    assert len(set(ids)) == 3, "All tool call IDs should be unique"
+
+    # Verify IDs contain function name
+    for call in tool_calls:
+        assert call.id.startswith("calculator_"), (
+            f"ID should start with function name: {call.id}"
+        )
