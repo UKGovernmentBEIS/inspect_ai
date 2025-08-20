@@ -513,7 +513,9 @@ def responses_output_items_from_assistant_message(
                     ResponseFunctionWebSearch.model_validate(tool_pweb_search_param)
                 )
 
-    # for tool_call in message.tool_calls:
+    # TODO: we actually need to play out some of those tool calls so
+    # that the client can actually execute them! We might need two
+    # representations (and occulde the computer call for the bridge?)
     #     pass
     # TODO: grab the standard tool calls and add them
 
