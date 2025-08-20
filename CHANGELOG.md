@@ -9,13 +9,14 @@
 - VLLM: Allow specifying the port when starting up a new vllm server.
 - Eval Log: For sample summaries, preserve all sample and score fields that are less than 1k in size.
 - CLI: Yield error exit code (1) if no tasks to evaluate are found at the specified path.
+- Eval Set: You can now run eval sets in log dirs containing unrelated eval log files using the `--log-dir-allow-dirty` option.
 - Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
 - Bugifx: Properly handle surrogates in JSON serialization.
 - Bugfix: Google and Mistral providers now generate unique tool call IDs to prevent collisions when calling the same tool multiple times.
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
 - Bugfix: Fix custom json schema generation code for `CitationBase` so that it no longer leads to an invalid schema.
-- Eval set: You can now run eval sets in log dirs containing unrelated eval log files using the `--log-dir-allow-dirty` option.
+- Bugfix: Only pass `background` to OpenAI Responses if specified.
 
 ## 0.3.123 (16 August 2025)
 
