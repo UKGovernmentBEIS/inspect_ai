@@ -23,7 +23,7 @@ done
 
 # Set executable name based on whether version should be included
 if [ "$INCLUDE_VERSION" = true ]; then
-    VERSION=$(cat VERSION 2>/dev/null || echo "1")
+    VERSION=$(cat ../inspect_ai/tool/_tool_support_version.txt 2>/dev/null || echo "666")
     EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION"
 else
     EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX"

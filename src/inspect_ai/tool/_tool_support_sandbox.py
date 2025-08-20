@@ -202,8 +202,8 @@ def _get_tool_support_version() -> str:
     try:
         # Try to read from the package first
         with (
-            importlib.resources.files("inspect_ai")
-            .joinpath("../inspect_tool_support/VERSION")
+            importlib.resources.files("inspect_ai.tool")
+            .joinpath("_tool_support_version.txt")
             .open() as f
         ):
             return f.read().strip()
@@ -212,7 +212,7 @@ def _get_tool_support_version() -> str:
         try:
             package_path = Path(inspect_ai.__file__).parent
             version_file = (
-                package_path.parent.parent / "inspect_tool_support" / "VERSION"
+                package_path / "tool" / "_tool_support_version.txt"
             )
             if version_file.exists():
                 return version_file.read_text().strip()
@@ -388,7 +388,7 @@ def _detect_installation_type() -> Literal["pypi", "git", "editable"]:
             )
 
             version_file_path = (
-                package_path.parent.parent / "inspect_tool_support" / "VERSION"
+                package_path / "tool" / "_tool_support_version.txt"
             )
 
             # Git installations include the full source tree

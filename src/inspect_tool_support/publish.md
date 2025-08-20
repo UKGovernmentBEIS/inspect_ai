@@ -101,7 +101,7 @@ Developers need to increment the tool support version when making changes to `sr
 #### Primary Workflow: `build-tool-support.yml`
 
 **Triggers:**
-- PR opened/updated with changes to `src/inspect_tool_support/VERSION` (PRs only)
+- PR opened/updated with changes to `src/inspect_ai/tool/_tool_support_version.txt` (PRs only)
 - Every subsequent push to a PR branch with VERSION changes (ensures latest commit)
 - Manual dispatch (for maintainers - emergency scenarios)
 
