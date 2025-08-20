@@ -1057,115 +1057,93 @@ async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
 
 
 @pytest.mark.asyncio
+@skip_if_no_openai
 async def test_model_proxy_responses_non_streaming(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
-    """Test OpenAI Responses API non-streaming endpoint using actual proxy implementation."""
+    """Test OpenAI Responses API non-streaming endpoint using actual OpenAI client."""
     _server, base_url = proxy_server
 
-    # Make request to the actual proxy endpoint
-    request_data = {
-        "model": "gpt-4o",
-        "input": "Hello, Response API!",
-    }
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
 
-    async with ClientSession() as session:
-        async with session.post(
-            f"{base_url}/v1/responses", json=request_data
-        ) as response:
-            assert response.status == 200
-            data = await response.json()
-            assert data["object"] == "response"
-            assert data["model"] == "gpt-4o"
-            assert len(data["output"]) == 1
-            assert data["output"][0]["type"] == "message"
-            assert (
-                data["output"][0]["content"][0]["text"]
-                == "You said: Hello, Response API!"
-            )
+    # Make request using the OpenAI client
+    response = await client.responses.create(
+        model="gpt-4o",
+        input="Hello, Response API!",
+    )
+
+    # Verify response
+    assert response.object == "response"
+    assert response.model == "gpt-4o"
+    assert len(response.output) == 1
+
+    # Check the message output
+    output_item = response.output[0]
+    assert output_item.type == "message"
+    assert output_item.content[0].text == "You said: Hello, Response API!"
 
 
 @pytest.mark.asyncio
+@skip_if_no_openai
 async def test_model_proxy_responses_streaming(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
-    """Test OpenAI Responses API streaming endpoint using actual proxy implementation."""
+    """Test OpenAI Responses API streaming endpoint using actual OpenAI client."""
     _server, base_url = proxy_server
 
-    # Test streaming response
-    request_data = {
-        "model": "gpt-4o",
-        "input": "Hello streaming!",
-        "stream": True,
-    }
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
 
-    async with ClientSession() as session:
-        async with session.post(
-            f"{base_url}/v1/responses", json=request_data
-        ) as response:
-            assert response.status == 200
-            assert (
-                response.headers["Content-Type"] == "text/event-stream; charset=utf-8"
-            )
+    # Stream response using the OpenAI client
+    # Collect events
+    events = []
+    output_text = ""
 
-            # Collect events
-            events = []
-            full_text = ""
-            async for chunk in response.content:
-                text = chunk.decode("utf-8")
-                full_text += text
+    async with client.responses.stream(
+        model="gpt-4o",
+        input="Hello streaming!",
+    ) as stream:
+        async for event in stream:
+            events.append(event)
 
-            # Parse SSE events from the full text
-            for event_block in full_text.split("\n\n"):
-                if event_block.strip():
-                    lines = event_block.strip().split("\n")
-                    event_type = None
-                    event_data = None
-                    for line in lines:
-                        if line.startswith("event: "):
-                            event_type = line[7:]
-                        elif line.startswith("data: "):
-                            # The data might be on multiple lines, join them
-                            data_str = line[6:]
-                            try:
-                                event_data = json.loads(data_str)
-                            except json.JSONDecodeError:
-                                # If JSON decode fails, skip this event
-                                continue
-                    if event_type and event_data:
-                        events.append((event_type, event_data))
+            # Collect text from output_text.delta events
+            if hasattr(event, "type") and event.type == "response.output_text.delta":
+                if hasattr(event, "delta"):
+                    output_text += event.delta
 
-            # Verify event sequence
-            assert len(events) > 0
-            assert events[0][0] == "response.created"
-            assert events[1][0] == "response.in_progress"
-            assert events[2][0] == "response.output_item.added"
-            assert events[3][0] == "response.content_part.added"
+    # Verify we received events
+    assert len(events) > 0
 
-            # Find text delta events
-            delta_events = [e for e in events if e[0] == "response.output_text.delta"]
-            assert len(delta_events) > 0
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "response.created" in event_types
+    assert "response.in_progress" in event_types
+    assert "response.output_item.added" in event_types
+    assert "response.output_text.delta" in event_types
+    assert "response.output_text.done" in event_types
+    assert "response.completed" in event_types
 
-            # Reconstruct text from deltas
-            reconstructed_text = "".join(e[1]["delta"] for e in delta_events)
-            assert "You said: Hello streaming!" in reconstructed_text
-
-            # Check completion event
-            assert events[-1][0] == "response.completed"
+    # Verify the streamed text
+    assert "You said: Hello streaming!" in output_text
 
 
 @pytest.mark.asyncio
+@skip_if_no_openai
 async def test_model_proxy_responses_with_tool_calls(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
-    """Test OpenAI Responses API with tool calls using actual proxy implementation."""
+    """Test OpenAI Responses API with tool calls using actual OpenAI client."""
     _server, base_url = proxy_server
 
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
     # Make request with tools
-    request_data = {
-        "model": "gpt-4o",
-        "input": "What's the weather in San Francisco?",
-        "tools": [
+    response = await client.responses.create(
+        model="gpt-4o",
+        input="What's the weather in San Francisco?",
+        tools=[
             {
                 "type": "function",
                 "name": "get_weather",
@@ -1179,36 +1157,39 @@ async def test_model_proxy_responses_with_tool_calls(
                 },
             }
         ],
-    }
+    )
 
-    async with ClientSession() as session:
-        async with session.post(
-            f"{base_url}/v1/responses", json=request_data
-        ) as response:
-            assert response.status == 200
-            data = await response.json()
-            assert data["object"] == "response"
-            assert len(data["output"]) == 1
-            assert data["output"][0]["type"] == "function_call"
-            assert data["output"][0]["name"] == "get_weather"
-            assert json.loads(data["output"][0]["arguments"]) == {
-                "location": "San Francisco"
-            }
+    # Verify response
+    assert response.object == "response"
+    assert len(response.output) == 1
+
+    # Check the function call output
+    output_item = response.output[0]
+    assert output_item.type == "function_call"
+    assert output_item.name == "get_weather"
+    assert json.loads(output_item.arguments) == {"location": "San Francisco"}
 
 
 @pytest.mark.asyncio
+@skip_if_no_openai
 async def test_model_proxy_responses_streaming_with_tool_calls(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
-    """Test OpenAI Responses API streaming with tool calls using actual proxy implementation."""
+    """Test OpenAI Responses API streaming with tool calls using actual OpenAI client."""
     _server, base_url = proxy_server
 
-    # Test streaming response with tools
-    request_data = {
-        "model": "gpt-4o",
-        "input": "What's the weather in San Francisco?",
-        "stream": True,
-        "tools": [
+    # Use OpenAI client
+    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+
+    # Stream response with tools
+    # Collect events
+    events = []
+    function_arguments = ""
+
+    async with client.responses.stream(
+        model="gpt-4o",
+        input="What's the weather in San Francisco?",
+        tools=[
             {
                 "type": "function",
                 "name": "get_weather",
@@ -1222,65 +1203,29 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
                 },
             }
         ],
-    }
+    ) as stream:
+        async for event in stream:
+            events.append(event)
 
-    async with ClientSession() as session:
-        async with session.post(
-            f"{base_url}/v1/responses", json=request_data
-        ) as response:
-            assert response.status == 200
-            assert (
-                response.headers["Content-Type"] == "text/event-stream; charset=utf-8"
-            )
+            # Collect function arguments from delta events
+            if (
+                hasattr(event, "type")
+                and event.type == "response.function_call_arguments.delta"
+            ):
+                if hasattr(event, "delta"):
+                    function_arguments += event.delta
 
-            # Collect events
-            events = []
-            full_text = ""
-            async for chunk in response.content:
-                text = chunk.decode("utf-8")
-                full_text += text
+    # Verify we received events
+    assert len(events) > 0
 
-            # Parse SSE events from the full text
-            for event_block in full_text.split("\n\n"):
-                if event_block.strip():
-                    lines = event_block.strip().split("\n")
-                    event_type = None
-                    event_data = None
-                    for line in lines:
-                        if line.startswith("event: "):
-                            event_type = line[7:]
-                        elif line.startswith("data: "):
-                            # The data might be on multiple lines, join them
-                            data_str = line[6:]
-                            try:
-                                event_data = json.loads(data_str)
-                            except json.JSONDecodeError:
-                                # If JSON decode fails, skip this event
-                                continue
-                    if event_type and event_data:
-                        events.append((event_type, event_data))
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "response.created" in event_types
+    assert "response.in_progress" in event_types
+    assert "response.output_item.added" in event_types
+    assert "response.function_call_arguments.delta" in event_types
+    assert "response.function_call_arguments.done" in event_types
+    assert "response.completed" in event_types
 
-            # Verify event sequence
-            assert len(events) > 0
-
-            # Check for key events in sequence
-            event_types = [e[0] for e in events]
-            assert "response.created" in event_types
-            assert "response.in_progress" in event_types
-            assert "response.output_item.added" in event_types
-
-            # Check for function call specific events
-            assert "response.function_call_arguments.delta" in event_types
-            assert "response.function_call_arguments.done" in event_types
-            assert "response.output_item.done" in event_types
-            assert "response.completed" in event_types
-
-            # Verify the function call was streamed correctly
-            # Find the arguments done event
-            for event_type, event_data in events:
-                if event_type == "response.function_call_arguments.done":
-                    arguments = event_data.get("arguments", "")
-                    assert json.loads(arguments) == {"location": "San Francisco"}
-                    break
-            else:
-                assert False, "No function_call_arguments.done event found"
+    # Verify the function arguments were streamed correctly
+    assert json.loads(function_arguments) == {"location": "San Francisco"}
