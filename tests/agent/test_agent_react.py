@@ -96,15 +96,20 @@ def run_react_agent(
         scorer=includes(),
         message_limit=message_limit,
     )
-
+    # breakpoint()
     model = get_model(
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
                 model="mockllm/model",
-                tool_name=submit.name or ToolDef(submit.tool).name
-                if submit.tool
-                else AGENT_SUBMIT_TOOL_NAME,
+                tool_name=submit.name
+                or (
+                    submit.tool.name
+                    if isinstance(submit.tool, ToolDef)
+                    else ToolDef(submit.tool).name
+                    if submit.tool
+                    else AGENT_SUBMIT_TOOL_NAME
+                ),
                 tool_arguments={"answer": "2"},
             )
         ],
