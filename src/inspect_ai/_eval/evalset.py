@@ -590,7 +590,8 @@ def validate_eval_set_prerequisites(
                 raise PrerequisiteError(
                     f"[bold]ERROR[/bold]: Existing log file '{basename(log.info.name)}' in log_dir is not "
                     + "associated with a task passed to eval_set (you must run eval_set "
-                    + "in a fresh log directory)"
+                    + "in a fresh log directory). You can use the `--log-dir-allow-dirty` option to allow "
+                    + "logs from other eval sets to be present in the log directory."
                 )
         return all_logs
 
