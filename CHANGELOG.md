@@ -12,6 +12,7 @@
 - Bugifx: Properly handle surrogates in JSON serialization.
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
 - Bugfix: Fix custom json schema generation code for `CitationBase` so that it no longer leads to an invalid schema.
+- Eval set: You can now run eval sets in log dirs containing unrelated eval log files using the `--log-dir-allow-dirty` option.
 
 ## 0.3.123 (16 August 2025)
 

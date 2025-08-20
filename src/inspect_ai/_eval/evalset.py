@@ -105,7 +105,7 @@ def eval_set(
     log_shared: bool | int | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
-    allow_dirty_log_dir: bool | None = None,
+    log_dir_allow_dirty: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -195,7 +195,7 @@ def eval_set(
             by this eval set will be bundled into this directory.
         bundle_overwrite: Whether to overwrite files in the bundle_dir.
             (defaults to False).
-        allow_dirty_log_dir: If True, allow the log directory to contain
+        log_dir_allow_dirty: If True, allow the log directory to contain
             unrelated logs. If False, ensure that the log directory only contains logs
             for tasks in this eval set (defaults to False).
         **kwargs: Model generation options.
@@ -290,7 +290,7 @@ def eval_set(
     retry_cleanup = retry_cleanup is not False
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
     max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
-    allow_dirty_log_dir = allow_dirty_log_dir is True
+    log_dir_allow_dirty = log_dir_allow_dirty is True
 
     # prepare console/status
     console = rich.get_console()
@@ -350,7 +350,7 @@ def eval_set(
         #  (1) All tasks have a unique identifier
         #  (2) All logs have identifiers that map to tasks
         all_logs = validate_eval_set_prerequisites(
-            resolved_tasks, all_logs, allow_dirty_log_dir
+            resolved_tasks, all_logs, log_dir_allow_dirty
         )
 
         # see which tasks are yet to run (to complete successfully we need
@@ -568,7 +568,7 @@ def latest_completed_task_eval_logs(
 def validate_eval_set_prerequisites(
     resolved_tasks: list[ResolvedTask],
     all_logs: list[Log],
-    allow_dirty_log_dir: bool,
+    log_dir_allow_dirty: bool,
 ) -> list[Log]:
     # do all resolved tasks have unique identfiers?
     task_identifiers: Set[str] = set()
@@ -582,7 +582,7 @@ def validate_eval_set_prerequisites(
             task_identifiers.add(identifier)
 
     # do all logs in the log directory correspond to task identifiers?
-    if allow_dirty_log_dir:
+    if log_dir_allow_dirty:
         return [log for log in all_logs if log.task_identifier in task_identifiers]
     else:
         for log in all_logs:

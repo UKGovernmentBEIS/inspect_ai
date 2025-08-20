@@ -168,7 +168,7 @@ def test_validate_eval_set_prerequisites_ok() -> None:
     )
 
     all_logs = validate_eval_set_prerequisites(
-        resolved_tasks=resolved_tasks, all_logs=all_logs, allow_dirty_log_dir=False
+        resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=False
     )
     assert len(all_logs) == 2
 
@@ -185,11 +185,11 @@ def test_validate_eval_set_prerequisites_mismatch() -> None:
 
     with pytest.raises(PrerequisiteError):
         validate_eval_set_prerequisites(
-            resolved_tasks=resolved_tasks, all_logs=all_logs, allow_dirty_log_dir=False
+            resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=False
         )
 
 
-def test_validate_eval_set_prerequisites_mismatch_allow_dirty_log_dir() -> None:
+def test_validate_eval_set_prerequisites_mismatch_log_dir_allow_dirty() -> None:
     # cleanup previous tests
     TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
 
@@ -200,7 +200,7 @@ def test_validate_eval_set_prerequisites_mismatch_allow_dirty_log_dir() -> None:
     )
 
     all_logs = validate_eval_set_prerequisites(
-        resolved_tasks=resolved_tasks, all_logs=all_logs, allow_dirty_log_dir=True
+        resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=True
     )
     assert len(all_logs) == 0
 
