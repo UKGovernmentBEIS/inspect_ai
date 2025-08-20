@@ -84,6 +84,10 @@ def init_openai_request_patch() -> None:
         stream: bool = False,
         stream_cls: type[_AsyncStreamT] | None = None,
     ) -> Any:
+        # we don't support streaming requests in the bridge
+        if stream is True:
+            raise RuntimeError("agent_bridge() does not support streamed responses.")
+
         # we have patched the underlying request method so now need to figure out when to
         # patch and when to stand down
         if (
