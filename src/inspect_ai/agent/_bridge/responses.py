@@ -1,10 +1,12 @@
+import json
 from logging import getLogger
 from time import time
 from typing import Any, cast
 
 from openai.types.responses import (
     Response,
-    ResponseFunctionWebSearch,
+    ResponseComputerToolCall,
+    ResponseFunctionToolCall,
     ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
@@ -26,7 +28,6 @@ from openai.types.responses.response_create_params import (
 from openai.types.responses.response_input_item_param import (
     Message,
 )
-from openai.types.responses.response_output_item import McpCall, McpListTools
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
@@ -77,11 +78,11 @@ from inspect_ai.model._openai_responses import (
     responses_model_usage,
     responses_reasoning_from_reasoning,
     to_inspect_citation,
-    tool_use_to_mcp_call_param,
-    tool_use_to_mcp_list_tools_param,
-    tool_use_to_web_search_param,
 )
-from inspect_ai.model._providers._openai_computer_use import computer_parmaeters
+from inspect_ai.model._providers._openai_computer_use import (
+    computer_parmaeters,
+    tool_call_arguments_to_action,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -276,6 +277,9 @@ def messages_from_responses_input(
     tools: list[ToolInfo],
     model_name: str | None = None,
 ) -> list[ChatMessage]:
+    # TODO: parse out the xml tags, decode it, and set to 'internal'
+    # do this for AssistantInternal and content-internal
+
     # enture input is a list
     if isinstance(input, str):
         input = [
@@ -499,27 +503,29 @@ def responses_output_items_from_assistant_message(
             output.append(ResponseReasoningItem.model_validate(reasoning))
 
         elif isinstance(content, ContentToolUse):
-            if content.tool_type == "mcp_list_tools":
-                mcp_list_tools_param = tool_use_to_mcp_list_tools_param(content)
-                output.append(McpListTools.model_validate(mcp_list_tools_param))
+            # we ignore these as they are encapsulated in AssistantInternal (which is necessary as there is no way to represent the full space of possible ContentToolUse in the responses API)
+            pass
 
-            elif content.tool_type == "mcp_call":
-                mcp_call_param = tool_use_to_mcp_call_param(content)
-                output.append(McpCall.model_validate(mcp_call_param))
-
-            elif content.tool_type == "web_search_call":
-                tool_pweb_search_param = tool_use_to_web_search_param(content)
+        for tool_call in message.tool_calls or []:
+            if tool_call.function == "computer":
                 output.append(
-                    ResponseFunctionWebSearch.model_validate(tool_pweb_search_param)
+                    ResponseComputerToolCall(
+                        id=uuid(),
+                        type="computer_call",
+                        action=tool_call_arguments_to_action(tool_call.arguments),
+                        call_id=tool_call.id,
+                        pending_safety_checks=[],
+                        status="completed",
+                    )
+                )
+            else:
+                output.append(
+                    ResponseFunctionToolCall(
+                        type="function_call",
+                        call_id=tool_call.id,
+                        name=tool_call.function,
+                        arguments=json.dumps(tool_call.arguments),
+                    )
                 )
 
-    # TODO: we actually need to play out some of those tool calls so
-    # that the client can actually execute them! We might need two
-    # representations (and occulde the computer call for the bridge?)
-    #     pass
-    # TODO: grab the standard tool calls and add them
-
     return output
-
-    # input_items = _openai_input_items_from_chat_message_assistant(message)
-    # return output_item_adapter.validate_python(input_items)

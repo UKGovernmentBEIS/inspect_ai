@@ -305,6 +305,7 @@ def is_native_tool_configured(
 
 class _AssistantInternal(TypedDict):
     tool_calls: dict[str, ResponseFunctionToolCallParam | ResponseComputerToolCallParam]
+    server_tool_uses: dict[str, ResponseInputItemParam]
 
 
 def content_from_response_input_content_param(
@@ -382,7 +383,7 @@ def _chat_message_assistant_from_openai_response(
     # collect output and tool calls
     message_content: list[Content] = []
     tool_calls: list[ToolCall] = []
-    internal = _AssistantInternal(tool_calls={})
+    internal = _AssistantInternal(tool_calls={}, server_tool_uses={})
     for output in response.output:
         match output:
             case ResponseOutputMessage(content=content, id=id):
@@ -435,6 +436,9 @@ def _chat_message_assistant_from_openai_response(
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
 
             case ResponseFunctionWebSearch():
+                internal["server_tool_uses"][output.id] = cast(
+                    ResponseFunctionWebSearchParam, output.model_dump()
+                )
                 message_content.append(
                     ContentToolUse(
                         tool_type="web_search_call",
@@ -446,6 +450,9 @@ def _chat_message_assistant_from_openai_response(
                     )
                 )
             case McpListTools():
+                internal["server_tool_uses"][output.id] = cast(
+                    McpListToolsParam, output.model_dump()
+                )
                 message_content.append(
                     ContentToolUse(
                         tool_type="mcp_list_tools",
@@ -458,6 +465,9 @@ def _chat_message_assistant_from_openai_response(
                     )
                 )
             case McpCall():
+                internal["server_tool_uses"][output.id] = cast(
+                    McpCallParam, output.model_dump()
+                )
                 message_content.append(
                     ContentToolUse(
                         tool_type="mcp_call",
@@ -582,6 +592,9 @@ def _openai_input_items_from_chat_message_assistant(
     field of the `ChatMessageAssistant` to help it provide the proper id's the
     items in the returned list.
     """
+    # get server tool uses
+    server_tool_uses = _server_tool_uses_from_assistant_internal(message)
+
     # we want to prevent yielding output messages in the case where we have an
     # 'internal' field (so the message came from the model API as opposed to
     # being user synthesized) AND there are no ContentText items with message IDs
@@ -617,9 +630,12 @@ def _openai_input_items_from_chat_message_assistant(
             case ContentReasoning():
                 items.append(responses_reasoning_from_reasoning(content))
             case ContentToolUse(
+                id=id,
                 tool_type=tool_type,
             ):
-                if tool_type == "mcp_list_tools":
+                if id in server_tool_uses:
+                    items.append(server_tool_uses[id])
+                elif tool_type == "mcp_list_tools":
                     items.append(tool_use_to_mcp_list_tools_param(content))
 
                 elif tool_type == "mcp_call":
@@ -742,14 +758,31 @@ def _tool_call_items_from_assistant_message(
 def _tool_calls_from_assistant_internal(
     message: ChatMessageAssistant,
 ) -> dict[str, ResponseFunctionToolCallParam | ResponseComputerToolCallParam]:
-    if message.internal is not None:
-        assert isinstance(message.internal, dict), (
-            "OpenAI ChatMessageAssistant internal must be an _AssistantInternal"
-        )
-        internal = cast(_AssistantInternal, message.internal)
+    internal = _as_assistant_internal(message.internal)
+    if internal is not None:
         return internal["tool_calls"]
     else:
         return {}
+
+
+def _server_tool_uses_from_assistant_internal(
+    message: ChatMessageAssistant,
+) -> dict[str, ResponseInputItemParam]:
+    internal = _as_assistant_internal(message.internal)
+    if internal is not None:
+        return internal["server_tool_uses"]
+    else:
+        return {}
+
+
+def _as_assistant_internal(internal: JsonValue) -> _AssistantInternal | None:
+    if internal is not None:
+        assert isinstance(internal, dict), (
+            "OpenAI ChatMessageAssistant internal must be an _AssistantInternal"
+        )
+        return cast(_AssistantInternal, internal)
+    else:
+        return None
 
 
 _ResponseToolCallParam = (

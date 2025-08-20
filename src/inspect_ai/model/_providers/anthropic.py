@@ -979,7 +979,11 @@ async def message_param(message: ChatMessage) -> MessageParam:
         if is_assistant_internal(message.internal):
             assistant_internal = message.internal
         else:
-            assistant_internal = _AssistantInternal(tool_call_internal_names={})
+            assistant_internal = _AssistantInternal(
+                tool_call_internal_names={},
+                server_mcp_tool_uses={},
+                server_web_searches={},
+            )
 
         # first include content (claude <thinking>)
         tools_content: list[
@@ -1000,7 +1004,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 [
                     item
                     for content in message.content
-                    for item in await message_param_content(content)
+                    for item in await message_param_content(content, assistant_internal)
                 ]
             )
         )
@@ -1039,13 +1043,19 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content=[
                 item  # type: ignore[misc]
                 for content in message.content
-                for item in await message_param_content(content)
+                for item in await message_param_content(content, assistant_internal)
             ],
         )
 
 
 class _AssistantInternal(TypedDict):
     tool_call_internal_names: dict[str, str | None]
+    server_mcp_tool_uses: dict[
+        str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
+    ]
+    server_web_searches: dict[
+        str, tuple[ServerToolUseBlockParam, WebSearchToolResultBlockParam]
+    ]
 
 
 def is_assistant_internal(internal: JsonValue) -> TypeGuard[_AssistantInternal]:
@@ -1061,7 +1071,9 @@ async def model_output_from_message(
     # extract content and tool calls
     content: list[Content] = []
     reasoning_tokens = 0
-    assistant_internal = _AssistantInternal(tool_call_internal_names={})
+    assistant_internal = _AssistantInternal(
+        tool_call_internal_names={}, server_mcp_tool_uses={}, server_web_searches={}
+    )
     tool_calls: list[ToolCall] | None = None
 
     pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
@@ -1083,6 +1095,12 @@ async def model_output_from_message(
                 raise RuntimeError(
                     "MCPToolResultBlock without previous MCPToolUseBlock"
                 )
+
+            # record in internal
+            assistant_internal["server_mcp_tool_uses"][
+                tool_result_block.tool_use_id
+            ] = (pending_mcp_tool_use.model_dump(), tool_result_block.model_dump())
+
             content.append(
                 ContentToolUse(
                     tool_type="mcp_tool_use",
@@ -1139,6 +1157,13 @@ async def model_output_from_message(
                 raise RuntimeError(
                     "WebSearchToolResultBlock without previous ServerToolUseBlock"
                 )
+
+            # record in internal
+            assistant_internal["server_web_searches"][pending_tool_use.id] = (
+                cast(ServerToolUseBlockParam, pending_tool_use.model_dump()),
+                cast(WebSearchToolResultBlockParam, content_block.model_dump()),
+            )
+
             content.append(
                 ContentToolUse(
                     tool_type="server_tool_use",
@@ -1267,7 +1292,7 @@ def split_system_messages(
 
 
 async def message_param_content(
-    content: Content,
+    content: Content, assistant_internal: _AssistantInternal | None = None
 ) -> list[
     TextBlockParam
     | DocumentBlockParam
@@ -1319,6 +1344,14 @@ async def message_param_content(
                 )
             ]
     elif isinstance(content, ContentToolUse):
+        # if the content has assistant internal then just source from there
+        if assistant_internal:
+            if content.id in assistant_internal["server_mcp_tool_uses"]:
+                return list(assistant_internal["server_mcp_tool_uses"][content.id])
+
+            elif content.id in assistant_internal["server_web_searches"]:
+                return list(assistant_internal["server_web_searches"][content.id])
+
         if content.tool_type == "server_tool_use" and content.name == "web_search":
             return [
                 ServerToolUseBlockParam(
