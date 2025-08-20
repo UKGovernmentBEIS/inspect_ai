@@ -16,9 +16,7 @@
     },
     "model": "mockllm/model",
     "task_attribs": {},
-    "task_args": {
-      "model": null
-    },
+    "task_args": {},
     "model_args": {},
     "config": {
       "limit": 1
