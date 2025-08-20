@@ -940,7 +940,7 @@ export interface EvalConfig {
   epochs_reducer: EpochsReducer;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
-  fail_fast: FailFast;
+  continue_on_fail: FailFast;
   retry_on_error: RetryOnError;
   message_limit: MessageLimit;
   token_limit: TokenLimit;

@@ -100,7 +100,7 @@ def eval(
     sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
-    fail_fast: bool | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -167,8 +167,8 @@ def eval(
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
-        fail_fast: `True` to fail eval immediately when the `fail_on_error` condition is met (default).
-            `False` to continue running and only fail at the end if the `fail_on_error` condition is met.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -240,7 +240,7 @@ def eval(
                 sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
-                fail_fast=fail_fast,
+                continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
@@ -298,7 +298,7 @@ async def eval_async(
     sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
-    fail_fast: bool | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -353,8 +353,8 @@ async def eval_async(
         fail_on_error: `True` to fail on first sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
-        fail_fast: `True` to fail eval immediately when the `fail_on_error` condition is met (default).
-            `False` to continue running and only fail at the end if the `fail_on_error` condition is met.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
@@ -415,7 +415,7 @@ async def eval_async(
                 sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
-                fail_fast=fail_fast,
+                continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
@@ -477,7 +477,7 @@ async def _eval_async_inner(
     sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
-    fail_fast: bool | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -626,7 +626,7 @@ async def _eval_async_inner(
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
-            fail_fast=fail_fast,
+            continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -738,7 +738,7 @@ def eval_retry(
     trace: bool | None = None,
     display: DisplayType | None = None,
     fail_on_error: bool | float | None = None,
-    fail_fast: bool | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
@@ -779,8 +779,8 @@ def eval_retry(
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
-        fail_fast: `True` to fail eval immediately when the `fail_on_error` condition is met (default).
-            `False` to continue running and only fail at the end if the `fail_on_error` condition is met.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -826,7 +826,7 @@ def eval_retry(
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             fail_on_error=fail_on_error,
-            fail_fast=fail_fast,
+            continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
@@ -856,7 +856,7 @@ async def eval_retry_async(
     max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
     fail_on_error: bool | float | None = None,
-    fail_fast: bool | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
@@ -890,8 +890,8 @@ async def eval_retry_async(
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
            eval if a count of samples fails.
-        fail_fast: `True` to fail eval immediately when the `fail_on_error` condition is met (default).
-            `False` to continue running and only fail at the end if the `fail_on_error` condition is met.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
            (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -1009,8 +1009,10 @@ async def eval_retry_async(
             if fail_on_error is not None
             else eval_log.eval.config.fail_on_error
         )
-        fail_fast = (
-            fail_fast if fail_fast is not None else eval_log.eval.config.fail_fast
+        continue_on_fail = (
+            continue_on_fail
+            if continue_on_fail is not None
+            else eval_log.eval.config.continue_on_fail
         )
         retry_on_error = (
             retry_on_error
@@ -1073,7 +1075,7 @@ async def eval_retry_async(
                 sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
-                fail_fast=fail_fast,
+                continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,

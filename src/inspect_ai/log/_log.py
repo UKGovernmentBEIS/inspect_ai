@@ -44,7 +44,7 @@ class EvalConfigDefaults(TypedDict):
     epochs: int
     epochs_reducer: list[str]
     fail_on_error: bool
-    fail_fast: bool
+    continue_on_fail: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -57,7 +57,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs": 1,
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
-        "fail_fast": True,
+        "continue_on_fail": True,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -98,7 +98,7 @@ class EvalConfig(BaseModel):
     of samples fails.
     """
 
-    fail_fast: bool | None = Field(default=None)
+    continue_on_fail: bool | None = Field(default=None)
     """Fail eval immediately when the `fail_on_error` condition is met.
 
     `True` to fail eval immediately when the `fail_on_error` condition is met (default).

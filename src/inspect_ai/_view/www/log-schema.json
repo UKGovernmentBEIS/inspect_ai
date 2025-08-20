@@ -1694,7 +1694,7 @@
           "default": null,
           "title": "Fail On Error"
         },
-        "fail_fast": {
+        "continue_on_fail": {
           "anyOf": [
             {
               "type": "boolean"
@@ -1909,7 +1909,7 @@
         "epochs_reducer",
         "approval",
         "fail_on_error",
-        "fail_fast",
+        "continue_on_fail",
         "retry_on_error",
         "message_limit",
         "token_limit",
