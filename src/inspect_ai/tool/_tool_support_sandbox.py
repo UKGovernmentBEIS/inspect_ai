@@ -211,9 +211,7 @@ def _get_tool_support_version() -> str:
         # Fallback: try to read from filesystem for git/editable installs
         try:
             package_path = Path(inspect_ai.__file__).parent
-            version_file = (
-                package_path / "tool" / "_tool_support_version.txt"
-            )
+            version_file = package_path / "tool" / "_tool_support_version.txt"
             if version_file.exists():
                 return version_file.read_text().strip()
         except Exception:
@@ -387,9 +385,7 @@ def _detect_installation_type() -> Literal["pypi", "git", "editable"]:
                 / "build_within_container.py"
             )
 
-            version_file_path = (
-                package_path / "tool" / "_tool_support_version.txt"
-            )
+            version_file_path = package_path / "tool" / "_tool_support_version.txt"
 
             # Git installations include the full source tree
             if build_script_path.exists() or version_file_path.exists():
