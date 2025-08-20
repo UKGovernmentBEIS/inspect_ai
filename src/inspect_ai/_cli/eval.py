@@ -948,12 +948,6 @@ def eval_exec(
     elif fail_on_error == 0.0:
         fail_on_error = True
 
-    # resolve continue_on_fail
-    if continue_on_fail:
-        continue_on_fail = False
-    else:
-        continue_on_fail = None
-
     # resolve retry_on_error
     if retry_on_error == 0:
         retry_on_error = None
@@ -1263,12 +1257,6 @@ def eval_retry_command(
         fail_on_error = False
     elif fail_on_error == 0.0:
         fail_on_error = True
-
-    # resolve continue_on_fail
-    if continue_on_fail:
-        continue_on_fail = False
-    else:
-        continue_on_fail = None
 
     # resolve retry on error
     if retry_on_error == 0:
