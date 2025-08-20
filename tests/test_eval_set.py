@@ -18,7 +18,10 @@ from inspect_ai._eval.evalset import (
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
+    validate_eval_set_prerequisites,
 )
+from inspect_ai._eval.loader import resolve_tasks
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
 from inspect_ai.model import get_model
@@ -152,6 +155,54 @@ def test_latest_completed_task_eval_logs() -> None:
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)
+
+
+def test_validate_eval_set_prerequisites_ok() -> None:
+    # cleanup previous tests
+    TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
+
+    # verify we correctly select only the most recent log
+    all_logs = list_all_eval_logs(TEST_EVAL_SET_PATH.as_posix())
+    resolved_tasks = resolve_tasks(
+        "examples/popularity.py", {}, get_model("mockllm/model"), None, None, None
+    )
+
+    all_logs = validate_eval_set_prerequisites(
+        resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=False
+    )
+    assert len(all_logs) == 2
+
+
+def test_validate_eval_set_prerequisites_mismatch() -> None:
+    # cleanup previous tests
+    TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
+
+    # verify we correctly select only the most recent log
+    all_logs = list_all_eval_logs(TEST_EVAL_SET_PATH.as_posix())
+    resolved_tasks = resolve_tasks(
+        "examples/hello_world.py", {}, get_model("mockllm/model"), None, None, None
+    )
+
+    with pytest.raises(PrerequisiteError):
+        validate_eval_set_prerequisites(
+            resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=False
+        )
+
+
+def test_validate_eval_set_prerequisites_mismatch_log_dir_allow_dirty() -> None:
+    # cleanup previous tests
+    TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
+
+    # verify we correctly select only the most recent log
+    all_logs = list_all_eval_logs(TEST_EVAL_SET_PATH.as_posix())
+    resolved_tasks = resolve_tasks(
+        "examples/hello_world.py", {}, get_model("mockllm/model"), None, None, None
+    )
+
+    all_logs = validate_eval_set_prerequisites(
+        resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=True
+    )
+    assert len(all_logs) == 0
 
 
 @pytest.mark.slow

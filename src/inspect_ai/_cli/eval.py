@@ -699,6 +699,12 @@ def eval_command(
     is_flag=True,
     help="Overwrite existing bundle dir.",
 )
+@click.option(
+    "--log-dir-allow-dirty",
+    type=bool,
+    is_flag=True,
+    help="Do not fail if the log-dir contains files that are not part of the eval set.",
+)
 @eval_options
 @click.pass_context
 def eval_set_command(
@@ -777,6 +783,7 @@ def eval_set_command(
     no_score_display: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
+    log_dir_allow_dirty: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
     **common: Unpack[CommonOptions],
@@ -846,6 +853,7 @@ def eval_set_command(
         retry_cleanup=not no_retry_cleanup,
         bundle_dir=bundle_dir,
         bundle_overwrite=True if bundle_overwrite else False,
+        log_dir_allow_dirty=log_dir_allow_dirty,
         **config,
     )
 
@@ -907,6 +915,7 @@ def eval_exec(
     retry_cleanup: bool | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
+    log_dir_allow_dirty: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
@@ -1016,6 +1025,7 @@ def eval_exec(
         params["retry_cleanup"] = retry_cleanup
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
+        params["log_dir_allow_dirty"] = log_dir_allow_dirty
         success, _ = eval_set(**params)
         return success
     else:
