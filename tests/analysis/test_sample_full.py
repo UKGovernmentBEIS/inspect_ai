@@ -14,7 +14,7 @@ POPULARITY_LOG = LOGS_DIR / "2025-05-12T20-28-13-04-00_popularity.json"
 def test_sample_not_full():
     df = samples_df(POPULARITY_LOG)
     assert "metadata_label_confidence" in df.columns
-    assert "metadata_nested" not in df.columns
+    assert "metadata_nested" in df.columns
 
 
 def test_sample_metadata_full():

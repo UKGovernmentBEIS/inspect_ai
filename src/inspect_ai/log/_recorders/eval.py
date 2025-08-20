@@ -8,13 +8,12 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import anyio
 from pydantic import BaseModel, Field
-from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
-from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -482,12 +481,7 @@ class ZipLogFile:
         assert self._zip
         self._zip.writestr(
             filename,
-            to_json(
-                value=jsonable_python(data),
-                indent=2,
-                exclude_none=True,
-                fallback=lambda _x: None,
-            ),
+            to_json_safe(data),
         )
 
 

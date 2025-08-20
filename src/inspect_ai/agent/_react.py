@@ -133,10 +133,14 @@ def react(
     tools = list(tools) if tools is not None else []
 
     # resolve submit tool
-    submit_tool = ToolDef(
-        submit.tool or default_submit_tool(),
-        name=submit.name,
-        description=submit.description,
+    submit_tool = (
+        ToolDef(
+            submit.tool or default_submit_tool(),
+            name=submit.name,
+            description=submit.description,
+        )
+        if not isinstance(submit.tool, ToolDef)
+        else submit.tool
     )
     tools.append(submit_tool)
 

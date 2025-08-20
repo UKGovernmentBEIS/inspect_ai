@@ -28,9 +28,9 @@
   author: "[Transluce](https://transluce.org/introducing-docent)"
   categories: ["Analysis"]
 
-- name: "[Inspect Weave](https://github.com/DanielPolatajko/inspect_weave)"
+- name: "[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)"
   description: |
-    Integration with Weights and Biases Weave platform.
+    Integration with Weights and Biases platform.
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 

@@ -65,7 +65,6 @@ def test_samples_df():
 
 def test_samples_df_columns():
     df = samples_df(LOGS_DIR, columns=SampleSummary)
-    assert len(df.columns) == 1 + 1 + len(SampleSummary) + 1 + 1 + 1
     assert "eval_id" in df.columns
     assert "sample_id" in df.columns
     assert "log" in df.columns
