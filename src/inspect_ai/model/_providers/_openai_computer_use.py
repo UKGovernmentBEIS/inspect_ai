@@ -7,7 +7,18 @@ from openai.types.responses.response_input_item_param import ComputerCallOutput
 
 from inspect_ai._util.content import Content, ContentImage
 from inspect_ai.model._chat_message import ChatMessageTool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
+
+
+def tool_call_from_openai_computer_tool_call(
+    output: ResponseComputerToolCall,
+) -> ToolCall:
+    return ToolCall(
+        id=output.call_id,
+        function="computer",
+        arguments=_parse_computer_tool_call_arguments(output),
+    )
 
 
 def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
