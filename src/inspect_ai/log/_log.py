@@ -57,7 +57,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs": 1,
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
-        "continue_on_fail": True,
+        "continue_on_fail": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -99,10 +99,10 @@ class EvalConfig(BaseModel):
     """
 
     continue_on_fail: bool | None = Field(default=None)
-    """Fail eval immediately when the `fail_on_error` condition is met.
+    """Continue eval even if the `fail_on_error` condition is met.
 
-    `True` to fail eval immediately when the `fail_on_error` condition is met (default).
-    `False` to continue running and only fail at the end if the `fail_on_error` condition is met.
+    `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+    `False` to fail eval immediately when the `fail_on_error` condition is met (default).
     """
 
     retry_on_error: int | None = Field(default=None)
