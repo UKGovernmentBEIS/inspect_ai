@@ -8,6 +8,7 @@
 - Model API: `messages_to_openai()` and `messages_from_openai()` functions for converting to and from OpenAI-style message dicts.
 - VLLM: Allow specifying the port when starting up a new vllm server.
 - Eval Log: For sample summaries, preserve all sample and score fields that are less than 1k in size.
+- CLI: Yield error exit code (1) if no tasks to evaluate are found at the specified path.
 - Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
 - Bugifx: Properly handle surrogates in JSON serialization.
