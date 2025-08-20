@@ -49,11 +49,13 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai import (
+    CONTENT_INTERNAL_TAG,
+    INTERNAL_TAG,
+    _parse_content_with_internal,
     content_internal_tag,
     message_internal_tag,
 )
 from inspect_ai.model._openai_responses import (
-    MESSAGE_ID,
     content_from_response_input_content_param,
     is_assistant_message_param,
     is_computer_call_output,
@@ -82,6 +84,7 @@ from inspect_ai.model._openai_responses import (
 from inspect_ai.model._providers._openai_computer_use import (
     computer_parmaeters,
     tool_call_arguments_to_action,
+    tool_call_from_openai_computer_tool_call,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
@@ -296,16 +299,29 @@ def messages_from_responses_input(
 
     def collect_pending_assistant_message() -> None:
         if len(pending_assistant_message_params) > 0:
+            internal: JsonValue = None
             content: list[Content] = []
             tool_calls: list[ToolCall] = []
             for param in pending_assistant_message_params:
                 if is_response_output_message(param):
                     for output in param["content"]:
+                        text = str(output.get("text", output.get("refusal", "")))
+
+                        # parse out assistant internal and content internal
+                        asst_content, internal = _parse_content_with_internal(
+                            text, INTERNAL_TAG
+                        )
+                        asst_content, content_internal = _parse_content_with_internal(
+                            text, CONTENT_INTERNAL_TAG
+                        )
+
                         if is_response_output_text(output):
+                            # parse out internal
+
                             content.append(
                                 ContentText(
-                                    text=output["text"],
-                                    internal={MESSAGE_ID: param["id"]},
+                                    text=asst_content,
+                                    internal=content_internal,
                                     citations=(
                                         [
                                             to_inspect_citation(annotation)
@@ -321,7 +337,7 @@ def messages_from_responses_input(
                                 ContentText(
                                     text=output["refusal"],
                                     refusal=True,
-                                    internal={MESSAGE_ID: param["id"]},
+                                    internal=content_internal,
                                 )
                             )
 
@@ -336,9 +352,10 @@ def messages_from_responses_input(
                         )
                     )
                 elif is_response_computer_tool_call(param):
-                    # TODO: this needs to come from _AssistantInternal
-                    # Raise or assert that this can't happen b/c it is in internal
-                    pass
+                    computer_call = ResponseComputerToolCall.model_validate(param)
+                    tool_calls.append(
+                        tool_call_from_openai_computer_tool_call(computer_call)
+                    )
 
                 elif is_response_reasoning_item(param):
                     content.append(reasoning_from_responses_reasoning(param))
@@ -372,7 +389,10 @@ def messages_from_responses_input(
                     )
             messages.append(
                 ChatMessageAssistant(
-                    content=content, tool_calls=tool_calls, model=model_name
+                    content=content,
+                    tool_calls=tool_calls,
+                    model=model_name,
+                    internal=internal,
                 )
             )
 
