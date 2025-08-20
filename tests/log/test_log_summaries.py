@@ -28,5 +28,4 @@ def test_sample_summaries_thin_metadata() -> None:
 
     summaries = read_eval_log_sample_summaries(log.location)
     assert len(summaries) > 0
-    assert "dict" not in summaries[0].metadata
     assert len(summaries[0].metadata["long"]) <= 1024

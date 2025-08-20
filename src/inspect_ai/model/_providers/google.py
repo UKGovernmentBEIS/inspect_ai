@@ -41,6 +41,7 @@ from google.genai.types import (
     Type,
 )
 from pydantic import JsonValue
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
@@ -591,7 +592,7 @@ async def content(
 
     elif isinstance(message, ChatMessageTool):
         response = FunctionResponse(
-            name=message.tool_call_id,
+            name=message.function,
             response={
                 "content": (
                     message.error.message if message.error is not None else message.text
@@ -799,7 +800,7 @@ def completion_choice_from_candidate(
                 ):
                     tool_calls.append(
                         ToolCall(
-                            id=part.function_call.name,
+                            id=f"{part.function_call.name}_{uuid()}",
                             function=part.function_call.name,
                             arguments=part.function_call.args,
                         )
