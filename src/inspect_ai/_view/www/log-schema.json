@@ -912,15 +912,9 @@
               "type": "string"
             },
             {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
+              "items": {
+                "type": "integer"
+              },
               "maxItems": 2,
               "minItems": 2,
               "type": "array"
@@ -1367,15 +1361,9 @@
               "type": "string"
             },
             {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
+              "items": {
+                "type": "integer"
+              },
               "maxItems": 2,
               "minItems": 2,
               "type": "array"
@@ -6929,15 +6917,9 @@
               "type": "string"
             },
             {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
+              "items": {
+                "type": "integer"
+              },
               "maxItems": 2,
               "minItems": 2,
               "type": "array"
