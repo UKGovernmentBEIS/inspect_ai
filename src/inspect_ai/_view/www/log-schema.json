@@ -1692,7 +1692,7 @@
             }
           ],
           "default": null,
-          "title": "Fail Fast"
+          "title": "Continue On Fail"
         },
         "retry_on_error": {
           "anyOf": [
