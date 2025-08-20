@@ -1284,6 +1284,8 @@ async def model_proxy_server(
 
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
+        from openai.types.chat import ChatCompletion
+
         try:
             json_body = request.get("json", {}) or {}
             stream = json_body.get("stream", False)
@@ -1302,16 +1304,17 @@ async def model_proxy_server(
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
-                    comp = (
-                        completion
+                    # Parse the completion as a ChatCompletion object
+                    chat_completion = (
+                        ChatCompletion.model_validate(completion)
                         if isinstance(completion, dict)
-                        else json.loads(completion)
+                        else ChatCompletion.model_validate(json.loads(completion))
                     )
 
-                    comp_id = comp.get("id", "chatcmpl-simulated")
-                    created = comp.get("created", int(time.time()))
-                    model = comp.get("model", "")
-                    sys_fp = comp.get("system_fingerprint")
+                    comp_id = chat_completion.id
+                    created = chat_completion.created
+                    model = chat_completion.model
+                    sys_fp = chat_completion.system_fingerprint
 
                     def base_chunk() -> dict[str, Any]:
                         obj = {
@@ -1326,9 +1329,9 @@ async def model_proxy_server(
                         return obj
 
                     # Stream each choice independently (common clients support this).
-                    for choice_idx, choice in enumerate(comp.get("choices", [])):
-                        msg = choice.get("message") or {}
-                        role = msg.get("role", "assistant")
+                    for choice_idx, choice in enumerate(chat_completion.choices):
+                        msg = choice.message
+                        role = msg.role if msg else "assistant"
 
                         # 1) Initial role chunk
                         chunk = base_chunk()
@@ -1344,7 +1347,7 @@ async def model_proxy_server(
                         yield _sse_bytes(chunk)
 
                         # 2) Text content chunks
-                        content = msg.get("content")
+                        content = msg.content if msg else None
                         if isinstance(content, str) and content:
                             for piece in _iter_chunks(content):
                                 chunk = base_chunk()
@@ -1360,10 +1363,10 @@ async def model_proxy_server(
                                 # await asyncio.sleep(0)
 
                         # 3) Legacy function_call streaming (older models/libs)
-                        fn_call = msg.get("function_call") or None
-                        if isinstance(fn_call, dict):
-                            fn_name = fn_call.get("name") or ""
-                            fn_args = fn_call.get("arguments") or ""
+                        fn_call = msg.function_call if msg else None
+                        if fn_call:
+                            fn_name = fn_call.name or ""
+                            fn_args = fn_call.arguments or ""
 
                             # name first
                             chunk = base_chunk()
@@ -1391,14 +1394,15 @@ async def model_proxy_server(
                                 yield _sse_bytes(chunk)
 
                         # 4) Modern tool_calls streaming (fixed: repeat id/type on every delta)
-                        tool_calls = msg.get("tool_calls") or []
-                        if isinstance(tool_calls, list) and tool_calls:
+                        tool_calls = msg.tool_calls if msg else None
+                        if tool_calls:
                             for tc_i, tc in enumerate(tool_calls):
-                                tc_id = tc.get("id")
-                                tc_type = tc.get("type", "function")
-                                fn = tc.get("function") or {}
-                                fn_name = fn.get("name") or ""
-                                fn_args = fn.get("arguments") or ""
+                                tc_id = tc.id
+                                tc_type = tc.type
+                                # Handle both function and custom tool calls
+                                fn = getattr(tc, "function", None)
+                                fn_name = fn.name if fn else ""
+                                fn_args = fn.arguments if fn else ""
 
                                 # Emit initial tool_call with id/type/name
                                 chunk = base_chunk()
@@ -1446,8 +1450,8 @@ async def model_proxy_server(
                                     yield _sse_bytes(chunk)
 
                         # 5) Final chunk for this choice with finish_reason
-                        finish_reason = choice.get(
-                            "finish_reason"
+                        finish_reason = (
+                            choice.finish_reason
                         )  # e.g., "stop", "length", "tool_calls"
                         chunk = base_chunk()
                         chunk["choices"] = [
@@ -1461,12 +1465,12 @@ async def model_proxy_server(
 
                     # 6) Optional usage chunk (if client requested include_usage and we have it)
                     stream_opts = json_body.get("stream_options") or {}
-                    if stream_opts.get("include_usage") and comp.get("usage"):
+                    if stream_opts.get("include_usage") and chat_completion.usage:
                         chunk = base_chunk()
                         chunk[
                             "choices"
                         ] = []  # per OpenAI: last chunk contains only usage
-                        chunk["usage"] = comp["usage"]
+                        chunk["usage"] = chat_completion.usage.model_dump(mode="json")
                         yield _sse_bytes(chunk)
 
                     # 7) Overall terminal sentinel
