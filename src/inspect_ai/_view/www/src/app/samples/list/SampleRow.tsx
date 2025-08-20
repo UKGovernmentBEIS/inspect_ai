@@ -5,6 +5,7 @@ import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { useStore } from "../../../state/store";
 import { arrayToString, inputString } from "../../../utils/format";
+import { isVscode } from "../../../utils/vscode";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -17,6 +18,7 @@ interface SampleRowProps {
   scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
+  showSample: () => void;
   sampleUrl?: string;
 }
 
@@ -29,6 +31,7 @@ export const SampleRow: FC<SampleRowProps> = ({
   scoreRendered,
   gridColumnsTemplate,
   height,
+  showSample,
   sampleUrl,
 }) => {
   const streamSampleData = useStore(
@@ -122,6 +125,15 @@ export const SampleRow: FC<SampleRowProps> = ({
   // If no sample URL available or not viewable, render as div
   if (!sampleUrl || !isViewable) {
     return <div className={styles.disabledRow}>{rowContent}</div>;
+  }
+
+  // VS code doesn't support navigating links
+  if (isVscode()) {
+    return (
+      <div onClick={showSample} className={styles.sampleLink}>
+        {rowContent}
+      </div>
+    );
   }
 
   // Render as a proper link
