@@ -1043,7 +1043,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content=[
                 item  # type: ignore[misc]
                 for content in message.content
-                for item in await message_param_content(content, assistant_internal)
+                for item in await message_param_content(content)
             ],
         )
 
