@@ -286,7 +286,3 @@ def get_testing_tool_info() -> ToolInfo:
             required=["param1"],
         ),
     )
-
-
-if __name__ == "__main__":
-    test_bridged_agent_completions()
