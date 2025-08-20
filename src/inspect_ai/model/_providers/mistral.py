@@ -42,6 +42,7 @@ from mistralai.models import UserMessage as MistralUserMessage
 from mistralai.models.chatcompletionresponse import (
     ChatCompletionResponse as MistralChatCompletionResponse,
 )
+from shortuuid import uuid
 from typing_extensions import override
 
 # TODO: Migration guide:
@@ -454,7 +455,7 @@ def chat_tool_calls(
 
 
 def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCall:
-    id = tool_call.id or tool_call.function.name
+    id = tool_call.id or f"{tool_call.function.name}_{uuid()}"
     if isinstance(tool_call.function.arguments, str):
         return parse_tool_call(
             id, tool_call.function.name, tool_call.function.arguments, tools
