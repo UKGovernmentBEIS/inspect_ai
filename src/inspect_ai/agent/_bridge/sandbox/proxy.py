@@ -525,7 +525,7 @@ async def model_proxy_server(
     # get generate method if not provided (for testing)
     if call_bridge_model_service_async is None:
         sys.path.append("/var/tmp/sandbox-services/bridge_model_service")
-        from bridge_model_service import (  # type: ignore[import-not-found]
+        from bridge_model_service import (  # type: ignore[import-not-found,no-redef]
             call_bridge_model_service_async,
         )
 
@@ -606,11 +606,19 @@ async def model_proxy_server(
 
                     # 3. Process each output item
                     for output_index, output_item in enumerate(resp.output):
-                        item_dict = (
-                            output_item.model_dump(mode="json")
-                            if hasattr(output_item, "model_dump")
-                            else output_item
-                        )
+                        # Convert to dict for consistent access
+                        if hasattr(output_item, "model_dump"):
+                            item_dict = output_item.model_dump(mode="json")
+                        elif isinstance(output_item, dict):
+                            item_dict = output_item
+                        else:
+                            # Fallback: convert to dict if possible
+                            item_dict = (
+                                dict(output_item)
+                                if hasattr(output_item, "__dict__")
+                                else {}
+                            )
+
                         item_id = item_dict.get("id", f"item_{output_index}")
                         item_type = item_dict.get("type")
 
