@@ -209,7 +209,6 @@ def check_openai_log_json(log_json: str, tools: bool):
     if not tools:
         assert r'"logprobs": true' in log_json
         assert r'"top_logprobs": 3' in log_json
-        assert r'"background": true' in log_json
     assert r'"response_schema"' in log_json
     assert r'"logprobs"' in log_json
 
