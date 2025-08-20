@@ -3,6 +3,7 @@
 - Agent Bridge: New context-manager based `agent_bridge()` that replaces the deprecated `bridge()` function.
 - Agent Bridge: `sandbox_agent_bridge()` to integrate with CLI based agents running inside sandboxes.
 - Agent Bridge: Inspect model roles can now be addressed by bridged agents (e.g. "inspect/red-team").
+- ReAct Agent: Allow for a ToolDef to be passed to an AgentSubmit type.
 - Model API: `user_prompt()` function for getting the last user message from a list of messages.
 - Model API: `messages_to_openai()` and `messages_from_openai()` functions for converting to and from OpenAI-style message dicts.
 - VLLM: Allow specifying the port when starting up a new vllm server.
