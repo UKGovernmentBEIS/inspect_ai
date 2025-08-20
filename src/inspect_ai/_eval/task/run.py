@@ -100,7 +100,7 @@ from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
-from .error import SampleErrorHandler
+from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
     sample_without_base64_content,
@@ -173,7 +173,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     stats = EvalStats(started_at=iso_now())
 
     # handle sample errors (raise as required)
-    sample_error_handler = SampleErrorHandler(config.fail_on_error, len(task.dataset))
+    sample_error_handler = SampleErrorHandler(
+        config.fail_on_error if config.continue_on_fail is not True else False,
+        len(task.dataset),
+    )
 
     # resolve some config
     model_name = ModelName(model)
@@ -343,7 +346,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
                         fails_on_error=(
-                            config.fail_on_error is None or config.fail_on_error is True
+                            config.fail_on_error is not False
+                            and config.continue_on_fail is not True
                         ),
                         retry_on_error=config.retry_on_error or 0,
                         error_retries=[],
@@ -383,8 +387,15 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # collect eval data
             collect_eval_data(stats)
 
-            # finish w/ success status
-            eval_log = await logger.log_finish("success", stats, results, reductions)
+            sample_error_count = sum(result is None for result in sample_results)
+            mark_log_as_error = _should_eval_fail(
+                sample_error_count, profile.samples, config.fail_on_error
+            )
+
+            # finish
+            eval_log = await logger.log_finish(
+                "error" if mark_log_as_error else "success", stats, results, reductions
+            )
 
             await emit_task_end(logger, eval_log)
 
