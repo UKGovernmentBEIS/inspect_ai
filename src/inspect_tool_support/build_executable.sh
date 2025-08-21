@@ -6,27 +6,27 @@ set -e
 ARCH_SUFFIX=${ARCH_SUFFIX:-"unknown"}
 
 # Parse command line arguments
-INCLUDE_VERSION=false
+DEV_BUILD=false
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --include-version)
-            INCLUDE_VERSION=true
+        --dev)
+            DEV_BUILD=true
             shift
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 [--include-version]"
+            echo "Usage: $0 [--dev]"
             exit 1
             ;;
     esac
 done
 
-# Set executable name based on whether version should be included
-if [ "$INCLUDE_VERSION" = true ]; then
-    VERSION=$(cat ../inspect_ai/tool/tool_support_version.txt 2>/dev/null || echo "666")
-    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION"
+# Set executable name based on whether this is a dev build
+VERSION=$(cat ../inspect_ai/tool/tool_support_version.txt 2>/dev/null || echo "666")
+if [ "$DEV_BUILD" = true ]; then
+    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION-dev"
 else
-    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX"
+    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION"
 fi
 
 echo "Building maximally portable executable for $ARCH_SUFFIX..."

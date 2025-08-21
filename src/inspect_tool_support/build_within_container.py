@@ -54,7 +54,7 @@ def run_docker_build(platform: str, image_name: str, dockerfile: str) -> None:
     subprocess.run(cmd, check=True)
 
 
-def run_docker_container(platform: str, arch_suffix: str, image_name: str) -> None:
+def run_docker_container(platform: str, arch_suffix: str, image_name: str, dev_build: bool = False) -> None:
     """Run the Docker container to build the executable."""
     print("Starting container and building executable...")
 
@@ -78,6 +78,10 @@ def run_docker_container(platform: str, arch_suffix: str, image_name: str) -> No
         image_name,
         "/inspect_tool_support/build_executable.sh",
     ]
+    
+    if dev_build:
+        cmd.append("--dev")
+    
     subprocess.run(cmd, check=True)
 
 
@@ -90,6 +94,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--all", action="store_true", help="Build for both amd64 and arm64"
+    )
+    parser.add_argument(
+        "--dev", action="store_true", help="Build development version (adds -dev suffix)"
     )
 
     args = parser.parse_args()
@@ -107,7 +114,10 @@ def main() -> None:
             print("Building for all architectures...")
             # Recursively call this script for each architecture
             for arch in ["amd64", "arm64"]:
-                subprocess.run([sys.executable, __file__, "--arch", arch], check=True)
+                cmd = [sys.executable, __file__, "--arch", arch]
+                if args.dev:
+                    cmd.append("--dev")
+                subprocess.run(cmd, check=True)
             return
 
         # Determine target architecture (only when --arch is explicitly specified)
@@ -122,7 +132,7 @@ def main() -> None:
         run_docker_build(platform, image_name, dockerfile)
 
         # Run container to build executable
-        run_docker_container(platform, arch_suffix, image_name)
+        run_docker_container(platform, arch_suffix, image_name, args.dev)
 
         print(
             f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"

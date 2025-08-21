@@ -51,7 +51,7 @@ When a **developer** makes any changes to `src/inspect_tool_support/`, the follo
 1. **Developer** makes changes to `src/inspect_tool_support/` and bumps `tool_support_version.txt` file (e.g., 1 → 2)
 2. **Developer** creates PR with code changes and version bump
 3. **GitHub Workflow `build_tool_support.yml`** detects `tool_support_version.txt` change in PR and automatically rebuilds on every push to the PR branch:
-   - Builds executables for both architectures using `build_within_container.py --include-version` from the latest commit
+   - Builds executables for both architectures using `build_within_container.py --all` from the latest commit
    - Stores as workflow artifacts, overwriting previous executables:
      - `inspect-tool-support-amd64-v2`
      - `inspect-tool-support-arm64-v2`
@@ -115,7 +115,7 @@ The on-demand retrieval system handles these installation types:
       - Download URL: `s3://inspect-tool-support/inspect-tool-support-{arch}-v{version}`
       - Save to local `binaries/` directory with standard name
       - If download successful → **DONE**
-      - Report/warn about failure and proceed to next step
+      - **Note**: Download failure is expected when developers have bumped `tool_support_version.txt` but the new version hasn't been promoted to S3 yet. Simply proceed to local build without warning the user about the "failure"
 
    3.3. **User Build Prompt**
       - If S3 download fails, prompt user: "Executable not found. Build locally? (requires Docker)"
@@ -123,8 +123,9 @@ The on-demand retrieval system handles these installation types:
       - Proceed to next step
 
    3.4. **Local Build Process**
-      - Execute `build_within_container.sh` with target architecture
-      - Build creates the required executable in `binaries/` directory
+      - Execute `build_within_container.py --arch {target_arch} --dev`
+      - Build creates development executable: `inspect-tool-support-{arch}-v{version}-dev`
+      - Executable saved to `binaries/` directory
       - If build successful → **DONE**
       - If build fails → **ERROR**
 
@@ -159,7 +160,7 @@ Public API function that orchestrates the entire retrieval process as detailed i
    - Validate version format (simple integer)
 2. **Multi-Architecture Build**
    - Matrix build: `[amd64, arm64]`
-   - Use existing `build_within_container.py --include-version` script to create versioned executables
+   - Use existing `build_within_container.py --arch {architecture}` script to create versioned executables
    - Upload executables as workflow artifacts (auto-expire after 90 days)
 3. **PR Integration**
    - Comment on PR with build status
