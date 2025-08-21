@@ -403,7 +403,7 @@ def _process_single_file_field(
 
 def _process_single_file_field_validated(
     args: Tuple[str, str], field: str
-) -> List[ChatMessage[str, Any]]:
+) -> List[ChatMessage]:
     zip_location, filename = args
     with ZipFile(zip_location, mode="r") as zip:
         with zip.open(filename, "r") as f:
@@ -416,7 +416,7 @@ def _process_single_file_field_validated(
 
 def process_single_file_messages_validated(
     args: Tuple[str, str],
-) -> List[Dict[str, Any]]:
+) -> List[ChatMessage]:
     return _process_single_file_field_validated(args, "messages")
 
 
