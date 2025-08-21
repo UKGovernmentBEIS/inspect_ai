@@ -1163,7 +1163,6 @@ export interface ChatMessageSystem {
   content: Content;
   source: Source;
   metadata: Metadata5;
-  internal: unknown;
   role: Role;
 }
 /**
@@ -1295,7 +1294,6 @@ export interface ChatMessageUser {
   content: Content1;
   source: Source1;
   metadata: Metadata6;
-  internal: unknown;
   role: Role1;
   tool_call_id: ToolCallId;
 }
@@ -1307,7 +1305,6 @@ export interface ChatMessageAssistant {
   content: Content2;
   source: Source2;
   metadata: Metadata7;
-  internal: unknown;
   role: Role2;
   tool_calls: ToolCalls;
   model: Model2;
@@ -1316,7 +1313,6 @@ export interface ToolCall {
   id: Id5;
   function: Function;
   arguments: Arguments;
-  internal: unknown;
   parse_error: ParseError;
   view: ToolCallContent | null;
   type: Type15;
@@ -1340,7 +1336,6 @@ export interface ChatMessageTool {
   content: Content4;
   source: Source3;
   metadata: Metadata8;
-  internal: unknown;
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
@@ -1611,7 +1606,6 @@ export interface ToolEvent {
   id: Id8;
   function: Function2;
   arguments: Arguments1;
-  internal: unknown;
   view: ToolCallContent | null;
   result: Result1;
   truncated: Truncated;
