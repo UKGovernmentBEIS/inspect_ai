@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from multiprocessing import Pool
 import anyio
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 from pydantic_core import to_json
 from typing_extensions import override
 from pydantic_core import from_json
@@ -18,7 +18,7 @@ from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
-
+from inspect_ai.model import ChatMessage
 from .._log import (
     EvalLog,
     EvalPlan,
@@ -401,6 +401,25 @@ def _process_single_file_field(
             return data[field] if field in data else []
 
 
+def _process_single_file_field_validated(
+    args: Tuple[str, str], field: str
+) -> List[ChatMessage[str, Any]]:
+    zip_location, filename = args
+    with ZipFile(zip_location, mode="r") as zip:
+        with zip.open(filename, "r") as f:
+            data = json.load(f)
+            user_list_adapter = TypeAdapter(list[ChatMessage])
+            return (
+                user_list_adapter.validate_python(data[field]) if field in data else []
+            )
+
+
+def process_single_file_messages_validated(
+    args: Tuple[str, str],
+) -> List[Dict[str, Any]]:
+    return _process_single_file_field_validated(args, "messages")
+
+
 def process_single_file_messages(args: Tuple[str, str]) -> List[Dict[str, Any]]:
     return _process_single_file_field(args, "messages")
 
@@ -423,6 +442,29 @@ def read_eval_log_as_json(
 
     if field == "messages":
         processor = process_single_file_messages
+    elif field == "events":
+        processor = process_single_file_events
+
+    with Pool() as pool:
+        samples = pool.map(processor, args)
+
+    return samples
+
+
+def read_eval_log_as_json_validated(
+    location: str, field: str = "messages"
+) -> List[List[Dict[str, Any]]]:
+    with ZipFile(location, mode="r") as zip:
+        json_files = [
+            name
+            for name in zip.namelist()
+            if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json")
+        ]
+
+    args = [(location, name) for name in json_files]
+
+    if field == "messages":
+        processor = process_single_file_messages_validated
     elif field == "events":
         processor = process_single_file_events
 
