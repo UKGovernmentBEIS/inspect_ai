@@ -1682,6 +1682,18 @@
           "default": null,
           "title": "Fail On Error"
         },
+        "continue_on_fail": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Continue On Fail"
+        },
         "retry_on_error": {
           "anyOf": [
             {
@@ -1885,6 +1897,7 @@
         "epochs_reducer",
         "approval",
         "fail_on_error",
+        "continue_on_fail",
         "retry_on_error",
         "message_limit",
         "token_limit",

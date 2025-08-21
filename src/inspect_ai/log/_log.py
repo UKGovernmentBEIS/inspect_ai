@@ -44,6 +44,7 @@ class EvalConfigDefaults(TypedDict):
     epochs: int
     epochs_reducer: list[str]
     fail_on_error: bool
+    continue_on_fail: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -56,6 +57,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs": 1,
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
+        "continue_on_fail": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -94,6 +96,13 @@ class EvalConfig(BaseModel):
     fail on sample errors; Value between 0 and 1 to fail if a proportion
     of total samples fails. Value greater than 1 to fail eval if a count
     of samples fails.
+    """
+
+    continue_on_fail: bool | None = Field(default=None)
+    """Continue eval even if the `fail_on_error` condition is met.
+
+    `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+    `False` to fail eval immediately when the `fail_on_error` condition is met (default).
     """
 
     retry_on_error: int | None = Field(default=None)

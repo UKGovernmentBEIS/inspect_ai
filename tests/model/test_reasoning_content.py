@@ -16,6 +16,8 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.solver._prompt import user_message
 from inspect_ai.solver._solver import generate
+from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_choice import ToolChoice
 
 
 @pytest.mark.asyncio
@@ -62,7 +64,10 @@ def test_reasoning_history_last():
 
 
 async def check_reasoning_content(
-    model_name: str, config: GenerateConfig = GenerateConfig()
+    model_name: str,
+    config: GenerateConfig = GenerateConfig(),
+    tools: list[Tool] = [],
+    tool_choice: ToolChoice | None = None,
 ):
     model = get_model(model_name)
     output = await model.generate(
@@ -72,6 +77,8 @@ async def check_reasoning_content(
                 reasoning_effort="low", reasoning_tokens=1024, max_tokens=8192
             )
         ),
+        tools=tools,
+        tool_choice=tool_choice,
     )
     assert "<think>" not in output.completion
     content = output.choices[0].message.content
