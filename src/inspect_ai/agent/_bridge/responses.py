@@ -327,7 +327,7 @@ def messages_from_responses_input(
                                             to_inspect_citation(annotation)
                                             for annotation in output["annotations"]
                                         ]
-                                        if output["annotations"]
+                                        if output.get("annotations", None)
                                         else None
                                     ),
                                 )
@@ -399,7 +399,7 @@ def messages_from_responses_input(
             pending_assistant_message_params.clear()
 
     for item in input:
-        # accumulate assistant message params until we clear the assistnat message
+        # accumulate assistant message params until we clear the assistant message
         if is_assistant_message_param(item):
             pending_assistant_message_params.append(item)
             continue
@@ -469,8 +469,8 @@ def messages_from_responses_input(
                 f"Type {item['type']} is not supported by the agent bridge"
             )
 
-        # final collect of pending assistant message
-        collect_pending_assistant_message()
+    # final collect of pending assistant message
+    collect_pending_assistant_message()
 
     return messages
 
