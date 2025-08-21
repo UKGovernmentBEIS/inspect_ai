@@ -548,9 +548,6 @@ async def model_proxy_server(
             json_body = request.get("json", {}) or {}
             stream = json_body.get("stream", False)
 
-            # codex had issus w/ streaming of parallel tool calls (see comment below)
-            json_body["parallel_tool_calls"] = False
-
             completion = await call_bridge_model_service_async(
                 "generate_responses", json_data=json_body
             )
