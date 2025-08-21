@@ -34,4 +34,13 @@ jobs:
       - name: Verify upload
         run: |
           DATE=$(date +%Y-%m-%d)
-          aws s3 ls s3://inspect-tool-support/$DATE
+          aws s3 cp s3://inspect-tool-support/$DATE downloaded_$DATE
+          echo "Downloaded file contents:"
+          cat downloaded_$DATE
+          echo "Verifying file contents match expected..."
+          if [ "$(cat downloaded_$DATE)" = "hello there" ]; then
+            echo "✓ File contents verified successfully"
+          else
+            echo "✗ File contents do not match expected"
+            exit 1
+          fi
