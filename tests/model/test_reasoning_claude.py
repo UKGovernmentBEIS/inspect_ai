@@ -5,6 +5,8 @@ from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.dataset import Sample
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.tool._tool import tool
+from inspect_ai.tool._tool_choice import ToolFunction
 
 from .test_reasoning_content import check_reasoning_content
 
@@ -18,9 +20,28 @@ async def test_reasoning_claude():
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude_ignore_unsupported():
+    @tool
+    def addition():
+        async def execute(x: int, y: int):
+            """
+            Add two numbers.
+
+            Args:
+                x (int): First number to add.
+                y (int): Second number to add.
+
+            Returns:
+                The sum of the two numbers.
+            """
+            return x + y
+
+        return execute
+
     await check_reasoning_content(
         "anthropic/claude-3-7-sonnet-20250219",
         config=GenerateConfig(temperature=0.9, top_p=3, top_k=3),
+        tools=[addition()],
+        tool_choice=ToolFunction("addition"),
     )
 
 

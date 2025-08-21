@@ -242,10 +242,8 @@ class AnthropicAPI(ModelAPI):
             if system_param is not None:
                 request["system"] = system_param
             request["tools"] = tools_param
-            if len(tools_param) > 0:
-                request["tool_choice"] = message_tool_choice(
-                    tool_choice, self.is_using_thinking(config)
-                )
+            if len(tools_param) > 0 and not self.is_using_thinking(config):
+                request["tool_choice"] = message_tool_choice(tool_choice)
 
             # additional options
             req, headers, betas = self.completion_config(config)
@@ -899,15 +897,9 @@ def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
         raise ValueError(f"Unexpected content types for messages: {a}, {b}")
 
 
-def message_tool_choice(
-    tool_choice: ToolChoice, thinking_model: bool
-) -> message_create_params.ToolChoice:
+def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolChoice:
     if isinstance(tool_choice, ToolFunction):
-        # forced tool use not compatible with thinking models
-        if thinking_model:
-            return {"type": "any"}
-        else:
-            return {"type": "tool", "name": tool_choice.name}
+        return {"type": "tool", "name": tool_choice.name}
     elif tool_choice == "any":
         return {"type": "any"}
     elif tool_choice == "none":

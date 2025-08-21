@@ -128,7 +128,10 @@ def test_docker_sandbox_setup_symlink():
 @pytest.mark.slow
 def test_docker_sandbox_setup_fail_on_error():
     task = Task(
-        dataset=[Sample(input="Say hello.", setup=SANDBOX_SETUP_ERROR_FILE)],
+        dataset=[
+            Sample(input="Say hello.", setup=SANDBOX_SETUP_ERROR_FILE),
+            Sample(input="Say hello.", setup=SANDBOX_SETUP_FILE),
+        ],
         sandbox="docker",
     )
 
@@ -141,6 +144,16 @@ def test_docker_sandbox_setup_fail_on_error():
     assert log.status == "success"
     assert log.samples
     assert log.samples[0].error
+    assert not log.samples[1].error
+
+    # fail_on_error=True, continue_on_fail=True (entire eval fails, but all samples are evaluated)
+    log = eval(task, model="mockllm/model", fail_on_error=True, continue_on_fail=True)[
+        0
+    ]
+    assert log.status == "error"
+    assert log.samples
+    assert log.samples[0].error
+    assert not log.samples[1].error
 
 
 def test_is_dockerfile():
