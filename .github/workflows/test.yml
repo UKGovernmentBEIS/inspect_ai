@@ -1,22 +1,57 @@
 # This workflow must exist on the default branch to enable GitHub's Web UI and API
 # to trigger workflow runs. The typical development process is to edit this file on
 # a feature branch, then use the Web UI/API to target and test the branch version.
-name: Minimal Test Workflow
+name: File Management Workflow
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Select mode'
+        required: true
+        default: 'create'
+        type: choice
+        options:
+          - create
+          - upload
+      file_name:
+        description: 'File name (for create mode)'
+        required: false
+        type: string
+      action_run_id:
+        description: 'Action run ID (for upload mode)'
+        required: false
+        type: string
 
 jobs:
-  upload-to-s3:
+  create-and-store:
     runs-on: ubuntu-latest
+    if: ${{ inputs.mode == 'create' }}
 
     steps:
-      - name: Create date-based file
+      - name: Create file
         run: |
-          DATE=$(date +%Y-%m-%d)
-          echo "hello there" > $DATE
-          echo "Created file: $DATE"
-          cat $DATE
+          echo "hello there" > "${{ inputs.file_name }}"
+          echo "Created file: ${{ inputs.file_name }}"
+          cat "${{ inputs.file_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: created-file
+          path: ${{ inputs.file_name }}
+
+  retrieve-and-upload:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.mode == 'upload' }}
+
+    steps:
+      - name: Download artifact from run
+        uses: actions/download-artifact@v4
+        with:
+          name: created-file
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.action_run_id }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -27,20 +62,26 @@ jobs:
 
       - name: Upload to S3 with public read access
         run: |
-          DATE=$(date +%Y-%m-%d)
-          aws s3 cp $DATE s3://inspect-tool-support/$DATE --acl public-read
-          echo "File uploaded to: s3://inspect-tool-support/$DATE"
+          for file in *; do
+            if [ -f "$file" ]; then
+              aws s3 cp "$file" s3://inspect-tool-support/"$file" --acl public-read
+              echo "File uploaded to: s3://inspect-tool-support/$file"
+            fi
+          done
 
       - name: Verify upload
         run: |
-          DATE=$(date +%Y-%m-%d)
-          aws s3 cp s3://inspect-tool-support/$DATE downloaded_$DATE
-          echo "Downloaded file contents:"
-          cat downloaded_$DATE
-          echo "Verifying file contents match expected..."
-          if [ "$(cat downloaded_$DATE)" = "hello there" ]; then
-            echo "✓ File contents verified successfully"
-          else
-            echo "✗ File contents do not match expected"
-            exit 1
-          fi
+          for file in *; do
+            if [ -f "$file" ]; then
+              aws s3 cp s3://inspect-tool-support/"$file" "downloaded_$file"
+              echo "Downloaded file contents for $file:"
+              cat "downloaded_$file"
+              echo "Verifying file contents match expected..."
+              if [ "$(cat "downloaded_$file")" = "hello there" ]; then
+                echo "✓ File contents verified successfully for $file"
+              else
+                echo "✗ File contents do not match expected for $file"
+                exit 1
+              fi
+            fi
+          done
