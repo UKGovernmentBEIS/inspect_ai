@@ -526,26 +526,26 @@ def responses_output_items_from_assistant_message(
             # we ignore these as they are encapsulated in AssistantInternal (which is necessary as there is no way to represent the full space of possible ContentToolUse in the responses API)
             pass
 
-        for tool_call in message.tool_calls or []:
-            if tool_call.function == "computer":
-                output.append(
-                    ResponseComputerToolCall(
-                        id=uuid(),
-                        type="computer_call",
-                        action=tool_call_arguments_to_action(tool_call.arguments),
-                        call_id=tool_call.id,
-                        pending_safety_checks=[],
-                        status="completed",
-                    )
+    for tool_call in message.tool_calls or []:
+        if tool_call.function == "computer":
+            output.append(
+                ResponseComputerToolCall(
+                    id=uuid(),
+                    type="computer_call",
+                    action=tool_call_arguments_to_action(tool_call.arguments),
+                    call_id=tool_call.id,
+                    pending_safety_checks=[],
+                    status="completed",
                 )
-            else:
-                output.append(
-                    ResponseFunctionToolCall(
-                        type="function_call",
-                        call_id=tool_call.id,
-                        name=tool_call.function,
-                        arguments=json.dumps(tool_call.arguments),
-                    )
+            )
+        else:
+            output.append(
+                ResponseFunctionToolCall(
+                    type="function_call",
+                    call_id=tool_call.id,
+                    name=tool_call.function,
+                    arguments=json.dumps(tool_call.arguments),
                 )
+            )
 
     return output
