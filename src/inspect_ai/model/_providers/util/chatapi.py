@@ -15,7 +15,7 @@ from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool._tool_info import ToolInfo
 
-from ..._chat_message import ChatMessage
+from ..._chat_message import ChatMessage, ChatMessageUser
 
 logger = getLogger(__name__)
 
@@ -70,6 +70,38 @@ def chat_api_message(message: ChatMessage, handler: ChatAPIHandler) -> ChatAPIMe
         return handler.tool_message(message)
     else:
         return dict(role=message.role, content=message.text)
+
+
+def chat_api_messages_for_handler(
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    handler: ChatAPIHandler,
+) -> list[ChatMessage]:
+    # add tools to input
+    if len(tools) > 0:
+        input = handler.input_with_tools(input, tools)
+
+    # resolve other messages
+    return [chat_api_handler_message(message, handler) for message in input]
+
+
+def chat_api_handler_message(
+    message: ChatMessage, handler: ChatAPIHandler
+) -> ChatMessage:
+    if message.role == "assistant":
+        return ChatMessageAssistant(
+            content=handler.assistant_message(message)["content"]
+        )
+    elif message.role == "tool":
+        tool_message = handler.tool_message(message)
+        if tool_message["role"] == "tool":
+            return ChatMessageTool(content=tool_message["content"])
+        elif tool_message["role"] == "user":
+            return ChatMessageUser(content=tool_message["content"])
+        else:
+            return message
+    else:
+        return message
 
 
 async def chat_api_request(

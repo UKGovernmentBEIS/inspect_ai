@@ -42,6 +42,7 @@ export const kScoreTypeNumeric = "numeric";
 export const kScoreTypeOther = "other";
 export const kScoreTypeObject = "object";
 export const kScoreTypeBoolean = "boolean";
+export const kScoreTypeList = "list";
 
 // Sorting constants
 export const kSampleAscVal = "sample-asc";

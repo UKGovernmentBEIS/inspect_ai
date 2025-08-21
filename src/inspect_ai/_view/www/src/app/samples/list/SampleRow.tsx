@@ -5,6 +5,7 @@ import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { useStore } from "../../../state/store";
 import { arrayToString, inputString } from "../../../utils/format";
+import { isVscode } from "../../../utils/vscode";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -121,6 +122,24 @@ export const SampleRow: FC<SampleRowProps> = ({
     </div>
   );
 
-  // Render the row content either as a link or directly
-  return <div onClick={showSample}>{rowContent}</div>;
+  // If no sample URL available or not viewable, render as div
+  if (!sampleUrl || !isViewable) {
+    return <div className={styles.disabledRow}>{rowContent}</div>;
+  }
+
+  // VS code doesn't support navigating links
+  if (isVscode()) {
+    return (
+      <div onClick={showSample} className={styles.sampleLink}>
+        {rowContent}
+      </div>
+    );
+  }
+
+  // Render as a proper link
+  return (
+    <a href={sampleUrl} className={styles.sampleLink}>
+      {rowContent}
+    </a>
+  );
 };

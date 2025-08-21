@@ -193,12 +193,19 @@ async def eval_run(
                 else:
                     task.fail_on_error = task_eval_config.fail_on_error
 
+                # continue_on_fail
+                if task_eval_config.continue_on_fail is None:
+                    task_eval_config.continue_on_fail = task.continue_on_fail
+                else:
+                    task.continue_on_fail = task_eval_config.continue_on_fail
+
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,
                     task_version=task.version,
                     task_file=resolved_task.task_file,
                     task_registry_name=resolved_task.task.registry_name,
+                    task_display_name=resolved_task.task.display_name,
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
                     solver=eval_solver_spec,

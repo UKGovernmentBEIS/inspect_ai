@@ -1,21 +1,23 @@
 import { FC, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
 import {
   useEvalSpec,
   useFilteredSamples,
   usePrevious,
+  useSampleSummaries,
   useTotalSampleCount,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { baseUrl, useLogRouteParams } from "../routing/url";
+import { baseUrl, sampleUrl, useLogRouteParams } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
 
 /**
  * LogContainer component that handles routing to specific logs, tabs, and samples
  */
 export const LogViewContainer: FC = () => {
-  const { logPath, tabId, sampleId, epoch, sampleTabId } = useLogRouteParams();
+  const { logPath, tabId, sampleUuid, sampleId, epoch, sampleTabId } =
+    useLogRouteParams();
 
   const initialState = useStore((state) => state.app.initialState);
   const clearInitialState = useStore(
@@ -47,6 +49,24 @@ export const LogViewContainer: FC = () => {
   const filteredSamples = useFilteredSamples();
   const totalSampleCount = useTotalSampleCount();
   const navigate = useNavigate();
+  const sampleSummaries = useSampleSummaries();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // Redirect to an id/epoch url if a sampleUuid is provided
+    if (logPath && sampleUuid && sampleSummaries) {
+      // Find the sample with the matching UUID
+      const sample = sampleSummaries.find((s) => s.uuid === sampleUuid);
+      if (sample) {
+        const url = sampleUrl(logPath, sample.id, sample.epoch, sampleTabId);
+        const finalUrl = searchParams.toString()
+          ? `${url}?${searchParams.toString()}`
+          : url;
+        navigate(finalUrl);
+        return;
+      }
+    }
+  }, [sampleSummaries, logPath, sampleUuid, searchParams]);
 
   useEffect(() => {
     if (initialState && !evalSpec) {
@@ -100,6 +120,7 @@ export const LogViewContainer: FC = () => {
   useEffect(() => {
     if (sampleId && filteredSamples) {
       // Find the sample with matching ID and epoch
+
       const targetEpoch = epoch ? parseInt(epoch, 10) : undefined;
       const sampleIndex = filteredSamples.findIndex((sample) => {
         const matches =

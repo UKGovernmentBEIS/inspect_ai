@@ -12,7 +12,6 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_mistral,
     skip_if_no_openai,
-    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval
@@ -99,7 +98,10 @@ def check_tools_calls(model: Model, **model_args) -> None:
     model = get_model(model)
     task = Task(
         dataset=addition_dataset,
-        solver=[use_tools(addition()), generate()],
+        solver=[
+            use_tools(addition(), tool_choice=ToolFunction("addition")),
+            generate(),
+        ],
         scorer=match("any", numeric=True),
     )
 
@@ -173,7 +175,7 @@ def test_openai_responses_tools():
 
 @skip_if_no_anthropic
 def test_anthropic_tools():
-    check_tools("anthropic/claude-3-sonnet-20240229")
+    check_tools("anthropic/claude-3-7-sonnet-latest")
 
 
 @skip_if_no_mistral
@@ -191,11 +193,6 @@ def test_mistral_tools():
 @skip_if_no_google
 def test_google_tools():
     check_tools("google/gemini-1.5-pro")
-
-
-@skip_if_no_vertex
-def test_vertex_tools():
-    check_tools("vertex/gemini-1.5-flash")
 
 
 def test_dynamic_tools():

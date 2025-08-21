@@ -49,7 +49,12 @@ from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
 )
-from inspect_ai.model._model import get_model, init_active_model, resolve_models
+from inspect_ai.model._model import (
+    get_model,
+    init_active_model,
+    init_model_roles,
+    resolve_models,
+)
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -92,8 +97,10 @@ def eval(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -152,13 +159,16 @@ def eval(
             to "eval", the native high-performance format).
         limit: Limit evaluated samples
             (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`)..
+        sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -227,8 +237,10 @@ def eval(
                 log_format=log_format,
                 limit=limit,
                 sample_id=sample_id,
+                sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
+                continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
@@ -283,8 +295,10 @@ async def eval_async(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -333,11 +347,14 @@ async def eval_async(
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
         limit: Limit evaluated samples (defaults to all samples).
         sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
@@ -395,8 +412,10 @@ async def eval_async(
                 log_format=log_format,
                 limit=limit,
                 sample_id=sample_id,
+                sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
+                continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
@@ -455,8 +474,10 @@ async def _eval_async_inner(
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
+    sample_shuffle: bool | int | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
@@ -523,12 +544,14 @@ async def _eval_async_inner(
             GenerateConfig(**kwargs),
             approval,
             sandbox,
+            sample_shuffle,
         )
 
         # warn and return empty string if we resolved no tasks
         if len(resolved_tasks) == 0:
-            log.warning("No inspect tasks were found at the specified paths.")
-            return []
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
@@ -580,9 +603,11 @@ async def _eval_async_inner(
         else:
             solver = cast(Solver | SolverSpec | None, solver)
 
-        # ensure consistency of limit and sample_id
+        # ensure consistency of limit and sample_id/sample_shuffe
         if sample_id is not None and limit is not None:
             raise ValueError("You cannot specify both sample_id and limit.")
+        if sample_id is not None and sample_shuffle is not None:
+            raise ValueError("You cannot specify both sample_id and sample_shuffle")
 
         # resolve epochs
         if isinstance(epochs, int):
@@ -595,12 +620,14 @@ async def _eval_async_inner(
         eval_config = EvalConfig(
             limit=limit,
             sample_id=sample_id,
+            sample_shuffle=sample_shuffle,
             epochs=epochs.epochs if epochs else None,
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
+            continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -683,12 +710,16 @@ async def _eval_async_inner(
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
 
-    finally:
         try:
             await emit_run_end(run_id, logs)
         except UnboundLocalError:
             await emit_run_end(run_id, EvalLogs([]))
         _eval_async_running = False
+
+    except Exception as e:
+        await emit_run_end(run_id, EvalLogs([]), e)
+        _eval_async_running = False
+        raise e
 
     # return logs
     return logs
@@ -708,6 +739,7 @@ def eval_retry(
     trace: bool | None = None,
     display: DisplayType | None = None,
     fail_on_error: bool | float | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
@@ -744,10 +776,12 @@ def eval_retry(
             (defaults to True)
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
-        fail_on_error: `True` to fail on first sample error
+        fail_on_error: `True` to fail on a sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -793,6 +827,7 @@ def eval_retry(
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             fail_on_error=fail_on_error,
+            continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
@@ -822,6 +857,7 @@ async def eval_retry_async(
     max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
     fail_on_error: bool | float | None = None,
+    continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
@@ -855,6 +891,8 @@ async def eval_retry_async(
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
            eval if a count of samples fails.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
            (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
@@ -947,6 +985,7 @@ async def eval_retry_async(
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
         sample_id = eval_log.eval.config.sample_id
+        sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
             if eval_log.eval.config.epochs
@@ -970,6 +1009,11 @@ async def eval_retry_async(
             fail_on_error
             if fail_on_error is not None
             else eval_log.eval.config.fail_on_error
+        )
+        continue_on_fail = (
+            continue_on_fail
+            if continue_on_fail is not None
+            else eval_log.eval.config.continue_on_fail
         )
         retry_on_error = (
             retry_on_error
@@ -1029,8 +1073,10 @@ async def eval_retry_async(
                 log_format=log_format,
                 limit=limit,
                 sample_id=sample_id,
+                sample_shuffle=sample_shuffle,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
+                continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
@@ -1095,15 +1141,23 @@ def eval_resolve_tasks(
     config: GenerateConfig,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
+    sample_shuffle: bool | int | None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
+    # resolve model roles and initialize them in the eval context -- this
+    # will enable tasks that reference model roles in their initialization
+    # to pickup these mappings
     resolved_model_roles = resolve_model_roles(model_roles)
+    init_model_roles(resolved_model_roles or {})
+
     task_args = resolve_args(task_args)
     with task_display().suspend_task_app():
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
             init_active_model(m, config)
             resolved_tasks.extend(
-                resolve_tasks(tasks, task_args, m, resolved_model_roles, sandbox)
+                resolve_tasks(
+                    tasks, task_args, m, resolved_model_roles, sandbox, sample_shuffle
+                )
             )
 
     if isinstance(approval, str | ApprovalPolicyConfig):

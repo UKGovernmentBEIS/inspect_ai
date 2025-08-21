@@ -51,7 +51,14 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
       }
 
       const index = collapsedMessages.findIndex((message) => {
-        return message.message.id === initialMessageId;
+        const messageId = message.message.id === initialMessageId;
+        if (messageId) {
+          return true;
+        }
+
+        if (message.toolMessages.find((tm) => tm.id === initialMessageId)) {
+          return true;
+        }
       });
       return index !== -1 ? index : undefined;
     }, [initialMessageId, collapsedMessages]);

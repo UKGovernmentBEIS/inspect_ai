@@ -6,6 +6,15 @@ build-backend = "setuptools.build_meta"
 dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools_scm]
+git_describe_command = [
+  'git',
+  'describe',
+  '--dirty',
+  '--tags',
+  '--long',
+  '--match',
+  '[0-9]*.[0-9]*.[0-9]*',
+]
 
 
 [tool.setuptools.packages.find]
@@ -65,7 +74,7 @@ norecursedirs = [
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-log_level = "warning"
+log_level = "WARNING"
 
 [tool.mypy]
 exclude = [
@@ -139,8 +148,8 @@ inspect = "inspect_ai._cli.main:main"
 dev = [
   "anthropic>=0.52.0",
   "aioboto3",
+  "azure-identity",
   "azure-ai-inference",
-  "google-cloud-aiplatform",
   "google-genai",
   "griffe",
   "groq",
@@ -150,7 +159,7 @@ dev = [
   "mcp>=1.10.0",
   "mistralai",
   "moto[server]",
-  "mypy>=1.16.0",
+  "mypy>=1.17.0",
   "nbformat",
   "openai",
   "pandas>=2.0.0",
@@ -166,7 +175,8 @@ dev = [
   "pytest-mock",
   "pytest-watcher",
   "pytest-xdist",
-  "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
+  "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
+  "together",
   "textual-dev>=0.86.2",
   "transformer-lens",
   "trio",
@@ -185,7 +195,7 @@ dev = [
   "types-python-dateutil",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
+doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]
 
 [tool.typos.default.extend-words]

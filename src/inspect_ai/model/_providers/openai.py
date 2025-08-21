@@ -1,26 +1,30 @@
 import os
+import re
 from logging import getLogger
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from openai import (
     AsyncAzureOpenAI,
     AsyncOpenAI,
-    BadRequestError,
+    NotGiven,
     RateLimitError,
-    UnprocessableEntityError,
 )
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
+from openai.types.responses import Response
 from typing_extensions import override
 
 from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import normalized_batch_config
-from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.openai_completions import (
+    completion_params_completions,
+    generate_completions,
+)
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import ModelRetryConfig, model_retry_config
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -30,20 +34,6 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
-    is_codex,
-    is_computer_use_preview,
-    is_gpt,
-    is_o1,
-    is_o1_early,
-    is_o3_mini,
-    is_o_series,
-    model_output_from_openai,
-    openai_chat_messages,
-    openai_chat_tool_choice,
-    openai_chat_tools,
-    openai_completion_params,
-    openai_handle_bad_request,
-    openai_media_filter,
     openai_should_retry,
 )
 from .._openai_responses import is_native_tool_configured
@@ -56,6 +46,7 @@ logger = getLogger(__name__)
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
+AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
@@ -74,6 +65,7 @@ class OpenAIAPI(ModelAPI):
         responses_store: Literal["auto"] | bool = "auto",
         service_tier: str | None = None,
         client_timeout: float | None = None,
+        background: bool | None = None,
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -85,6 +77,16 @@ class OpenAIAPI(ModelAPI):
         else:
             self.service = None
 
+        # extract prompt_cache_key model arg if provided
+        self.prompt_cache_key: str | NotGiven = model_args.pop(
+            "prompt_cache_key", NOT_GIVEN
+        )
+
+        # extract safety_identifier model arg if provided
+        self.safety_identifier: str | NotGiven = model_args.pop(
+            "safety_identifier", NOT_GIVEN
+        )
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -94,14 +96,23 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
+        # set background bit (automatically use background for deep research)
+        if background is None and self.is_deep_research():
+            background = True
+        self.background = background
+
         # is this a model we use responses api by default for?
         responses_preferred = (
-            self.is_o_series() and not self.is_o1_early()
-        ) or self.is_codex()
+            (self.is_o_series() and not self.is_o1_early())
+            or self.is_codex()
+            or self.is_gpt_5()
+        )
 
         # resolve whether we are forcing the responses api
-        self.responses_api = self.is_computer_use_preview() or (
-            responses_api if responses_api is not None else responses_preferred
+        self.responses_api = (
+            background
+            or self.is_computer_use_preview()
+            or (responses_api if responses_api is not None else responses_preferred)
         )
 
         # resolve whether we are using the responses store
@@ -116,26 +127,47 @@ class OpenAIAPI(ModelAPI):
             900.0 if self.service_tier == "flex" else None
         )
 
-        # resolve api_key
+        # resolve api_key or managed identity (for Azure)
+        self.token_provider = None
         if not self.api_key:
             if self.service == "azure":
                 self.api_key = os.environ.get(
                     AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
                 )
+                if not self.api_key:
+                    # try managed identity (Microsoft Entra ID)
+                    try:
+                        from azure.identity import (
+                            DefaultAzureCredential,
+                            get_bearer_token_provider,
+                        )
+
+                        self.token_provider = get_bearer_token_provider(
+                            DefaultAzureCredential(),
+                            os.environ.get(
+                                AZUREAI_AUDIENCE,
+                                "https://cognitiveservices.azure.com/.default",
+                            ),
+                        )
+                    except ImportError:
+                        raise PrerequisiteError(
+                            "ERROR: The OpenAI provider requires the `azure-identity` package for managed identity support."
+                        )
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
 
-            if not self.api_key:
+            if not self.api_key and not self.token_provider:
                 raise environment_prerequisite_error(
                     "OpenAI",
                     [
                         OPENAI_API_KEY,
                         AZUREAI_OPENAI_API_KEY,
+                        "or managed identity (Entra ID)",
                     ],
                 )
 
         # create async http client
-        http_client = OpenAIAsyncHttpxClient()
+        http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
 
         # azure client
         if self.is_azure():
@@ -164,12 +196,16 @@ class OpenAIAPI(ModelAPI):
                     os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
                 )
 
+            # use managed identity if available, otherwise API key
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
                 api_key=self.api_key,
+                azure_ad_token_provider=self.token_provider,
                 api_version=api_version,
                 azure_endpoint=base_url,
                 http_client=http_client,
-                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
+                timeout=self.client_timeout
+                if self.client_timeout is not None
+                else NOT_GIVEN,
                 **model_args,
             )
         else:
@@ -177,11 +213,20 @@ class OpenAIAPI(ModelAPI):
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
                 http_client=http_client,
-                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
+                timeout=self.client_timeout
+                if self.client_timeout is not None
+                else NOT_GIVEN,
                 **model_args,
             )
 
-        self._batcher: OpenAIBatcher | None = None
+        # TODO: Although we could enhance OpenAIBatcher to support requests with
+        # homogenous endpoints (e.g. some going to completions and some going to
+        # responses), the code would have to be more complex to retain type safety.
+        # We'd have to track the endpoint and ResultCls for each request and also
+        # cast? the result when resolving the generate promise. For now, we'll
+        # side step that complexity and just use two different batchers.
+        self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
+        self._responses_batcher: OpenAIBatcher[Response] | None = None
 
         # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
@@ -190,25 +235,42 @@ class OpenAIAPI(ModelAPI):
         return self.service == "azure"
 
     def is_o_series(self) -> bool:
-        return is_o_series(self.service_model_name())
+        name = self.service_model_name()
+        if bool(re.match(r"^o\d+", name)):
+            return True
+        else:
+            return not self.is_gpt() and bool(re.search(r"o\d+", name))
+
+    def is_deep_research(self) -> bool:
+        return "deep-research" in self.service_model_name()
+
+    def is_gpt_5(self) -> bool:
+        name = self.service_model_name()
+        return "gpt-5" in name
 
     def is_o1(self) -> bool:
-        return is_o1(self.service_model_name())
+        name = self.service_model_name()
+        return "o1" in name and not self.is_o1_early()
 
     def is_o1_early(self) -> bool:
-        return is_o1_early(self.service_model_name())
+        name = self.service_model_name()
+        return "o1-mini" in name or "o1-preview" in name
 
     def is_o3_mini(self) -> bool:
-        return is_o3_mini(self.service_model_name())
+        name = self.service_model_name()
+        return "o3-mini" in name
 
     def is_computer_use_preview(self) -> bool:
-        return is_computer_use_preview(self.service_model_name())
+        name = self.service_model_name()
+        return "computer-use-preview" in name
 
     def is_codex(self) -> bool:
-        return is_codex(self.service_model_name())
+        name = self.service_model_name()
+        return "codex" in name
 
     def is_gpt(self) -> bool:
-        return is_gpt(self.service_model_name())
+        name = self.service_model_name()
+        return "gpt" in name
 
     @override
     async def aclose(self) -> None:
@@ -217,6 +279,10 @@ class OpenAIAPI(ModelAPI):
     @override
     def emulate_reasoning_history(self) -> bool:
         return not self.responses_api
+
+    @override
+    def supports_remote_mcp(self) -> bool:
+        return True
 
     @override
     def tool_result_images(self) -> bool:
@@ -247,12 +313,16 @@ class OpenAIAPI(ModelAPI):
                 client=self.client,
                 input=input,
                 tools=tools,
-                **self.completion_params(config, False),
+                **completion_params_completions(self, config, False),
             )
-        elif self.responses_api or is_native_tool_configured(
+
+        use_responses = self.responses_api or is_native_tool_configured(
             tools, self.model_name, config
-        ):
-            return await generate_responses(
+        )
+        self._resolve_batcher(config, use_responses)
+
+        return await (
+            generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
                 model_name=self.service_model_name(),
@@ -260,94 +330,28 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+                background=self.background,
                 service_tier=self.service_tier,
+                prompt_cache_key=self.prompt_cache_key,
+                safety_identifier=self.safety_identifier,
+                openai_api=self,
+                batcher=self._responses_batcher,
             )
-
-        # allocate request_id (so we can see it from ModelCall)
-        request_id = self._http_hooks.start_request()
-
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
-
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=openai_media_filter,
-                time=self._http_hooks.end_request(request_id),
+            if use_responses
+            else generate_completions(
+                client=self.client,
+                http_hooks=self._http_hooks,
+                model_name=self.service_model_name(),
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                prompt_cache_key=self.prompt_cache_key,
+                safety_identifier=self.safety_identifier,
+                openai_api=self,
+                batcher=self._completions_batcher,
             )
-
-        # unlike text models, vision models require a max_tokens (and set it to a very low
-        # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
-        OPENAI_IMAGE_DEFAULT_TOKENS = 4096
-        if "vision" in self.service_model_name():
-            if isinstance(config.max_tokens, int):
-                config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
-            else:
-                config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
-
-        # determine system role
-        # o1-mini does not support developer or system messages
-        # (see Dec 17, 2024 changelog: https://platform.openai.com/docs/changelog)
-        if self.is_o1_early():
-            system_role: Literal["user", "system", "developer"] = "user"
-        # other o-series models use 'developer' rather than 'system' messages
-        # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
-        elif self.is_o_series():
-            system_role = "developer"
-        else:
-            system_role = "system"
-
-        # prepare request (we do this so we can log the ModelCall)
-        request = dict(
-            messages=await openai_chat_messages(input, system_role),
-            tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
-            tool_choice=openai_chat_tool_choice(tool_choice)
-            if len(tools) > 0
-            else NOT_GIVEN,
-            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
-            **self.completion_params(config, len(tools) > 0),
         )
-
-        try:
-            completion: ChatCompletion = await self._get_completion(request, config)
-
-            # save response for model_call
-            response = completion.model_dump()
-
-            # return output and call
-            choices = chat_choices_from_openai(completion, tools)
-            return model_output_from_openai(completion, choices), model_call()
-        except (BadRequestError, UnprocessableEntityError) as e:
-            return openai_handle_bad_request(self.service_model_name(), e), model_call()
-
-    async def _get_completion(
-        self, request: dict[str, Any], config: GenerateConfig
-    ) -> ChatCompletion:
-        # TODO: Bogus that we have to do this on each call. Ideally, it would be
-        # done only once and ideally by non-provider specific code.
-        batch_config = normalized_batch_config(config.batch)
-        if batch_config:
-            if not self._batcher:
-                self._batcher = OpenAIBatcher(
-                    self.client,
-                    batch_config,
-                    # TODO: In the future, we could pass max_retries and timeout
-                    # from batch_config falling back to config
-                    model_retry_config(
-                        self.model_name,
-                        config.max_retries,
-                        config.timeout,
-                        self.should_retry,
-                        log_model_retry,
-                    ),
-                )
-            return await self._batcher.generate(request, config)
-        else:
-            return cast(
-                ChatCompletion, await self.client.chat.completions.create(**request)
-            )
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -371,36 +375,36 @@ class OpenAIAPI(ModelAPI):
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
 
-    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        # first call the default processing
-        params = openai_completion_params(self.service_model_name(), config, tools)
+    def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
+        def _resolve_retry_config() -> ModelRetryConfig:
+            return model_retry_config(
+                self.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                log_model_retry,
+            )
 
-        # add service_tier if specified
-        if self.service_tier is not None:
-            params["service_tier"] = self.service_tier
-
-        # now tailor to current model
-        if config.max_tokens is not None:
-            if self.is_o_series():
-                params["max_completion_tokens"] = config.max_tokens
-                del params["max_tokens"]
-
-        if config.temperature is not None:
-            if self.is_o_series():
-                warn_once(
-                    logger,
-                    "o series models do not support the 'temperature' parameter (temperature is always 1).",
-                )
-                del params["temperature"]
-
-        # remove parallel_tool_calls if not supported
-        if "parallel_tool_calls" in params.keys() and self.is_o_series():
-            del params["parallel_tool_calls"]
-
-        # remove reasoning_effort if not supported
-        if "reasoning_effort" in params.keys() and (
-            self.is_gpt() or self.is_o1_early()
-        ):
-            del params["reasoning_effort"]
-
-        return params
+        # TODO: Bogus that we have to do this on each call. Ideally, it would be
+        # done only once and ideally by non-provider specific code.
+        batch_config = normalized_batch_config(config.batch)
+        if batch_config:
+            # Select the appropriate batcher based on API type
+            if for_responses_api:
+                if not self._responses_batcher:
+                    self._responses_batcher = OpenAIBatcher(
+                        self.client,
+                        batch_config,
+                        _resolve_retry_config(),
+                        Response,
+                        endpoint="/v1/responses",
+                    )
+            else:
+                if not self._completions_batcher:
+                    self._completions_batcher = OpenAIBatcher(
+                        self.client,
+                        batch_config,
+                        _resolve_retry_config(),
+                        ChatCompletion,
+                        endpoint="/v1/chat/completions",
+                    )

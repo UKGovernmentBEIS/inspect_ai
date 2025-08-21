@@ -4,7 +4,7 @@ from openai.types.responses import WebSearchTool, WebSearchToolParam
 
 from inspect_ai.tool._tool_info import ToolInfo
 
-COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini"]
+COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", "gpt-5"]
 
 
 def maybe_web_search_tool(model_name: str, tool: ToolInfo) -> WebSearchToolParam | None:

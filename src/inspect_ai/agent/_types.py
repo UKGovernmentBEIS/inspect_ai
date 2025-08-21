@@ -3,6 +3,7 @@ from typing import Awaitable, Callable, NamedTuple, TypeAlias
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_def import ToolDef
 
 DEFAULT_HANDOFF_PROMPT = """
 You are part of a multi-agent system designed to make agent coordination and
@@ -37,13 +38,17 @@ class AgentPrompt(NamedTuple):
     """Agent-specific contextual instructions."""
 
     handoff_prompt: str | None = DEFAULT_HANDOFF_PROMPT
-    """Prompt used when there are additional handoff agents active."""
+    """Prompt used when there are additional handoff agents active.
+    Pass `None` for no additional handoff prompt."""
 
     assistant_prompt: str | None = DEFAULT_ASSISTANT_PROMPT
-    """Prompt for assistant (covers tool use, CoT, etc.)."""
+    """Prompt for assistant (covers tool use, CoT, etc.).
+    Pass `None` for no additional assistant prompt."""
 
     submit_prompt: str | None = DEFAULT_SUBMIT_PROMPT
     """Prompt to tell the model about the submit tool.
+
+    Pass `None` for no additional submit prompt.
 
     This prompt is not used if the `assistant_prompt` contains a
     {submit} placeholder.
@@ -100,7 +105,7 @@ class AgentSubmit(NamedTuple):
     description: str | None = None
     """Description of submit tool (defaults to 'Submit an answer for evaluation')."""
 
-    tool: Tool | None = None
+    tool: Tool | ToolDef | None = None
     """Alternate implementation for submit tool.
 
     The tool can provide its `name` and `description` internally,

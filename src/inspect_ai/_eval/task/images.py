@@ -2,7 +2,13 @@ import functools
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentVideo
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentVideo,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset import Sample
@@ -109,6 +115,11 @@ async def chat_content_with_base64_content(content: Content) -> Content:
         return ContentVideo(
             video=await file_as_data_uri(content.video), format=content.format
         )
+    elif isinstance(content, ContentDocument):
+        document = await file_as_data_uri(content.document)
+        return ContentDocument(
+            document=document, filename=content.filename, mime_type=content.mime_type
+        )
     else:
         return content
 
@@ -120,5 +131,11 @@ def chat_content_without_base64_content(content: Content) -> Content:
         return ContentAudio(audio=BASE_64_DATA_REMOVED, format="mp3")
     elif isinstance(content, ContentVideo) and is_data_uri(content.video):
         return ContentVideo(video=BASE_64_DATA_REMOVED, format="mp4")
+    elif isinstance(content, ContentDocument) and is_data_uri(content.document):
+        return ContentDocument(
+            document=BASE_64_DATA_REMOVED,
+            filename=content.filename,
+            mime_type=content.mime_type,
+        )
     else:
         return content

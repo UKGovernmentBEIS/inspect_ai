@@ -91,10 +91,12 @@ website:
           href: reference/inspect_ai.tool.qmd#mcp_connection
         - text: mcp_server_stdio
           href: reference/inspect_ai.tool.qmd#mcp_server_stdio
-        - text: mcp_server_sse
-          href: reference/inspect_ai.tool.qmd#mcp_server_sse
+        - text: mcp_server_http
+          href: reference/inspect_ai.tool.qmd#mcp_server_http
         - text: mcp_server_sandbox
           href: reference/inspect_ai.tool.qmd#mcp_server_sandbox
+        - text: mcp_server_sse
+          href: reference/inspect_ai.tool.qmd#mcp_server_sse
         - text: mcp_tools
           href: reference/inspect_ai.tool.qmd#mcp_tools
         - text: MCPServer
@@ -130,8 +132,6 @@ website:
         contents:
         - text: react
           href: reference/inspect_ai.agent.qmd#react
-        - text: bridge
-          href: reference/inspect_ai.agent.qmd#bridge
         - text: human_cli
           href: reference/inspect_ai.agent.qmd#human_cli
         - text: handoff
@@ -142,6 +142,10 @@ website:
           href: reference/inspect_ai.agent.qmd#as_tool
         - text: as_solver
           href: reference/inspect_ai.agent.qmd#as_solver
+        - text: agent_bridge
+          href: reference/inspect_ai.agent.qmd#agent_bridge
+        - text: sandbox_agent_bridge
+          href: reference/inspect_ai.agent.qmd#sandbox_agent_bridge
         - text: remove_tools
           href: reference/inspect_ai.agent.qmd#remove_tools
         - text: last_message
@@ -166,6 +170,8 @@ website:
           href: reference/inspect_ai.agent.qmd#agentcontinue
         - text: AgentSubmit
           href: reference/inspect_ai.agent.qmd#agentsubmit
+        - text: bridge
+          href: reference/inspect_ai.agent.qmd#bridge
       - section: inspect_ai.scorer
         href: reference/inspect_ai.scorer.qmd
         contents:
@@ -276,6 +282,8 @@ website:
           href: reference/inspect_ai.model.qmd#chatmessagetool
         - text: trim_messages
           href: reference/inspect_ai.model.qmd#trim_messages
+        - text: user_prompt
+          href: reference/inspect_ai.model.qmd#user_prompt
         - text: Content
           href: reference/inspect_ai.model.qmd#content
         - text: ContentText
@@ -288,8 +296,12 @@ website:
           href: reference/inspect_ai.model.qmd#contentaudio
         - text: ContentVideo
           href: reference/inspect_ai.model.qmd#contentvideo
+        - text: ContentDocument
+          href: reference/inspect_ai.model.qmd#contentdocument
         - text: ContentData
           href: reference/inspect_ai.model.qmd#contentdata
+        - text: ContentToolUse
+          href: reference/inspect_ai.model.qmd#contenttooluse
         - text: Citation
           href: reference/inspect_ai.model.qmd#citation
         - text: CitationBase
@@ -322,6 +334,10 @@ website:
           href: reference/inspect_ai.model.qmd#cache_prune
         - text: cache_path
           href: reference/inspect_ai.model.qmd#cache_path
+        - text: messages_to_openai
+          href: reference/inspect_ai.model.qmd#messages_to_openai
+        - text: messages_from_openai
+          href: reference/inspect_ai.model.qmd#messages_from_openai
         - text: modelapi
           href: reference/inspect_ai.model.qmd#modelapi
         - text: ModelAPI
@@ -429,6 +445,8 @@ website:
           href: reference/inspect_ai.log.qmd#evalsamplereductions
         - text: EvalSampleScore
           href: reference/inspect_ai.log.qmd#evalsamplescore
+        - text: WriteConflictError
+          href: reference/inspect_ai.log.qmd#writeconflicterror
         - text: transcript
           href: reference/inspect_ai.log.qmd#transcript
         - text: Transcript
@@ -494,8 +512,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#evaltask
         - text: EvalModel
           href: reference/inspect_ai.analysis.qmd#evalmodel
-        - text: EvalConfig
-          href: reference/inspect_ai.analysis.qmd#evalconfig
+        - text: EvalConfiguration
+          href: reference/inspect_ai.analysis.qmd#evalconfiguration
         - text: EvalResults
           href: reference/inspect_ai.analysis.qmd#evalresults
         - text: EvalScores
@@ -532,6 +550,22 @@ website:
           href: reference/inspect_ai.analysis.qmd#modeleventcolumns
         - text: ToolEventColumns
           href: reference/inspect_ai.analysis.qmd#tooleventcolumns
+        - text: prepare
+          href: reference/inspect_ai.analysis.qmd#prepare
+        - text: log_viewer
+          href: reference/inspect_ai.analysis.qmd#log_viewer
+        - text: model_info
+          href: reference/inspect_ai.analysis.qmd#model_info
+        - text: task_info
+          href: reference/inspect_ai.analysis.qmd#task_info
+        - text: frontier
+          href: reference/inspect_ai.analysis.qmd#frontier
+        - text: score_to_float
+          href: reference/inspect_ai.analysis.qmd#score_to_float
+        - text: Operation
+          href: reference/inspect_ai.analysis.qmd#operation
+        - text: ModelInfo
+          href: reference/inspect_ai.analysis.qmd#modelinfo
         - text: Column
           href: reference/inspect_ai.analysis.qmd#column
         - text: ColumnType

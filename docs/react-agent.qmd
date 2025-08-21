@@ -83,7 +83,23 @@ react(
     description="Expert at completing cybersecurity challenges.",
     prompt=AgentPrompt(
         instructions=PROMPT,
-        assistant="<custom assistant prompt>"
+        assistant_prompt="<custom assistant prompt>"
+    ),
+    tools=[bash_session(), text_editor()],
+    attempts=attempts,
+)
+```
+
+Note that if you want to provide the entire prompt (suppressing all default prompts) then pass an instance of `AgentPrompt` with `instructions` and the other parts of the default prompt you want to exclude set to `None`. For example:
+
+``` python
+react(
+    description="Expert at completing cybersecurity challenges.",
+    prompt=AgentPrompt(
+        instructions=PROMPT,
+        handoff_prompt=None,
+        assistant_prompt=None,
+        submit_prompt=None
     ),
     tools=[bash_session(), text_editor()],
     attempts=attempts,

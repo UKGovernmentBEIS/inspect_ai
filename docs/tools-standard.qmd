@@ -75,14 +75,6 @@ Google's search grounding does not currently support use with other tools. Attem
 
 ### Grok Options
 
-::: callout-note
-The Grok internal search provider is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `web_search()` tool can use Grok's built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
@@ -261,7 +253,7 @@ Note that we provide a `timeout` for the bash session and text editor tools (thi
 
 ### Tool Binding
 
-The schema for the `text_editor()` tool is based on the standard Anthropic [text editor tool type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool). The `text_editor()` works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
+The schema for the `text_editor()` tool is based on the standard Anthropic [text editor tool type](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool). The `text_editor()` works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
 
 ## Web Browser {#sec-web-browser}
 

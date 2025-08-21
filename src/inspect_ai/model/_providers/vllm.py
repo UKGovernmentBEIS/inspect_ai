@@ -1,4 +1,5 @@
 import atexit
+import functools
 import logging
 import os
 from subprocess import Popen
@@ -7,6 +8,12 @@ from typing import Any
 from openai import APIStatusError
 from typing_extensions import override
 
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.local_server import (
     configure_devices,
@@ -14,7 +21,11 @@ from inspect_ai._util.local_server import (
     start_local_server,
     terminate_process,
 )
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -41,6 +52,14 @@ class VLLMAPI(OpenAICompatibleAPI):
     1. Connect to an existing vLLM server (if base_url or port is provided)
     2. Start a new vLLM server for the specified model
 
+    Args:
+        model_name (str): Name or path of the model to use, e.g. "Devstral-Small-2505"
+        base_url (str | None): Base URL of the vLLM server. If not provided, will use localhost.
+        port (int | None): Port of the vLLM server. If not provided, will use a free port on localhost.
+        api_key (str | None): API key for the vLLM server. If not provided, will use "inspectai" as default.
+        config (GenerateConfig): Configuration for generation. Defaults to GenerateConfig().
+        is_mistral (bool): Whether the model is a Mistral model. If True, it will handle folding user messages into tool messages as Mistral does not support a user message immediately after a tool message. Defaults to False.
+
     Additional server_args:
         timeout (int): Timeout for the server (default: 10 minutes)
         host (str): Host to bind the server to (default: "0.0.0.0")
@@ -61,6 +80,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         port: int | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        is_mistral: bool = False,
         **server_args: Any,
     ) -> None:
         # Validate inputs
@@ -70,6 +90,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             base_url = f"http://localhost:{port}/v1"
 
         # Initialize server process and port variables
+        self.is_mistral = is_mistral
         self.server_process: Popen[str] | None = None
         self.port: int | None = port
         self.server_args = merge_env_server_args(
@@ -108,7 +129,9 @@ class VLLMAPI(OpenAICompatibleAPI):
             os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
 
             # Start the server
-            base_url, api_key = self._start_server(model_name, api_key=api_key)
+            base_url, api_key = self._start_server(
+                model_name, api_key=api_key, port=self.port
+            )
             logger.warning(f"vLLM server started at {base_url}")
 
             # Initialize with new server
@@ -125,12 +148,15 @@ class VLLMAPI(OpenAICompatibleAPI):
         self,
         model_path: str,
         api_key: str | None = None,
+        port: int | None = None,
     ) -> tuple[str, str]:
         """Start a new vLLM server and return the base URL and API key.
 
         Args:
             model_path: Path to the model to use
             api_key: API key for the server
+            port: Port for the server. If None, will find a free port.
+
         Returns:
             tuple[str, str]: The base URL for the server and the API key
         """
@@ -157,7 +183,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         base_url, self.server_process, self.port = start_local_server(
             cmd,
             host=host,
-            port=None,  # find a free port
+            port=port,  # If None, find a free port
             api_key=api_key,
             server_type="vLLM",
             timeout=timeout,
@@ -238,7 +264,9 @@ class VLLMAPI(OpenAICompatibleAPI):
             ):
                 config.extra_body["add_generation_prompt"] = False
                 config.extra_body["continue_final_message"] = True
-
+        # if model is mistral, we need to fold user messages into tool messages, as mistral does not support a user message immediately after a tool message
+        if self.is_mistral:
+            input = functools.reduce(mistral_message_reducer, input, [])
         return await super().generate(input, tools, tool_choice, config)
 
     @override
@@ -255,3 +283,63 @@ class VLLMAPI(OpenAICompatibleAPI):
                     self.model_name, content=content, stop_reason="model_length"
                 )
         return ex
+
+
+def mistral_message_reducer(
+    messages: list[ChatMessage],
+    message: ChatMessage,
+) -> list[ChatMessage]:
+    """Fold any user messages found immediately after tool messages into the last tool message."""
+    if (
+        len(messages) > 0
+        and isinstance(messages[-1], ChatMessageTool)
+        and isinstance(message, ChatMessageUser)
+    ):
+        messages[-1] = fold_user_message_into_tool_message(messages[-1], message)
+    else:
+        messages.append(message)
+
+    return messages
+
+
+def fold_user_message_into_tool_message(
+    tool_message: ChatMessageTool,
+    user_message: ChatMessageUser,
+) -> ChatMessageTool:
+    def convert_content_items_to_string(list_content: list[Content]) -> str:
+        if not all(
+            isinstance(item, (ContentText | ContentReasoning | ContentImage))
+            for item in list_content
+        ):
+            raise TypeError("Expected all items to be ContentText or ContentReasoning")
+
+        parts = []
+        for item in list_content:
+            if isinstance(item, ContentText):
+                parts.append(item.text)
+            elif isinstance(item, ContentReasoning):
+                parts.append(item.reasoning)
+            elif isinstance(item, ContentImage):
+                parts.append(f"[Image: {item.image}]")
+            else:
+                raise ValueError("Unexpected content item type")
+        return "".join(parts)
+
+    def normalise_content(
+        content: str | list[Content] | None,
+    ) -> str | None:
+        return (
+            None
+            if content is None
+            else convert_content_items_to_string(content)
+            if isinstance(content, list)
+            else content
+        )
+
+    tool_content = normalise_content(tool_message.content)
+    user_content = normalise_content(user_message.content)
+
+    return ChatMessageTool(
+        content=(tool_content or "") + (user_content or ""),
+        tool_call_id=tool_message.tool_call_id,
+    )

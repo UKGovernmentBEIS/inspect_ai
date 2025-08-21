@@ -55,6 +55,15 @@ class PrerequisiteError(Exception):
         self.message = message
 
 
+class WriteConflictError(Exception):
+    """Exception raised when a conditional write fails due to concurrent modification.
+
+    This error occurs when attempting to write to a log file that has been
+    modified by another process since it was last read, indicating a race
+    condition between concurrent evaluation runs.
+    """
+
+
 def exception_hook() -> Callable[..., None]:
     sys_handler = sys.excepthook
 

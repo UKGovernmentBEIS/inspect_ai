@@ -1,11 +1,21 @@
 from logging import getLogger
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError
+import anyio
+from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError, NotGiven
 from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential_jitter,
+)
 
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
+from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -14,9 +24,6 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
-    is_computer_use_preview,
-    is_o1_early,
-    is_o_series,
     openai_handle_bad_request,
     openai_media_filter,
 )
@@ -27,6 +34,9 @@ from .._openai_responses import (
     openai_responses_tools,
 )
 from .util.hooks import HttpxHooks
+
+if TYPE_CHECKING:
+    from .openai import OpenAIAPI
 
 logger = getLogger(__name__)
 
@@ -39,8 +49,17 @@ async def generate_responses(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
+    background: bool | None,
     service_tier: str | None,
+    prompt_cache_key: str | NotGiven,
+    safety_identifier: str | NotGiven,
+    openai_api: "OpenAIAPI",
+    batcher: OpenAIBatcher[Response] | None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    # batch mode and background are incompatible
+    if batcher:
+        background = False
+
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 
@@ -64,24 +83,42 @@ async def generate_responses(
         else NOT_GIVEN
     )
     request = dict(
-        input=await openai_responses_inputs(input, model_name),
+        input=await openai_responses_inputs(input, openai_api),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
         else NOT_GIVEN,
-        truncation="auto" if is_computer_use_preview(model_name) else NOT_GIVEN,
+        truncation="auto" if openai_api.is_computer_use_preview() else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(
             model_name,
+            openai_api=openai_api,
             config=config,
             service_tier=service_tier,
             tools=len(tools) > 0,
         ),
     )
+    if isinstance(background, bool):
+        request["background"] = background
+    if isinstance(prompt_cache_key, str):
+        request["prompt_cache_key"] = prompt_cache_key
+    if isinstance(safety_identifier, str):
+        request["safety_identifier"] = safety_identifier
 
     try:
         # generate response
-        model_response: Response = await client.responses.create(**request)
+        model_response: Response = await (
+            batcher.generate_for_request(request)
+            if batcher
+            else client.responses.create(**request)
+        )
+        # model_response is `Response | Any`. The lazy type inference engine
+        # threw up its hands because of the `**request`.
+        assert isinstance(model_response, Response)
+
+        # if this is a background request then poll for status until we get it
+        if background:
+            model_response = await wait_for_background_response(client, model_response)
 
         # check for error
         if model_response.error is not None:
@@ -114,12 +151,51 @@ async def generate_responses(
             ),
         ), model_call()
     except BadRequestError as e:
-        return openai_handle_bad_request(model_name, e), model_call()
+        return openai_handle_bad_request(
+            openai_api.service_model_name(), e
+        ), model_call()
+
+
+async def wait_for_background_response(
+    client: AsyncAzureOpenAI | AsyncOpenAI, model_response: Response
+) -> Response:
+    # do some retrying so we don't waste expensive background work
+    # because of transient networking issues
+    @retry(
+        wait=wait_exponential_jitter(),
+        stop=stop_after_attempt(5) | stop_after_delay(60),
+        retry=retry_if_exception(httpx_should_retry),
+        before_sleep=log_httpx_retry_attempt(
+            f"background polling: {model_response.model}"
+        ),
+    )
+    async def check_model_response(model_response: Response) -> Response:
+        return await client.responses.retrieve(model_response.id)
+
+    try:
+        # keep checking status until we get "complete", "incomplete", of "failed"
+        while model_response.status in {"queued", "in_progress"}:
+            await anyio.sleep(5)
+            model_response = await check_model_response(model_response)
+        return model_response
+    except anyio.get_cancelled_exc_class():
+        # if the entire sample is cancelled then let the provider know
+        # so we can stop racking up token costs
+        with anyio.move_on_after(5, shield=True):
+            try:
+                await client.responses.cancel(model_response.id)
+            except BaseException as ex:
+                logger.warning(
+                    f"Error while attempting to cancel background request: {ex}"
+                )
+                pass
+        raise
 
 
 def completion_params_responses(
     model_name: str,
     *,
+    openai_api: "OpenAIAPI",
     config: GenerateConfig,
     service_tier: str | None,
     tools: bool,
@@ -148,10 +224,10 @@ def completion_params_responses(
     if config.seed is not None:
         unsupported_warning("seed")
     if config.temperature is not None:
-        if is_o_series(model_name):
+        if openai_api.is_o_series() or openai_api.is_gpt_5():
             warn_once(
                 logger,
-                "o series models do not support the 'temperature' parameter (temperature is always 1).",
+                "gpt-5 and o-series models do not support the 'temperature' parameter (temperature is always 1).",
             )
         else:
             params["temperature"] = config.temperature
@@ -163,9 +239,18 @@ def completion_params_responses(
         unsupported_warning("logprobs")
     if config.top_logprobs is not None:
         unsupported_warning("top_logprobs")
-    if tools and config.parallel_tool_calls is not None and not is_o_series(model_name):
+    if (
+        tools
+        and config.parallel_tool_calls is not None
+        and not openai_api.is_o_series()
+    ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
-    if is_o_series(model_name) and not is_o1_early(model_name):
+
+    if (
+        (openai_api.is_o_series() and not openai_api.is_o1_early())
+        or openai_api.is_gpt_5()
+        or openai_api.is_codex()
+    ):
         reasoning: dict[str, str] = {}
         if config.reasoning_effort is not None:
             reasoning["effort"] = config.reasoning_effort

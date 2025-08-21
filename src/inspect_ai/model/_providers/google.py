@@ -41,6 +41,7 @@ from google.genai.types import (
     Type,
 )
 from pydantic import JsonValue
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
@@ -50,9 +51,11 @@ from inspect_ai._util.content import (
 from inspect_ai._util.content import (
     ContentAudio,
     ContentData,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
@@ -75,8 +78,12 @@ from inspect_ai.model import (
     StopReason,
     TopLogprob,
 )
+from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._providers._google_batch import GoogleBatcher
 from inspect_ai.model._providers._google_citations import get_candidate_citations
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -211,6 +218,11 @@ class GoogleGenAIAPI(ModelAPI):
                         + "or the 'location' custom model arg (-M) when running against vertex."
                     )
 
+            # custom base_url
+            self.base_url = model_base_url(
+                self.base_url, ["GOOGLE_VERTEX_BASE_URL", "VERTEX_BASE_URL"]
+            )
+
         # normal google endpoint
         else:
             # read api key from env
@@ -223,6 +235,9 @@ class GoogleGenAIAPI(ModelAPI):
         # save model args
         self.model_args = model_args
 
+        # initialize batcher
+        self._batcher: GoogleBatcher | None = None
+
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
@@ -233,17 +248,25 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # http options
+        http_options = HttpOptions(
+            base_url=self.base_url,
+            api_version=self.api_version,
+        )
+
+        # apply timeout if specified
+        if config.timeout:
+            http_options.timeout = config.timeout * 1000
+
         # create client
         client = Client(
             vertexai=self.is_vertex(),
             api_key=self.api_key,
-            http_options={
-                "base_url": self.base_url,
-                "api_version": self.api_version,
-            },
+            http_options=http_options,
             **self.model_args,
         )
 
+        self._resolve_batcher(config, client)
         # create hooks and allocate request
         http_hooks = HttpxHooks(client._api_client._async_httpx_client)
         request_id = http_hooks.start_request()
@@ -288,10 +311,22 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         try:
-            response = await client.aio.models.generate_content(
-                model=self.service_model_name(),
-                contents=gemini_contents,  # type: ignore[arg-type]
-                config=parameters,
+            response = await (
+                self._batcher.generate_for_request(
+                    {
+                        "contents": [
+                            content.model_dump(exclude_none=True)
+                            for content in gemini_contents
+                        ],
+                        **parameters.model_dump(exclude_none=True),
+                    }
+                )
+                if self._batcher
+                else client.aio.models.generate_content(
+                    model=self.service_model_name(),
+                    contents=gemini_contents,  # type: ignore[arg-type]
+                    config=parameters,
+                )
             )
         except ClientError as ex:
             return self.handle_client_error(ex), model_call()
@@ -319,7 +354,7 @@ class GoogleGenAIAPI(ModelAPI):
         return "gemini-2.0" in self.service_model_name()
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
             return is_retryable_http_status(ex.code)
         else:
@@ -418,6 +453,22 @@ class GoogleGenAIAPI(ModelAPI):
             [Tool(google_search=GoogleSearch())]
             if has_native_search
             else [Tool(function_declarations=function_declarations)]
+        )
+
+    def _resolve_batcher(self, config: GenerateConfig, client: Client) -> None:
+        if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
+            return
+        self._batcher = GoogleBatcher(
+            client,
+            batch_config,
+            model_retry_config(
+                self.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                log_model_retry,
+            ),
+            self.service_model_name(),
         )
 
 
@@ -541,7 +592,7 @@ async def content(
 
     elif isinstance(message, ChatMessageTool):
         response = FunctionResponse(
-            name=message.tool_call_id,
+            name=message.function,
             response={
                 "content": (
                     message.error.message if message.error is not None else message.text
@@ -559,14 +610,16 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentReasoning):
         return Part(text=content.reasoning or NO_CONTENT, thought=True)
     elif isinstance(content, ContentData):
-        assert False, "Google provider should never encounter ContentData"
+        raise RuntimeError("Google provider should never encounter ContentData")
+    elif isinstance(content, ContentToolUse):
+        raise RuntimeError("Google provider should never encounter ContentToolUse")
     else:
         return await chat_content_to_part(client, content)
 
 
 async def chat_content_to_part(
     client: Client,
-    content: ContentImage | ContentAudio | ContentVideo,
+    content: ContentImage | ContentAudio | ContentVideo | ContentDocument,
 ) -> Part:
     if isinstance(content, ContentImage):
         content_bytes, mime_type = await file_as_data(content.image)
@@ -700,9 +753,11 @@ def completion_choice_from_candidate(
                 ContentText
                 | ContentReasoning
                 | ContentImage
+                | ContentToolUse
                 | ContentAudio
                 | ContentVideo
                 | ContentData
+                | ContentDocument
             ]
         ) = ""
     # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
@@ -745,7 +800,7 @@ def completion_choice_from_candidate(
                 ):
                     tool_calls.append(
                         ToolCall(
-                            id=part.function_call.name,
+                            id=f"{part.function_call.name}_{uuid()}",
                             function=part.function_call.name,
                             arguments=part.function_call.args,
                         )
@@ -937,7 +992,7 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
 
 
 async def file_for_content(
-    client: Client, content: ContentAudio | ContentVideo
+    client: Client, content: ContentAudio | ContentVideo | ContentDocument
 ) -> File:
     # helper to write trace messages
     def trace(message: str) -> None:
@@ -946,8 +1001,10 @@ async def file_for_content(
     # get the file bytes and compute sha256 hash
     if isinstance(content, ContentAudio):
         file = content.audio
-    else:
+    elif isinstance(content, ContentVideo):
         file = content.video
+    else:
+        file = content.document
     content_bytes, mime_type = await file_as_data(file)
     content_sha256 = hashlib.sha256(content_bytes).hexdigest()
     # we cache uploads for re-use, open the db where we track that

@@ -1,3 +1,5 @@
+import base64
+import functools
 import json
 import re
 import socket
@@ -22,10 +24,13 @@ from openai.types.chat import (
     ChatCompletionContentPartRefusalParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
+    ChatCompletionFunctionToolParam,
     ChatCompletionMessage,
+    ChatCompletionMessageFunctionToolCall,
+    ChatCompletionMessageFunctionToolCallParam,
     ChatCompletionMessageParam,
-    ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
+    ChatCompletionMessageToolCallUnion,
     ChatCompletionNamedToolChoiceParam,
     ChatCompletionSystemMessageParam,
     ChatCompletionToolChoiceOptionParam,
@@ -34,7 +39,8 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
-from openai.types.chat.chat_completion_message_tool_call import Function
+from openai.types.chat.chat_completion_content_part_param import File, FileFile
+from openai.types.chat.chat_completion_message_function_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
@@ -75,39 +81,12 @@ class OpenAIResponseError(OpenAIError):
         return f"{self.code}: {self.message}"
 
 
-def is_o_series(name: str) -> bool:
-    if bool(re.match(r"^o\d+", name)):
-        return True
-    else:
-        return not is_gpt(name) and bool(re.search(r"o\d+", name))
+# is_o_series etc. have been moved to the OpenAIAPI class
+# in _providers/openai.py to enable proper overriding by subclasses
 
 
-def is_o1(name: str) -> bool:
-    return "o1" in name and not is_o1_early(name)
-
-
-def is_o1_early(name: str) -> bool:
-    return "o1-mini" in name or "o1-preview" in name
-
-
-def is_o3_mini(name: str) -> bool:
-    return "o3-mini" in name
-
-
-def is_computer_use_preview(name: str) -> bool:
-    return "computer-use-preview" in name
-
-
-def is_codex(name: str) -> bool:
-    return "codex" in name
-
-
-def is_gpt(name: str) -> bool:
-    return "gpt" in name
-
-
-def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
-    return ChatCompletionMessageToolCall(
+def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
+    return ChatCompletionMessageFunctionToolCall(
         type="function",
         id=tool_call.id,
         function=Function(
@@ -119,7 +98,7 @@ def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
 def openai_chat_tool_call_param(
     tool_call: ToolCall,
 ) -> ChatCompletionMessageToolCallParam:
-    return ChatCompletionMessageToolCallParam(
+    return ChatCompletionMessageFunctionToolCallParam(
         id=tool_call.id,
         function=dict(
             name=tool_call.function, arguments=json.dumps(tool_call.arguments)
@@ -153,7 +132,13 @@ async def openai_chat_completion_part(
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
+    elif content.type == "document":
+        document_data_uri = await file_as_data_uri(content.document)
 
+        return File(
+            type="file",
+            file=FileFile(file_data=document_data_uri, filename=content.filename),
+        )
     else:
         raise RuntimeError(
             "Video content is not currently supported by Open AI chat models."
@@ -212,10 +197,25 @@ async def openai_chat_message(
         raise ValueError(f"Unexpected message role {message.role}")
 
 
-async def openai_chat_messages(
+async def messages_to_openai(
     messages: list[ChatMessage],
     system_role: Literal["user", "system", "developer"] = "system",
 ) -> list[ChatCompletionMessageParam]:
+    """Convert messages to OpenAI Completions API compatible messages.
+
+    ::: callout-note
+    The `message_to_openai()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
+
+    Args:
+       messages: List of messages to convert
+       system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
+    """
     return [await openai_chat_message(message, system_role) for message in messages]
 
 
@@ -265,7 +265,16 @@ def openai_completion_params(
     return params
 
 
+INTERNAL_TAG = "internal"
+CONTENT_INTERNAL_TAG = "content-internal"
+
+
 def openai_assistant_content(message: ChatMessageAssistant) -> str:
+    # In agent bridge scenarios, we could encounter concepts such as reasoning and
+    # .internal use in the ChatMessageAssistant that are not supported by the OpenAI
+    # choices API. This code smuggles that data into the plain text so that it
+    # survives multi-turn round trips.
+
     if isinstance(message.content, str):
         content = message.content
     else:
@@ -280,6 +289,15 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
                 content = f"{content}\n<think{attribs}>\n{c.reasoning}\n</think>\n"
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
+                if c.internal is not None:
+                    content = f"{content}\n<{CONTENT_INTERNAL_TAG}>{base64.b64encode(json.dumps(c.internal).encode('utf-8')).decode('utf-8')}</{CONTENT_INTERNAL_TAG}>"
+
+    if message.internal:
+        content = f"""{content}\n<{INTERNAL_TAG}>{
+            base64.b64encode(json.dumps(message.internal).encode("utf-8")).decode(
+                "utf-8"
+            )
+        }</{INTERNAL_TAG}>\n"""
     return content
 
 
@@ -335,7 +353,7 @@ def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
     )
-    return ChatCompletionToolParam(type="function", function=function)
+    return ChatCompletionFunctionToolParam(type="function", function=function)
 
 
 def openai_chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
@@ -363,15 +381,34 @@ def chat_tool_calls_from_openai(
         return [
             parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
             for call in message.tool_calls
+            # TODO: For now, we don't yet support "custom" tool calls
+            if call.type == "function"
         ]
     else:
         return None
 
 
-def chat_messages_from_openai(
-    model: str,
+async def messages_from_openai(
     messages: list[ChatCompletionMessageParam],
+    model: str | None = None,
 ) -> list[ChatMessage]:
+    """Convert OpenAI Completions API messages into Inspect messages.
+
+    ::: callout-note
+    The `messages_from_openai()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
+    Args:
+        messages: OpenAI Completions API Messages
+        model: Optional model name to tag assistant messages with.
+    """
+    # some cleanup operations to compensate for various scaffolds
+    messages = functools.reduce(openai_assistant_message_reducer, messages, [])
+
     # track tool names by id
     tool_names: dict[str, str] = {}
 
@@ -400,17 +437,30 @@ def chat_messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
+            internal: JsonValue | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
-                result = parse_content_with_reasoning(asst_content)
-                if result is not None:
+                # Even though the choices API doesn't take advantage of .internal,
+                # we could be transforming from OpenAI choices to Inspect for agent
+                # bridge scenarios where a different model (that does use .internal)
+                # is the actual model being used.
+                asst_content, internal = _parse_content_with_internal(
+                    asst_content, INTERNAL_TAG
+                )
+                asst_content, smuggled_reasoning = parse_content_with_reasoning(
+                    asst_content
+                )
+                asst_content, content_internal = _parse_content_with_internal(
+                    asst_content, CONTENT_INTERNAL_TAG
+                )
+                if smuggled_reasoning:
                     content = [
                         ContentReasoning(
-                            reasoning=result.reasoning,
-                            signature=result.signature,
-                            redacted=result.redacted,
+                            reasoning=smuggled_reasoning.reasoning,
+                            signature=smuggled_reasoning.signature,
+                            redacted=smuggled_reasoning.redacted,
                         ),
-                        ContentText(text=result.content),
+                        ContentText(text=asst_content, internal=content_internal),
                     ]
                 else:
                     content = asst_content
@@ -440,6 +490,9 @@ def chat_messages_from_openai(
             if "tool_calls" in message:
                 tool_calls: list[ToolCall] = []
                 for call in message["tool_calls"]:
+                    # TODO: For now, we don't yet support "custom" tool calls
+                    if call["type"] != "function":
+                        continue
                     tool_calls.append(tool_call_from_openai(call))
                     tool_names[call["id"]] = call["function"]["name"]
 
@@ -452,12 +505,19 @@ def chat_messages_from_openai(
                     tool_calls=tool_calls or None,
                     model=model,
                     source="generate",
+                    internal=internal,
                 )
             )
         elif message["role"] == "tool":
             tool_content = message.get("content", None) or ""
             if isinstance(tool_content, str):
-                content = tool_content
+                # If tool_content is a simple str, it could be the result of some
+                # sub-agent tool call that has <think> or <internal> smuggled inside
+                # of it to support agent bridge scenarios. We have to strip that
+                # data. To be clear, if it's <think>, we'll strip the <think> tag,
+                # but the reasoning summary itself will remain in the content.
+                content, _ = _parse_content_with_internal(tool_content, INTERNAL_TAG)
+                content, _ = parse_content_with_reasoning(content)
             else:
                 content = []
                 for tc in tool_content:
@@ -475,7 +535,43 @@ def chat_messages_from_openai(
     return chat_messages
 
 
+def openai_assistant_message_reducer(
+    messages: list[ChatCompletionMessageParam], message: ChatCompletionMessageParam
+) -> list[ChatCompletionMessageParam]:
+    # some scaffolds (e.g. codex cli) split assistant messages with
+    # content and tool calls into:
+    #
+    #    assistant[tool_calls] -> tool -> assistant[content].
+    #
+    # unfortunately for the case of assistant messages that have
+    # reasoning embedded w/ <think> this breaks GPT-5 (which always
+    # wants the reasoning before tool calls). fix this up as required.
+    if (
+        # dealing with at least 2 existing messages
+        len(messages) >= 2
+        # new message is an assistant message w/ content and no tool calls
+        and message["role"] == "assistant"
+        and "tool_calls" not in message
+        and "content" in message
+        # last existing message is a tool result
+        and messages[-1]["role"] == "tool"
+        # second to last existing message is an assistant message w/ tool
+        # calls and no content
+        and messages[-2]["role"] == "assistant"
+        and "tool_calls" in messages[-2]
+        and messages[-2].get("content", None) is None
+    ):
+        # move content from new assistant message (which is not appended)
+        # to previous assistant message
+        messages[-2]["content"] = message["content"]
+    else:
+        messages.append(message)
+
+    return messages
+
+
 def tool_call_from_openai(tool_call: ChatCompletionMessageToolCallParam) -> ToolCall:
+    assert tool_call["type"] == "function", '"custom" tool calls are not supported'
     return parse_tool_call(
         tool_call["id"],
         tool_call["function"]["name"],
@@ -492,21 +588,24 @@ def content_from_openai(
         content["type"] = list(content.keys())[0]  # type: ignore[arg-type]
     if content["type"] == "text":
         text = content["text"]
+        text, content_internal = _parse_content_with_internal(
+            text, CONTENT_INTERNAL_TAG
+        )
         if parse_reasoning:
-            result = parse_content_with_reasoning(text)
-            if result:
+            content_text, reasoning = parse_content_with_reasoning(text)
+            if reasoning:
                 return [
                     ContentReasoning(
-                        reasoning=result.reasoning,
-                        signature=result.signature,
-                        redacted=result.redacted,
+                        reasoning=reasoning.reasoning,
+                        signature=reasoning.signature,
+                        redacted=reasoning.redacted,
                     ),
-                    ContentText(text=result.content),
+                    ContentText(text=content_text, internal=content_internal),
                 ]
             else:
-                return [ContentText(text=text)]
+                return [ContentText(text=text, internal=content_internal)]
         else:
-            return [ContentText(text=text)]
+            return [ContentText(text=text, internal=content_internal)]
     elif content["type"] == "reasoning":  # type: ignore[comparison-overlap]
         return [ContentReasoning(reasoning=content["reasoning"])]
     elif content["type"] == "image_url":
@@ -697,3 +796,41 @@ class OpenAIAsyncHttpxClient(httpx.AsyncClient):
         )
 
         super().__init__(**kwargs)
+
+
+def _parse_content_with_internal(
+    content: str, tag: str
+) -> tuple[str, JsonValue | None]:
+    """
+    Extracts and removes a smuggled <internal>...</internal> tag from the content string, if present.
+
+    Note:
+        This OpenAI model does not natively use `.internal`. However, in bridge
+        scenarios—where output from a model that does use `.internal` is routed
+        through this code—such a tag may be present and should be handled.
+
+    Args:
+        content: The input string, possibly containing an <internal> tag with
+        base64-encoded JSON.
+        tag: The name of the tag for internal data (e.g. <internal>)
+
+    Returns:
+        tuple[str, JsonValue | None]:
+            - The content string with the <internal>...</internal> tag removed (if present), otherwise the original string.
+            - The decoded and parsed internal value (if present), otherwise None.
+
+    Raises:
+        json.JSONDecodeError: If the content of the <internal> tag is not valid JSON after decoding.
+        UnicodeDecodeError: If the content of the <internal> tag is not valid UTF-8 after base64 decoding.
+    """
+    internal_pattern = rf"<{tag}>(.*?)</{tag}>"
+    internal_match = re.search(rf"<{tag}>(.*?)</{tag}>", content, re.DOTALL)
+
+    return (
+        (
+            re.sub(internal_pattern, "", content, flags=re.DOTALL).strip(),
+            json.loads(base64.b64decode(internal_match.group(1)).decode("utf-8")),
+        )
+        if internal_match
+        else (content, None)
+    )

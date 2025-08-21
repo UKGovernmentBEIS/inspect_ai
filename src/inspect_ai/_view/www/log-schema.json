@@ -365,6 +365,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -501,6 +507,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -608,6 +620,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -753,6 +771,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentData"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentToolUse"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },
@@ -888,15 +912,9 @@
               "type": "string"
             },
             {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
+              "items": {
+                "type": "integer"
+              },
               "maxItems": 2,
               "minItems": 2,
               "type": "array"
@@ -986,6 +1004,50 @@
         "data"
       ],
       "title": "ContentData",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentDocument": {
+      "description": "Document content (e.g. a PDF).",
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "document",
+          "default": "document",
+          "title": "Type",
+          "type": "string"
+        },
+        "document": {
+          "title": "Document",
+          "type": "string"
+        },
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "mime_type": {
+          "title": "Mime Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "document",
+        "filename",
+        "mime_type"
+      ],
+      "title": "ContentDocument",
       "type": "object",
       "additionalProperties": false
     },
@@ -1168,6 +1230,84 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ContentToolUse": {
+      "description": "Server side tool use.",
+      "properties": {
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "tool_use",
+          "default": "tool_use",
+          "title": "Type",
+          "type": "string"
+        },
+        "tool_type": {
+          "title": "Tool Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context"
+        },
+        "arguments": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "result": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "internal",
+        "type",
+        "tool_type",
+        "id",
+        "name",
+        "context",
+        "arguments",
+        "result",
+        "error"
+      ],
+      "title": "ContentToolUse",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ContentVideo": {
       "description": "Video content.",
       "properties": {
@@ -1221,15 +1361,9 @@
               "type": "string"
             },
             {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
+              "items": {
+                "type": "integer"
+              },
               "maxItems": 2,
               "minItems": 2,
               "type": "array"
@@ -1480,6 +1614,21 @@
           "default": null,
           "title": "Sample Id"
         },
+        "sample_shuffle": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Shuffle"
+        },
         "epochs": {
           "anyOf": [
             {
@@ -1532,6 +1681,18 @@
           ],
           "default": null,
           "title": "Fail On Error"
+        },
+        "continue_on_fail": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Continue On Fail"
         },
         "retry_on_error": {
           "anyOf": [
@@ -1731,10 +1892,12 @@
       "required": [
         "limit",
         "sample_id",
+        "sample_shuffle",
         "epochs",
         "epochs_reducer",
         "approval",
         "fail_on_error",
+        "continue_on_fail",
         "retry_on_error",
         "message_limit",
         "token_limit",
@@ -2891,6 +3054,18 @@
           "default": null,
           "title": "Task File"
         },
+        "task_display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Display Name"
+        },
         "task_registry_name": {
           "anyOf": [
             {
@@ -3093,6 +3268,7 @@
         "task_id",
         "task_version",
         "task_file",
+        "task_display_name",
         "task_registry_name",
         "task_attribs",
         "task_args",
@@ -3415,6 +3591,7 @@
           "anyOf": [
             {
               "enum": [
+                "minimal",
                 "low",
                 "medium",
                 "high"
@@ -4456,6 +4633,11 @@
           "title": "Choices",
           "type": "array"
         },
+        "completion": {
+          "default": "",
+          "title": "Completion",
+          "type": "string"
+        },
         "usage": {
           "anyOf": [
             {
@@ -4510,6 +4692,7 @@
       "required": [
         "model",
         "choices",
+        "completion",
         "usage",
         "time",
         "metadata",
@@ -6386,9 +6569,6 @@
               "$ref": "#/$defs/ContentText"
             },
             {
-              "$ref": "#/$defs/ContentReasoning"
-            },
-            {
               "$ref": "#/$defs/ContentImage"
             },
             {
@@ -6398,16 +6578,10 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
-              "$ref": "#/$defs/ContentData"
-            },
-            {
               "items": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentReasoning"
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
@@ -6417,9 +6591,6 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
-                  },
-                  {
-                    "$ref": "#/$defs/ContentData"
                   }
                 ]
               },
@@ -6746,15 +6917,9 @@
               "type": "string"
             },
             {
-              "additionalItems": false,
-              "items": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
+              "items": {
+                "type": "integer"
+              },
               "maxItems": 2,
               "minItems": 2,
               "type": "array"
@@ -6898,6 +7063,18 @@
     "location": {
       "title": "Location",
       "type": "string"
+    },
+    "etag": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Etag"
     }
   },
   "required": [

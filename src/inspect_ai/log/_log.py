@@ -22,9 +22,10 @@ from shortuuid import uuid
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, DESERIALIZING, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.hash import base57_id_hash
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.approval._policy import ApprovalPolicyConfig
-from inspect_ai.dataset._dataset import MT, metadata_as
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -32,7 +33,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
-from ._util import thin_input, thin_metadata
+from ._util import thin_input, thin_metadata, thin_text
 
 logger = getLogger(__name__)
 
@@ -43,6 +44,7 @@ class EvalConfigDefaults(TypedDict):
     epochs: int
     epochs_reducer: list[str]
     fail_on_error: bool
+    continue_on_fail: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -55,6 +57,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs": 1,
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
+        "continue_on_fail": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -74,6 +77,9 @@ class EvalConfig(BaseModel):
     )
     """Evaluate specific sample(s)."""
 
+    sample_shuffle: bool | int | None = Field(default=None)
+    """Shuffle order of samples."""
+
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
 
@@ -90,6 +96,13 @@ class EvalConfig(BaseModel):
     fail on sample errors; Value between 0 and 1 to fail if a proportion
     of total samples fails. Value greater than 1 to fail eval if a count
     of samples fails.
+    """
+
+    continue_on_fail: bool | None = Field(default=None)
+    """Continue eval even if the `fail_on_error` condition is met.
+
+    `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+    `False` to fail eval immediately when the `fail_on_error` condition is met (default).
     """
 
     retry_on_error: int | None = Field(default=None)
@@ -225,7 +238,19 @@ class EvalSampleSummary(BaseModel):
         # thin score explanations and metadata
         if self.scores is not None:
             self.scores = {
-                key: Score(value=score.value) for key, score in self.scores.items()
+                key: Score(
+                    value=score.value,
+                    answer=thin_text(score.answer)
+                    if score.answer is not None
+                    else None,
+                    explanation=thin_text(score.explanation)
+                    if score.explanation is not None
+                    else None,
+                    metadata=thin_metadata(score.metadata)
+                    if score.metadata is not None
+                    else None,
+                )
+                for key, score in self.scores.items()
             }
         return self
 
@@ -706,6 +731,9 @@ class EvalSpec(BaseModel):
     task_file: str | None = Field(default=None)
     """Task source file."""
 
+    task_display_name: str | None = Field(default=None)
+    """Task display name."""
+
     task_registry_name: str | None = Field(default=None)
     """Task registry name."""
 
@@ -945,6 +973,9 @@ class EvalLog(BaseModel):
     location: str = Field(default_factory=str, exclude=True)
     """Location that the log file was read from."""
 
+    etag: str | None = Field(default=None, exclude=True)
+    """ETag from S3 for conditional writes."""
+
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
@@ -972,6 +1003,15 @@ class EvalLog(BaseModel):
         elif has_reductions and (has_results and not has_sample_reductions):
             values["results"]["sample_reductions"] = values["reductions"]
         return values
+
+    def __repr__(self) -> str:
+        return to_json_str_safe(
+            self.model_dump(
+                exclude={"samples", "reductions"},
+                exclude_none=True,
+                fallback=lambda _: None,
+            )
+        )
 
 
 def sort_samples(samples: list[EvalSample]) -> None:

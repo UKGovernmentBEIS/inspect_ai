@@ -52,8 +52,17 @@ def resolve_tasks(
     model: Model,
     model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
+    sample_shuffle: bool | int | None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
+        # shuffle data in tasks if requested
+        if sample_shuffle:
+            for task in tasks:
+                if not task.dataset.shuffled:
+                    task.dataset.shuffle(
+                        None if sample_shuffle is True else sample_shuffle
+                    )
+
         return [
             ResolvedTask(
                 task=task,
@@ -100,6 +109,11 @@ def resolve_tasks(
             else:
                 loaded_task_args = previous_task.task_args
                 loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
+            if sample_shuffle is not None:
+                if not loaded_task.dataset.shuffled:
+                    loaded_task.dataset.shuffle(
+                        None if sample_shuffle is True else sample_shuffle
+                    )
             loaded_tasks.append(loaded_task)
             loaded_tasks_args.append(loaded_task_args)
 
@@ -474,11 +488,11 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                         )
                 elif len(solver_decorators) > 1:
                     raise PrerequisiteError(
-                        f"The source file {pretty_solver_file} has more than one @solver function (qualify which solver using e.g. '{solver_file.name}y@solver_fn')"
+                        f"The source file {pretty_solver_file} has more than one @solver function (qualify which solver using e.g. '{solver_file.name}@solver_fn')"
                     )
                 else:
                     raise PrerequisiteError(
-                        f"The source file {pretty_solver_file} has more than one @agent function (qualify which agent using e.g. '{solver_file.name}y@agent_fn')"
+                        f"The source file {pretty_solver_file} has more than one @agent function (qualify which agent using e.g. '{solver_file.name}@agent_fn')"
                     )
 
             # create decorator based solvers using the registry
@@ -535,6 +549,16 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
         cwd_relative_path(scorer_file.as_posix()) if scorer_file else None
     )
 
+    # See if the scorer doesn't have type annotations. Currently the registry will not load
+    # the function without type annotations.
+    # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
+    def validate_scorer(scorer_fn: Scorer, task_name: str, task_path: str) -> None:
+        signature = inspect.signature(scorer_fn)
+        if signature.return_annotation is inspect.Signature.empty:
+            raise PrerequisiteError(
+                f"The scorer '{task_name}' in the file '{task_path}' requires a 'Scorer' return type annotation. Please add the 'Scorer' type annotation to load the scorer."
+            )
+
     with create_cm:
         # is there a scorer file being provided? if not, load from registry
         if scorer_file is None:
@@ -560,15 +584,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                 try:
                     load_module(task_path)
                     scorer_fn = scorer_create(scorer_name, **kwargs)
-
-                    # See if the scorer doesn't have type annotations. Currently the registry will not load
-                    # the function without type annotations.
-                    # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
-                    signature = inspect.signature(scorer_fn)
-                    if signature.return_annotation is inspect.Signature.empty:
-                        raise PrerequisiteError(
-                            f"The scorer '{scorer_name}' in the file '{task_pretty_path}' requires return type annotations. Please add type annotations to load the scorer."
-                        )
+                    validate_scorer(scorer_fn, scorer_name, task_pretty_path)
                     return scorer_fn
                 except ValueError:
                     # we still couldn't load this, request the user provide a path
@@ -602,7 +618,9 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
 
             # create decorator based solvers using the registry
             if any(solver[0] == scorer_name for solver in decorators):
-                return scorer_create(scorer_name, **kwargs)
+                scorer_fn = scorer_create(scorer_name, **kwargs)
+                validate_scorer(scorer_fn, scorer_name, pretty_scorer_file or "")
+                return scorer_fn
             else:
                 raise PrerequisiteError(
                     f"The function {scorer_name} was not found in file {pretty_scorer_file}."

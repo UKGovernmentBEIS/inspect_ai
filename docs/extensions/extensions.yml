@@ -1,0 +1,46 @@
+- name: "[Inspect VS Code](https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai)"
+  description: |
+    VS Code extension that assists with developing and debugging Inspect evaluations.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect-vscode)"
+  categories: ["Tooling"]
+
+- name: "[Inspect Cyber](https://ukgovernmentbeis.github.io/inspect_cyber/)"
+  description: |
+    Python package that streamlines the process of creating agentic cyber evaluations in Inspect.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
+  categories: ["Framework"]
+
+- name: "[Control Arena](https://github.com/UKGovernmentBEIS/control-arena)"
+  description: |
+    Framework for running experiments on AI Control and Monitoring.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/control-arena)"
+  categories: ["Framework"]
+
+- name: "[Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/)"
+  description: |
+    Interactive data visualization for Inspect evalutions.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_viz)"
+  categories: ["Framework"]
+
+- name: "[Docent](https://docs.transluce.org/)"
+  description: |
+    Tools to summarize, cluster, and search over agent transcripts.
+  author: "[Transluce](https://transluce.org/introducing-docent)"
+  categories: ["Analysis"]
+
+- name: "[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)"
+  description: |
+    Integration with Weights and Biases platform.
+  author: "[Arcadia](https://www.arcadiaimpact.org/)"
+  categories: ["Analysis"]
+
+- name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
+  description: |
+    Python package that provides a Kubernetes sandbox environment for Inspect.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox)"
+  categories: ["Sandbox"]
+
+- name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  description: Use virtual machines, running within a [Proxmox](https://www.proxmox.com/en/products/proxmox-virtual-environment/overview) instance, as Inspect sandboxes.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  categories: ["Sandbox"]

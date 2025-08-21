@@ -37,7 +37,6 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -52,6 +51,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
@@ -233,6 +233,10 @@ class ModelAPI(abc.ABC):
         """Any tool use in a message stream means that tools must be passed."""
         return False
 
+    def supports_remote_mcp(self) -> bool:
+        """Does this provider support remote execution of MCP tools?."""
+        return False
+
     def tool_result_images(self) -> bool:
         """Tool results can contain images"""
         return False
@@ -374,8 +378,19 @@ class Model:
         base_config = self.config
 
         # if we are the active_model then merge active generate config
+        active_config = active_generate_config()
         if is_active_model:
-            base_config = base_config.merge(active_generate_config())
+            base_config = base_config.merge(active_config)
+
+        ## otherwise merge connection-oriented config
+        else:
+            base_config = base_config.merge(
+                GenerateConfig(
+                    max_connections=active_config.max_connections,
+                    max_retries=active_config.max_retries,
+                    timeout=active_config.timeout,
+                )
+            )
 
         # merge passed config
         config = base_config.merge(config)
@@ -518,6 +533,15 @@ class Model:
         # resolve all tools into tool_info
         tools_info = get_tools_info(resolved_tools)
 
+        # raise error if we don't support remote_mcp and we have an mcp server
+        if not self.api.supports_remote_mcp():
+            for tool in tools_info:
+                if is_mcp_server_tool(tool):
+                    raise RuntimeError(
+                        f"Remote MCP execution is not supported for {self}. "
+                        + 'Please use "local" execution instead.'
+                    )
+
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):
             tools_info = [tool for tool in tools_info if tool.name == tool_choice.name]
@@ -572,8 +596,6 @@ class Model:
         async def generate() -> tuple[ModelOutput, BaseModel]:
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
-
-            check_sample_interrupt()
 
             cache_entry: CacheEntry | None
             if cache:
@@ -976,6 +998,7 @@ def get_model(
 
     # split model into api name and model name if necessary
     api_name = None
+    original_model = model
     parts = model.split("/")
     if len(parts) > 1:
         api_name = parts[0]
@@ -1011,8 +1034,14 @@ def get_model(
             _models[model_cache_key] = m
         return m
     else:
-        from_api = f" from {api_name}" if api_name else ""
-        raise ValueError(f"Model name {model}{from_api} not recognized.")
+        if api_name is None:
+            raise ValueError(
+                f"Model name {original_model!r} should be in the format of <api_name>/<model_name>."
+            )
+        else:
+            raise ValueError(
+                f"Model API {api_name} of model {original_model!r} not recognized."
+            )
 
 
 # cache for memoization of get_model

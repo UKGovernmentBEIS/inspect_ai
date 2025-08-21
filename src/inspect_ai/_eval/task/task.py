@@ -7,7 +7,11 @@ from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai._util.registry import is_registry_object, registry_info
+from inspect_ai._util.registry import (
+    is_registry_object,
+    registry_info,
+    registry_unqualified_name,
+)
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_config
@@ -59,10 +63,12 @@ class Task:
         approval: str | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
+        continue_on_fail: bool | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
+        display_name: str | None = None,
         name: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
@@ -91,6 +97,8 @@ class Task:
                 (default); `False` to never fail on sample errors; Value between 0 and 1
                 to fail if a proportion of total samples fails. Value greater than 1 to fail
                 eval if a count of samples fails.
+            continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+                `False` to fail eval immediately when the `fail_on_error` condition is met (default).
             message_limit: Limit on total messages used for each sample.
             token_limit: Limit on total tokens used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
@@ -98,9 +106,8 @@ class Task:
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
             name: Task name. If not specified is automatically
-                determined based on the name of the task directory (or "task")
-                if its anonymous task (e.g. created in a notebook and passed to
-                eval() directly)
+                determined based on the registered name of the task.
+            display_name: Task display name (e.g. for plotting). If not specified then defaults to the registered task name.
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
@@ -145,11 +152,13 @@ class Task:
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error
+        self.continue_on_fail = continue_on_fail
         self.message_limit = message_limit
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.version = version
+        self._display_name = display_name
         self._name = name
         self.metadata = metadata
 
@@ -168,6 +177,17 @@ class Task:
             return registry_info(self).name
         else:
             return None
+
+    @property
+    def display_name(self) -> str:
+        if self._display_name is not None:
+            return self._display_name
+        elif self._name is not None:
+            return self._name
+        elif is_registry_object(self):
+            return registry_unqualified_name(self)
+        else:
+            return "task"
 
     @property
     def attribs(self) -> dict[str, Any]:
@@ -193,6 +213,7 @@ def task_with(
     approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
+    continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
@@ -229,6 +250,8 @@ def task_with(
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
+        continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+            `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
@@ -274,6 +297,8 @@ def task_with(
         task.epochs_reducer = epochs.reducer if epochs else None
     if not isinstance(fail_on_error, NotGiven):
         task.fail_on_error = fail_on_error
+    if not isinstance(continue_on_fail, NotGiven):
+        task.continue_on_fail = continue_on_fail
     if not isinstance(message_limit, NotGiven):
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):

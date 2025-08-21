@@ -35,9 +35,10 @@ def convert_eval_logs(
         raise PrerequisiteError(f"Error: path '{path}' does not exist.")
 
     # normalise output dir and ensure it exists
+    output_fs = filesystem(output_dir)
     if output_dir.endswith(fs.sep):
         output_dir = output_dir[:-1]
-    fs.mkdir(output_dir, exist_ok=True)
+    output_fs.mkdir(output_dir, exist_ok=True)
 
     # convert a single file (input file is relative to the 'path')
     def convert_file(input_file: str) -> None:
@@ -56,7 +57,6 @@ def convert_eval_logs(
             target_dir = output_dir
             output_file_basename = os.path.basename(input_name)
 
-        output_fs = filesystem(target_dir)
         output_fs.mkdir(target_dir, exist_ok=True)
 
         # compute full output file and enforce overwrite

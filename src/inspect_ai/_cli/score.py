@@ -1,4 +1,7 @@
-import os
+from __future__ import annotations
+
+import pathlib
+from typing import TYPE_CHECKING
 
 import anyio
 import click
@@ -10,17 +13,18 @@ from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_config
 from inspect_ai._display import display
+from inspect_ai._display.core.results import task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.score import ScoreAction, task_score
 from inspect_ai._util._async import configured_async_backend
-from inspect_ai._util.file import basename, dirname, exists
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders import create_recorder_for_location
 
 from .common import CommonOptions, common_options, process_common_options
 
-SCORES_PER_ROW = 4
+if TYPE_CHECKING:
+    from _typeshed import StrPath
 
 
 @click.command("score")
@@ -50,10 +54,16 @@ SCORES_PER_ROW = 4
     is_flag=True,
     help="Overwrite log file with the scored version",
 )
+@click.option(
+    "--output-file",
+    type=click.Path(dir_okay=False, writable=True),
+    help="Output file to write the scored log to.",
+)
 @common_options
 def score_command(
     log_file: str,
     overwrite: bool | None,
+    output_file: str | None,
     scorer: str | None,
     s: tuple[str] | None,
     action: ScoreAction | None,
@@ -68,6 +78,7 @@ def score_command(
         return await score(
             log_dir=common["log_dir"],
             log_file=log_file,
+            output_file=output_file,
             scorer=scorer,
             s=s,
             overwrite=False if overwrite is None else overwrite,
@@ -97,7 +108,7 @@ async def score(
     eval_log = await recorder.read_log(log_file)
 
     # resolve the target output file (prompts user)
-    output_file = resolve_output_file(
+    output_file = _resolve_output_file(
         log_file, output_file=output_file, overwrite=overwrite
     )
 
@@ -130,43 +141,8 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
     grid.add_row("")
 
     if eval_log.results:
-        # Process scores in groups
-        for i in range(0, len(eval_log.results.scores), SCORES_PER_ROW):
-            # Create a grid for this row of scores
-            score_row = Table.grid(
-                expand=False,
-                padding=(0, 2, 0, 0),
-            )
-
-            # Add columns for each score in this row
-            for _ in range(SCORES_PER_ROW):
-                score_row.add_column()
-
-            # Create individual score tables and add them to the row
-            score_tables: list[Table | str] = []
-            for score in eval_log.results.scores[i : i + SCORES_PER_ROW]:
-                table = Table(
-                    show_header=False, show_lines=False, box=None, show_edge=False
-                )
-                table.add_column()
-                table.add_column()
-
-                # Add score name and metrics
-                table.add_row(f"[bold]{score.name}[/bold]")
-                for name, metric in score.metrics.items():
-                    table.add_row(f"{name}", f"{metric.value:.3f}")
-
-                score_tables.append(table)
-
-            # Fill remaining slots with empty tables if needed
-            while len(score_tables) < SCORES_PER_ROW:
-                score_tables.append("")
-
-            # Add the score tables to this row
-            score_row.add_row(*score_tables)
-
-            # Add this row of scores to the main grid
-            grid.add_row(score_row)
+        for row in task_scores(eval_log.results.scores, pad_edge=True):
+            grid.add_row(row)
 
     grid.add_row("")
     grid.add_row(f" Log: [{theme.link}]{output_file}[/{theme.link}]")
@@ -183,45 +159,31 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
     console.print(p)
 
 
-def resolve_output_file(log_file: str, output_file: str | None, overwrite: bool) -> str:
+def _resolve_output_file(
+    log_file: str, output_file: StrPath | None, overwrite: bool
+) -> str:
     # resolve the output file (we may overwrite, use the passed file name, or suggest a new name)
-    if output_file is None:
-        if overwrite:
-            # explicitly asked to overwrite
-            return log_file
-        else:
-            if exists(log_file):
-                # Ask if we should overwrite
-                file_action = Prompt.ask(
-                    "Overwrite existing log file or create new log file?",
-                    choices=["overwrite", "create", "o", "c"],
-                    default="create",
-                )
-                if file_action in ["overwrite", "o"]:
-                    return log_file
-                else:
-                    file_name = basename(log_file)
-                    base_dir = dirname(log_file)
-                    _, ext = os.path.splitext(file_name)
+    output_file = pathlib.Path(output_file or log_file)
+    if not output_file.exists() or overwrite:
+        return str(output_file)
 
-                    count = 0
+    # Ask if we should overwrite
+    file_action = Prompt.ask(
+        f"Overwrite {output_file} or create new file?",
+        choices=["overwrite", "create", "o", "c"],
+        default="create",
+    )
+    if file_action in ["overwrite", "o"]:
+        return str(output_file)
 
-                    def filename() -> str:
-                        if count > 0:
-                            return f"{file_name.removesuffix(ext)}-scored-{count}{ext}"
-                        else:
-                            return f"{file_name.removesuffix(ext)}-scored{ext}"
+    new_output_file = output_file.with_stem(f"{output_file.stem}-scored")
+    count = 0
+    while new_output_file.exists():
+        count = count + 1
+        new_output_file = output_file.with_stem(f"{output_file.stem}-scored-{count}")
 
-                    while exists(f"{os.path.join(base_dir, filename())}"):
-                        count = count + 1
-
-                    suggested_file = filename()
-                    user_file = Prompt.ask("Output file name?", default=suggested_file)
-                    return os.path.join(base_dir, user_file)
-            else:
-                return log_file
-    else:
-        return output_file
+    user_file = Prompt.ask("Output file name?", default=new_output_file.name)
+    return str(output_file.parent / user_file)
 
 
 def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction:

@@ -1,11 +1,6 @@
 ---
-title: "inspect_ai.analysis.beta"
+title: "inspect_ai.analysis"
 ---
-
-::: callout-note
-Analysis functions are currently in beta and are exported from the **inspect_ai.analysis.beta** module. The beta module will be preserved after final release so that code written against it now will continue to work after the beta.
-:::
-
 
 ## Evals
 
@@ -15,7 +10,7 @@ Analysis functions are currently in beta and are exported from the **inspect_ai.
 ### EvalInfo
 ### EvalTask
 ### EvalModel
-### EvalConfig
+### EvalConfiguration
 ### EvalResults
 ### EvalScores
 
@@ -43,6 +38,17 @@ Analysis functions are currently in beta and are exported from the **inspect_ai.
 ### EventTiming
 ### ModelEventColumns
 ### ToolEventColumns
+
+## Prepare
+
+### prepare
+### log_viewer
+### model_info
+### task_info
+### frontier
+### score_to_float
+### Operation
+### ModelInfo
 
 ## Columns
 

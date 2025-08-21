@@ -1,3 +1,4 @@
+import pytest
 from pydantic import BaseModel, ValidationError
 from test_helpers.utils import (
     skip_if_no_google,
@@ -140,9 +141,17 @@ def test_openai_structured_output():
 
 
 @skip_if_no_openai
-def test_openai_responses_structured_output():
+def test_openai_responses_structured_output_color():
     model = get_model("openai/gpt-4o-mini", responses_api=True)
     check_color_structured_output(model)
+
+
+@skip_if_no_openai
+@pytest.mark.flaky
+def test_openai_responses_structured_output_pydantic():
+    # This test is flaky since is relies on the model returning objects of the expected
+    # shape. This often happens, but it's common for the shape to differ quite a bit
+    model = get_model("openai/gpt-4o-mini", responses_api=True)
     check_nested_pydantic_output(model)
 
 

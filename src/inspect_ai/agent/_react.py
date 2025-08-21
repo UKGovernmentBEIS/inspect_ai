@@ -133,10 +133,14 @@ def react(
     tools = list(tools) if tools is not None else []
 
     # resolve submit tool
-    submit_tool = ToolDef(
-        submit.tool or default_submit_tool(),
-        name=submit.name,
-        description=submit.description,
+    submit_tool = (
+        ToolDef(
+            submit.tool or default_submit_tool(),
+            name=submit.name,
+            description=submit.description,
+        )
+        if not isinstance(submit.tool, ToolDef)
+        else submit.tool
     )
     tools.append(submit_tool)
 
@@ -153,6 +157,8 @@ def react(
                 for result in tool_results
                 if isinstance(result, ChatMessageTool)
                 and result.function == submit_tool.name
+                # Require that the submit tool call has no error
+                and result.error is None
             ),
             None,
         )

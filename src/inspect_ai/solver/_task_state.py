@@ -8,8 +8,8 @@ from typing import Any, Type, Union, cast, overload
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._util.interrupt import check_sample_interrupt
-from inspect_ai.dataset._dataset import MT, Sample, metadata_as
+from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
@@ -18,6 +18,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import tools_info
 from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
@@ -157,6 +158,7 @@ class TaskState:
         token_limit: int | None = None,
         completed: bool = False,
         metadata: dict[str, Any] = {},
+        store: dict[str, Any] | None = None,
     ) -> None:
         self._model = model
         self._sample_id = sample_id
@@ -170,7 +172,7 @@ class TaskState:
         self._message_limit = create_message_limit(message_limit)
         self._token_limit = create_token_limit(token_limit)
         self._completed = completed
-        self._store = Store()
+        self._store = Store(store)
         self._uuid = uuid()
 
         if choices:
@@ -235,11 +237,7 @@ class TaskState:
         write access to the user chat prompt. Raises an
         exception if there is no user prompt
         """
-        prompt = next((m for m in reversed(self.messages) if m.role == "user"), None)
-        if prompt:
-            return prompt
-        else:
-            raise ValueError("user_prompt requested from TaskState but none available")
+        return user_prompt(self.messages)
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -363,7 +361,6 @@ class TaskState:
         if self._completed:
             return True
         else:
-            check_sample_interrupt()
             return self._completed
 
     @completed.setter

@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 import time
 from pathlib import Path
 from random import random
@@ -81,6 +82,9 @@ async def test_subprocess_timeout():
 @pytest.mark.anyio
 @pytest.mark.slow
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+@pytest.mark.skipif(
+    sys.platform == "darwin", reason="Different termination behavior on MacOS"
+)
 async def test_subprocess_which_ignores_sigterm_timeout():
     timeout_duration = 10 + random()
     subprocess_cmds = ["bash", "-c", f"trap '' TERM; sleep {timeout_duration}"]
