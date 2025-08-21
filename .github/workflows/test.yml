@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Download artifact from run
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: created-file
           github-token: ${{ secrets.GITHUB_TOKEN }}
