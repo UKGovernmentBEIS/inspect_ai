@@ -119,6 +119,18 @@ async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
         return False
 
 
+# TODO: Enhance this API to:
+# - embrace the fact that the name of the injected file may not be known at compile time
+# - support multiple injections
+# - I'm thinking of a design where an Injector has two Callables
+#    - One to determine if the injection has already been performed in the sandbox
+#    - One to perform that injection
+#
+# This is motivated by
+# - The desire to reuse this injection tech for multiple concerns. e.g. tool-support and human agent
+# - The desire to not rename the tool-support executable from the rich name that
+#   includes the version and arch (e.g. `tool-support-arm64-v2`) to a constant name
+#   like `tool-support`. This just feels like it will be better/easier for debugging
 async def sandbox_with_injection(
     file: str,
     injector: Callable[[SandboxEnvironment], Awaitable[None]],
