@@ -1,6 +1,7 @@
 import contextlib
 import re
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
 
@@ -22,13 +23,19 @@ from inspect_ai.model._openai import (
     messages_to_openai,
 )
 from inspect_ai.model._providers.providers import validate_openai_client
+from inspect_ai.tool._tools._web_search._web_search import (
+    WebSearchProviders,
+    internal_web_search_providers,
+)
 
 from .completions import inspect_completions_api_request
 from .responses import inspect_responses_api_request
 
 
 @contextlib.asynccontextmanager
-async def agent_bridge() -> AsyncGenerator[None, None]:
+async def agent_bridge(
+    web_search: WebSearchProviders | None = None,
+) -> AsyncGenerator[None, None]:
     """Agent bridge.
 
     ::: callout-note
@@ -46,22 +53,42 @@ async def agent_bridge() -> AsyncGenerator[None, None]:
 
     See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
     documentation for additional details.
+
+    Args:
+       web_search: Configuration for mapping OpenAI Responses internal
+         web_search tool to Inspect. By default, will map to the
+         internal provider of the target model (supported for OpenAI,
+         Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
+         configuration to use to use an external provider like
+         Tavili or Exa for models that don't support internal search.
     """
     # ensure one time init
     init_openai_request_patch()
 
-    # set the patch enabled for this context and child coroutines
-    token = _patch_enabled.set(True)
+    # resolve web search config
+    web_search = web_search or internal_web_search_providers()
+
+    # set the patch config for this context and child coroutines
+    token = _patch_config.set(PatchConfig(enabled=True, web_search=web_search))
     try:
         yield
     finally:
-        _patch_enabled.reset(token)
+        _patch_config.reset(token)
 
 
 _patch_initialised: bool = False
 
-_patch_enabled: ContextVar[bool] = ContextVar(
-    "openai_request_patch_enabled", default=False
+
+@dataclass
+class PatchConfig:
+    enabled: bool = field(default=False)
+    web_search: WebSearchProviders = field(
+        default_factory=internal_web_search_providers
+    )
+
+
+_patch_config: ContextVar[PatchConfig] = ContextVar(
+    "openai_request_patch_config", default=PatchConfig()
 )
 
 
@@ -88,7 +115,7 @@ def init_openai_request_patch() -> None:
         # patch and when to stand down
         if (
             # enabled for this coroutine
-            _patch_enabled.get()
+            _patch_config.get().enabled
             # completions or responses request
             and options.url in ["/chat/completions", "/responses"]
         ):
@@ -105,7 +132,9 @@ def init_openai_request_patch() -> None:
                 if options.url == "/chat/completions":
                     return await inspect_completions_api_request(json_data)
                 else:
-                    return await inspect_responses_api_request(json_data)
+                    return await inspect_responses_api_request(
+                        json_data, _patch_config.get().web_search
+                    )
 
         # otherwise just delegate
         return await original_request(

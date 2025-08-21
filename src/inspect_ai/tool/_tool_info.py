@@ -49,7 +49,7 @@ class ToolInfo(BaseModel):
     """Short description of tool."""
     parameters: ToolParams = Field(default_factory=ToolParams)
     """JSON Schema of tool parameters object."""
-    options: dict[str, object] | None = Field(default=None)
+    options: dict[str, Any] | None = Field(default=None)
     """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
 
 

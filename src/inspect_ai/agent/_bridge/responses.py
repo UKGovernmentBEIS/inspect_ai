@@ -89,6 +89,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._json import JSONSchema
 
 from .util import resolve_inspect_model
@@ -96,7 +97,9 @@ from .util import resolve_inspect_model
 logger = getLogger(__file__)
 
 
-async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
+async def inspect_responses_api_request(
+    json_data: dict[str, Any], web_search: WebSearchProviders
+) -> Response:
     # resolve model
     model = resolve_inspect_model(str(json_data["model"]))
     model_name = model.api.model_name
@@ -106,7 +109,7 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
 
     # convert openai tools to inspect tools
     responses_tools: list[ToolParam] = json_data.get("tools", [])
-    tools = [tool_from_responses_tool(tool) for tool in responses_tools]
+    tools = [tool_from_responses_tool(tool, web_search) for tool in responses_tools]
     responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
         "tool_choice", None
     )
@@ -194,7 +197,9 @@ def responses_tool_choice_param_to_tool_choice(
         return tool_choice_adapter.validate_python(tool_choice)
 
 
-def tool_from_responses_tool(tool_param: ToolParam) -> ToolInfo:
+def tool_from_responses_tool(
+    tool_param: ToolParam, web_search: WebSearchProviders
+) -> ToolInfo:
     if is_function_tool_param(tool_param):
         return ToolInfo(
             name=tool_param["name"],
@@ -202,8 +207,23 @@ def tool_from_responses_tool(tool_param: ToolParam) -> ToolInfo:
             parameters=ToolParams.model_validate(tool_param["parameters"]),
         )
     elif is_web_search_tool_param(tool_param):
+        # pass through openai options if there is no special openai config
+        if web_search.get("openai", False) is True:
+            if "user_location" in tool_param or "search_context_size" in tool_param:
+                # this came from the user in the external scaffold. we want
+                # all the fields except the type as our 'web_search' config
+                tool_param = tool_param.copy()
+                del tool_param["type"]  # type: ignore[misc]
+
+                # this came from the inspect agent_bridge() call. we want
+                # to replace it with whatever the user specified in the scaffold.
+                web_search = web_search.copy()
+                web_search["openai"] = tool_param  # type: ignore[typeddict-item]
+
         return ToolInfo(
-            name="web_search", description="web_search", options={"openai": True}
+            name="web_search",
+            description="web_search",
+            options=cast(dict[str, Any], web_search),
         )
     elif is_computer_tool_param(tool_param):
         return ToolInfo(

@@ -6,6 +6,10 @@ from typing import AsyncIterator
 
 import anyio
 
+from inspect_ai.tool._tools._web_search._web_search import (
+    WebSearchProviders,
+    internal_web_search_providers,
+)
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox import SandboxEnvironment
 from inspect_ai.util._sandbox import sandbox as default_sandbox
@@ -25,7 +29,9 @@ class SandboxAgentBridge:
 
 @contextlib.asynccontextmanager
 async def sandbox_agent_bridge(
-    sandbox: SandboxEnvironment | None = None, port: int = 13131
+    sandbox: SandboxEnvironment | None = None,
+    port: int = 13131,
+    web_search: WebSearchProviders | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -49,9 +55,18 @@ async def sandbox_agent_bridge(
     Args:
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
+        web_search: Configuration for mapping OpenAI Responses internal
+            web_search tool to Inspect. By default, will map to the
+            internal provider of the target model (supported for OpenAI,
+            Anthropic, Gemini, Grok, and Perplxity). Pass an alternate
+            configuration to use to use an external provider like
+            Tavili or Exa for models that don't support internal search.
     """
     # resolve sandbox
     sandbox = sandbox or default_sandbox()
+
+    # resolve web search config
+    web_search = web_search or internal_web_search_providers()
 
     try:
         async with anyio.create_task_group() as tg:
@@ -59,7 +74,7 @@ async def sandbox_agent_bridge(
             started = anyio.Event()
 
             # sandbox service that receives model requests
-            tg.start_soon(run_model_service, sandbox, started)
+            tg.start_soon(run_model_service, sandbox, web_search, started)
 
             # proxy server that runs in container and forwards to sandbox service
             tg.start_soon(run_model_proxy, sandbox, port, started)
