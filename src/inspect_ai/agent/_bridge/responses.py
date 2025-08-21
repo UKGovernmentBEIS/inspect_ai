@@ -38,6 +38,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -116,7 +117,11 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
 
     # convert to inspect messages
     input: list[ResponseInputItemParam] = json_data["input"]
+
+    debug_log("SCAFFOLD INPUT", input)
+
     messages = messages_from_responses_input(input, tools, model_name)
+    debug_log("INSPECT MESSAGES", messages)
 
     # run inference
     output = await model.generate(
@@ -126,8 +131,10 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
         config=generate_config_from_openai_responses(json_data),
     )
 
+    debug_log("INSPECT OUTPUT", output.message)
+
     # return response
-    return Response(
+    response = Response(
         id=output.message.id or uuid(),
         created_at=int(time()),
         model=model_name,
@@ -138,6 +145,15 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
         tools=responses_tool_params_to_tools(responses_tools),
         usage=responses_model_usage(output.usage),
     )
+    debug_log("SCAFFOLD RESPONSE", response)
+
+    return response
+
+
+def debug_log(caption: str, o: Any) -> None:
+    # print(caption)
+    # print(to_json_str_safe(o))
+    pass
 
 
 def tool_choice_from_responses_tool_choice(
