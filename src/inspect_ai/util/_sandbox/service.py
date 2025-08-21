@@ -41,6 +41,7 @@ async def sandbox_service(
     until: Callable[[], bool],
     sandbox: SandboxEnvironment,
     user: str | None = None,
+    polling_interval: float | None = None,
     started: anyio.Event | None = None,
 ) -> None:
     """Run a service that is callable from within a sandbox.
@@ -74,8 +75,14 @@ async def sandbox_service(
         until: Function used to check whether the service should stop.
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
+        polling_interval: Polling interval for request checking. If not specified uses
+          sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
     """
+    # sort out polling interval
+    if polling_interval is None:
+        polling_interval = sandbox.default_polling_interval()
+
     # setup and start service
     service = SandboxService(name, sandbox, user, started)
     if isinstance(methods, list):
@@ -86,7 +93,7 @@ async def sandbox_service(
 
     # wait for and process methods
     while not until():
-        await anyio.sleep(POLLING_INTERVAL)
+        await anyio.sleep(polling_interval)
         await service.handle_requests()
 
 
