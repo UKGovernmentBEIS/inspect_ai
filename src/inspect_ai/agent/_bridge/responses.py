@@ -103,6 +103,9 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
     model = resolve_inspect_model(str(json_data["model"]))
     model_name = model.api.model_name
 
+    # record parallel tool calls
+    parallel_tool_calls = json_data.get("parallel_tool_calls", True)
+
     # convert openai tools to inspect tools
     responses_tools: list[ToolParam] = json_data.get("tools", [])
     tools = [tool_from_responses_tool(tool) for tool in responses_tools]
@@ -130,7 +133,7 @@ async def inspect_responses_api_request(json_data: dict[str, Any]) -> Response:
         model=model_name,
         object="response",
         output=responses_output_items_from_assistant_message(output.message),
-        parallel_tool_calls=False,
+        parallel_tool_calls=parallel_tool_calls,
         tool_choice=responses_tool_choice_param_to_tool_choice(responses_tool_choice),
         tools=responses_tool_params_to_tools(responses_tools),
         usage=responses_model_usage(output.usage),
