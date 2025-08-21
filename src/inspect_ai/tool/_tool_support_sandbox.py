@@ -3,28 +3,18 @@ import sys
 from contextlib import asynccontextmanager
 from importlib import resources
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Literal, TypeAlias, TypedDict
+from typing import AsyncIterator, BinaryIO
 
+import httpx
 from rich.prompt import Prompt
 
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util import input_screen
+from inspect_ai.util._sandbox._recon import Architecture, detect_sandbox_os
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-Architecture: TypeAlias = Literal[
-    "amd64",  # 64-bit Intel/AMD
-    "arm64",  # 64-bit ARM
-]
-
-
-class SupportedContainerOSInfo(TypedDict, total=False):
-    os: Literal["Linux"]
-    distribution: Literal["Ubuntu", "Debian", "Kali Linux", "Debian-based"]
-    version: str
-    version_info: str
-    architecture: Architecture
-    uname: str
+BUCKET_BASE_URL = "https://inspect-tool-support.s3.us-east-2.amazonaws.com"
 
 
 # TODO: Currently, this logic relies on a specific file existing at a specific path
@@ -34,137 +24,13 @@ SANDBOX_CLI = "/opt/inspect-tool-support"
 
 
 async def inject_tool_support_code(sandbox: SandboxEnvironment) -> None:
-    info = await _detect_sandbox_os(sandbox)
+    info = await detect_sandbox_os(sandbox)
 
-    async with _open_executable_for_arch(info["architecture"]) as f:
+    async with _open_executable_for_arch(info["architecture"]) as (_, f):
+        # TODO: The first tuple member, filename, isn't currently used, but it will be
         await sandbox.write_file(SANDBOX_CLI, f.read())
         # .write_file used `tee` which dropped execute permissions
         await sandbox.exec(["chmod", "+x", SANDBOX_CLI])
-
-
-async def _detect_sandbox_os(sandbox: SandboxEnvironment) -> SupportedContainerOSInfo:
-    """Detect OS information using standard platform.uname() system values."""
-    # First, determine the system type using uname -s (similar to platform.uname().system)
-    system_cmd = """
-if command -v uname >/dev/null 2>&1; then
-    uname -s
-else
-    echo "unknown"
-fi
-"""
-
-    system_output = await _sandbox_exec(sandbox, system_cmd)
-    system = system_output.strip() if system_output else "unknown"
-
-    # Only Linux is supported for tool injection
-    if system == "Linux":
-        return await _detect_linux(sandbox)
-    else:
-        raise NotImplementedError(
-            f"Tool support injection is not implemented for OS: {system}. "
-            "Only Linux containers are currently supported."
-        )
-
-
-async def _sandbox_exec(sandbox: SandboxEnvironment, command: str) -> str:
-    """Execute a command in the container and return the output."""
-    result = await sandbox.exec(["sh", "-c", command], timeout=30)
-    if not result.success:
-        raise RuntimeError(
-            f"Error executing command {' '.join(command)}: {result.stderr}"
-        )
-    return result.stdout.strip()
-
-
-async def _detect_architecture(sandbox: SandboxEnvironment) -> Architecture:
-    """Detect the architecture of the container using standard platform.uname() machine values."""
-    arch_cmd = """
-if command -v uname >/dev/null 2>&1; then
-    uname -m
-else
-    echo "unknown"
-fi
-"""
-
-    arch_output = await _sandbox_exec(sandbox, arch_cmd)
-    if not arch_output or arch_output == "unknown":
-        raise RuntimeError("Unable to determine sandbox architecture")
-
-    arch = arch_output.lower()
-    arch_mapping: dict[str, Architecture] = {
-        "x86_64": "amd64",
-        "amd64": "amd64",  # Windows/Docker often reports as amd64
-        "aarch64": "arm64",
-        "arm64": "arm64",  # macOS/Docker often reports as arm64
-    }
-
-    if arch not in arch_mapping:
-        raise NotImplementedError(f"Architecture {arch} is not supported.")
-    return arch_mapping[arch]
-
-
-async def _detect_linux(sandbox: SandboxEnvironment) -> SupportedContainerOSInfo:
-    """Detect Linux distribution information."""
-    # Check /etc/os-release first
-    os_release_cmd = """
-if [ -f /etc/os-release ]; then
-    cat /etc/os-release
-else
-    echo "not_found"
-fi
-"""
-
-    architecture = await _detect_architecture(sandbox)
-    os_release_output = await _sandbox_exec(sandbox, os_release_cmd)
-    if os_release_output and os_release_output != "not_found":
-        os_info = {
-            key: value.strip('"')
-            for line in os_release_output.split("\n")
-            if "=" in line
-            for key, value in [line.split("=", 1)]
-        }
-
-        distro_id = os_info.get("ID", "").lower()
-
-        return SupportedContainerOSInfo(
-            os="Linux",
-            distribution=(
-                "Ubuntu"
-                if distro_id == "ubuntu"
-                else "Debian"
-                if distro_id == "debian"
-                else "Kali Linux"
-            ),
-            version=os_info.get("VERSION", "Unknown"),
-            architecture=architecture,
-        )
-
-    # Fallback: check for Kali version file
-    kali_version = await _sandbox_exec(
-        sandbox, "[ -f /etc/kali_version ] && cat /etc/kali_version"
-    )
-    if kali_version:
-        return SupportedContainerOSInfo(
-            os="Linux",
-            distribution="Kali Linux",
-            version=kali_version,
-            architecture=architecture,
-        )
-
-    # Fallback: check for Debian version file
-    debian_version = await _sandbox_exec(
-        sandbox, "[ -f /etc/debian_version ] && cat /etc/debian_version"
-    )
-    if debian_version:
-        return SupportedContainerOSInfo(
-            os="Linux",
-            distribution="Debian-based",
-            version=debian_version,
-            architecture=architecture,
-        )
-
-    # Last resort: raise error if OS/distribution could not be determined
-    raise RuntimeError("Could not determine OS/distribution")
 
 
 @asynccontextmanager
@@ -176,23 +42,65 @@ async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
 
 
 @asynccontextmanager
-async def _open_executable_for_arch(arch: Architecture) -> AsyncIterator[BinaryIO]:
-    """Resolve and provide access to the executable file."""
-    # Build the executable filename based on architecture
-    executable = f"inspect-tool-support-{arch}"
+async def _open_executable_for_arch(
+    arch: Architecture,
+) -> AsyncIterator[tuple[str, BinaryIO]]:
+    is_pypi_install = _is_pypi_install()
+    executable_name = _get_versioned_executable_name(arch)
+    dev_executable_name = f"{executable_name}-dev"
 
-    # Check if executable exists in the binaries package
+    # 3.1. Local Executable Check - Check dev version first (unless it's PyPI)
+    if not is_pypi_install:
+        try:
+            async with _open_executable(dev_executable_name) as f:
+                yield dev_executable_name, f
+                return
+        except (FileNotFoundError, ModuleNotFoundError):
+            pass
+
+    # 3.1. Local Executable Check - Then check production version
     try:
-        async with _open_executable(executable) as f:
-            yield f
+        async with _open_executable(executable_name) as f:
+            yield executable_name, f
             return
     except (FileNotFoundError, ModuleNotFoundError):
-        # Executable doesn't exist, handle based on installation type
         pass
 
-    await _go_get_it(arch, executable)
-    async with _open_executable(executable) as f:
-        yield f
+    if is_pypi_install:
+        raise PrerequisiteError(
+            f"Tool support executable {executable_name} is missing from the PyPI package installation. "
+            "This indicates a problem with the package. Please reinstall inspect_ai."
+        )
+
+    # 3.2. S3 Download Attempt - Try to download from S3
+    try:
+        await _download_from_s3(executable_name)
+        async with _open_executable(executable_name) as f:
+            yield executable_name, f
+            return
+    except Exception:
+        # Download failure is expected when developers have bumped version
+        # but new version hasn't been promoted to S3 yet. Proceed to build.
+        pass
+
+    # 3.3. User Build Prompt - Prompt user if S3 download failed
+    with input_screen():
+        response = Prompt.ask(
+            "Executable not found. Build locally? (requires Docker)",
+            choices=["y", "n"],
+            default="y",
+            case_sensitive=False,
+        )
+        if response != "y":
+            raise PrerequisiteError(
+                f"Tool support executable {dev_executable_name} is required but not present. "
+                f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch} --dev"
+            )
+
+    # 3.4. Local Build Process - Build dev version locally
+    await _build_it(arch, dev_executable_name)
+    async with _open_executable(dev_executable_name) as f:
+        yield dev_executable_name, f
 
 
 def _get_tool_support_version() -> str:
@@ -203,7 +111,7 @@ def _get_tool_support_version() -> str:
         # Try to read from the package first
         with (
             importlib.resources.files("inspect_ai.tool")
-            .joinpath("_tool_support_version.txt")
+            .joinpath("tool_support_version.txt")
             .open() as f
         ):
             return f.read().strip()
@@ -222,54 +130,27 @@ def _get_tool_support_version() -> str:
 
 
 def _get_versioned_executable_name(arch: Architecture) -> str:
-    """Get the versioned executable name for the given architecture."""
-    version = _get_tool_support_version()
-    return f"inspect-tool-support-{arch}-v{version}"
+    """Get the base versioned executable name for the given architecture.
+
+    This returns the production/S3 executable name. Development executables
+    are created by appending "-dev" to this base name.
+    """
+    return f"inspect-tool-support-{arch}-v{_get_tool_support_version()}"
 
 
-async def _download_from_github_releases(arch: Architecture) -> None:
-    """Download the versioned executable from GitHub releases."""
-    from pathlib import Path
-
-    import httpx
-
-    versioned_executable = _get_versioned_executable_name(arch)
-
-    # GitHub release URL pattern
-    repo_url = "https://api.github.com/repos/UKGovernmentBEIS/inspect_ai/releases"
-
+async def _download_from_s3(filename: str) -> None:
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Get releases to find the one with our version
-            response = await client.get(repo_url)
-            response.raise_for_status()
-            releases = response.json()
-
-            # Look for a release that contains our versioned executable
-            download_url = None
-            for release in releases:
-                for asset in release.get("assets", []):
-                    if asset["name"] == versioned_executable:
-                        download_url = asset["browser_download_url"]
-                        break
-                if download_url:
-                    break
-
-            if not download_url:
-                raise RuntimeError(
-                    f"Executable {versioned_executable} not found in any GitHub release"
-                )
-
             # Download the executable
-            response = await client.get(download_url)
+            response = await client.get(f"{BUCKET_BASE_URL}/{filename}")
             response.raise_for_status()
 
             # Save to binaries directory
             binaries_path = Path(inspect_ai.__file__).parent / "binaries"
             binaries_path.mkdir(exist_ok=True)
 
-            # Save with original non-versioned name for compatibility
-            executable_path = binaries_path / f"inspect-tool-support-{arch}"
+            # Save with versioned name to match what we're looking for
+            executable_path = binaries_path / filename
             executable_path.write_bytes(response.content)
             executable_path.chmod(0o755)
 
@@ -279,73 +160,32 @@ async def _download_from_github_releases(arch: Architecture) -> None:
         raise RuntimeError(f"Error downloading executable: {e}")
 
 
-async def _go_get_it(arch: Architecture, executable: str) -> None:
-    installation_type = _detect_installation_type()
+async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
+    # Find the build script
+    build_script_path = (
+        Path(__file__).parent.parent.parent
+        / "inspect_tool_support"
+        / "build_within_container.py"
+    )
 
-    if installation_type == "pypi":
-        # Case 1: PyPI package installation - executables should be bundled
-        raise PrerequisiteError(
-            f"Tool support executable {executable} is missing from the PyPI package installation. "
-            "This indicates a problem with the package. Please reinstall inspect_ai."
-        )
+    if not build_script_path.exists():
+        raise FileNotFoundError(f"Build script not found at {build_script_path}")
 
-    elif installation_type == "git":
-        # Case 2: Git reference installation - download from GitHub releases
-        try:
-            await _download_from_github_releases(arch)
-        except Exception as e:
-            raise PrerequisiteError(
-                f"Failed to download tool support executable for git installation: {e}\n"
-                f"As a workaround, manually build with: python src/inspect_tool_support/build_within_container.py --arch {arch}"
-            )
+    print(f"Building missing executable {dev_executable_name}...")
 
-    elif installation_type == "editable":
-        # Case 3: Editable installation - prompt user to build
+    # Run the build script
+    subprocess.run(
+        [sys.executable, str(build_script_path), "--arch", arch, "--dev"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
-        with input_screen():
-            response = Prompt.ask(
-                f"Tool support executable {executable} is missing. Build it now?",
-                choices=["y", "n"],
-                default="y",
-                case_sensitive=False,
-            )
-            if response != "y":
-                raise PrerequisiteError(
-                    f"Tool support executable {executable} is required but not present. "
-                    f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch}"
-                )
-
-        # Find the build script
-        build_script_path = (
-            Path(__file__).parent.parent.parent
-            / "inspect_tool_support"
-            / "build_within_container.py"
-        )
-
-        if not build_script_path.exists():
-            raise FileNotFoundError(f"Build script not found at {build_script_path}")
-
-        print(f"Building missing executable {executable} for {arch} architecture...")
-
-        # Run the build script
-        result = subprocess.run(
-            [sys.executable, str(build_script_path), "--arch", arch],
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to build executable {executable}: {result.stderr}"
-            )
-
-        print(f"Successfully built {executable}")
-    else:
-        raise PrerequisiteError(f"Unknown installation type: {installation_type}")
+    print(f"Successfully built {dev_executable_name}")
 
 
-def _detect_installation_type() -> Literal["pypi", "git", "editable"]:
-    """Detect the type of installation using multiple heuristics."""
+def _is_pypi_install() -> bool:
+    """Detect if this is a PyPI installation (wheel from PyPI, not git or editable)."""
     import importlib.metadata
     from importlib.metadata import PackageNotFoundError
 
@@ -355,60 +195,34 @@ def _detect_installation_type() -> Literal["pypi", "git", "editable"]:
         # Use importlib.metadata to get package information
         dist = importlib.metadata.distribution("inspect-ai")
 
-        # Check if this is an editable install by looking for .egg-link or direct_url.json
+        # If there are editable install indicators, it's not a PyPI install
         if dist.files:
-            # Look for editable install indicators
             for file_path in dist.files:
                 if file_path.suffix == ".egg-link" or "direct_url.json" in str(
                     file_path
                 ):
-                    # Check if it's an editable git install vs local editable
-                    try:
-                        direct_url_path = dist.locate_file("direct_url.json")
-                        if direct_url_path and direct_url_path.exists():
-                            import json
+                    return False
 
-                            with open(str(direct_url_path)) as f:
-                                direct_url = json.load(f)
-                                if direct_url.get("vcs_info", {}).get("vcs") == "git":
-                                    return "editable"  # pip install -e git+...
-                    except Exception:
-                        pass
-                    return "editable"  # pip install -e .
-
-        # Check if installed from git by examining the installation path and metadata
+        # Check if in site-packages and without source files (indicating PyPI wheel)
         if "site-packages" in str(package_path):
-            # Look for source files that indicate git installation
             build_script_path = (
                 package_path.parent.parent
                 / "inspect_tool_support"
                 / "build_within_container.py"
             )
+            # PyPI installs don't include source files like build scripts
+            return not build_script_path.exists()
 
-            version_file_path = package_path / "tool" / "_tool_support_version.txt"
-
-            # Git installations include the full source tree
-            if build_script_path.exists() or version_file_path.exists():
-                return "git"  # pip install git+https://github.com/...
-            else:
-                return "pypi"  # pip install inspect-ai (wheel)
-        else:
-            # Not in site-packages, likely development/editable install
-            return "editable"
+        return False
 
     except PackageNotFoundError:
-        # Fallback to path-based detection if metadata unavailable
+        # Fallback: if in site-packages and no build script, likely PyPI
         if "site-packages" in str(package_path):
-            # Check for source files indicating git install
             build_script_path = (
                 package_path.parent.parent
                 / "inspect_tool_support"
                 / "build_within_container.py"
             )
+            return not build_script_path.exists()
 
-            if build_script_path.exists():
-                return "git"
-            else:
-                return "pypi"
-        else:
-            return "editable"
+        return False

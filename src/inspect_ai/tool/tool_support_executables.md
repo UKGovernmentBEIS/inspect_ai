@@ -107,13 +107,15 @@ The on-demand retrieval system handles these installation types:
 3. **Resolve Required Executable**
    
    3.1. **Local Executable Check**
-      - Check if required executable already exists in `binaries/` directory
-      - If found → **DONE**
+      - First check if development executable exists: `inspect-tool-support-{arch}-v{version}-dev`
+      - If found → **DONE** (use dev version - developer workflow takes precedence)
+      - Then check if production executable exists: `inspect-tool-support-{arch}-v{version}`
+      - If found → **DONE** (use production version)
 
    3.2. **S3 Download Attempt**
       - Attempt to download versioned executable from S3 bucket
       - Download URL: `s3://inspect-tool-support/inspect-tool-support-{arch}-v{version}`
-      - Save to local `binaries/` directory with standard name
+      - Save to `binaries/` directory
       - If download successful → **DONE**
       - **Note**: Download failure is expected when developers have bumped `tool_support_version.txt` but the new version hasn't been promoted to S3 yet. Simply proceed to local build without warning the user about the "failure"
 
@@ -123,6 +125,7 @@ The on-demand retrieval system handles these installation types:
       - Proceed to next step
 
    3.4. **Local Build Process**
+      - Target executable is now the development variant: `inspect-tool-support-{arch}-v{version}-dev`
       - Execute `build_within_container.py --arch {target_arch} --dev`
       - Build creates development executable: `inspect-tool-support-{arch}-v{version}-dev`
       - Executable saved to `binaries/` directory
