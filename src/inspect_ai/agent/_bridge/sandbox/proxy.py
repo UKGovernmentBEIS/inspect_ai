@@ -782,7 +782,10 @@ async def model_proxy_server(
                                 for reasoning_idx, reasoning_content in enumerate(
                                     output_item.get("content", [])
                                 ):
-                                    if reasoning_content.get("type") == "reasoning_text":
+                                    if (
+                                        reasoning_content.get("type")
+                                        == "reasoning_text"
+                                    ):
                                         text = reasoning_content.get("text", "")
                                         # Stream reasoning text
                                         for chunk in _iter_chunks(text):
@@ -1289,7 +1292,7 @@ async def model_proxy_server(
                     sys_fp = chat_completion.get("system_fingerprint")
 
                     def base_chunk() -> dict[str, Any]:
-                        obj = {
+                        obj: dict[str, Any] = {
                             "id": comp_id,
                             "object": "chat.completion.chunk",
                             "created": created,
@@ -1301,7 +1304,9 @@ async def model_proxy_server(
                         return obj
 
                     # Stream each choice independently (common clients support this).
-                    for choice_idx, choice in enumerate(chat_completion.get("choices", [])):
+                    for choice_idx, choice in enumerate(
+                        chat_completion.get("choices", [])
+                    ):
                         msg = choice.get("message")
                         role = msg.get("role") if msg else "assistant"
 
