@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import BaseModel, Field, model_validator
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
