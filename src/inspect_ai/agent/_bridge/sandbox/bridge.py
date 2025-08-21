@@ -8,12 +8,12 @@ import anyio
 
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
-    internal_web_search_providers,
 )
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox import SandboxEnvironment
 from inspect_ai.util._sandbox import sandbox as default_sandbox
 
+from ..util import internal_web_search_providers
 from .service import run_model_service
 
 logger = getLogger(__file__)

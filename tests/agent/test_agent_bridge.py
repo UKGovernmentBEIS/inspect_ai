@@ -6,8 +6,10 @@ from openai.types.chat import ChatCompletion
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util.content import ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.dataset import Sample
+from inspect_ai.log._log import EvalLog
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
@@ -16,6 +18,7 @@ from inspect_ai.model._openai import (
     openai_chat_tools,
 )
 from inspect_ai.model._openai_responses import _tool_param_for_tool_info
+from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer import includes
 from inspect_ai.solver import solver
 from inspect_ai.tool._tool_info import ToolInfo
@@ -125,7 +128,33 @@ def responses_agent(tools: bool) -> Agent:
                 prompt_cache_key="42",
                 safety_identifier="42",
                 truncation="auto",
-                background=tools,
+            )
+
+            message = ChatMessageAssistant(
+                content=response.output_text, source="generate"
+            )
+            state.messages.append(message)
+            state.output = ModelOutput.from_message(message)
+            return state
+
+    return execute
+
+
+@agent
+def responses_web_search_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge():
+            client = AsyncOpenAI()
+
+            response = await client.responses.create(
+                model="inspect",
+                tools=[
+                    {
+                        "type": "web_search_preview",
+                        "search_context_size": "low",
+                    }
+                ],
+                input=user_prompt(state.messages).text,
             )
 
             message = ChatMessageAssistant(
@@ -148,6 +177,20 @@ def bridged_task(agent: Agent):
             )
         ],
         solver=agent,
+        scorer=includes(),
+    )
+
+
+@task
+def web_search_task():
+    return Task(
+        dataset=[
+            Sample(
+                input="What movie won best picture in 2025?",
+                target="Anora",
+            )
+        ],
+        solver=responses_web_search_agent(),
         scorer=includes(),
     )
 
@@ -235,6 +278,40 @@ def test_bridged_agent_responses():
 def test_bridged_agent_responses_tools():
     log_json = eval_bridged_task("openai/gpt-5", agent=responses_agent(True))
     check_openai_responses_log_json(log_json, tools=True)
+
+
+@skip_if_no_openai
+def test_bridged_web_search_tool_openai():
+    log = eval(web_search_task(), model="openai/gpt-5")[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"search_context_size": "low"' in log_json
+    check_web_search_tool_use(log, "web_search_call")
+
+
+@skip_if_no_anthropic
+@skip_if_no_openai
+def test_bridged_web_search_tool_anthropic():
+    log = eval(web_search_task(), model="anthropic/claude-sonnet-4-20250514")[0]
+    check_web_search_tool_use(log, "server_tool_use")
+
+
+def check_web_search_tool_use(log: EvalLog, tool_name: str):
+    assert log.status == "success"
+    assert log.samples
+    model_event = next(
+        (event for event in log.samples[0].events if event.event == "model")
+    )
+    assert model_event
+    tool_use = next(
+        (
+            c
+            for c in model_event.output.message.content
+            if isinstance(c, ContentToolUse)
+        ),
+        None,
+    )
+    assert tool_use
+    assert tool_use.tool_type == tool_name
 
 
 def check_anthropic_log_json(log_json: str):

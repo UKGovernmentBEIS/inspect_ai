@@ -68,12 +68,6 @@ class WebSearchProviders(TypedDict, total=False):
     """Use Exa external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#exa-options>."""
 
 
-def internal_web_search_providers() -> WebSearchProviders:
-    return WebSearchProviders(
-        openai=True, anthropic=True, grok=True, gemini=True, perplexity=True
-    )
-
-
 class _NormalizedProviders(TypedDict, total=False):
     openai: dict[str, Any]
     anthropic: dict[str, Any]

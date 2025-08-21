@@ -25,11 +25,14 @@ from inspect_ai.model._openai import (
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
-    internal_web_search_providers,
 )
 
 from .completions import inspect_completions_api_request
 from .responses import inspect_responses_api_request
+from .util import (
+    internal_web_search_providers,
+    resolve_web_search_providers,
+)
 
 
 @contextlib.asynccontextmanager
@@ -66,7 +69,7 @@ async def agent_bridge(
     init_openai_request_patch()
 
     # resolve web search config
-    web_search = web_search or internal_web_search_providers()
+    web_search = resolve_web_search_providers(web_search)
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(PatchConfig(enabled=True, web_search=web_search))

@@ -17,6 +17,7 @@ from openai.types.responses import (
     ResponseOutputText,
     ResponseReasoningItem,
     ToolParam,
+    WebSearchToolParam,
 )
 from openai.types.responses import (
     Tool as ResponsesTool,
@@ -207,23 +208,10 @@ def tool_from_responses_tool(
             parameters=ToolParams.model_validate(tool_param["parameters"]),
         )
     elif is_web_search_tool_param(tool_param):
-        # pass through openai options if there is no special openai config
-        if web_search.get("openai", False) is True:
-            if "user_location" in tool_param or "search_context_size" in tool_param:
-                # this came from the user in the external scaffold. we want
-                # all the fields except the type as our 'web_search' config
-                tool_param = tool_param.copy()
-                del tool_param["type"]  # type: ignore[misc]
-
-                # this came from the inspect agent_bridge() call. we want
-                # to replace it with whatever the user specified in the scaffold.
-                web_search = web_search.copy()
-                web_search["openai"] = tool_param  # type: ignore[typeddict-item]
-
         return ToolInfo(
             name="web_search",
             description="web_search",
-            options=cast(dict[str, Any], web_search),
+            options=responses_web_search_tool_options(tool_param, web_search),
         )
     elif is_computer_tool_param(tool_param):
         return ToolInfo(
@@ -254,6 +242,30 @@ def tool_from_responses_tool(
         )
     else:
         raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+
+
+def responses_web_search_tool_options(
+    tool_param: WebSearchToolParam, web_search: WebSearchProviders
+) -> dict[str, Any]:
+    # pass through openai options if there is no special openai config
+    openai_options = web_search.get("openai", False)
+    if (
+        openai_options is True
+        or isinstance(openai_options, dict)
+        and len(openai_options) == 0
+    ):
+        if "user_location" in tool_param or "search_context_size" in tool_param:
+            # this came from the user in the external scaffold. we want
+            # all the fields except the type as our 'web_search' config
+            tool_param = tool_param.copy()
+            del tool_param["type"]  # type: ignore[misc]
+
+            # this came from the inspect agent_bridge() call. we want
+            # to replace it with whatever the user specified in the scaffold.
+            web_search = web_search.copy()
+            web_search["openai"] = tool_param  # type: ignore[typeddict-item]
+
+    return cast(dict[str, Any], web_search)
 
 
 tool_list_adapter = TypeAdapter(list[ResponsesTool])
