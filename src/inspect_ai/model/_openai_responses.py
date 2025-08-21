@@ -1,6 +1,6 @@
 import json
 from functools import reduce
-from typing import TYPE_CHECKING, Sequence, TypedDict, TypeGuard, cast
+from typing import TYPE_CHECKING, Any, Sequence, TypedDict, TypeGuard, cast
 
 from openai.types.responses import (
     ComputerToolParam,
@@ -948,7 +948,11 @@ def is_response_output_message(
     return (
         param["type"] == "message"
         and param["role"] == "assistant"
-        and "status" in param
+        and isinstance(param.get("content", None), list)
+        and any(
+            c.get("type", "") in ["output_text", "refusal"]
+            for c in cast(list[dict[str, Any]], param["content"])
+        )
     )
 
 
