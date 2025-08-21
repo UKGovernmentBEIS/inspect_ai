@@ -12,6 +12,7 @@
 - Scoring: Add `display` parameter to `score()` to control display type.
 - Scoring: Nan values returned from scorers will be excluded from computation of metrics. Scorers in results include `scored_samples` and `unscored_samples` fields to indicate how many samples were scored and how many were not. The viewer will display these values if there are unscored samples.
 - Eval Log: Protect against removing excessive numbers of samples at once from realtime database.
+- Eval Log: Add `--resolve-attachments` option to `inspect log dump`.
 - Hooks: Provide full `EvalSample` (rather than only the summary) to `on_sample_end()` hook.
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
 - Inspect View: The bundle produced for deployment now includes a much more compact manifest, improving support for bundling large numbers of files.
