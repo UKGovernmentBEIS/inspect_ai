@@ -558,22 +558,11 @@ async def model_proxy_server(
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
-                    # Import Response type for validation
-                    from openai.types.responses import (
-                        Response,
-                        ResponseComputerToolCall,
-                        ResponseFunctionToolCall,
-                        ResponseOutputMessage,
-                        ResponseOutputRefusal,
-                        ResponseOutputText,
-                        ResponseReasoningItem,
-                    )
-
-                    # Parse the completion as a Response object
+                    # Parse the completion as a dict
                     resp = (
-                        Response.model_validate(completion)
+                        completion
                         if isinstance(completion, dict)
-                        else Response.model_validate(json.loads(completion))
+                        else json.loads(completion)
                     )
 
                     # Helper to create SSE event
@@ -591,7 +580,7 @@ async def model_proxy_server(
                     yield _sse_event(
                         "response.created",
                         {
-                            "response": resp.model_dump(mode="json"),
+                            "response": resp,
                             "sequence_number": seq_num,
                             "type": "response.created",
                         },
@@ -600,7 +589,7 @@ async def model_proxy_server(
 
                     # 2. response.in_progress event
                     seq_num += 1
-                    in_progress_resp = resp.model_dump(mode="json")
+                    in_progress_resp = dict(resp)
                     in_progress_resp["status"] = "in_progress"
                     yield _sse_event(
                         "response.in_progress",
@@ -613,19 +602,15 @@ async def model_proxy_server(
                     )
 
                     # 3. Process each output item
-                    for output_index, output_item in enumerate(resp.output):
-                        # Use the BaseModel directly - output_item is from the discriminated union
-                        item_id = (
-                            output_item.id
-                            if hasattr(output_item, "id")
-                            else f"item_{output_index}"
-                        )
-                        item_type = output_item.type
+                    for output_index, output_item in enumerate(resp.get("output", [])):
+                        # Use dict directly - output_item is a dict
+                        item_id = output_item.get("id", f"item_{output_index}")
+                        item_type = output_item.get("type")
 
                         # 3a. response.output_item.added
                         seq_num += 1
                         # Set initial status to in_progress for streaming
-                        item_dict = output_item.model_dump(mode="json")
+                        item_dict = dict(output_item)
                         if "status" in item_dict:
                             item_dict["status"] = "in_progress"
 
@@ -640,19 +625,17 @@ async def model_proxy_server(
                             seq_num,
                         )
 
-                        # Process based on item type using proper type narrowing
-                        if item_type == "message" and isinstance(
-                            output_item, ResponseOutputMessage
-                        ):
-                            # Process message content - content is a list of BaseModel objects
+                        # Process based on item type
+                        if item_type == "message":
+                            # Process message content - content is a list of dicts
                             for content_index, content in enumerate(
-                                output_item.content
+                                output_item.get("content", [])
                             ):
-                                content_type = content.type
+                                content_type = content.get("type")
 
                                 # 3b. response.content_part.added
                                 seq_num += 1
-                                content_dict = content.model_dump(mode="json")
+                                content_dict = dict(content)
                                 if content_type == "output_text":
                                     # Clear text for streaming
                                     content_dict["text"] = ""
@@ -672,11 +655,9 @@ async def model_proxy_server(
                                     seq_num,
                                 )
 
-                                # Stream content - using proper type narrowing
-                                if content_type == "output_text" and isinstance(
-                                    content, ResponseOutputText
-                                ):
-                                    text = content.text
+                                # Stream content
+                                if content_type == "output_text":
+                                    text = content.get("text", "")
                                     # Stream text in chunks
                                     for chunk in _iter_chunks(text):
                                         seq_num += 1
@@ -710,10 +691,8 @@ async def model_proxy_server(
                                         seq_num,
                                     )
 
-                                elif content_type == "refusal" and isinstance(
-                                    content, ResponseOutputRefusal
-                                ):
-                                    refusal_text = content.refusal
+                                elif content_type == "refusal":
+                                    refusal_text = content.get("refusal", "")
                                     # Stream refusal in chunks
                                     for chunk in _iter_chunks(refusal_text):
                                         seq_num += 1
@@ -753,18 +732,16 @@ async def model_proxy_server(
                                         "item_id": item_id,
                                         "output_index": output_index,
                                         "content_index": content_index,
-                                        "part": content.model_dump(mode="json"),
+                                        "part": content,
                                         "sequence_number": seq_num,
                                         "type": "response.content_part.done",
                                     },
                                     seq_num,
                                 )
 
-                        elif item_type == "function_call" and isinstance(
-                            output_item, ResponseFunctionToolCall
-                        ):
+                        elif item_type == "function_call":
                             # Handle function call streaming
-                            arguments = output_item.arguments
+                            arguments = output_item.get("arguments", "")
 
                             # Stream function arguments
                             for chunk in _iter_chunks(arguments, max_len=32):
@@ -795,22 +772,18 @@ async def model_proxy_server(
                                 seq_num,
                             )
 
-                        elif item_type == "computer_call" and isinstance(
-                            output_item, ResponseComputerToolCall
-                        ):
+                        elif item_type == "computer_call":
                             # Computer calls complete immediately (no streaming)
                             pass
 
-                        elif item_type == "reasoning" and isinstance(
-                            output_item, ResponseReasoningItem
-                        ):
+                        elif item_type == "reasoning":
                             # Handle reasoning item streaming
-                            if output_item.content:
+                            if output_item.get("content"):
                                 for reasoning_idx, reasoning_content in enumerate(
-                                    output_item.content
+                                    output_item.get("content", [])
                                 ):
-                                    if reasoning_content.type == "reasoning_text":
-                                        text = reasoning_content.text
+                                    if reasoning_content.get("type") == "reasoning_text":
+                                        text = reasoning_content.get("text", "")
                                         # Stream reasoning text
                                         for chunk in _iter_chunks(text):
                                             seq_num += 1
@@ -843,9 +816,9 @@ async def model_proxy_server(
                                         )
 
                             # Handle reasoning summary if present
-                            if output_item.summary:
+                            if output_item.get("summary"):
                                 for summary_index, summary_part in enumerate(
-                                    output_item.summary
+                                    output_item.get("summary", [])
                                 ):
                                     # Add summary part
                                     seq_num += 1
@@ -855,17 +828,15 @@ async def model_proxy_server(
                                             "item_id": item_id,
                                             "output_index": output_index,
                                             "summary_index": summary_index,
-                                            "part": summary_part.model_dump(
-                                                mode="json"
-                                            ),
+                                            "part": summary_part,
                                             "sequence_number": seq_num,
                                             "type": "response.reasoning_summary_part.added",
                                         },
                                         seq_num,
                                     )
 
-                                    if summary_part.type == "summary_text":
-                                        text = summary_part.text
+                                    if summary_part.get("type") == "summary_text":
+                                        text = summary_part.get("text", "")
                                         # Stream summary text
                                         for chunk in _iter_chunks(text):
                                             seq_num += 1
@@ -905,9 +876,7 @@ async def model_proxy_server(
                                             "item_id": item_id,
                                             "output_index": output_index,
                                             "summary_index": summary_index,
-                                            "part": summary_part.model_dump(
-                                                mode="json"
-                                            ),
+                                            "part": summary_part,
                                             "sequence_number": seq_num,
                                             "type": "response.reasoning_summary_part.done",
                                         },
@@ -1242,7 +1211,7 @@ async def model_proxy_server(
                         # 3d. response.output_item.done
                         seq_num += 1
                         # Update status to completed
-                        item_dict_completed = output_item.model_dump(mode="json")
+                        item_dict_completed = dict(output_item)
                         if "status" in item_dict_completed:
                             item_dict_completed["status"] = "completed"
 
@@ -1259,7 +1228,7 @@ async def model_proxy_server(
 
                     # 4. response.completed event
                     seq_num += 1
-                    completed_resp = resp.model_dump(mode="json")
+                    completed_resp = dict(resp)
                     completed_resp["status"] = "completed"
                     yield _sse_event(
                         "response.completed",
@@ -1289,8 +1258,6 @@ async def model_proxy_server(
 
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
-        from openai.types.chat import ChatCompletion
-
         try:
             json_body = request.get("json", {}) or {}
             stream = json_body.get("stream", False)
@@ -1309,17 +1276,17 @@ async def model_proxy_server(
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
-                    # Parse the completion as a ChatCompletion object
+                    # Parse the completion as a dict
                     chat_completion = (
-                        ChatCompletion.model_validate(completion)
+                        completion
                         if isinstance(completion, dict)
-                        else ChatCompletion.model_validate(json.loads(completion))
+                        else json.loads(completion)
                     )
 
-                    comp_id = chat_completion.id
-                    created = chat_completion.created
-                    model = chat_completion.model
-                    sys_fp = chat_completion.system_fingerprint
+                    comp_id = chat_completion.get("id")
+                    created = chat_completion.get("created")
+                    model = chat_completion.get("model")
+                    sys_fp = chat_completion.get("system_fingerprint")
 
                     def base_chunk() -> dict[str, Any]:
                         obj = {
@@ -1334,9 +1301,9 @@ async def model_proxy_server(
                         return obj
 
                     # Stream each choice independently (common clients support this).
-                    for choice_idx, choice in enumerate(chat_completion.choices):
-                        msg = choice.message
-                        role = msg.role if msg else "assistant"
+                    for choice_idx, choice in enumerate(chat_completion.get("choices", [])):
+                        msg = choice.get("message")
+                        role = msg.get("role") if msg else "assistant"
 
                         # 1) Initial role chunk
                         chunk = base_chunk()
@@ -1352,7 +1319,7 @@ async def model_proxy_server(
                         yield _sse_bytes(chunk)
 
                         # 2) Text content chunks
-                        content = msg.content if msg else None
+                        content = msg.get("content") if msg else None
                         if isinstance(content, str) and content:
                             for piece in _iter_chunks(content):
                                 chunk = base_chunk()
@@ -1368,10 +1335,10 @@ async def model_proxy_server(
                                 # await asyncio.sleep(0)
 
                         # 3) Legacy function_call streaming (older models/libs)
-                        fn_call = msg.function_call if msg else None
+                        fn_call = msg.get("function_call") if msg else None
                         if fn_call:
-                            fn_name = fn_call.name or ""
-                            fn_args = fn_call.arguments or ""
+                            fn_name = fn_call.get("name", "")
+                            fn_args = fn_call.get("arguments", "")
 
                             # name first
                             chunk = base_chunk()
@@ -1399,15 +1366,15 @@ async def model_proxy_server(
                                 yield _sse_bytes(chunk)
 
                         # 4) Modern tool_calls streaming (fixed: repeat id/type on every delta)
-                        tool_calls = msg.tool_calls if msg else None
+                        tool_calls = msg.get("tool_calls") if msg else None
                         if tool_calls:
                             for tc_i, tc in enumerate(tool_calls):
-                                tc_id = tc.id
-                                tc_type = tc.type
+                                tc_id = tc.get("id")
+                                tc_type = tc.get("type")
                                 # Handle both function and custom tool calls
-                                fn = getattr(tc, "function", None)
-                                fn_name = fn.name if fn else ""
-                                fn_args = fn.arguments if fn else ""
+                                fn = tc.get("function")
+                                fn_name = fn.get("name", "") if fn else ""
+                                fn_args = fn.get("arguments", "") if fn else ""
 
                                 # Emit initial tool_call with id/type/name
                                 chunk = base_chunk()
@@ -1455,8 +1422,8 @@ async def model_proxy_server(
                                     yield _sse_bytes(chunk)
 
                         # 5) Final chunk for this choice with finish_reason
-                        finish_reason = (
-                            choice.finish_reason
+                        finish_reason = choice.get(
+                            "finish_reason"
                         )  # e.g., "stop", "length", "tool_calls"
                         chunk = base_chunk()
                         chunk["choices"] = [
@@ -1470,12 +1437,13 @@ async def model_proxy_server(
 
                     # 6) Optional usage chunk (if client requested include_usage and we have it)
                     stream_opts = json_body.get("stream_options") or {}
-                    if stream_opts.get("include_usage") and chat_completion.usage:
+                    usage = chat_completion.get("usage")
+                    if stream_opts.get("include_usage") and usage:
                         chunk = base_chunk()
                         chunk[
                             "choices"
                         ] = []  # per OpenAI: last chunk contains only usage
-                        chunk["usage"] = chat_completion.usage.model_dump(mode="json")
+                        chunk["usage"] = usage
                         yield _sse_bytes(chunk)
 
                     # 7) Overall terminal sentinel
