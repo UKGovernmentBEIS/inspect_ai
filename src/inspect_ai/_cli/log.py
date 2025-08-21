@@ -126,9 +126,18 @@ def list_command(
     default=False,
     help="Read and print only the header of the log file (i.e. no samples).",
 )
-def dump_command(path: str, header_only: bool) -> None:
+@click.option(
+    "--resolve-attachments",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Resolve attachments (e.g. images) to their full content.",
+)
+def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> None:
     """Print log file contents as JSON."""
-    log = read_eval_log(path, header_only=header_only)
+    log = read_eval_log(
+        path, header_only=header_only, resolve_attachments=resolve_attachments
+    )
     print(eval_log_json_str(log))
 
 
