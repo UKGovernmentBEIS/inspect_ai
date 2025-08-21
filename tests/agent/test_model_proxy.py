@@ -8,6 +8,10 @@ import pytest
 from aiohttp import ClientSession
 from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
+from openai.types.responses import (
+    FunctionToolParam,
+    ResponseOutputText,
+)
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai.agent._bridge.sandbox.proxy import AsyncHTTPServer
@@ -1213,6 +1217,7 @@ async def test_model_proxy_responses_non_streaming(
     # Check the message output
     output_item = response.output[0]
     assert output_item.type == "message"
+    assert isinstance(output_item.content[0], ResponseOutputText)
     assert output_item.content[0].text == "You said: Hello, Response API!"
 
 
@@ -1276,18 +1281,19 @@ async def test_model_proxy_responses_with_tool_calls(
         model="gpt-4o",
         input="What's the weather in San Francisco?",
         tools=[
-            {
-                "type": "function",
-                "name": "get_weather",
-                "description": "Get the current weather",
-                "parameters": {
+            FunctionToolParam(
+                type="function",
+                name="get_weather",
+                description="Get the current weather",
+                parameters={
                     "type": "object",
                     "properties": {
                         "location": {"type": "string"},
                     },
                     "required": ["location"],
                 },
-            }
+                strict=False,
+            )
         ],
     )
 
@@ -1322,18 +1328,19 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
         model="gpt-4o",
         input="What's the weather in San Francisco?",
         tools=[
-            {
-                "type": "function",
-                "name": "get_weather",
-                "description": "Get the current weather",
-                "parameters": {
+            FunctionToolParam(
+                type="function",
+                name="get_weather",
+                description="Get the current weather",
+                parameters={
                     "type": "object",
                     "properties": {
                         "location": {"type": "string"},
                     },
                     "required": ["location"],
                 },
-            }
+                strict=False,
+            )
         ],
     ) as stream:
         async for event in stream:
@@ -1450,6 +1457,7 @@ async def test_model_proxy_responses_reasoning(
     output_item = response.output[0]
     assert output_item.type == "reasoning"
     assert hasattr(output_item, "content")
+    assert output_item.content is not None
     assert len(output_item.content) > 0
     assert output_item.content[0].type == "reasoning_text"
     assert output_item.content[0].text == "Let me think about this step by step..."
@@ -1519,7 +1527,8 @@ async def test_model_proxy_responses_mcp_list_tools(
     # Check the MCP list tools output
     output_item = response.output[0]
     assert output_item.type == "mcp_list_tools"
-    assert output_item.status == "completed"
+    # McpListTools doesn't have a status attribute
+    assert hasattr(output_item, "tools")
 
 
 @pytest.mark.asyncio
