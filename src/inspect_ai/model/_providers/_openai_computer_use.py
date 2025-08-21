@@ -70,12 +70,10 @@ def computer_parmaeters() -> list[str]:
 
 def computer_call_output(
     message: ChatMessageTool,
-    # internal is passed in despite being within message to avoid an extra
-    # validation step
-    internal: ResponseComputerToolCall,
+    computer_call_id: str,
 ) -> ComputerCallOutput:
     return ComputerCallOutput(
-        call_id=internal.call_id,
+        call_id=computer_call_id,
         type="computer_call_output",
         output=ResponseComputerToolCallOutputScreenshotParam(
             type="computer_screenshot",

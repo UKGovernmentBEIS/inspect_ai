@@ -1304,7 +1304,6 @@ def tool_result_images_reducer(
                     content=edited_tool_message_content,
                     tool_call_id=message.tool_call_id,
                     function=message.function,
-                    internal=message.internal,
                 )
             ],
             pending_content + new_user_message_content,

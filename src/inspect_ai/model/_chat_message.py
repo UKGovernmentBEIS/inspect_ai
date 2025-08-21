@@ -44,9 +44,6 @@ class ChatMessageBase(BaseModel):
 
         return metadata_as(self.metadata, metadata_cls)
 
-    internal: JsonValue | None = Field(default=None)
-    """Model provider specific payload - typically used to aid transformation back to model types."""
-
     def model_post_init(self, __context: Any) -> None:
         # check if deserializing
         is_deserializing = isinstance(__context, dict) and __context.get(

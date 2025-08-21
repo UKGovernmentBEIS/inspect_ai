@@ -69,7 +69,7 @@ async def register_inspect_provider(bridge: SandboxAgentBridge) -> None:
     [model_providers.inspect]
     name = "inspect"
     base_url = "http://localhost:{bridge.port}/v1"
-    wire_api = "chat"
+    wire_api = "responses"
 
     [profiles.inspect]
     model_provider = "inspect"

@@ -38,7 +38,6 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -51,10 +50,8 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai import (
     CONTENT_INTERNAL_TAG,
-    INTERNAL_TAG,
     _parse_content_with_internal,
     content_internal_tag,
-    message_internal_tag,
 )
 from inspect_ai.model._openai_responses import (
     content_from_response_input_content_param,
@@ -318,7 +315,6 @@ def messages_from_responses_input(
 
     def collect_pending_assistant_message() -> None:
         if len(pending_assistant_message_params) > 0:
-            internal: JsonValue = None
             content: list[Content] = []
             tool_calls: list[ToolCall] = []
             for param in pending_assistant_message_params:
@@ -326,17 +322,11 @@ def messages_from_responses_input(
                     for output in param["content"]:
                         text = str(output.get("text", output.get("refusal", "")))
 
-                        # parse out assistant internal and content internal
-                        asst_content, internal = _parse_content_with_internal(
-                            text, INTERNAL_TAG
-                        )
                         asst_content, content_internal = _parse_content_with_internal(
                             text, CONTENT_INTERNAL_TAG
                         )
 
                         if is_response_output_text(output):
-                            # parse out internal
-
                             content.append(
                                 ContentText(
                                     text=asst_content,
@@ -411,7 +401,6 @@ def messages_from_responses_input(
                     content=content,
                     tool_calls=tool_calls,
                     model=model_name,
-                    internal=internal,
                 )
             )
 
@@ -500,12 +489,6 @@ output_item_adapter = TypeAdapter(list[ResponseOutputItem])
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
 ) -> list[ResponseOutputItem]:
-    # set aside message internal if we have it
-    if message.internal:
-        message_internal: str | None = f"\n{message_internal_tag(message.internal)}\n"
-    else:
-        message_internal = None
-
     output: list[ResponseOutputItem] = []
     for content in message.content:
         if isinstance(content, ContentText):
@@ -514,10 +497,6 @@ def responses_output_items_from_assistant_message(
                 internal: str = f"\n{content_internal_tag(content.internal)}\n"
             else:
                 internal = ""
-            # collect and append message internal (we only send it once)
-            if message_internal is not None:
-                internal = f"{internal}{message_internal}"
-                message_internal = None
 
             # apply internal to content
             content_text = f"{content.text}{internal}"

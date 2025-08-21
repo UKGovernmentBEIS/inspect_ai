@@ -1,9 +1,11 @@
 import functools
 import os
 import re
+from contextvars import ContextVar
 from copy import copy
+from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, TypedDict, TypeGuard, cast
+from typing import Any, Literal, Optional, Tuple, cast
 
 from anthropic import (
     APIConnectionError,
@@ -967,16 +969,6 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant" and message.tool_calls:
-        # grab assistnat internal
-        if is_assistant_internal(message.internal):
-            assistant_internal = message.internal
-        else:
-            assistant_internal = _AssistantInternal(
-                tool_call_internal_names={},
-                server_mcp_tool_uses={},
-                server_web_searches={},
-            )
-
         # first include content (claude <thinking>)
         tools_content: list[
             TextBlockParam
@@ -996,10 +988,17 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 [
                     item
                     for content in message.content
-                    for item in await message_param_content(content, assistant_internal)
+                    for item in await message_param_content(content)
                 ]
             )
         )
+
+        # move the first instance of thinking to the front
+        for i, c in enumerate(tools_content):
+            if c["type"] in ["thinking", "redacted_thinking"] and i > 0:
+                tools_content.pop(i)
+                tools_content.insert(0, c)
+                break
 
         # filter out empty text content (sometimes claude passes empty text
         # context back with tool calls but won't let us play them back)
@@ -1009,7 +1008,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
         # now add tools
         for tool_call in message.tool_calls:
-            internal_name = _internal_name_from_tool_call(assistant_internal, tool_call)
+            internal_name = _internal_name_from_tool_call(tool_call)
             tools_content.append(
                 ToolUseBlockParam(
                     type="tool_use",
@@ -1040,18 +1039,28 @@ async def message_param(message: ChatMessage) -> MessageParam:
         )
 
 
-class _AssistantInternal(TypedDict):
-    tool_call_internal_names: dict[str, str | None]
+@dataclass
+class _AssistantInternal:
+    tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
-    ]
+    ] = field(default_factory=dict)
     server_web_searches: dict[
         str, tuple[ServerToolUseBlockParam, WebSearchToolResultBlockParam]
-    ]
+    ] = field(default_factory=dict)
 
 
-def is_assistant_internal(internal: JsonValue) -> TypeGuard[_AssistantInternal]:
-    return isinstance(internal, dict) and "tool_call_internal_names" in internal
+def assistant_internal() -> _AssistantInternal:
+    return _anthropic_assistant_internal.get()
+
+
+def init_sample_anthropic_assistant_internal() -> None:
+    _anthropic_assistant_internal.set(_AssistantInternal())
+
+
+_anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
+    "anthropic_assistant_internal", default=_AssistantInternal()
+)
 
 
 async def model_output_from_message(
@@ -1063,9 +1072,6 @@ async def model_output_from_message(
     # extract content and tool calls
     content: list[Content] = []
     reasoning_tokens = 0
-    assistant_internal = _AssistantInternal(
-        tool_call_internal_names={}, server_mcp_tool_uses={}, server_web_searches={}
-    )
     tool_calls: list[ToolCall] | None = None
 
     pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
@@ -1089,9 +1095,10 @@ async def model_output_from_message(
                 )
 
             # record in internal
-            assistant_internal["server_mcp_tool_uses"][
-                tool_result_block.tool_use_id
-            ] = (pending_mcp_tool_use.model_dump(), tool_result_block.model_dump())
+            assistant_internal().server_mcp_tool_uses[tool_result_block.tool_use_id] = (
+                pending_mcp_tool_use.model_dump(),
+                tool_result_block.model_dump(),
+            )
 
             content.append(
                 ContentToolUse(
@@ -1131,7 +1138,7 @@ async def model_output_from_message(
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
             (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
-            assistant_internal["tool_call_internal_names"][content_block.id] = (
+            assistant_internal().tool_call_internal_names[content_block.id] = (
                 internal_name
             )
             tool_calls.append(
@@ -1151,7 +1158,7 @@ async def model_output_from_message(
                 )
 
             # record in internal
-            assistant_internal["server_web_searches"][pending_tool_use.id] = (
+            assistant_internal().server_web_searches[pending_tool_use.id] = (
                 cast(ServerToolUseBlockParam, pending_tool_use.model_dump()),
                 cast(WebSearchToolResultBlockParam, content_block.model_dump()),
             )
@@ -1223,10 +1230,8 @@ async def model_output_from_message(
     )
 
 
-def _internal_name_from_tool_call(
-    assistant_internal: _AssistantInternal, tool_call: ToolCall
-) -> str | None:
-    return assistant_internal["tool_call_internal_names"].get(tool_call.id, None)
+def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
+    return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
 
 
 def _names_for_tool_call(
@@ -1284,7 +1289,7 @@ def split_system_messages(
 
 
 async def message_param_content(
-    content: Content, assistant_internal: _AssistantInternal | None = None
+    content: Content,
 ) -> list[
     TextBlockParam
     | DocumentBlockParam
@@ -1336,13 +1341,11 @@ async def message_param_content(
                 )
             ]
     elif isinstance(content, ContentToolUse):
-        # if the content has assistant internal then just source from there
-        if assistant_internal:
-            if content.id in assistant_internal["server_mcp_tool_uses"]:
-                return list(assistant_internal["server_mcp_tool_uses"][content.id])
+        if content.id in assistant_internal().server_mcp_tool_uses:
+            return list(assistant_internal().server_mcp_tool_uses[content.id])
 
-            elif content.id in assistant_internal["server_web_searches"]:
-                return list(assistant_internal["server_web_searches"][content.id])
+        elif content.id in assistant_internal().server_web_searches:
+            return list(assistant_internal().server_web_searches[content.id])
 
         if content.tool_type == "server_tool_use" and content.name == "web_search":
             return [
