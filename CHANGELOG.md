@@ -13,6 +13,7 @@
 - Add `--continue-on-fail` option for `eval()` and `eval_set()`.
 - Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
+- Inspect View: Increase sample size limit to 100MB (samples larger than that are not browsable in the viewer).
 - Bugifx: Properly handle surrogates in JSON serialization.
 - Bugfix: Google and Mistral providers now generate unique tool call IDs to prevent collisions when calling the same tool multiple times.
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
@@ -162,6 +163,7 @@
 - Scoring: Add `display` parameter to `score()` to control display type.
 - Scoring: Nan values returned from scorers will be excluded from computation of metrics. Scorers in results include `scored_samples` and `unscored_samples` fields to indicate how many samples were scored and how many were not. The viewer will display these values if there are unscored samples.
 - Eval Log: Protect against removing excessive numbers of samples at once from realtime database.
+- Eval Log: Add `--resolve-attachments` option to `inspect log dump`.
 - Hooks: Provide full `EvalSample` (rather than only the summary) to `on_sample_end()` hook.
 - Inspect View: Compatiblility for sites published to GitHub Pages for `inspect view bundle`.
 - Inspect View: The bundle produced for deployment now includes a much more compact manifest, improving support for bundling large numbers of files.
