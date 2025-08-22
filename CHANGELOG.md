@@ -13,7 +13,7 @@
 - Add `--continue-on-fail` option for `eval()` and `eval_set()`.
 - Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
-- Inspect View: Increase sample size limit to 100MB (samples larger than that are not browseable in the viewer).
+- Inspect View: Increase sample size limit to 100MB (samples larger than that are not browsable in the viewer).
 - Bugifx: Properly handle surrogates in JSON serialization.
 - Bugfix: Google and Mistral providers now generate unique tool call IDs to prevent collisions when calling the same tool multiple times.
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.
