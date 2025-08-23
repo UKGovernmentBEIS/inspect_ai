@@ -11,6 +11,7 @@
 - CLI: Yield error exit code (1) if no tasks to evaluate are found at the specified path.
 - Eval Set: You can now run eval sets in log dirs containing unrelated eval log files using the `--log-dir-allow-dirty` option.
 - Add `--continue-on-fail` option for `eval()` and `eval_set()`.
+- Scoring: Add `copy` option to `score_async()` (defaults to `True`) to control whether the log is deep copied before scoring.
 - Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
 - Inspect View: Increase sample size limit to 100MB (samples larger than that are not browsable in the viewer).
