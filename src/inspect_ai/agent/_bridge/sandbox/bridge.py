@@ -29,6 +29,7 @@ class SandboxAgentBridge:
 
 @contextlib.asynccontextmanager
 async def sandbox_agent_bridge(
+    *,
     sandbox: SandboxEnvironment | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,

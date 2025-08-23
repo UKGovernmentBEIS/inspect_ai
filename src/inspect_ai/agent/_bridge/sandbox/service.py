@@ -21,16 +21,21 @@ async def run_model_service(
 ) -> None:
     await sandbox_service(
         name=MODEL_SERVICE,
-        methods=[generate_completions, generate_responses(web_search)],
+        methods=[generate_completions(), generate_responses(web_search)],
         until=lambda: False,
         sandbox=sandbox,
         started=started,
     )
 
 
-async def generate_completions(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-    completion = await inspect_completions_api_request(json_data)
-    return completion.model_dump(mode="json")
+def generate_completions() -> Callable[
+    [dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]
+]:
+    async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        completion = await inspect_completions_api_request(json_data)
+        return completion.model_dump(mode="json")
+
+    return generate
 
 
 def generate_responses(

@@ -37,6 +37,7 @@ from .util import (
 
 @contextlib.asynccontextmanager
 async def agent_bridge(
+    *,
     web_search: WebSearchProviders | None = None,
 ) -> AsyncGenerator[None, None]:
     """Agent bridge.
