@@ -170,12 +170,12 @@ def convert_command(
 
 @log_command.command("headers", hidden=True)
 @click.argument("files", nargs=-1)
-def headers_command(files: tuple[str]) -> None:
+def headers_command(files: tuple[str, ...]) -> None:
     """Print log file headers as JSON."""
     headers(files)
 
 
-def headers(files: tuple[str]) -> None:
+def headers(files: tuple[str, ...]) -> None:
     """Print log file headers as JSON."""
     headers = read_eval_log_headers(list(files))
     print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))

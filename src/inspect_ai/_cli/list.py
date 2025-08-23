@@ -42,8 +42,8 @@ def list_command() -> None:
 @click.argument("paths", nargs=-1)
 @common_options
 def tasks(
-    paths: tuple[str] | None,
-    f: tuple[str] | None,
+    paths: tuple[str, ...] | None,
+    f: tuple[str, ...] | None,
     absolute: bool,
     json: bool,
     **kwargs: Unpack[CommonOptions],

@@ -106,7 +106,7 @@ def int_bool_or_str_flag_callback(
 
 
 def parse_cli_config(
-    args: tuple[str] | list[str] | None, config: str | None
+    args: tuple[str, ...] | list[str] | None, config: str | None
 ) -> dict[str, Any]:
     # start with file if any
     cli_config: dict[str, Any] = {}
@@ -120,7 +120,7 @@ def parse_cli_config(
 
 
 def parse_cli_args(
-    args: tuple[str] | list[str] | None, force_str: bool = False
+    args: tuple[str, ...] | list[str] | None, force_str: bool = False
 ) -> dict[str, Any]:
     params: dict[str, Any] = dict()
     if args:
