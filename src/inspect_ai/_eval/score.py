@@ -154,6 +154,7 @@ async def score_async(
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
+    copy: bool = True,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -165,20 +166,24 @@ async def score_async(
          Defaults to previously used reducer(s).
        action: Whether to append or overwrite this score
        display: Progress/status display
+       copy: Whether to deepcopy the log before scoring.
 
     Returns:
        Log with scores yielded by scorer.
     """
-    # init display if necessary
+    if log.samples is None or len(log.samples) == 0:
+        raise ValueError("There are no samples to score in the log.")
+
     if not display_type_initialized():
         init_display_type(display or "plain")
 
-    # deepcopy so we don't mutate the passed log
-    log = deepcopy(log)
+    if copy:
+        # deepcopy so we don't mutate the passed log
+        log = deepcopy(log)
 
-    # confirm we have samples
-    if log.samples is None or len(log.samples) == 0:
-        raise ValueError("There are no samples to score in the log.")
+    assert (
+        log.samples is not None  # make the type checker happy after re-assignment above
+    )
 
     # prime the scoring tasks
     states = [
