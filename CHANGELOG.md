@@ -6,6 +6,7 @@
 - ReAct Agent: Allow for a ToolDef to be passed to an AgentSubmit type.
 - Model API: `user_prompt()` function for getting the last user message from a list of messages.
 - Model API: `messages_to_openai()` and `messages_from_openai()` functions for converting to and from OpenAI-style message dicts.
+- Groq: Support `response_schema` option for providing a JSON schema for model output.
 - VLLM: Allow specifying the port when starting up a new vllm server.
 - Eval Log: For sample summaries, preserve all sample and score fields that are less than 1k in size.
 - CLI: Yield error exit code (1) if no tasks to evaluate are found at the specified path.
