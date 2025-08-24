@@ -1,5 +1,6 @@
 import contextlib
 import functools
+import importlib
 import sys
 import time
 from copy import copy, deepcopy
@@ -75,10 +76,6 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
-from inspect_ai.model._openai_responses import init_sample_openai_assistant_internal
-from inspect_ai.model._providers.anthropic import (
-    init_sample_anthropic_assistant_internal,
-)
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -613,8 +610,7 @@ async def task_run_sample(
         )
     if scorers:
         init_scoring_context(scorers, Target(sample.target))
-    init_sample_openai_assistant_internal()
-    init_sample_anthropic_assistant_internal()
+    init_sample_assistant_internal()
 
     # use sandbox if provided
     sandboxenv_cm = (
@@ -1172,3 +1168,19 @@ def create_sample_semaphore(
 
     # return the semaphore
     return anyio.Semaphore(max_samples)
+
+
+def init_sample_assistant_internal() -> None:
+    if importlib.util.find_spec("openai"):
+        from inspect_ai.model._openai_responses import (
+            init_sample_openai_assistant_internal,
+        )
+
+        init_sample_openai_assistant_internal()
+
+    if importlib.util.find_spec("anthropic"):
+        from inspect_ai.model._providers.anthropic import (
+            init_sample_anthropic_assistant_internal,
+        )
+
+        init_sample_anthropic_assistant_internal()
