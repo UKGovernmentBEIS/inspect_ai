@@ -76,6 +76,7 @@ inspect log dump [OPTIONS] PATH
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--header-only` | boolean | Read and print only the header of the log file (i.e. no samples). | `False` |
+| `--resolve-attachments` | boolean | Resolve attachments (e.g. images) to their full content. | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log convert

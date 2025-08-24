@@ -146,13 +146,13 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#august-2025" id="toc-august-2025" class="nav-link" data-scroll-target="#august-2025">0.3.123 (16 August 2025)</a></li>
-  <li><a href="#august-2025-1" id="toc-august-2025-1" class="nav-link" data-scroll-target="#august-2025-1">0.3.122 (11 August 2025)</a></li>
-  <li><a href="#august-2025-2" id="toc-august-2025-2" class="nav-link" data-scroll-target="#august-2025-2">0.3.121 (10 August 2025)</a></li>
-  <li><a href="#august-2025-3" id="toc-august-2025-3" class="nav-link" data-scroll-target="#august-2025-3">0.3.120 (07 August 2025)</a></li>
-  <li><a href="#august-2025-4" id="toc-august-2025-4" class="nav-link" data-scroll-target="#august-2025-4">0.3.119 (04 August 2025)</a></li>
-  <li><a href="#august-2025-5" id="toc-august-2025-5" class="nav-link" data-scroll-target="#august-2025-5">0.3.118 (02 August 2025)</a></li>
+  <li><a href="#august-2025" id="toc-august-2025" class="nav-link active" data-scroll-target="#august-2025">0.3.124 (24 August 2025)</a></li>
+  <li><a href="#august-2025-1" id="toc-august-2025-1" class="nav-link" data-scroll-target="#august-2025-1">0.3.123 (16 August 2025)</a></li>
+  <li><a href="#august-2025-2" id="toc-august-2025-2" class="nav-link" data-scroll-target="#august-2025-2">0.3.122 (11 August 2025)</a></li>
+  <li><a href="#august-2025-3" id="toc-august-2025-3" class="nav-link" data-scroll-target="#august-2025-3">0.3.121 (10 August 2025)</a></li>
+  <li><a href="#august-2025-4" id="toc-august-2025-4" class="nav-link" data-scroll-target="#august-2025-4">0.3.120 (07 August 2025)</a></li>
+  <li><a href="#august-2025-5" id="toc-august-2025-5" class="nav-link" data-scroll-target="#august-2025-5">0.3.119 (04 August 2025)</a></li>
+  <li><a href="#august-2025-6" id="toc-august-2025-6" class="nav-link" data-scroll-target="#august-2025-6">0.3.118 (02 August 2025)</a></li>
   <li><a href="#july-2025" id="toc-july-2025" class="nav-link" data-scroll-target="#july-2025">0.3.117 (31 July 2025)</a></li>
   <li><a href="#july-2025-1" id="toc-july-2025-1" class="nav-link" data-scroll-target="#july-2025-1">0.3.116 (27 July 2025)</a></li>
   <li><a href="#july-2025-2" id="toc-july-2025-2" class="nav-link" data-scroll-target="#july-2025-2">0.3.115 (26 July 2025)</a></li>
@@ -278,8 +278,8 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="august-2025" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025">0.3.124 (24 August 2025)</h2>
 <ul>
 <li>Agent Bridge: New context-manager based <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> that replaces the deprecated <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</li>
 <li>Agent Bridge: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> to integrate with CLI based agents running inside sandboxes.</li>
@@ -287,13 +287,16 @@ ul.task-list li input[type="checkbox"] {
 <li>ReAct Agent: Allow for a ToolDef to be passed to an AgentSubmit type.</li>
 <li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#user_prompt">user_prompt()</a></span> function for getting the last user message from a list of messages.</li>
 <li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_from_openai">messages_from_openai()</a></span> functions for converting to and from OpenAI-style message dicts.</li>
+<li>Groq: Support <code>response_schema</code> option for providing a JSON schema for model output.</li>
 <li>VLLM: Allow specifying the port when starting up a new vllm server.</li>
 <li>Eval Log: For sample summaries, preserve all sample and score fields that are less than 1k in size.</li>
 <li>CLI: Yield error exit code (1) if no tasks to evaluate are found at the specified path.</li>
 <li>Eval Set: You can now run eval sets in log dirs containing unrelated eval log files using the <code>--log-dir-allow-dirty</code> option.</li>
 <li>Add <code>--continue-on-fail</code> option for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>.</li>
+<li>Scoring: Add <code>copy</code> option to <code>score_async()</code> (defaults to <code>True</code>) to control whether the log is deep copied before scoring.</li>
 <li>Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.</li>
 <li>Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.</li>
+<li>Inspect View: Increase sample size limit to 100MB (samples larger than that are not browsable in the viewer).</li>
 <li>Bugifx: Properly handle surrogates in JSON serialization.</li>
 <li>Bugfix: Google and Mistral providers now generate unique tool call IDs to prevent collisions when calling the same tool multiple times.</li>
 <li>Bugfix: Enable use of custom reducers with <code>eval-retry</code> by delaying their creation until after task creation.</li>
@@ -302,8 +305,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Do not pass unsupported <code>tool_choice</code> to Anthropic thinking models.</li>
 </ul>
 </section>
-<section id="august-2025" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025">0.3.123 (16 August 2025)</h2>
+<section id="august-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-1">0.3.123 (16 August 2025)</h2>
 <ul>
 <li>Support for <a href="https://inspect.aisi.org.uk/multimodal.html#pdf">PDF input</a> for OpenAI, Anthropic, and Google via new <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentdocument">ContentDocument</a></span> type.</li>
 <li>MCP: Use <a href="https://inspect.aisi.org.uk/tools-mcp.html#remote-mcp">Remote MCP Servers</a> with OpenAI and Anthropic models.</li>
@@ -325,16 +328,16 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Don’t inspect stack in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#span">span()</a></span> function until required for logging.</li>
 </ul>
 </section>
-<section id="august-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-1">0.3.122 (11 August 2025)</h2>
+<section id="august-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-2">0.3.122 (11 August 2025)</h2>
 <ul>
 <li>OpenAI: Enable native <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool for GPT-5.</li>
 <li>OpenAI: Convert “web_search” tool choice to native “web_search_preview” type.</li>
 <li>Apply <code>sample_shuffle</code> for eval retry.</li>
 </ul>
 </section>
-<section id="august-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-2">0.3.121 (10 August 2025)</h2>
+<section id="august-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-3">0.3.121 (10 August 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/providers.html#sambanova">SambaNova</a> model provider.</li>
 <li><a href="https://inspect.aisi.org.uk/providers.html#goodfire">Goodfire</a> model provider.</li>
@@ -363,8 +366,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that <code>model_roles</code> are available within task initialization code.</li>
 </ul>
 </section>
-<section id="august-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-3">0.3.120 (07 August 2025)</h2>
+<section id="august-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-4">0.3.120 (07 August 2025)</h2>
 <ul>
 <li>OpenAI: Update model version checks for GPT-5.</li>
 <li>OpenAI: Support for specifying “minimal” for <code>reasoning_effort</code>.</li>
@@ -372,15 +375,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that <code>sample_shuffle</code> is <code>None</code> (rather than 0) when not specified on the command line.</li>
 </ul>
 </section>
-<section id="august-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-4">0.3.119 (04 August 2025)</h2>
+<section id="august-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-5">0.3.119 (04 August 2025)</h2>
 <ul>
 <li>Analysis functions are out of beta (<code>inspect_ai.analysis.beta</code> is deprecated in favor of <code>inspect_ai.analysis</code>).</li>
 <li>Scoring: Provide access to sample <code>store</code> for scorers run on existing log files.</li>
 </ul>
 </section>
-<section id="august-2025-5" class="level2">
-<h2 class="anchored" data-anchor-id="august-2025-5">0.3.118 (02 August 2025)</h2>
+<section id="august-2025-6" class="level2">
+<h2 class="anchored" data-anchor-id="august-2025-6">0.3.118 (02 August 2025)</h2>
 <ul>
 <li>Remove support for <code>vertex</code> provider as the google-cloud-aiplatform package has <a href="https://pypi.org/project/google-cloud-aiplatform/">deprecated</a> its support for Vertex generative models. Vertex can still be used via the native <code>google</code> and <code>anthropic</code> providers.</li>
 <li>Tool calling: Added support for emulated tool calling (<code>emulate_tools</code> model arg) to OpenAI API compatible providers.</li>
@@ -464,6 +467,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Scoring: Add <code>display</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> to control display type.</li>
 <li>Scoring: Nan values returned from scorers will be excluded from computation of metrics. Scorers in results include <code>scored_samples</code> and <code>unscored_samples</code> fields to indicate how many samples were scored and how many were not. The viewer will display these values if there are unscored samples.</li>
 <li>Eval Log: Protect against removing excessive numbers of samples at once from realtime database.</li>
+<li>Eval Log: Add <code>--resolve-attachments</code> option to <code>inspect log dump</code>.</li>
 <li>Hooks: Provide full <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> (rather than only the summary) to <code>on_sample_end()</code> hook.</li>
 <li>Inspect View: Compatiblility for sites published to GitHub Pages for <code>inspect view bundle</code>.</li>
 <li>Inspect View: The bundle produced for deployment now includes a much more compact manifest, improving support for bundling large numbers of files.</li>
