@@ -20,7 +20,6 @@ export const kDefaultExcludeSet = new Set([
   "sandbox",
   "state",
   "store",
-  "info",
 ]);
 
 export interface SampleSlice {

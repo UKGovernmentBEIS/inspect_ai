@@ -92,8 +92,16 @@ export const useTranscriptFilter = () => {
   const arrangedEventTypes = useCallback((columns: number = 1) => {
     const keys = Object.keys(eventTypes) as AllEventTypes[];
 
-    // Sort keys alphabetically
+    // Sort keys alphabetically with default disabled keys at the end
     const sortedKeys = keys.sort((a, b) => {
+      const aIsDefault = kDefaultExcludeSet.has(a);
+      const bIsDefault = kDefaultExcludeSet.has(b);
+
+      // If one is in default exclude set and the other isn't, default goes to end
+      if (aIsDefault && !bIsDefault) return 1;
+      if (!aIsDefault && bIsDefault) return -1;
+
+      // Both are in same category (both default or both not default), sort alphabetically
       return eventTypes[a].localeCompare(eventTypes[b]);
     });
 
