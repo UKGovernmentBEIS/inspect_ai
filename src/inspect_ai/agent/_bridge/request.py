@@ -1,28 +1,38 @@
-from time import time
-from typing import Any
+from __future__ import annotations
 
-from openai.types.chat import (
-    ChatCompletion,
-    ChatCompletionMessageParam,
-    ChatCompletionToolChoiceOptionParam,
-    ChatCompletionToolParam,
-)
+from time import time
+from typing import TYPE_CHECKING, Any
+
 from shortuuid import uuid
 
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._model import get_model, model_roles
-from inspect_ai.model._openai import (
-    messages_from_openai,
-    openai_chat_choices,
-    openai_completion_usage,
-)
+from inspect_ai.model._openai_convert import messages_from_openai
+from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletion
 
-async def inspect_model_request(json_data: dict[str, Any]) -> ChatCompletion:
+
+async def inspect_model_request(json_data: dict[str, Any]) -> "ChatCompletion":
+    validate_openai_client("agent bridge")
+
+    from openai.types.chat import (
+        ChatCompletion,
+        ChatCompletionMessageParam,
+        ChatCompletionToolChoiceOptionParam,
+        ChatCompletionToolParam,
+    )
+
+    from inspect_ai.model._openai import (
+        openai_chat_choices,
+        openai_completion_usage,
+    )
+
     # resolve model and model name
     model_name = str(json_data["model"])
     if model_name == "inspect":
