@@ -2,7 +2,6 @@ import os
 
 import anyio
 import httpx
-from bs4 import BeautifulSoup, NavigableString
 from pydantic import BaseModel
 from tenacity import (
     retry,
@@ -157,6 +156,8 @@ async def page_if_relevant(
     Returns:
         str: Web page contents if relevant, else None.
     """
+    from bs4 import BeautifulSoup, NavigableString
+
     # resolve model
     from inspect_ai.model._model import get_model
 
