@@ -50,6 +50,8 @@ import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { SampleScoresView } from "./scores/SampleScoresView";
+import { useTranscriptFilter } from "./transcript/hooks";
+import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
 
 interface SampleDisplayProps {
@@ -153,11 +155,41 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
 
+  const isShowing = useStore((state) => state.app.dialogs.transcriptFilter);
+  const setShowing = useStore(
+    (state) => state.appActions.setShowingTranscriptFilterDialog,
+  );
+  const filterRef = useRef<HTMLButtonElement | null>(null);
+
   const handlePrintClick = useCallback(() => {
     printSample(id, targetId);
   }, [printSample, id, targetId]);
 
+  const toggleFilter = useCallback(() => {
+    setShowing(!isShowing);
+  }, [setShowing, isShowing]);
+
+  const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
+
   const tools = [];
+  if (selectedTab === kSampleTranscriptTabId) {
+    const label = isDebugFilter
+      ? "Debug"
+      : isDefaultFilter
+        ? "Default"
+        : "Custom";
+
+    tools.push(
+      <ToolButton
+        key="sample-filter-transcript"
+        label={`Events: ${label}`}
+        icon={ApplicationIcons.filter}
+        onClick={toggleFilter}
+        ref={filterRef}
+      />,
+    );
+  }
+
   if (!isVscode()) {
     tools.push(
       <ToolButton
@@ -201,6 +233,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           }
           scrollable={false}
         >
+          <TranscriptFilterPopover
+            showing={isShowing}
+            setShowing={setShowing}
+            positionEl={filterRef.current}
+          />
+
           <TranscriptPanel
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}

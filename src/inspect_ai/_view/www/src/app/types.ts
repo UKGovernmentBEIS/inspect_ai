@@ -44,6 +44,7 @@ export interface AppState {
   };
   dialogs: {
     sample: boolean;
+    transcriptFilter: boolean;
   };
   scrollPositions: Record<string, number>;
   listPositions: Record<string, StateSnapshot>;
@@ -105,6 +106,10 @@ export type SampleIdentifier = {
   epoch: number;
 };
 
+export interface EventFilter {
+  filteredTypes: Set<string>;
+}
+
 export interface SampleState {
   sample_identifier: SampleIdentifier | undefined;
   sampleInState: boolean;
@@ -119,6 +124,7 @@ export interface SampleState {
   runningEvents: Event[];
   collapsedEvents: Record<string, Record<string, boolean>> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
+  eventFilter: EventFilter;
 
   selectedOutlineId?: string;
 }

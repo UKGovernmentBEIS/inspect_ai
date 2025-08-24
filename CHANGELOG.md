@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out `sample_init`, `sandbox`, `store`, and `state` events.
+
 ## 0.3.124 (24 August 2025)
 
 - Agent Bridge: New context-manager based `agent_bridge()` that replaces the deprecated `bridge()` function.

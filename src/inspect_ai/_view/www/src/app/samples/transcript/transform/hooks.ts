@@ -6,7 +6,7 @@ import {
   SubtaskEvent,
   ToolEvent,
 } from "../../../../@types/log";
-import { EventNode } from "../types";
+import { EventNode, EventType } from "../types";
 import { fixupEventStream, kSandboxSignalName } from "./fixups";
 import { treeifyEvents } from "./treeify";
 
@@ -20,7 +20,23 @@ export const useEventNodes = (events: Events, running: boolean) => {
     const resolvedEvents = fixupEventStream(events, !running);
 
     // Build the event tree
-    const eventTree = treeifyEvents(resolvedEvents, 0);
+    const rawEventTree = treeifyEvents(resolvedEvents, 0);
+
+    // Now filter the tree to remove empty spans
+    const filterEmpty = (
+      eventNodes: EventNode<EventType>[],
+    ): EventNode<EventType>[] => {
+      return eventNodes.filter((node) => {
+        if (node.children && node.children.length > 0) {
+          node.children = filterEmpty(node.children);
+        }
+        return (
+          (node.event.event !== "span_begin" && node.event.event !== "step") ||
+          (node.children && node.children.length > 0)
+        );
+      });
+    };
+    const eventTree = filterEmpty(rawEventTree);
 
     // Apply collapse filters to the event tree
     const defaultCollapsedIds: Record<string, true> = {};

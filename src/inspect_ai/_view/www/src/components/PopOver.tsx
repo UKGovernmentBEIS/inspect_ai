@@ -13,6 +13,7 @@ import { usePopper } from "react-popper";
 interface PopOverProps {
   id: string;
   isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
   positionEl: HTMLElement | null;
   placement?: Placement;
   showArrow?: boolean;
@@ -32,6 +33,7 @@ interface PopOverProps {
 export const PopOver: React.FC<PopOverProps> = ({
   id,
   isOpen,
+  setIsOpen,
   positionEl,
   children,
   placement = "bottom",
@@ -55,11 +57,6 @@ export const PopOver: React.FC<PopOverProps> = ({
 
   // Setup hover timer and mouse movement detection
   useEffect(() => {
-    if (!isOpen || hoverDelay <= 0) {
-      setShouldShowPopover(isOpen);
-      return;
-    }
-
     const handleMouseMove = () => {
       isMouseMovingRef.current = true;
 
@@ -85,22 +82,45 @@ export const PopOver: React.FC<PopOverProps> = ({
       setShouldShowPopover(false);
     };
 
-    const handleMouseDown = () => {
-      // Cancel popover on any mouse down
-      if (hoverTimerRef.current !== null) {
-        window.clearTimeout(hoverTimerRef.current);
+    const handleMouseDown = (event: MouseEvent) => {
+      // Only cancel popover on mouse down outside the popover content
+      if (
+        popperRef.current &&
+        !popperRef.current.contains(event.target as Node)
+      ) {
+        if (hoverTimerRef.current !== null) {
+          window.clearTimeout(hoverTimerRef.current);
+        }
+        setShouldShowPopover(false);
+        setIsOpen(false);
       }
-      setShouldShowPopover(false);
     };
+
+    if (!isOpen || hoverDelay <= 0) {
+      setShouldShowPopover(isOpen);
+      const listener = (event: MouseEvent) => {
+        // Only close if clicking outside the popover content
+        if (
+          popperRef.current &&
+          !popperRef.current.contains(event.target as Node)
+        ) {
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", listener);
+
+      return () => {
+        document.removeEventListener("mousedown", listener);
+      };
+    }
 
     // Add event listeners to the positionEl (the trigger element)
     if (positionEl && isOpen) {
       positionEl.addEventListener("mousemove", handleMouseMove);
       positionEl.addEventListener("mouseleave", handleMouseLeave);
 
-      // Add document-wide mousedown listener to dismiss on interaction
+      // Add document-wide mousedown listener to dismiss on interaction outside popover
       document.addEventListener("mousedown", handleMouseDown);
-      document.addEventListener("click", handleMouseDown);
 
       // Initial mouse move to start the timer
       handleMouseMove();
@@ -116,8 +136,6 @@ export const PopOver: React.FC<PopOverProps> = ({
 
       // Clean up the document mousedown listener
       document.removeEventListener("mousedown", handleMouseDown);
-
-      document.removeEventListener("click", handleMouseDown);
 
       if (hoverTimerRef.current !== null) {
         window.clearTimeout(hoverTimerRef.current);
