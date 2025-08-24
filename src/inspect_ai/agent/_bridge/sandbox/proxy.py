@@ -524,7 +524,7 @@ async def model_proxy_server(
     """
     # get generate method if not provided (for testing)
     if call_bridge_model_service_async is None:
-        sys.path.append("/var/tmp/sandbox-services/bridge_model_service")
+        sys.path.append("/var/tmp/sandbox-services/bridge_model_service/<<<instance>>>")
         from bridge_model_service import (  # type: ignore[import-not-found,no-redef]
             call_bridge_model_service_async,
         )

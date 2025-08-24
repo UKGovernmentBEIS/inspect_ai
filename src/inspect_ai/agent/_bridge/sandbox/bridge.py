@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import AsyncIterator
 
 import anyio
+from shortuuid import uuid
 
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -63,6 +64,9 @@ async def sandbox_agent_bridge(
             configuration to use to use an external provider like
             Tavili or Exa for models that don't support internal search.
     """
+    # instance id for this bridge
+    instance = f"proxy_{uuid()}"
+
     # resolve sandbox
     sandbox = sandbox or default_sandbox()
 
@@ -75,10 +79,10 @@ async def sandbox_agent_bridge(
             started = anyio.Event()
 
             # sandbox service that receives model requests
-            tg.start_soon(run_model_service, sandbox, web_search, started)
+            tg.start_soon(run_model_service, sandbox, web_search, instance, started)
 
             # proxy server that runs in container and forwards to sandbox service
-            tg.start_soon(run_model_proxy, sandbox, port, started)
+            tg.start_soon(run_model_proxy, sandbox, port, instance, started)
 
             # ensure services are up
             await anyio.sleep(0.1)
@@ -93,15 +97,15 @@ async def sandbox_agent_bridge(
 
 
 async def run_model_proxy(
-    sandbox: SandboxEnvironment, port: int, started: anyio.Event
+    sandbox: SandboxEnvironment, port: int, instance: str, started: anyio.Event
 ) -> None:
     # wait for model service to be started up
     await started.wait()
 
     # install the model proxy script in the container
-    MODEL_PROXY_PY = "/var/tmp/inspect-sandbox/model-proxy.py"
+    MODEL_PROXY_PY = f"/var/tmp/inspect-sandbox/{instance}/model-proxy.py"
     with open(Path(__file__).parent / "proxy.py", "r") as f:
-        proxy_script = f.read()
+        proxy_script = f.read().replace("<<<instance>>>", instance)
         await sandbox.write_file(MODEL_PROXY_PY, proxy_script)
     result = await sandbox.exec(["chmod", "+x", MODEL_PROXY_PY])
     if not result.success:

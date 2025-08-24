@@ -17,13 +17,20 @@ logger = getLogger(__file__)
 
 
 async def run_model_service(
-    sandbox: SandboxEnvironment, web_search: WebSearchProviders, started: anyio.Event
+    sandbox: SandboxEnvironment,
+    web_search: WebSearchProviders,
+    instance: str,
+    started: anyio.Event,
 ) -> None:
     await sandbox_service(
         name=MODEL_SERVICE,
-        methods=[generate_completions(), generate_responses(web_search)],
+        methods={
+            "generate_completions": generate_completions(),
+            "generate_responses": generate_responses(web_search),
+        },
         until=lambda: False,
         sandbox=sandbox,
+        instance=instance,
         started=started,
     )
 
