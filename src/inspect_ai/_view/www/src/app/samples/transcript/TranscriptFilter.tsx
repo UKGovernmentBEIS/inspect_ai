@@ -56,14 +56,6 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
         >
           Debug
         </a>
-        |
-        <span
-          className={clsx(
-            !isDebugFilter && !isDefaultFilter ? styles.selected : undefined,
-          )}
-        >
-          Custom
-        </span>
       </div>
 
       <div className={clsx(styles.grid, "text-size-smaller")}>
