@@ -1,21 +1,14 @@
+from __future__ import annotations
+
 from logging import getLogger
 from time import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openai.types.chat import (
-    ChatCompletion,
-    ChatCompletionMessageParam,
-    ChatCompletionToolChoiceOptionParam,
-    ChatCompletionToolParam,
-)
 from shortuuid import uuid
 
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
-from inspect_ai.model._openai import (
-    messages_from_openai,
-    openai_chat_choices,
-    openai_completion_usage,
-)
+from inspect_ai.model._openai_convert import messages_from_openai
+from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
@@ -23,10 +16,32 @@ from inspect_ai.util._json import JSONSchema
 
 from .util import resolve_inspect_model
 
+if TYPE_CHECKING:
+    from openai.types.chat import (
+        ChatCompletion,
+        ChatCompletionToolChoiceOptionParam,
+        ChatCompletionToolParam,
+    )
+
+
 logger = getLogger(__file__)
 
 
-async def inspect_completions_api_request(json_data: dict[str, Any]) -> ChatCompletion:
+async def inspect_completions_api_request(
+    json_data: dict[str, Any],
+) -> "ChatCompletion":
+    validate_openai_client("agent bridge")
+
+    from openai.types.chat import (
+        ChatCompletion,
+        ChatCompletionMessageParam,
+    )
+
+    from inspect_ai.model._openai import (
+        openai_chat_choices,
+        openai_completion_usage,
+    )
+
     model = resolve_inspect_model(str(json_data["model"]))
     model_name = model.api.model_name
 
@@ -61,7 +76,7 @@ async def inspect_completions_api_request(json_data: dict[str, Any]) -> ChatComp
 
 
 def tool_choice_from_openai_tool_choice(
-    tool_choice: ChatCompletionToolChoiceOptionParam | None,
+    tool_choice: "ChatCompletionToolChoiceOptionParam" | None,
 ) -> ToolChoice | None:
     inspect_tool_choice: ToolChoice | None = None
     if tool_choice is not None:
@@ -78,7 +93,7 @@ def tool_choice_from_openai_tool_choice(
     return inspect_tool_choice
 
 
-def tools_from_openai_tools(tools: list[ChatCompletionToolParam]) -> list[ToolInfo]:
+def tools_from_openai_tools(tools: "list[ChatCompletionToolParam]") -> list[ToolInfo]:
     inspect_tools: list[ToolInfo] = []
     for tool in tools:
         assert tool["type"] == "function", '"custom" tool calls are not supported'

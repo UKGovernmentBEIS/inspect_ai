@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.124 (24 August 2025)
 
 - Agent Bridge: New context-manager based `agent_bridge()` that replaces the deprecated `bridge()` function.
 - Agent Bridge: `sandbox_agent_bridge()` to integrate with CLI based agents running inside sandboxes.
@@ -6,11 +6,13 @@
 - ReAct Agent: Allow for a ToolDef to be passed to an AgentSubmit type.
 - Model API: `user_prompt()` function for getting the last user message from a list of messages.
 - Model API: `messages_to_openai()` and `messages_from_openai()` functions for converting to and from OpenAI-style message dicts.
+- Groq: Support `response_schema` option for providing a JSON schema for model output.
 - VLLM: Allow specifying the port when starting up a new vllm server.
 - Eval Log: For sample summaries, preserve all sample and score fields that are less than 1k in size.
 - CLI: Yield error exit code (1) if no tasks to evaluate are found at the specified path.
 - Eval Set: You can now run eval sets in log dirs containing unrelated eval log files using the `--log-dir-allow-dirty` option.
 - Add `--continue-on-fail` option for `eval()` and `eval_set()`.
+- Scoring: Add `copy` option to `score_async()` (defaults to `True`) to control whether the log is deep copied before scoring.
 - Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
 - Inspect View: Increase sample size limit to 100MB (samples larger than that are not browsable in the viewer).

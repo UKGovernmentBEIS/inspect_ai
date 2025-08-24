@@ -4,7 +4,7 @@ title: "Structured Output"
 
 ## Overview
 
-Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Google, Mistral, vLLM, and SGLang providers.
+Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Google, Mistral, Groq, vLLM, and SGLang providers.
 
 While structured output may seem like a robust solution to model unreliability, it's important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that [models perform worse with structured output](https://dylancastillo.co/posts/say-what-you-mean-sometimes.html).
 

@@ -6,10 +6,6 @@ from functools import wraps
 from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
 
 from jsonschema import Draft7Validator
-from openai._base_client import AsyncAPIClient, _AsyncStreamT
-from openai._models import FinalRequestOptions
-from openai._types import ResponseT
-from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
@@ -18,7 +14,7 @@ from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._openai import (
+from inspect_ai.model._openai_convert import (
     messages_from_openai,
     messages_to_openai,
 )
@@ -101,6 +97,12 @@ def init_openai_request_patch() -> None:
     if _patch_initialised:
         return
 
+    validate_openai_client("agent bridge")
+
+    from openai._base_client import AsyncAPIClient, _AsyncStreamT
+    from openai._models import FinalRequestOptions
+    from openai._types import ResponseT
+
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
     if original_request is None:
@@ -173,6 +175,8 @@ def bridge(
       Inspect agent.
     """
     validate_openai_client("Agent bridge()")
+
+    from openai.types.chat import ChatCompletionMessageParam
 
     class BridgeInput(BaseModel):
         messages: list[ChatCompletionMessageParam]
