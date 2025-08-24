@@ -203,15 +203,6 @@ async def messages_to_openai(
 ) -> list[ChatCompletionMessageParam]:
     """Convert messages to OpenAI Completions API compatible messages.
 
-    ::: callout-note
-    The `message_to_openai()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
-
     Args:
        messages: List of messages to convert
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
@@ -393,14 +384,6 @@ async def messages_from_openai(
     model: str | None = None,
 ) -> list[ChatMessage]:
     """Convert OpenAI Completions API messages into Inspect messages.
-
-    ::: callout-note
-    The `messages_from_openai()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
 
     Args:
         messages: OpenAI Completions API Messages

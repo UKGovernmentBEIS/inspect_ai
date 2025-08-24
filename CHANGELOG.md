@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.124 (24 August 2025)
 
 - Agent Bridge: New context-manager based `agent_bridge()` that replaces the deprecated `bridge()` function.
 - Agent Bridge: `sandbox_agent_bridge()` to integrate with CLI based agents running inside sandboxes.
