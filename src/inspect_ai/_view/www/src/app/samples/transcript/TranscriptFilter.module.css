@@ -26,11 +26,14 @@
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-.links a,
-.links a:hover {
+.links a {
   cursor: pointer;
   text-decoration: none;
   color: var(--bs-link-color);
+}
+
+.links a:hover {
+  color: var(--bs-link-hover-color);
 }
 
 .selected {
