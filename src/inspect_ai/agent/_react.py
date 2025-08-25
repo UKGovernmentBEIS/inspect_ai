@@ -2,6 +2,7 @@ from logging import getLogger
 from typing import Literal, Sequence, cast
 
 from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util.content import ContentText
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -205,6 +206,17 @@ def react(
                             state.output.completion = answer
                         else:
                             state.output.completion = f"{state.output.completion}{submit.answer_delimiter}{answer}".strip()
+
+                        # also populate the message text (as the submit tool will be removed)
+                        if (
+                            not submit.keep_in_messages
+                            and len(state.output.choices) > 0
+                        ):
+                            message = state.output.choices[0].message
+                            if isinstance(message.content, str):
+                                message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
+                            else:
+                                message.content.append(ContentText(text=answer))
 
                         # exit if we are at max_attempts
                         attempt_count += 1
