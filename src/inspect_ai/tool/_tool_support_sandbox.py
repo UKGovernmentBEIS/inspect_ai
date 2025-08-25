@@ -25,12 +25,14 @@ SANDBOX_CLI = "/opt/inspect-tool-support"
 
 async def inject_tool_support_code(sandbox: SandboxEnvironment) -> None:
     info = await detect_sandbox_os(sandbox)
+    print(f"attempting to inject_tool_support_code for {info}")
 
     async with _open_executable_for_arch(info["architecture"]) as (_, f):
         # TODO: The first tuple member, filename, isn't currently used, but it will be
         await sandbox.write_file(SANDBOX_CLI, f.read())
         # .write_file used `tee` which dropped execute permissions
         await sandbox.exec(["chmod", "+x", SANDBOX_CLI])
+        print("DID IT!")
 
 
 @asynccontextmanager
@@ -46,24 +48,33 @@ async def _open_executable_for_arch(
     arch: Architecture,
 ) -> AsyncIterator[tuple[str, BinaryIO]]:
     is_pypi_install = _is_pypi_install()
+
+    print(f"{is_pypi_install=}")
+
     executable_name = _get_versioned_executable_name(arch)
     dev_executable_name = f"{executable_name}-dev"
+
+    print(f"{executable_name=} / {dev_executable_name=}")
 
     # 3.1. Local Executable Check - Check dev version first (unless it's PyPI)
     if not is_pypi_install:
         try:
             async with _open_executable(dev_executable_name) as f:
+                print(f"found {dev_executable_name}")
                 yield dev_executable_name, f
                 return
         except (FileNotFoundError, ModuleNotFoundError):
+            print(f"didn't find {dev_executable_name}")
             pass
 
     # 3.1. Local Executable Check - Then check production version
     try:
         async with _open_executable(executable_name) as f:
+            print(f"found {executable_name}")
             yield executable_name, f
             return
     except (FileNotFoundError, ModuleNotFoundError):
+        print(f"didn't find {executable_name}")
         pass
 
     if is_pypi_install:
@@ -75,6 +86,7 @@ async def _open_executable_for_arch(
     # 3.2. S3 Download Attempt - Try to download from S3
     if await _download_from_s3(executable_name):
         async with _open_executable(executable_name) as f:
+            print(f"downloaded {executable_name} from s3")
             yield executable_name, f
             return
 
