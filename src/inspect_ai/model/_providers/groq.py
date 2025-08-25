@@ -202,6 +202,18 @@ class GroqAPI(ModelAPI):
             params["seed"] = config.seed
         if config.num_choices is not None:
             params["n"] = config.num_choices
+        if config.response_schema is not None:
+            params["response_format"] = dict(
+                type="json_schema",
+                json_schema=dict(
+                    name=config.response_schema.name,
+                    schema=config.response_schema.json_schema.model_dump(
+                        exclude_none=True
+                    ),
+                    description=config.response_schema.description,
+                    strict=config.response_schema.strict,
+                ),
+            )
         return params
 
     def _chat_choices_from_response(
