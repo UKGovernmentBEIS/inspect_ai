@@ -32,9 +32,7 @@ async def sandbox_client(  # type: ignore
     timeout: int | None = None,  # default 180 seconds
 ) -> MCPServerContext:  # type: ignore
     timeout = timeout or 180
-    (sandbox_environment, _) = await tool_support_sandbox(
-        "mcp support", sandbox_name=sandbox_name
-    )
+    sandbox_environment = await tool_support_sandbox(sandbox_name=sandbox_name)
 
     # read_stream is remote process's stdout
     read_stream: MemoryObjectReceiveStream[SessionMessage | Exception]

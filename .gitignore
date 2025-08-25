@@ -26,6 +26,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+src/inspect_ai/binaries/
 *.env
 
 # PyInstaller
