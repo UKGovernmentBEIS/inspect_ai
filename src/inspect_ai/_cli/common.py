@@ -23,7 +23,7 @@ class CommonOptions(TypedDict):
     display: Literal["full", "conversation", "rich", "plain", "none"]
     no_ansi: bool | None
     traceback_locals: bool
-    env: tuple[str] | None
+    env: tuple[str, ...] | None
     debug: bool
     debug_port: int
     debug_errors: bool

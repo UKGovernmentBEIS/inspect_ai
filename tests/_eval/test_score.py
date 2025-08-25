@@ -1,7 +1,17 @@
+import pathlib
+from typing import Any
+
 import pydantic
 import pytest
+from test_helpers.utils import skip_if_no_openai
 
-from inspect_ai._eval.score import ScoreAction, _get_updated_events, _get_updated_scores
+from inspect_ai._eval.score import (
+    ScoreAction,
+    _get_updated_events,
+    _get_updated_scores,
+    resolve_scorers,
+    score_async,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalSample,
@@ -12,6 +22,7 @@ from inspect_ai.log import (
     ScoreEvent,
     Transcript,
 )
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
 from inspect_ai.model._chat_message import (
@@ -257,3 +268,80 @@ async def test_get_updated_events(test_case: UpdatedEventsTestCase):
     assert (
         existing_scorers_span == updated_scorers_span
     ) is not test_case.expected_new_scorer_span
+
+
+LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"
+LOG_SCORED = (
+    LOGS_DIR / "2025-02-11T15-18-04-05-00_popularity_mj7khqpMM4GBCfVQozKgzB.eval"
+)
+LOG_UNSCORED = (
+    LOGS_DIR / "2025-02-11T15-17-00-05-00_popularity_dPiJifoWeEQBrfWsAopzWr.eval"
+)
+
+
+@pytest.mark.parametrize(
+    ("log_file", "action", "scorer", "expected_scores"),
+    [
+        pytest.param(
+            LOG_UNSCORED,
+            None,
+            ("match", {}),
+            {"match": {"num_metrics": 2}},
+            id="unscored",
+        ),
+        pytest.param(
+            LOG_UNSCORED,
+            "overwrite",
+            ("match", {}),
+            {"match": {"num_metrics": 2}},
+            id="unscored-overwrite",
+        ),
+        pytest.param(
+            LOG_UNSCORED,
+            "append",
+            ("f1", {"stop_words": ["roasted"]}),
+            {"f1": {"num_metrics": 2, "stop_words": ["roasted"]}},
+            id="unscored-append",
+        ),
+        pytest.param(
+            LOG_SCORED,
+            "append",
+            ("f1", {"stop_words": ["woah"]}),
+            {
+                "f1": {"num_metrics": 2, "stop_words": ["woah"]},
+                "match": {"num_metrics": 2},
+            },
+            id="scored-append",
+        ),
+        pytest.param(
+            LOG_SCORED,
+            "overwrite",
+            ("f1", {"stop_words": ["clowns"]}),
+            {"f1": {"num_metrics": 2, "stop_words": ["clowns"]}},
+            id="scored-overwrite",
+        ),
+    ],
+)
+@pytest.mark.anyio
+@skip_if_no_openai
+async def test_score(
+    log_file: pathlib.Path,
+    action: ScoreAction | None,
+    scorer: tuple[str, dict[str, Any]],
+    expected_scores: dict[str, dict[str, int]],
+):
+    unscored_log = await read_eval_log_async(log_file)
+
+    scored_log = await score_async(
+        log=unscored_log,
+        scorers=resolve_scorers(unscored_log, scorer[0], scorer[1]),
+        action=action,
+    )
+
+    assert scored_log.results is not None
+    scores = {score.name: score for score in scored_log.results.scores}
+    assert [*scores] == [*expected_scores]
+    for score_name, expected_score in expected_scores.items():
+        assert len(scores[score_name].metrics.items()) == expected_score["num_metrics"]
+        if expected_stop_words := expected_score.get("stop_words"):
+            assert scores[score_name].params["stop_words"] == expected_stop_words
