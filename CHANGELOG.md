@@ -1,3 +1,8 @@
+## 0.3.125 (25 August 2025)
+
+- Scoring: Refactor `inspect score` to call same underlying code as `score()`.
+- Bugfix: Fix regression in CLI scoring.
+
 ## 0.3.124 (24 August 2025)
 
 - Agent Bridge: New context-manager based `agent_bridge()` that replaces the deprecated `bridge()` function.
