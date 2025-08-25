@@ -52,7 +52,7 @@ def log(path: str, header_only: int) -> None:
 
 @info_command.command("log-file-headers", hidden=True)
 @click.argument("files", nargs=-1)
-def log_file_headers(files: tuple[str]) -> None:
+def log_file_headers(files: tuple[str, ...]) -> None:
     """Read and print a JSON list of log file headers."""
     headers(files)
 

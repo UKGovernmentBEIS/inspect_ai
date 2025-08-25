@@ -16,8 +16,13 @@ from inspect_ai._display import display
 from inspect_ai._display.core.results import task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
-from inspect_ai._eval.score import ScoreAction, task_score
+from inspect_ai._eval.score import (
+    ScoreAction,
+    resolve_scorers,
+    score_async,
+)
 from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders import create_recorder_for_location
 
@@ -65,15 +70,13 @@ def score_command(
     overwrite: bool | None,
     output_file: str | None,
     scorer: str | None,
-    s: tuple[str] | None,
+    s: tuple[str, ...] | None,
     action: ScoreAction | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
-    # read common options
     process_common_options(common)
 
-    # score
     async def run_score() -> None:
         return await score(
             log_dir=common["log_dir"],
@@ -93,41 +96,41 @@ async def score(
     log_dir: str,
     log_file: str,
     scorer: str | None,
-    s: tuple[str] | None,
+    s: tuple[str, ...] | None,
     overwrite: bool,
     action: ScoreAction | None,
     log_level: str | None,
     output_file: str | None = None,
 ) -> None:
-    # init eval context
+    platform_init()
+
     init_eval_context(log_level, None)
     scorer_args = parse_cli_config(args=s, config=None)
 
-    # read the eval log
     recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = await recorder.read_log(log_file)
+    if eval_log.samples is None or len(eval_log.samples) == 0:
+        raise ValueError(f"{log_file} does not include samples to score")
 
-    # resolve the target output file (prompts user)
+    scorers = resolve_scorers(eval_log, scorer, scorer_args)
+    if len(scorers) == 0:
+        raise ValueError(
+            "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
+        )
+    action = resolve_action(eval_log, action)
     output_file = _resolve_output_file(
         log_file, output_file=output_file, overwrite=overwrite
     )
 
-    # resolve action
-    action = resolve_action(eval_log, action)
-
-    # check that there are samples therein
-    if eval_log.samples is None or len(eval_log.samples) == 0:
-        raise ValueError(f"{log_file} does not include samples to score")
-
-    # re-score the task
-    eval_log = await task_score(
-        log=eval_log, scorer=scorer, scorer_args=scorer_args, action=action
+    eval_log = await score_async(
+        log=eval_log,
+        scorers=scorers,
+        action=action,
+        copy=False,
     )
 
-    # re-write the log
     await recorder.write_log(output_file, eval_log)
 
-    # print results
     print_results(output_file, eval_log)
 
 
