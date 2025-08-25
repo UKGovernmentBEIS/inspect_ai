@@ -1045,12 +1045,6 @@ async def message_param(message: ChatMessage) -> MessageParam:
 @dataclass
 class _AssistantInternal:
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
-    server_mcp_tool_uses: dict[
-        str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
-    ] = field(default_factory=dict)
-    server_web_searches: dict[
-        str, tuple[ServerToolUseBlockParam, WebSearchToolResultBlockParam]
-    ] = field(default_factory=dict)
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -1097,22 +1091,21 @@ async def model_output_from_message(
                     "MCPToolResultBlock without previous MCPToolUseBlock"
                 )
 
-            # record in internal
-            assistant_internal().server_mcp_tool_uses[tool_result_block.tool_use_id] = (
-                pending_mcp_tool_use.model_dump(),
-                tool_result_block.model_dump(),
-            )
-
             content.append(
                 ContentToolUse(
                     tool_type="mcp_call",
                     id=tool_result_block.tool_use_id,
                     name=pending_mcp_tool_use.name,
                     context=pending_mcp_tool_use.server_name,
-                    arguments=pending_mcp_tool_use.input,
+                    arguments=to_json_str_safe(pending_mcp_tool_use.input),
                     result=tool_result_block.content
                     if isinstance(tool_result_block.content, str)
-                    else [block.model_dump() for block in tool_result_block.content],
+                    else to_json_str_safe(
+                        [
+                            c.model_dump(exclude_none=True)
+                            for c in tool_result_block.content
+                        ]
+                    ),
                     error="error" if tool_result_block.is_error else None,
                 )
             )
@@ -1159,12 +1152,6 @@ async def model_output_from_message(
                 raise RuntimeError(
                     "WebSearchToolResultBlock without previous ServerToolUseBlock"
                 )
-
-            # record in internal
-            assistant_internal().server_web_searches[pending_tool_use.id] = (
-                cast(ServerToolUseBlockParam, pending_tool_use.model_dump()),
-                cast(WebSearchToolResultBlockParam, content_block.model_dump()),
-            )
 
             content.append(
                 ContentToolUse(
@@ -1356,12 +1343,6 @@ async def message_param_content(
                 )
             ]
     elif isinstance(content, ContentToolUse):
-        if content.id in assistant_internal().server_mcp_tool_uses:
-            return list(assistant_internal().server_mcp_tool_uses[content.id])
-
-        elif content.id in assistant_internal().server_web_searches:
-            return list(assistant_internal().server_web_searches[content.id])
-
         if content.tool_type == "web_search":
             return [
                 ServerToolUseBlockParam(
