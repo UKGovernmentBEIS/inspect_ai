@@ -41,9 +41,10 @@ def update_state_from_generate(
 ) -> None:
     # if the state ends with an assistant message its a continuation
     # of a thread (rather than the initialization of the agent)
-    # so append the last input element (tool or user message)
+    # so find and append messages in the input that are after the
+    # the last assistant message
     if is_awaiting_response(state.messages):
-        state.messages.append(input[-1])
+        state.messages.extend(previous_turn_response(input))
 
     # append assistant message and update output
     state.messages.append(output.message)
@@ -52,3 +53,18 @@ def update_state_from_generate(
 
 def is_awaiting_response(messages: list[ChatMessage]) -> bool:
     return len(messages) > 0 and isinstance(messages[-1], ChatMessageAssistant)
+
+
+def previous_turn_response(messages: list[ChatMessage]) -> list[ChatMessage]:
+    # if there are no assistant messages this model might not replay
+    # assistant messages -- in that case just return the last message)
+    if not any(isinstance(message, ChatMessageAssistant) for message in messages):
+        return [messages[-1]]
+    else:
+        # walk backwards until we find the most recent assistant message
+        idx = len(messages) - 1
+        while idx >= 0 and not isinstance(messages[idx], ChatMessageAssistant):
+            idx -= 1
+
+        # return everything after that index
+        return messages[idx + 1 :]
