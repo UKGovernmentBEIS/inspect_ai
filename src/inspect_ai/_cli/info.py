@@ -4,7 +4,7 @@ import click
 
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai._view.server import resolve_header_only
+from inspect_ai._view.utils import resolve_header_only
 from inspect_ai.log._file import eval_log_json_str, read_eval_log
 
 from .log import headers, schema, types
