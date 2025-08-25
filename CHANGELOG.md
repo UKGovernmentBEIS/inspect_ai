@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fix error in reducing scores when all scores for a sample are NaN.
+
 ## 0.3.125 (25 August 2025)
 
 - Scoring: Refactor `inspect score` to call same underlying code as `score()`.
