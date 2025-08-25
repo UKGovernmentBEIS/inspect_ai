@@ -688,7 +688,7 @@ def _openai_input_items_from_chat_message_assistant(
             # replayed from the model
             # Is it okay to dynamically generate this here? We need this in
             # order to read this back into the equivalent BaseModel for the bridge
-            id=msg_id or message.id or uuid(),
+            id=msg_id,  # type: ignore[typeddict-item]
             content=content_list,
             status="completed",
         )
