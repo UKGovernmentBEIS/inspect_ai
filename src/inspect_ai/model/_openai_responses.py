@@ -40,9 +40,7 @@ from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
 from openai.types.responses.response_function_web_search_param import (
-    ActionFind,
-    ActionOpenPage,
-    ActionSearch,
+    Action,
 )
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
@@ -78,7 +76,7 @@ from openai.types.responses.response_usage import (
     OutputTokensDetails,
 )
 from openai.types.responses.tool_param import Mcp
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
@@ -93,6 +91,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -461,46 +460,17 @@ def _chat_message_assistant_from_openai_response(
                 assistant_internal().server_tool_uses[output.id] = cast(
                     ResponseFunctionWebSearchParam, output.model_dump()
                 )
-                message_content.append(
-                    ContentToolUse(
-                        tool_type="web_search_call",
-                        id=output.id,
-                        name=output.action.type,
-                        arguments=output.action.model_dump(),
-                        result="",
-                        error="failed" if output.status == "failed" else None,
-                    )
-                )
+                message_content.append(web_search_to_tool_use(output))
             case McpListTools():
                 assistant_internal().server_tool_uses[output.id] = cast(
                     McpListToolsParam, output.model_dump()
                 )
-                message_content.append(
-                    ContentToolUse(
-                        tool_type="mcp_list_tools",
-                        id=output.id,
-                        name="mcp_list_tools",
-                        context=output.server_label,
-                        arguments="",
-                        result=[tool.model_dump() for tool in output.tools],
-                        error=output.error,
-                    )
-                )
+                message_content.append(mcp_list_tools_to_tool_use(output))
             case McpCall():
                 assistant_internal().server_tool_uses[output.id] = cast(
                     McpCallParam, output.model_dump()
                 )
-                message_content.append(
-                    ContentToolUse(
-                        tool_type="mcp_call",
-                        id=output.id,
-                        name=output.name,
-                        context=output.server_label,
-                        arguments=output.arguments,
-                        result=output.output,
-                        error=output.error,
-                    )
-                )
+                message_content.append(mcp_call_to_tool_use(output))
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -555,50 +525,76 @@ def responses_reasoning_from_reasoning(
     )
 
 
+mcp_tool_adapter = TypeAdapter(list[McpListToolsToolParam])
+
+
+def web_search_to_tool_use(output: ResponseFunctionWebSearch) -> ContentToolUse:
+    return ContentToolUse(
+        tool_type="web_search",
+        id=output.id,
+        name=output.action.type,
+        arguments=to_json_str_safe(output.action),
+        result="",
+        error="failed" if output.status == "failed" else None,
+    )
+
+
+def mcp_list_tools_to_tool_use(output: McpListTools) -> ContentToolUse:
+    return ContentToolUse(
+        tool_type="mcp_call",
+        id=output.id,
+        name="mcp_list_tools",
+        arguments="",
+        result=to_json_str_safe(output.tools),
+        error=output.error,
+    )
+
+
+def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
+    return ContentToolUse(
+        tool_type="mcp_call",
+        id=output.id,
+        name=output.name,
+        context=output.server_label,
+        arguments=output.arguments,
+        result=output.output or "",
+        error=output.error,
+    )
+
+
 def tool_use_to_mcp_list_tools_param(content: ContentToolUse) -> McpListToolsParam:
     return McpListToolsParam(
+        type="mcp_list_tools",
         id=content.id,
         server_label=content.context or "",
-        tools=cast(list[McpListToolsToolParam], content.result),
-        type="mcp_list_tools",
+        tools=mcp_tool_adapter.validate_json(content.result),
         error=content.error,
     )
 
 
 def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
     return McpCallParam(
-        id=content.id,
-        arguments=str(content.arguments),
-        name=content.name,
-        server_label=content.context or "",
         type="mcp_call",
-        output=str(content.result),
+        id=content.id,
+        name=content.name,
+        arguments=content.arguments,
+        server_label=content.context or "",
+        output=content.result,
         error=content.error,
     )
+
+
+action_adapter = TypeAdapter[Action](Action)
 
 
 def tool_use_to_web_search_param(
     content: ContentToolUse,
 ) -> ResponseFunctionWebSearchParam:
-    match content.arguments:
-        case {"type": "search"}:
-            action: ActionSearch | ActionOpenPage | ActionFind = cast(
-                ActionSearch, content.arguments
-            )
-        case {"type": "open_page"}:
-            action = cast(ActionOpenPage, content.arguments)
-        case {"type": "find"}:
-            action = cast(ActionFind, content.arguments)
-        case _:
-            raise ValueError(
-                f"Unexpected arguments for web_search_call: {content.arguments}"
-            )
-
     return ResponseFunctionWebSearchParam(
-        id=content.id,
-        action=action,
-        status="failed" if content.error else "completed",
         type="web_search_call",
+        id=content.id,
+        action=action_adapter.validate_json(content.arguments),
+        status="failed" if content.error else "completed",
     )
 
 
@@ -646,13 +642,12 @@ def _openai_input_items_from_chat_message_assistant(
             ):
                 if id in assistant_internal().server_tool_uses:
                     items.append(assistant_internal().server_tool_uses[id])
-                elif tool_type == "mcp_list_tools":
-                    items.append(tool_use_to_mcp_list_tools_param(content))
-
                 elif tool_type == "mcp_call":
-                    items.append(tool_use_to_mcp_call_param(content))
-
-                elif tool_type == "web_search_call":
+                    if content.name == "mcp_list_tools":
+                        items.append(tool_use_to_mcp_list_tools_param(content))
+                    else:
+                        items.append(tool_use_to_mcp_call_param(content))
+                elif tool_type == "web_search":
                     items.append(tool_use_to_web_search_param(content))
 
                 else:

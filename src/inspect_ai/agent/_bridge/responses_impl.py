@@ -7,6 +7,7 @@ from openai.types.responses import (
     Response,
     ResponseComputerToolCall,
     ResponseFunctionToolCall,
+    ResponseFunctionWebSearch,
     ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
@@ -26,10 +27,16 @@ from openai.types.responses.response import ToolChoice as ResponsesToolChoice
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
+from openai.types.responses.response_function_web_search import Action
 from openai.types.responses.response_input_item_param import (
     Message,
 )
-from pydantic import JsonValue, TypeAdapter
+from openai.types.responses.response_output_item import (
+    McpCall,
+    McpListTools,
+    McpListToolsTool,
+)
+from pydantic import TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -72,14 +79,21 @@ from inspect_ai.model._openai_responses import (
     is_response_output_refusal,
     is_response_output_text,
     is_response_reasoning_item,
+    is_response_web_search_call,
     is_tool_choice_function_param,
     is_tool_choice_mcp_param,
     is_web_search_tool_param,
+    mcp_call_to_tool_use,
+    mcp_list_tools_to_tool_use,
     reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
     responses_reasoning_from_reasoning,
     to_inspect_citation,
+    tool_use_to_mcp_call_param,
+    tool_use_to_mcp_list_tools_param,
+    tool_use_to_web_search_param,
+    web_search_to_tool_use,
 )
 from inspect_ai.model._providers._openai_computer_use import (
     computer_parmaeters,
@@ -409,30 +423,15 @@ def messages_from_responses_input(
 
                 elif is_response_reasoning_item(param):
                     content.append(reasoning_from_responses_reasoning(param))
+                elif is_response_web_search_call(param):
+                    web_search = ResponseFunctionWebSearch.model_validate(param)
+                    content.append(web_search_to_tool_use(web_search))
                 elif is_response_mcp_list_tools(param):
-                    content.append(
-                        ContentToolUse(
-                            tool_type="mcp_list_tools",
-                            id=param["id"],
-                            name="mcp_list_tools",
-                            context=param["server_label"],
-                            arguments="",
-                            result=cast(list[JsonValue], param["tools"]),
-                            error=param.get("error", None),
-                        )
-                    )
+                    mcp_list_tools = McpListTools.model_validate(param)
+                    content.append(mcp_list_tools_to_tool_use(mcp_list_tools))
                 elif is_response_mcp_call(param):
-                    content.append(
-                        ContentToolUse(
-                            tool_type="mcp_call",
-                            id=param["id"],
-                            name=param["name"],
-                            context=param["server_label"],
-                            arguments=param["arguments"],
-                            result=param.get("output", None),
-                            error=param.get("error", None),
-                        )
-                    )
+                    mcp_call = McpCall.model_validate(param)
+                    content.append(mcp_call_to_tool_use(mcp_call))
                 else:
                     raise RuntimeError(
                         f"Unexpected assitant message type: {param['type']}"
@@ -526,6 +525,10 @@ def messages_from_responses_input(
 
 output_item_adapter = TypeAdapter(list[ResponseOutputItem])
 
+action_adapter = TypeAdapter[Action](Action)
+
+mcp_tool_adapter = TypeAdapter(list[McpListToolsTool])
+
 
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
@@ -562,8 +565,15 @@ def responses_output_items_from_assistant_message(
             output.append(ResponseReasoningItem.model_validate(reasoning))
 
         elif isinstance(content, ContentToolUse):
-            # we ignore these as they are encapsulated in AssistantInternal (which is necessary as there is no way to represent the full space of possible ContentToolUse in the responses API)
-            pass
+            if content.tool_type == "web_search":
+                web_search = tool_use_to_web_search_param(content)
+                output.append(ResponseFunctionWebSearch.model_validate(web_search))
+            elif content.name == "mcp_list_tools":
+                mcp_list_tools = tool_use_to_mcp_list_tools_param(content)
+                output.append(McpListTools.model_validate(mcp_list_tools))
+            else:
+                mcp_call = tool_use_to_mcp_call_param(content)
+                output.append(McpCall.model_validate(mcp_call))
 
     for tool_call in message.tool_calls or []:
         if tool_call.function == "computer":

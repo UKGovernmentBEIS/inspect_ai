@@ -1,11 +1,12 @@
 import functools
+import json
 import os
 import re
 from contextvars import ContextVar
 from copy import copy
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, cast
+from typing import Any, Iterable, Literal, Optional, Tuple, Union, cast
 
 from anthropic import (
     APIConnectionError,
@@ -40,9 +41,7 @@ from anthropic.types import (
     ToolUseBlock,
     ToolUseBlockParam,
     URLPDFSourceParam,
-    WebSearchResultBlockParam,
     WebSearchTool20250305Param,
-    WebSearchToolRequestErrorParam,
     WebSearchToolResultBlock,
     WebSearchToolResultBlockParam,
     WebSearchToolResultError,
@@ -61,7 +60,10 @@ from anthropic.types.beta import (
     BetaToolTextEditor20250429Param,
 )
 from anthropic.types.document_block_param import Source
-from pydantic import JsonValue
+from anthropic.types.web_search_tool_result_block_param_content_param import (
+    WebSearchToolResultBlockParamContentParam,
+)
+from pydantic import JsonValue, TypeAdapter
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
@@ -76,7 +78,6 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data, file_as_data_uri
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
@@ -1102,7 +1103,7 @@ async def model_output_from_message(
 
             content.append(
                 ContentToolUse(
-                    tool_type="mcp_tool_use",
+                    tool_type="mcp_call",
                     id=tool_result_block.tool_use_id,
                     name=pending_mcp_tool_use.name,
                     context=pending_mcp_tool_use.server_name,
@@ -1165,16 +1166,11 @@ async def model_output_from_message(
 
             content.append(
                 ContentToolUse(
-                    tool_type="server_tool_use",
+                    tool_type="web_search",
                     id=pending_tool_use.id,
                     name=pending_tool_use.name,
-                    arguments=jsonable_python(pending_tool_use.input),
-                    result=cast(
-                        JsonValue,
-                        content_block.content.model_dump()
-                        if isinstance(content_block.content, WebSearchToolResultError)
-                        else [result.model_dump() for result in content_block.content],
-                    ),
+                    arguments=json.dumps(pending_tool_use.input),
+                    result=json.dumps(content_block.content),
                     error=content_block.content.error_code
                     if isinstance(content_block.content, WebSearchToolResultError)
                     else None,
@@ -1288,6 +1284,15 @@ def split_system_messages(
     return system_messages, cast(list[ChatMessage], messages)
 
 
+web_search_result_block_adapter = TypeAdapter[
+    WebSearchToolResultBlockParamContentParam
+](WebSearchToolResultBlockParamContentParam)
+
+beta_text_block_param_adapter = TypeAdapter[Union[str, Iterable[BetaTextBlockParam]]](
+    Union[str, Iterable[BetaTextBlockParam]]
+)
+
+
 async def message_param_content(
     content: Content,
 ) -> list[
@@ -1347,29 +1352,27 @@ async def message_param_content(
         elif content.id in assistant_internal().server_web_searches:
             return list(assistant_internal().server_web_searches[content.id])
 
-        if content.tool_type == "server_tool_use" and content.name == "web_search":
+        if content.tool_type == "web_search":
             return [
                 ServerToolUseBlockParam(
                     id=content.id,
-                    input=content.arguments,
+                    input=json.loads(content.arguments),
                     type="server_tool_use",
                     name="web_search",
                 ),
                 WebSearchToolResultBlockParam(
-                    content=cast(
-                        list[WebSearchResultBlockParam]
-                        | WebSearchToolRequestErrorParam,
-                        content.result,
+                    content=web_search_result_block_adapter.validate_json(
+                        content.result
                     ),
                     tool_use_id=content.id,
                     type="web_search_tool_result",
                 ),
             ]
-        elif content.tool_type == "mcp_tool_use":
+        elif content.tool_type == "mcp_call":
             return [
                 BetaMCPToolUseBlockParam(
                     id=content.id,
-                    input=content.arguments,
+                    input=json.loads(content.arguments),
                     name=content.name,
                     server_name=content.context or "",
                     type="mcp_tool_use",
@@ -1377,7 +1380,7 @@ async def message_param_content(
                 BetaRequestMCPToolResultBlockParam(
                     tool_use_id=content.id,
                     type="mcp_tool_result",
-                    content=cast(str | list[BetaTextBlockParam], content.result),
+                    content=beta_text_block_param_adapter.validate_json(content.result),
                     is_error=content.error is not None and len(content.error) > 0,
                 ),
             ]
