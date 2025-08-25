@@ -94,7 +94,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model, update_state_from_generate
+from .util import resolve_inspect_model
 
 logger = getLogger(__file__)
 
@@ -138,7 +138,8 @@ async def inspect_responses_api_request_impl(
 
     # update state
     if state and bridge_model_name == "inspect":
-        update_state_from_generate(messages, output, state)
+        state.messages = messages + [output.message]
+        state.output = output
 
     debug_log("INSPECT OUTPUT", output.message)
 

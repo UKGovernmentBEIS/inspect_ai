@@ -15,7 +15,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model, update_state_from_generate
+from .util import resolve_inspect_model
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -69,7 +69,8 @@ async def inspect_completions_api_request(
 
     # update state
     if state and bridge_model_name == "inspect":
-        update_state_from_generate(input, output, state)
+        state.messages = input + [output.message]
+        state.output = output
 
     # inspect completion to openai completion
     return ChatCompletion(

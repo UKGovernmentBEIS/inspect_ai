@@ -11,10 +11,9 @@ from inspect_ai.util import sandbox
 @agent
 def codex() -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        # Use bridge to map OpenAI API to Inspect within the sandbox
         async with sandbox_agent_bridge(state) as bridge:
             # extract prompt from last user message
-            prompt = user_prompt(state.messages)
+            prompt = user_prompt(state.messages).text
 
             # execute the agent
             result = await sandbox().exec(
@@ -27,7 +26,7 @@ def codex() -> Agent:
                     "--dangerously-bypass-approvals-and-sandbox",
                     "--color",
                     "never",
-                    prompt.text,
+                    prompt,
                 ],
                 env={
                     "OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1",
