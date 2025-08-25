@@ -107,10 +107,11 @@ The on-demand retrieval system handles these installation types:
 3. **Resolve Required Executable**
    
    3.1. **Local Executable Check**
-      - First check if development executable exists: `inspect-tool-support-{arch}-v{version}-dev`
+      - (For non-PyPI installs) First check if development executable exists: `inspect-tool-support-{arch}-v{version}-dev`
       - If found → **DONE** (use dev version - developer workflow takes precedence)
       - Then check if production executable exists: `inspect-tool-support-{arch}-v{version}`
       - If found → **DONE** (use production version)
+      - If PyPI install raise PreReq error
 
    3.2. **S3 Download Attempt**
       - Attempt to download versioned executable from S3 bucket

@@ -73,15 +73,10 @@ async def _open_executable_for_arch(
         )
 
     # 3.2. S3 Download Attempt - Try to download from S3
-    try:
-        await _download_from_s3(executable_name)
+    if await _download_from_s3(executable_name):
         async with _open_executable(executable_name) as f:
             yield executable_name, f
             return
-    except Exception:
-        # Download failure is expected when developers have bumped version
-        # but new version hasn't been promoted to S3 yet. Proceed to build.
-        pass
 
     # 3.3. User Build Prompt - Prompt user if S3 download failed
     with input_screen():
@@ -138,7 +133,12 @@ def _get_versioned_executable_name(arch: Architecture) -> str:
     return f"inspect-tool-support-{arch}-v{_get_tool_support_version()}"
 
 
-async def _download_from_s3(filename: str) -> None:
+async def _download_from_s3(filename: str) -> bool:
+    """Download executable from S3. Returns True if successful, False otherwise.
+
+    Handles expected failures (404 - not yet promoted) silently.
+    Logs unexpected failures but doesn't raise exceptions.
+    """
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Download the executable
@@ -154,10 +154,15 @@ async def _download_from_s3(filename: str) -> None:
             executable_path.write_bytes(response.content)
             executable_path.chmod(0o755)
 
-    except httpx.HTTPError as e:
-        raise RuntimeError(f"HTTP error downloading executable: {e}")
-    except Exception as e:
-        raise RuntimeError(f"Error downloading executable: {e}")
+            return True
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return False
+        raise
+    except Exception:
+        print("Note: Unable to download executable, will build locally")
+        return False
 
 
 async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
