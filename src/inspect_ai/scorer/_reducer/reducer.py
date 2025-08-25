@@ -197,6 +197,11 @@ def _count_scalar(
         scalar_value = score._as_scalar()
         if _is_reducible(scalar_value):
             score_values.append(scalar_value)
+
+    # there are no reducible values
+    if len(score_values) == 0:
+        return _nan_score(scores)
+
     counts = Counter(score_values)
     return _reduced_score(counter_fn(counts), scores)
 
@@ -222,8 +227,13 @@ def _count_dict(
             key_value = cast(str | int | float | bool, score.value[key])  # type: ignore
             if _is_reducible(key_value):
                 key_values.append(key_value)
-        counts: Counter[str | int | float | bool] = Counter(key_values)
-        dict_result[key] = counter_fn(counts)
+
+        # there are no reducible values
+        if len(key_values) == 0:
+            dict_result[key] = float("nan")
+        else:
+            counts: Counter[str | int | float | bool] = Counter(key_values)
+            dict_result[key] = counter_fn(counts)
     return _reduced_score(
         cast(dict[str, str | int | float | bool | None], dict_result), scores
     )
@@ -250,8 +260,11 @@ def _count_list(
             index_value = cast(str | int | float | bool, score.value[i])  # type:ignore
             if _is_reducible(index_value):
                 index_values.append(index_value)
-        counts: Counter[str | int | float | bool] = Counter(index_values)
-        list_result.append(counter_fn(counts))
+        if len(index_values) == 0:
+            list_result.append(float("nan"))
+        else:
+            counts: Counter[str | int | float | bool] = Counter(index_values)
+            list_result.append(counter_fn(counts))
     return _reduced_score(list_result, scores)
 
 
@@ -277,7 +290,11 @@ def _compute_dict_stat(
             key_value = value_to_float(score.value[key])  # type: ignore
             if _is_reducible(key_value):
                 values.append(value_to_float(key_value))
-        dict_result[key] = statistic(values)
+
+        if len(values) == 0:
+            dict_result[key] = float("nan")
+        else:
+            dict_result[key] = statistic(values)
     return _reduced_score(dict_result, scores)
 
 
@@ -305,7 +322,10 @@ def _compute_list_stat(
             value = value_to_float(list_values[i])
             if _is_reducible(value):
                 values.append(value)
-        list_result.append(statistic(values))
+        if len(values) == 0:
+            list_result.append(float("nan"))
+        else:
+            list_result.append(statistic(values))
     return _reduced_score(list_result, scores)
 
 
@@ -325,6 +345,11 @@ def _compute_scalar_stat(
     for score in scores:
         if _is_reducible(value_to_float(score.value)):
             values.append(value_to_float(score.value))
+
+    # there are no reducible values
+    if len(values) == 0:
+        return _nan_score(scores)
+
     result = statistic(values)
     return _reduced_score(result, scores)
 
@@ -362,6 +387,26 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
     """
     return Score(
         value=value,
+        # retain remaining fields only if equal across all Scores
+        answer=scores[0].answer
+        if len(set(score.answer for score in scores)) == 1
+        else None,
+        explanation=scores[0].explanation
+        if len(set(score.explanation for score in scores)) == 1
+        else None,
+        metadata=scores[0].metadata,
+    )
+
+
+def _nan_score(scores: list[Score]) -> Score:
+    r"""Create a NaN Score based upon a single Value and list of Scores that produced it
+
+    Args:
+        value: the reduced Value
+        scores: ths list of scores being reduced
+    """
+    return Score(
+        value=float("nan"),
         # retain remaining fields only if equal across all Scores
         answer=scores[0].answer
         if len(set(score.answer for score in scores)) == 1
