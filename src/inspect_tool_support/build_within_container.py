@@ -54,7 +54,9 @@ def run_docker_build(platform: str, image_name: str, dockerfile: str) -> None:
     subprocess.run(cmd, check=True)
 
 
-def run_docker_container(platform: str, arch_suffix: str, image_name: str, dev_build: bool = False) -> None:
+def run_docker_container(
+    platform: str, arch_suffix: str, image_name: str, dev_build: bool = False
+) -> None:
     """Run the Docker container to build the executable."""
     print("Starting container and building executable...")
 
@@ -78,10 +80,10 @@ def run_docker_container(platform: str, arch_suffix: str, image_name: str, dev_b
         image_name,
         "/inspect_tool_support/build_executable.sh",
     ]
-    
+
     if dev_build:
         cmd.append("--dev")
-    
+
     subprocess.run(cmd, check=True)
 
 
@@ -96,7 +98,9 @@ def main() -> None:
         "--all", action="store_true", help="Build for both amd64 and arm64"
     )
     parser.add_argument(
-        "--dev", action="store_true", help="Build development version (adds -dev suffix)"
+        "--dev",
+        action="store_true",
+        help="Build development version (adds -dev suffix)",
     )
 
     args = parser.parse_args()
