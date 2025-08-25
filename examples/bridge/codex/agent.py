@@ -12,7 +12,7 @@ from inspect_ai.util import sandbox
 def codex() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         # Use bridge to map OpenAI API to Inspect within the sandbox
-        async with sandbox_agent_bridge() as bridge:
+        async with sandbox_agent_bridge(state) as bridge:
             # extract prompt from last user message
             prompt = user_prompt(state.messages)
 
@@ -31,12 +31,8 @@ def codex() -> Agent:
                 ],
                 env={
                     "OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1",
-                    "RUST_LOG": "codex_core=debug,codex_tui=debug",
                 },
             )
-
-        print(result.stdout)
-        print(result.stderr)
 
         if result.success:
             return bridge.state
