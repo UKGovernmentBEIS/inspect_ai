@@ -72,7 +72,9 @@ def run_docker_container(
         "-v",
         ".:/inspect_tool_support:ro",
         "-v",
-        "../inspect_ai/binaries:/output:rw",
+        # We use an absolute path, because Docker <= 28.2.0 did not properly support
+        # relative parent paths for mount sources.
+        f"{Path('../inspect_ai/binaries').resolve()}:/output:rw",
         "-w",
         "/inspect_tool_support",
         "-e",
