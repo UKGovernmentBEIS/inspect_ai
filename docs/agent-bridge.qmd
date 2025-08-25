@@ -15,7 +15,7 @@ Note that a previous (and now deprecated) variation of the agent bridge is avail
 
 ## Overview
 
-While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [AutoGen](https://microsoft.github.io/autogen/stable/) or [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Codex CLI](https://github.com/openai/codex)).
+While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Codex CLI](https://github.com/openai/codex)).
 
 Agents are *bridged* into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:
 
@@ -72,8 +72,8 @@ The following examples further demonstrate how to integrate other agent framewor
 
 |  |  |
 |-----------------------------|-------------------------------------------|
-| [AutoGen](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen) | Demonstrates using a native [AutoGen](https://microsoft.github.io/autogen/) agent with Inspect to perform web research using the using the AutoGen [MultiModalWebSurfer](https://microsoft.github.io/autogen/stable//reference/python/autogen_ext.agents.web_surfer.html#autogen_ext.agents.web_surfer.MultimodalWebSurfer) |
 | [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent with Inspect to perform Q/A using the [Tavili Search API](https://tavily.com/) |
+| [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) | Demonstrates using the [Codex CLI](https://github.com/openai/codex) agent with Inspect to explore a Kali Linux system. |
 
 : {tbl-colwidths=\[30,70\]}
 
@@ -146,8 +146,6 @@ model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
 ## Sandboxes
 
 If you need to execute untrusted LLM generated code in your agent, you can still use the Inspect [`sandbox()`](sandboxing.qmd) within bridged agent functions. Typically agent tools that can run code are customisable with an executor, and this is where you would plug in the Inspect `sandbox()`.
-
-For example, the AutoGen [`PythonCodeExecutionTool`](https://microsoft.github.io/autogen/stable/reference/python/autogen_ext.tools.code_execution.html#autogen_ext.tools.code_execution.PythonCodeExecutionTool) takes a [`CodeExecutor`](https://microsoft.github.io/autogen/stable/reference/python/autogen_core.code_executor.html#autogen_core.code_executor.CodeExecutor) in its constructor. AutoGen provides several built in code executors (e.g. local, docker, azure, etc.) and you can create custom ones. For example, you could create an `InspectSandboxCodeExecutor` which in turn delegates to the `sandbox().exec()` function.
 
 ## Transcript
 
