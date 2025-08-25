@@ -31,11 +31,20 @@ from .util import (
 )
 
 
+@dataclass
+class AgentBridge:
+    """Agent bridge."""
+
+    state: AgentState
+    """State updated from messages traveling over the bridge."""
+
+
 @contextlib.asynccontextmanager
 async def agent_bridge(
+    state: AgentState | None = None,
     *,
     web_search: WebSearchProviders | None = None,
-) -> AsyncGenerator[None, None]:
+) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
     ::: callout-note
@@ -55,6 +64,8 @@ async def agent_bridge(
     documentation for additional details.
 
     Args:
+       state: Initial state for agent bridge. Used as a basis for yielding
+         an updated state based on traffic over the bridge.
        web_search: Configuration for mapping OpenAI Responses internal
          web_search tool to Inspect. By default, will map to the
          internal provider of the target model (supported for OpenAI,
@@ -68,10 +79,15 @@ async def agent_bridge(
     # resolve web search config
     web_search = resolve_web_search_providers(web_search)
 
+    # create a state value that will be used to track mesages going over the bridge
+    state = AgentState(messages=state.messages.copy() if state else [])
+
     # set the patch config for this context and child coroutines
-    token = _patch_config.set(PatchConfig(enabled=True, web_search=web_search))
+    token = _patch_config.set(
+        PatchConfig(enabled=True, web_search=web_search, state=state)
+    )
     try:
-        yield
+        yield AgentBridge(state)
     finally:
         _patch_config.reset(token)
 
@@ -85,6 +101,7 @@ class PatchConfig:
     web_search: WebSearchProviders = field(
         default_factory=internal_web_search_providers
     )
+    state: AgentState | None = field(default=None)
 
 
 _patch_config: ContextVar[PatchConfig] = ContextVar(
@@ -119,9 +136,10 @@ def init_openai_request_patch() -> None:
     ) -> Any:
         # we have patched the underlying request method so now need to figure out when to
         # patch and when to stand down
+        config = _patch_config.get()
         if (
             # enabled for this coroutine
-            _patch_config.get().enabled
+            config.enabled
             # completions or responses request
             and options.url in ["/chat/completions", "/responses"]
         ):
@@ -136,10 +154,12 @@ def init_openai_request_patch() -> None:
                     )
 
                 if options.url == "/chat/completions":
-                    return await inspect_completions_api_request(json_data)
+                    return await inspect_completions_api_request(
+                        json_data, config.state
+                    )
                 else:
                     return await inspect_responses_api_request(
-                        json_data, _patch_config.get().web_search
+                        json_data, config.web_search, config.state
                     )
 
         # otherwise just delegate

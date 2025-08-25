@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
@@ -10,10 +11,12 @@ if TYPE_CHECKING:
 
 
 async def inspect_responses_api_request(
-    json_data: dict[str, Any], web_search: WebSearchProviders
+    json_data: dict[str, Any],
+    web_search: WebSearchProviders,
+    state: AgentState | None = None,
 ) -> "Response":
     validate_openai_client("agent bridge")
 
     from .responses_impl import inspect_responses_api_request_impl
 
-    return await inspect_responses_api_request_impl(json_data, web_search)
+    return await inspect_responses_api_request_impl(json_data, web_search, state)

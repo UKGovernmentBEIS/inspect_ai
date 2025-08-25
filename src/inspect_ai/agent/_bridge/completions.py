@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from shortuuid import uuid
 
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai_convert import messages_from_openai
 from inspect_ai.model._providers.providers import validate_openai_client
@@ -14,7 +15,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model
+from .util import resolve_inspect_model, update_state_from_generate
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -29,6 +30,7 @@ logger = getLogger(__file__)
 
 async def inspect_completions_api_request(
     json_data: dict[str, Any],
+    state: AgentState | None = None,
 ) -> "ChatCompletion":
     validate_openai_client("agent bridge")
 
@@ -42,7 +44,8 @@ async def inspect_completions_api_request(
         openai_completion_usage,
     )
 
-    model = resolve_inspect_model(str(json_data["model"]))
+    bridge_model_name = str(json_data["model"])
+    model = resolve_inspect_model(bridge_model_name)
     model_name = model.api.model_name
 
     # convert openai messages to inspect messages
@@ -63,6 +66,10 @@ async def inspect_completions_api_request(
         tool_choice=tool_choice,
         config=generate_config_from_openai_completions(json_data),
     )
+
+    # update state
+    if state and bridge_model_name == "inspect":
+        update_state_from_generate(input, output, state)
 
     # inspect completion to openai completion
     return ChatCompletion(

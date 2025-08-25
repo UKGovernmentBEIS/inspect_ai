@@ -40,6 +40,7 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.logger import warn_once
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -93,16 +94,19 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model
+from .util import resolve_inspect_model, update_state_from_generate
 
 logger = getLogger(__file__)
 
 
 async def inspect_responses_api_request_impl(
-    json_data: dict[str, Any], web_search: WebSearchProviders
+    json_data: dict[str, Any],
+    web_search: WebSearchProviders,
+    state: AgentState | None = None,
 ) -> Response:
     # resolve model
-    model = resolve_inspect_model(str(json_data["model"]))
+    bridge_model_name = str(json_data["model"])
+    model = resolve_inspect_model(bridge_model_name)
     model_name = model.api.model_name
 
     # record parallel tool calls
@@ -131,6 +135,10 @@ async def inspect_responses_api_request_impl(
         tools=tools,
         config=generate_config_from_openai_responses(json_data),
     )
+
+    # update state
+    if state and bridge_model_name == "inspect":
+        update_state_from_generate(messages, output, state)
 
     debug_log("INSPECT OUTPUT", output.message)
 

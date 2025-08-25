@@ -7,6 +7,7 @@ from typing import AsyncIterator
 import anyio
 from shortuuid import uuid
 
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
@@ -24,12 +25,16 @@ logger = getLogger(__file__)
 class SandboxAgentBridge:
     """Sandbox agent bridge."""
 
+    state: AgentState
+    """State updated from messages traveling over the bridge."""
+
     port: int
     """Model proxy server port."""
 
 
 @contextlib.asynccontextmanager
 async def sandbox_agent_bridge(
+    state: AgentState | None = None,
     *,
     sandbox: SandboxEnvironment | None = None,
     port: int = 13131,
@@ -55,6 +60,8 @@ async def sandbox_agent_bridge(
     to target other Inspect model providers.
 
     Args:
+        state: Initial state for agent bridge. Used as a basis for yielding
+           an updated state based on traffic over the bridge.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         web_search: Configuration for mapping OpenAI Responses internal
@@ -73,13 +80,18 @@ async def sandbox_agent_bridge(
     # resolve web search config
     web_search = web_search or internal_web_search_providers()
 
+    # create a state value that will be used to track mesages going over the bridge
+    state = AgentState(messages=state.messages.copy() if state else [])
+
     try:
         async with anyio.create_task_group() as tg:
             # event to signal startup of model service
             started = anyio.Event()
 
             # sandbox service that receives model requests
-            tg.start_soon(run_model_service, sandbox, web_search, instance, started)
+            tg.start_soon(
+                run_model_service, sandbox, web_search, state, instance, started
+            )
 
             # proxy server that runs in container and forwards to sandbox service
             tg.start_soon(run_model_proxy, sandbox, port, instance, started)
@@ -89,7 +101,7 @@ async def sandbox_agent_bridge(
 
             # main agent
             try:
-                yield SandboxAgentBridge(port)
+                yield SandboxAgentBridge(state=state, port=port)
             finally:
                 tg.cancel_scope.cancel()
     except Exception as ex:
