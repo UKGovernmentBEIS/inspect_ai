@@ -183,7 +183,7 @@ def _validated_path(path_str: str, command: str) -> Path:
     # Check if its an absolute path
     if not path.is_absolute():
         raise ToolException(
-            f"The path {path} is not an absolute path, it should start with `/`. Maybe you meant {Path('') / path}?"
+            f"The path {path} is not an absolute path, it should start with `/`. Maybe you meant {Path.cwd() / path}?"
         )
     # Check if path exists
     if not path.exists() and command != "create":
