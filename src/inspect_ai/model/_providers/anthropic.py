@@ -41,6 +41,7 @@ from anthropic.types import (
     ToolUseBlock,
     ToolUseBlockParam,
     URLPDFSourceParam,
+    WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchToolResultBlock,
     WebSearchToolResultBlockParam,
@@ -78,6 +79,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data, file_as_data_uri
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
@@ -1169,8 +1171,10 @@ async def model_output_from_message(
                     tool_type="web_search",
                     id=pending_tool_use.id,
                     name=pending_tool_use.name,
-                    arguments=json.dumps(pending_tool_use.input),
-                    result=json.dumps(content_block.content),
+                    arguments=to_json_str_safe(pending_tool_use.input),
+                    result=web_search_result_block_adapter.dump_json(
+                        content_block.content
+                    ).decode(),
                     error=content_block.content.error_code
                     if isinstance(content_block.content, WebSearchToolResultError)
                     else None,
@@ -1284,9 +1288,15 @@ def split_system_messages(
     return system_messages, cast(list[ChatMessage], messages)
 
 
-web_search_result_block_adapter = TypeAdapter[
+web_search_result_block_param_adapter = TypeAdapter[
     WebSearchToolResultBlockParamContentParam
 ](WebSearchToolResultBlockParamContentParam)
+
+
+web_search_result_block_adapter = TypeAdapter[
+    WebSearchToolResultError | list[WebSearchResultBlock]
+](WebSearchToolResultError | list[WebSearchResultBlock])
+
 
 beta_text_block_param_adapter = TypeAdapter[Union[str, Iterable[BetaTextBlockParam]]](
     Union[str, Iterable[BetaTextBlockParam]]
@@ -1361,7 +1371,7 @@ async def message_param_content(
                     name="web_search",
                 ),
                 WebSearchToolResultBlockParam(
-                    content=web_search_result_block_adapter.validate_json(
+                    content=web_search_result_block_param_adapter.validate_json(
                         content.result
                     ),
                     tool_use_id=content.id,

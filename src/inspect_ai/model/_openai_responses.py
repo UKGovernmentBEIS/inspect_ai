@@ -533,7 +533,7 @@ def web_search_to_tool_use(output: ResponseFunctionWebSearch) -> ContentToolUse:
         tool_type="web_search",
         id=output.id,
         name=output.action.type,
-        arguments=to_json_str_safe(output.action),
+        arguments=output.action.to_json(),
         result="",
         error="failed" if output.status == "failed" else None,
     )
@@ -545,7 +545,7 @@ def mcp_list_tools_to_tool_use(output: McpListTools) -> ContentToolUse:
         id=output.id,
         name="mcp_list_tools",
         arguments="",
-        result=to_json_str_safe(output.tools),
+        result=to_json_str_safe([tool.model_dump() for tool in output.tools]),
         error=output.error,
     )
 
