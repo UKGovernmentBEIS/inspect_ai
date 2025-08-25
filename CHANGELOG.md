@@ -1,5 +1,6 @@
 ## Unreleased
 
+- ReAct: Add submit tool content to assistant message (in addition to setting the `completion`).
 - Fix error in reducing scores when all scores for a sample are NaN.
 
 ## 0.3.125 (25 August 2025)
