@@ -285,14 +285,14 @@ def test_bridged_web_search_tool_openai():
     log = eval(web_search_task(), model="openai/gpt-5")[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"search_context_size": "low"' in log_json
-    check_web_search_tool_use(log, "web_search_call")
+    check_web_search_tool_use(log, "web_search")
 
 
 @skip_if_no_anthropic
 @skip_if_no_openai
 def test_bridged_web_search_tool_anthropic():
     log = eval(web_search_task(), model="anthropic/claude-sonnet-4-20250514")[0]
-    check_web_search_tool_use(log, "server_tool_use")
+    check_web_search_tool_use(log, "web_search")
 
 
 def check_web_search_tool_use(log: EvalLog, tool_name: str):
