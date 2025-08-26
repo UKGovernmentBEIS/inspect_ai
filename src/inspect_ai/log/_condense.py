@@ -395,14 +395,9 @@ def walk_tool_call(tool_call: ToolCall, content_fn: Callable[[str], str]) -> Too
         id=tool_call.id,
         function=tool_call.function,
         arguments=walk_json_dict(tool_call.arguments, content_fn),
-        internal=tool_call.internal,
         parse_error=tool_call.parse_error,
         view=tool_call.view.model_copy(
             update=dict(
-                title=content_fn(tool_call.view.title)
-                if tool_call.view and tool_call.view.title
-                else None,
-                format=tool_call.view.format if tool_call.view else None,
                 content=content_fn(tool_call.view.content)
                 if tool_call.view and tool_call.view.content
                 else None,
