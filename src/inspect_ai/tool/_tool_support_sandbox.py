@@ -43,6 +43,31 @@ async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
             yield f
 
 
+def _prompt_user_action(message: str, executable_name: str, arch: Architecture) -> None:
+    """Prompt user for confirmation and raise PrerequisiteError if declined.
+
+    Args:
+        message: The message to display to the user
+        executable_name: Name of the executable for error message
+        arch: Architecture for build instructions
+
+    Raises:
+        PrerequisiteError: If user declines the action
+    """
+    with input_screen():
+        response = Prompt.ask(
+            message,
+            choices=["y", "n"],
+            default="y",
+            case_sensitive=False,
+        )
+        if response != "y":
+            raise PrerequisiteError(
+                f"Tool support executable {executable_name} is required but not present. "
+                f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch}"
+            )
+
+
 @asynccontextmanager
 async def _open_executable_for_arch(
     arch: Architecture,
@@ -83,29 +108,16 @@ async def _open_executable_for_arch(
             "This indicates a problem with the package. Please reinstall inspect_ai."
         )
 
-    # 3.2. S3 Download Attempt - Try to download from S3
-    if await _download_from_s3(executable_name):
+    # 3.2. S3 Download Attempt - Prompt user before downloading from S3
+    if await _download_from_s3(executable_name, arch):
         async with _open_executable(executable_name) as f:
             print(f"downloaded {executable_name} from s3")
             yield executable_name, f
             return
 
-    # 3.3. User Build Prompt - Prompt user if S3 download failed
-    with input_screen():
-        response = Prompt.ask(
-            "Executable not found. Build locally? (requires Docker)",
-            choices=["y", "n"],
-            default="y",
-            case_sensitive=False,
-        )
-        if response != "y":
-            raise PrerequisiteError(
-                f"Tool support executable {dev_executable_name} is required but not present. "
-                f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch}"
-            )
-
     # 3.4. Local Build Process - Build dev version locally
     await _build_it(arch, dev_executable_name)
+
     async with _open_executable(dev_executable_name) as f:
         yield dev_executable_name, f
 
@@ -145,12 +157,18 @@ def _get_versioned_executable_name(arch: Architecture) -> str:
     return f"inspect-tool-support-{arch}-v{_get_tool_support_version()}"
 
 
-async def _download_from_s3(filename: str) -> bool:
+async def _download_from_s3(filename: str, arch: Architecture) -> bool:
     """Download executable from S3. Returns True if successful, False otherwise.
 
     Handles expected failures (404 - not yet promoted) silently.
     Logs unexpected failures but doesn't raise exceptions.
     """
+    _prompt_user_action(
+        f"Executable '{filename}' not found locally. Download from S3?",
+        filename,
+        arch,
+    )
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Download the executable
@@ -169,15 +187,19 @@ async def _download_from_s3(filename: str) -> bool:
             return True
 
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+        if e.response.status_code in (403, 404):
+            print(f"Executable '{filename}' not found on S3")
             return False
         raise
-    except Exception:
-        print("Note: Unable to download executable, will build locally")
-        return False
 
 
 async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
+    _prompt_user_action(
+        f"Executable '{dev_executable_name}' not found. Build locally? (requires Docker)",
+        dev_executable_name,
+        arch,
+    )
+
     # Find the build script
     build_script_path = (
         Path(__file__).parent.parent.parent
