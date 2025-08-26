@@ -11,6 +11,7 @@ from rich.prompt import Prompt
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util import input_screen
+from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox._recon import Architecture, detect_sandbox_os
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -85,50 +86,39 @@ async def _open_executable_for_arch(
 
     print(f"{install_state=}")
 
-    executable_name = _get_versioned_executable_name(arch)
-    dev_executable_name = f"{executable_name}-dev"
+    executable_name = _get_versioned_executable_name(arch, install_state == "edited")
 
-    # 3.1. Local Executable Check - Check dev version first if appropriate
-    if install_state == "edited":
-        try:
-            async with _open_executable(dev_executable_name) as f:
-                print(f"found {dev_executable_name}")
-                yield dev_executable_name, f
-                return
-        except (FileNotFoundError, ModuleNotFoundError):
-            pass
-
-    # 3.1. Local Executable Check - Then check production version
+    # 3.1. Local Executable Check
     try:
         async with _open_executable(executable_name) as f:
             print(f"found {executable_name}")
             yield executable_name, f
             return
     except (FileNotFoundError, ModuleNotFoundError):
-        pass
+        if install_state == "pypi":
+            raise PrerequisiteError(
+                f"Tool support executable {executable_name} is missing from the PyPI package installation. "
+                "This indicates a problem with the package. Please reinstall inspect_ai."
+            )
 
-    if install_state == "pypi":
-        raise PrerequisiteError(
-            f"Tool support executable {executable_name} is missing from the PyPI package installation. "
-            "This indicates a problem with the package. Please reinstall inspect_ai."
-        )
+    # Only let one task at a time try to resolve the file.
+    async with concurrency(executable_name, 1):
+        # 3.2. S3 Download Attempt
+        if install_state == "main":
+            if await _download_from_s3(executable_name, arch):
+                async with _open_executable(executable_name) as f:
+                    print(f"downloaded {executable_name} from s3")
+                    yield executable_name, f
+                    return
+            # TODO: One could argue that we should not fall through here. If they
+            # haven't made any edits to tool_support, they 100% should be able to
+            # download from S3. This scenario is similar to the pypi error just above.
 
-    # 3.2. S3 Download Attempt - Prompt user before downloading from S3
-    if install_state == "main":
-        if await _download_from_s3(executable_name, arch):
-            async with _open_executable(executable_name) as f:
-                print(f"downloaded {executable_name} from s3")
-                yield executable_name, f
-                return
-        # TODO: One could argue that we should not fall through here. If they
-        # haven't made any edits to tool_support, they 100% should be able to
-        # download from S3. This scenario is similar to the pypi error just above.
+        # 3.4. Build it locally
+        await _build_it(arch, executable_name)
 
-    # 3.4. Local Build Process - Build dev version locally
-    await _build_it(arch, dev_executable_name)
-
-    async with _open_executable(dev_executable_name) as f:
-        yield dev_executable_name, f
+        async with _open_executable(executable_name) as f:
+            yield executable_name, f
 
 
 def _get_tool_support_version() -> str:
@@ -157,13 +147,13 @@ def _get_tool_support_version() -> str:
         return "1"
 
 
-def _get_versioned_executable_name(arch: Architecture) -> str:
+def _get_versioned_executable_name(arch: Architecture, dev: bool) -> str:
     """Get the base versioned executable name for the given architecture.
 
     This returns the production/S3 executable name. Development executables
     are created by appending "-dev" to this base name.
     """
-    return f"inspect-tool-support-{arch}-v{_get_tool_support_version()}"
+    return f"inspect-tool-support-{arch}-v{_get_tool_support_version()}{'-dev' if dev else ''}"
 
 
 async def _download_from_s3(filename: str, arch: Architecture) -> bool:
@@ -291,6 +281,9 @@ def _check_for_changes() -> Literal["main", "edited"]:
             uncommitted changes (staged/unstaged) or committed changes relative
             to main branch
     """
+    possible_git_root = Path(__file__).parent.parent.parent.parent
+
+    print(f"Checking for changes {possible_git_root=}")
     try:
         # Check if we're in a git repo
         result = subprocess.run(
@@ -298,8 +291,10 @@ def _check_for_changes() -> Literal["main", "edited"]:
             capture_output=True,
             text=True,
             check=False,
+            cwd=possible_git_root,
         )
         if result.returncode != 0:
+            print(f"git rev-parse failed {result}")
             # Not a git repo, assume main for safety
             return "main"
 
@@ -316,6 +311,7 @@ def _check_for_changes() -> Literal["main", "edited"]:
                 capture_output=True,
                 text=True,
                 check=False,
+                cwd=possible_git_root,
             )
             if result.returncode == 0 and result.stdout.strip():
                 return "edited"
@@ -326,6 +322,7 @@ def _check_for_changes() -> Literal["main", "edited"]:
                 capture_output=True,
                 text=True,
                 check=False,
+                cwd=possible_git_root,
             )
             if result.returncode != 0:
                 return "edited"

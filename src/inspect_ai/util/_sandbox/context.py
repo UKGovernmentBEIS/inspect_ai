@@ -141,7 +141,10 @@ async def sandbox_with_injection(
     if existing_sb := await sandbox_with(file, on_path, name=sandbox_name):
         return existing_sb
 
-    await injector(sandbox(sandbox_name))
+    try:
+        await injector(sandbox(sandbox_name))
+    except Exception as ex:
+        raise RuntimeError("Failure injecting into sandbox") from ex
 
     if injected_sb := await sandbox_with(file, on_path, name=sandbox_name):
         return injected_sb

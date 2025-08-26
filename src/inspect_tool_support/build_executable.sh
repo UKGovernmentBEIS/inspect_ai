@@ -6,34 +6,32 @@ set -e
 ARCH_SUFFIX=${ARCH_SUFFIX:-"unknown"}
 
 # Parse command line arguments
-DEV_BUILD=true
+VERSION=""
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --dev)
-            DEV_BUILD=true
-            shift
-            ;;
-        --dev=false)
-            DEV_BUILD=false
-            shift
+        --version)
+            VERSION="$2"
+            shift 2
             ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 [--dev] [--dev=false]"
+            echo "Usage: $0 --version <version>"
             exit 1
             ;;
     esac
 done
 
-# Set executable name based on whether this is a dev build
-VERSION=$(cat ../inspect_ai/tool/tool_support_version.txt 2>/dev/null || echo "666")
-if [ "$DEV_BUILD" = true ]; then
-    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION-dev"
-else
-    EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION"
+# Validate that version was provided
+if [ -z "$VERSION" ]; then
+    echo "Error: --version argument is required"
+    echo "Usage: $0 --version <version>"
+    exit 1
 fi
 
-echo "Building maximally portable executable for $ARCH_SUFFIX..."
+# Set executable name using provided version
+EXECUTABLE_NAME="inspect-tool-support-$ARCH_SUFFIX-v$VERSION"
+
+echo -e "\nBuilding portable executable for $EXECUTABLE_NAME...\n"
 
 # Copy source and setup
 rm -rf /tmp/inspect_tool_support-copy # This makes it easier to run multiple times when debugging the container.

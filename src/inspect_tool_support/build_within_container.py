@@ -13,6 +13,16 @@ def get_script_dir() -> Path:
     return Path(__file__).parent.absolute()
 
 
+def read_version() -> str:
+    """Read version from tool_support_version.txt."""
+    version_file = Path("../inspect_ai/tool/tool_support_version.txt")
+    try:
+        return version_file.read_text().strip()
+    except FileNotFoundError:
+        print(f"Version file not found: {version_file}", file=sys.stderr)
+        sys.exit(1)
+
+
 def detect_host_architecture() -> tuple[str, str]:
     """Detect host architecture and return (arch_suffix, platform)."""
     arch = platform.machine().lower()
@@ -55,7 +65,7 @@ def run_docker_build(platform: str, image_name: str, dockerfile: str) -> None:
 
 
 def run_docker_container(
-    platform: str, arch_suffix: str, image_name: str, dev_build: bool = False
+    platform: str, arch_suffix: str, image_name: str, version: str
 ) -> None:
     """Run the Docker container to build the executable."""
     print("Starting container and building executable...")
@@ -81,10 +91,9 @@ def run_docker_container(
         f"ARCH_SUFFIX={arch_suffix}",
         image_name,
         "/inspect_tool_support/build_executable.sh",
+        "--version",
+        version,
     ]
-
-    if not dev_build:
-        cmd.append("--dev=false")
 
     subprocess.run(cmd, check=True)
 
@@ -118,6 +127,10 @@ def main() -> None:
         script_dir = get_script_dir()
         os.chdir(script_dir)
 
+        # Read version and determine if dev build
+        base_version = read_version()
+        version = f"{base_version}-dev" if args.dev else base_version
+
         # Handle --all flag or no parameters (default behavior)
         if args.all or (not args.arch):
             print("Building for all architectures...")
@@ -141,7 +154,7 @@ def main() -> None:
         run_docker_build(platform, image_name, dockerfile)
 
         # Run container to build executable
-        run_docker_container(platform, arch_suffix, image_name, args.dev)
+        run_docker_container(platform, arch_suffix, image_name, version)
 
         print(
             f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"
