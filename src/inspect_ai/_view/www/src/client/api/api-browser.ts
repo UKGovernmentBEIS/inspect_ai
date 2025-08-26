@@ -8,6 +8,7 @@ import {
   SampleDataResponse,
 } from "./types";
 
+/* global __API_URL__ */
 const API_BASE_URL = __API_URL__ || "";
 const loaded_time = Date.now();
 let last_eval_time = 0;
