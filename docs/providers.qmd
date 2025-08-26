@@ -72,7 +72,7 @@ Note that certain models including `o1-pro` and `computer_use_preview` *require*
 
 ### Responses Store
 
-By default, the Responses API stores requests on the server for retreival of previous reasoning content (which is not transmitted as part of responses). To control this behavior explicitly use the `responses_store` model argument. For example:
+By default, the Responses API stores requests on the server for retrieval of previous reasoning content (which is not transmitted as part of responses). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ```bash
 inspect eval math.py --model openai/o4-mini -M responses_store=false
