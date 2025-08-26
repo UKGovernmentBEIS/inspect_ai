@@ -120,6 +120,9 @@ async def _open_executable_for_arch(
                 print(f"downloaded {executable_name} from s3")
                 yield executable_name, f
                 return
+        # TODO: One could argue that we should not fall through here. If they
+        # haven't made any edits to tool_support, they 100% should be able to
+        # download from S3. This scenario is similar to the pypi error just above.
 
     # 3.4. Local Build Process - Build dev version locally
     await _build_it(arch, dev_executable_name)
@@ -327,8 +330,8 @@ def _check_for_changes() -> Literal["main", "edited"]:
             if result.returncode != 0:
                 return "edited"
 
-        return InstallState.MAIN
+        return "main"
 
     except (subprocess.SubprocessError, FileNotFoundError):
         # If git commands fail, assume main for safety
-        return InstallState.MAIN
+        return "main"
