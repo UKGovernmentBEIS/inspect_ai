@@ -287,10 +287,27 @@ def eval_with_reducer():
     return eval(task, model="mockllm/model", epochs=Epochs(5, max_score()))[0]
 
 
+def eval_no_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    return eval(task, model="mockllm/model", epochs=Epochs(5, []))[0]
+
+
 def test_reducer_by_name():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=Epochs(5, "at_least_2"))[0]
     assert log.eval.config.epochs_reducer == ["at_least_2"]
+
+
+def test_no_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=Epochs(5, []))[0]
+    assert log.eval.config.epochs_reducer == []
+
+
+def test_default_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=4)[0]
+    assert log.eval.config.epochs_reducer == ["mean"]
 
 
 def test_eval_reducer():
@@ -304,6 +321,11 @@ def test_score_reducer():
 
     log = score(eval_with_reducer(), match(), [mode_score(), mean_score()])
     assert log.eval.config.epochs_reducer == ["mode", "mean"]
+
+
+def test_score_no_reducer():
+    log = score(eval_no_reducer(), match())
+    assert log.eval.config.epochs_reducer == []
 
 
 def test_main_reducer():
