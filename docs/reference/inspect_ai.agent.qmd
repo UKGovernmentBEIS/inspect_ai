@@ -23,8 +23,9 @@ title: "inspect_ai.agent"
 
 ## Filters
 
-### remove_tools
+### content_only
 ### last_message
+### remove_tools
 ### MessageFilter
 
 ## Protocol
