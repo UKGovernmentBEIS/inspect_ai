@@ -1,8 +1,16 @@
 ## Unreleased
 
-- ReAct: Add submit tool content to assistant message (in addition to setting the `completion`).
-- Fix error in reducing scores when all scores for a sample are NaN.
+- Agent Bridge: Responses API is now supported alongside the Completions API for both in-process and sandbox-based agent bridges.
+- Agent Bridge: Bridge can now automatically keep track of `AgentState` changes via inspecting model traffic running over the bridge.
+- Model API: Refine available tool types for `ContentToolUse` ("web_search" or "mcp_call")
+- Model API: Remove `internal` field from `ChatMessageBase` (no longer used).
+- OpenAPI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.
+- Google: Support `thought_signature` for thought parts.
+- Sandbox Service: New `instance` option for multiple services of the same type in a single container.
+- Sandbox Service: New `polling_interval` option for controlling polling interval from sandbox to scaffold (defaults to 2 seconds, overridden to 0.2 seconds for Docker sandbox).
+- ReAct Agent: Add submit tool content to assistant message (in addition to setting the `completion`).
 - Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out `sample_init`, `sandbox`, `store`, and `state` events.
+- Bugfix: Fix error in reducing scores when all scores for a sample are NaN.
 
 ## 0.3.125 (25 August 2025)
 
