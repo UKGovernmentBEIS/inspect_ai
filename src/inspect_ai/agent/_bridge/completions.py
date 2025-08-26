@@ -15,7 +15,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model
+from .util import resolve_inspect_model, sync_previous_message_ids
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -52,6 +52,11 @@ async def inspect_completions_api_request(
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
     input = await messages_from_openai(messages, model_name)
 
+    # try to maintain id stability
+    is_default_model = bridge_model_name == "inspect"
+    if state and is_default_model:
+        sync_previous_message_ids(state.messages, input)
+
     # read openai tools and tool choice
     openai_tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
     tools = tools_from_openai_tools(openai_tools)
@@ -68,7 +73,7 @@ async def inspect_completions_api_request(
     )
 
     # update state
-    if state and bridge_model_name == "inspect":
+    if state and is_default_model:
         state.messages = input + [output.message]
         state.output = output
 

@@ -111,7 +111,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model
+from .util import resolve_inspect_model, sync_previous_message_ids
 
 logger = getLogger(__file__)
 
@@ -145,6 +145,11 @@ async def inspect_responses_api_request_impl(
     messages = messages_from_responses_input(input, tools, model_name)
     debug_log("INSPECT MESSAGES", messages)
 
+    # try to maintain id stability
+    is_default_model = bridge_model_name == "inspect"
+    if state and is_default_model:
+        sync_previous_message_ids(state.messages, messages)
+
     # run inference
     output = await model.generate(
         input=messages,
@@ -154,7 +159,7 @@ async def inspect_responses_api_request_impl(
     )
 
     # update state
-    if state and bridge_model_name == "inspect":
+    if state and is_default_model:
         state.messages = messages + [output.message]
         state.output = output
 
