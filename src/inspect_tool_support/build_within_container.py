@@ -83,8 +83,8 @@ def run_docker_container(
         "/inspect_tool_support/build_executable.sh",
     ]
 
-    if dev_build:
-        cmd.append("--dev")
+    if not dev_build:
+        cmd.append("--dev=false")
 
     subprocess.run(cmd, check=True)
 
@@ -101,8 +101,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--dev",
-        action="store_true",
-        help="Build development version (adds -dev suffix)",
+        type=lambda x: x.lower() == "true",
+        default=True,
+        nargs="?",
+        const=True,
+        help="Build development version (adds -dev suffix). Use --dev=false for production builds.",
     )
 
     args = parser.parse_args()
@@ -121,8 +124,8 @@ def main() -> None:
             # Recursively call this script for each architecture
             for arch in ["amd64", "arm64"]:
                 cmd = [sys.executable, __file__, "--arch", arch]
-                if args.dev:
-                    cmd.append("--dev")
+                if not args.dev:
+                    cmd.append("--dev=false")
                 subprocess.run(cmd, check=True)
             return
 
@@ -138,11 +141,14 @@ def main() -> None:
         run_docker_build(platform, image_name, dockerfile)
 
         # Run container to build executable
-        run_docker_container(platform, arch_suffix, image_name, args.dev)
-
-        print(
-            f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"
+        run_docker_container(
+            platform, arch_suffix, image_name, args.dev, args.keep_running
         )
+
+        if not args.keep_running:
+            print(
+                f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"
+            )
 
     finally:
         # Restore original directory

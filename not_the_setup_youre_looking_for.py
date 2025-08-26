@@ -33,7 +33,7 @@ class BuildWithExecutables(build_py):
 
         try:
             subprocess.run(
-                [sys.executable, str(build_script_path), "--all"],
+                [sys.executable, str(build_script_path), "--all", "--dev=false"],
                 check=True,
                 capture_output=True,
                 text=True,

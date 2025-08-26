@@ -6,16 +6,20 @@ set -e
 ARCH_SUFFIX=${ARCH_SUFFIX:-"unknown"}
 
 # Parse command line arguments
-DEV_BUILD=false
+DEV_BUILD=true
 while [[ $# -gt 0 ]]; do
     case $1 in
         --dev)
             DEV_BUILD=true
             shift
             ;;
+        --dev=false)
+            DEV_BUILD=false
+            shift
+            ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: $0 [--dev]"
+            echo "Usage: $0 [--dev] [--dev=false]"
             exit 1
             ;;
     esac

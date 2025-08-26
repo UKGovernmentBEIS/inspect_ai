@@ -101,7 +101,7 @@ async def _open_executable_for_arch(
         if response != "y":
             raise PrerequisiteError(
                 f"Tool support executable {dev_executable_name} is required but not present. "
-                f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch} --dev"
+                f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch}"
             )
 
     # 3.4. Local Build Process - Build dev version locally
@@ -192,7 +192,7 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
 
     # Run the build script
     subprocess.run(
-        [sys.executable, str(build_script_path), "--arch", arch, "--dev"],
+        [sys.executable, str(build_script_path), "--arch", arch],
         capture_output=True,
         text=True,
         check=True,
