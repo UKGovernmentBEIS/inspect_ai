@@ -1,7 +1,7 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, cast
+from typing import Any, Set, cast
 
 from openai.types.responses import (
     Response,
@@ -49,6 +49,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._call_tools import parse_tool_call
@@ -177,6 +178,8 @@ async def inspect_responses_api_request_impl(
 
 
 def debug_log(caption: str, o: Any) -> None:
+    # from inspect_ai._util.json import to_json_str_safe
+
     # print(caption)
     # print(to_json_str_safe(o))
     pass
@@ -353,9 +356,6 @@ def messages_from_responses_input(
     tools: list[ToolInfo],
     model_name: str | None = None,
 ) -> list[ChatMessage]:
-    # TODO: parse out the xml tags, decode it, and set to 'internal'
-    # do this for AssistantInternal and content-internal
-
     # enture input is a list
     if isinstance(input, str):
         input = [
@@ -438,6 +438,10 @@ def messages_from_responses_input(
                     raise RuntimeError(
                         f"Unexpected assitant message type: {param['type']}"
                     )
+
+            # some scaffolds (e.g. codex) can present duplicate assistant content
+            content = filter_duplicate_assistant_content(content)
+
             messages.append(
                 ChatMessageAssistant(
                     content=content,
@@ -523,6 +527,23 @@ def messages_from_responses_input(
     collect_pending_assistant_message()
 
     return messages
+
+
+# some scaffolds (e.g. codex) can present duplciate assistant messages
+def filter_duplicate_assistant_content(
+    input: list[Content],
+) -> list[Content]:
+    filtered_input: list[Content] = []
+    messages_ids: Set[str] = set()
+    for c in reversed(input):
+        if c.type == "text" and c.internal:
+            internal = to_json_str_safe(c.internal)
+            if internal not in messages_ids:
+                filtered_input.append(c)
+                messages_ids.add(internal)
+        else:
+            filtered_input.append(c)
+    return list(reversed(filtered_input))
 
 
 output_item_adapter = TypeAdapter(list[ResponseOutputItem])
