@@ -9,9 +9,21 @@ import {
 } from "./types";
 
 const API_BASE_URL = __API_URL__ || "";
-
 const loaded_time = Date.now();
 let last_eval_time = 0;
+
+function buildApiUrl(path: string): string {
+  if (!API_BASE_URL) {
+    return path;
+  }
+  const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return base + cleanPath;
+}
+
+function isApiCrossOrigin(): boolean {
+  return Boolean(API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin);
+}
 
 async function client_events() {
   const params = new URLSearchParams();
@@ -192,8 +204,7 @@ async function apiRequest<T>(
   path: string,
   request: Request<T>,
 ): Promise<{ raw: string; parsed: T }> {
-  const url = API_BASE_URL + path;
-  const isCrossOrigin = API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin;
+  const url = buildApiUrl(path);
 
   // build headers
   const responseHeaders: HeadersInit = {
@@ -212,7 +223,7 @@ async function apiRequest<T>(
     method,
     headers: responseHeaders,
     body: request.body,
-    credentials: isCrossOrigin ? "include" : "same-origin",
+    credentials: isApiCrossOrigin() ? "include" : "same-origin",
   });
   if (response.ok) {
     const text = await response.text();
@@ -247,8 +258,7 @@ async function api(
   headers?: Record<string, string>,
   body?: string,
 ) {
-  const url = API_BASE_URL + path;
-  const isCrossOrigin = API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin;
+  const url = buildApiUrl(path);
 
   // build headers
   const responseHeaders: HeadersInit = {
@@ -267,7 +277,7 @@ async function api(
     method,
     headers: responseHeaders,
     body,
-    credentials: isCrossOrigin ? "include" : "same-origin",
+    credentials: isApiCrossOrigin() ? "include" : "same-origin",
   });
   if (response.ok) {
     const text = await response.text();
@@ -288,8 +298,7 @@ async function api_bytes(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
 ) {
-  const url = API_BASE_URL + path;
-  const isCrossOrigin = API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin;
+  const url = buildApiUrl(path);
 
   // build headers
   const headers: HeadersInit = {
@@ -303,7 +312,7 @@ async function api_bytes(
   const response = await fetch(url, {
     method,
     headers,
-    credentials: isCrossOrigin ? "include" : "same-origin",
+    credentials: isApiCrossOrigin() ? "include" : "same-origin",
   });
   if (response.ok) {
     const buffer = await response.arrayBuffer();
