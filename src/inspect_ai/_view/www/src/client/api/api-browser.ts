@@ -17,13 +17,17 @@ function buildApiUrl(path: string): string {
   if (!API_BASE_URL) {
     return path;
   }
-  const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const base = API_BASE_URL.endsWith("/")
+    ? API_BASE_URL.slice(0, -1)
+    : API_BASE_URL;
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
   return base + cleanPath;
 }
 
 function isApiCrossOrigin(): boolean {
-  return Boolean(API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin);
+  return Boolean(
+    API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin,
+  );
 }
 
 async function client_events() {
