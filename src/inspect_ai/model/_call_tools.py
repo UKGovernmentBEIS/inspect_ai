@@ -448,9 +448,33 @@ async def agent_handoff(
         )
     )
 
+    def is_transferred_to_tool_response(message: ChatMessage) -> bool:
+        return isinstance(message, ChatMessageTool) and message.tool_call_id == call.id
+
     # run input filter if we have one
     if agent_tool.input_filter is not None:
         agent_conversation = await agent_tool.input_filter(agent_conversation)
+
+    # if our ChatMessageTool boundary was removed (e.g. due to using the `remove_tools`
+    # or `content_only` filter) then add a ChatMessageUser boundary.
+    if not is_transferred_to_tool_response(agent_conversation[-1]):
+        agent_conversation.append(ChatMessageUser(content=tool_result))
+
+    def is_agent_conversation_boundary(message: ChatMessage) -> bool:
+        if is_transferred_to_tool_response(message):
+            return True
+        elif isinstance(message, ChatMessageUser):
+            if isinstance(message.content, str):
+                return message.content == tool_result
+            elif len(message.content) > 0 and isinstance(
+                message.content[0], ContentText
+            ):
+                return message.content[0].text == tool_result
+            else:
+                return False
+
+        else:
+            return False
 
     # remove system messages (as they can refer to tools or other special
     # instructions that don't apply to the sub-agent)
@@ -476,6 +500,16 @@ async def agent_handoff(
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex
+
+    # find the demaraction line of 'new' messages
+    agent_conversation_boundary_indices = [
+        i
+        for i, msg in enumerate(agent_state.messages)
+        if is_agent_conversation_boundary(msg)
+    ]
+    if agent_conversation_boundary_indices:
+        start_idx = agent_conversation_boundary_indices[-1] + 1
+        agent_state.messages = agent_state.messages[start_idx:]
 
     # determine which messages are new and return only those (but exclude new
     # system messages as they an internal matter for the handed off to agent.

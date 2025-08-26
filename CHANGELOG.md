@@ -2,6 +2,7 @@
 
 - Agent Bridge: Responses API is now supported alongside the Completions API for both in-process and sandbox-based agent bridges.
 - Agent Bridge: Bridge can now automatically keep track of `AgentState` changes via inspecting model traffic running over the bridge.
+- Agent `handoff()`: Use `content_only()` filter by default for handoff output and improve detection of new content from handed off to agents. 
 - Model API: Refine available tool types for `ContentToolUse` ("web_search" or "mcp_call")
 - Model API: Remove `internal` field from `ChatMessageBase` (no longer used).
 - OpenAPI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.

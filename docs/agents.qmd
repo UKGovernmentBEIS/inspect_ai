@@ -111,23 +111,8 @@ Agents can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
-3.  Agents can participate in multi-agent systems where the conversation history is shared across agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
 
-    ``` python
-    from inspect_ai.agent import handoff
-    from inspect_ai.solver import use_tools, generate
-    from math_tools import addition
-
-    eval(
-        task="research_bench", 
-        solver=[
-            use_tools(addition(), handoff(web_surfer())),
-            generate()
-        ]
-    )
-    ```
-
-4.  Agents can be used as a standard tool using the `as_tool()` function:
+3.  Agents can be used as a standard tool using the `as_tool()` function:
 
     ``` python
     from inspect_ai.agent import as_tool
@@ -143,7 +128,24 @@ Agents can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
+4.  Agents can participate in multi-agent systems where the conversation history is shared across agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
+
+    ``` python
+    from inspect_ai.agent import handoff
+    from inspect_ai.solver import use_tools, generate
+    from math_tools import addition
+
+    eval(
+        task="research_bench", 
+        solver=[
+            use_tools(addition(), handoff(web_surfer())),
+            generate()
+        ]
+    )
+    ```
+
     The difference between `handoff()` and `as_tool()` is that `handoff()` forwards the entire conversation history to the agent (and enables the agent to add entries to it) whereas `as_tool()` provides a simple string in, string out interface to the agent.
+
 
 
 ## Learning More
