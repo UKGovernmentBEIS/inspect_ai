@@ -8,6 +8,8 @@ import {
   SampleDataResponse,
 } from "./types";
 
+const API_BASE_URL = __API_URL__ || "";
+
 const loaded_time = Date.now();
 let last_eval_time = 0;
 
@@ -190,6 +192,9 @@ async function apiRequest<T>(
   path: string,
   request: Request<T>,
 ): Promise<{ raw: string; parsed: T }> {
+  const url = API_BASE_URL + path;
+  const isCrossOrigin = API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin;
+
   // build headers
   const responseHeaders: HeadersInit = {
     Accept: "application/json",
@@ -203,10 +208,11 @@ async function apiRequest<T>(
   }
 
   // make request
-  const response = await fetch(`${path}`, {
+  const response = await fetch(url, {
     method,
     headers: responseHeaders,
     body: request.body,
+    credentials: isCrossOrigin ? "include" : "same-origin",
   });
   if (response.ok) {
     const text = await response.text();
@@ -241,6 +247,9 @@ async function api(
   headers?: Record<string, string>,
   body?: string,
 ) {
+  const url = API_BASE_URL + path;
+  const isCrossOrigin = API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin;
+
   // build headers
   const responseHeaders: HeadersInit = {
     Accept: "application/json",
@@ -254,10 +263,11 @@ async function api(
   }
 
   // make request
-  const response = await fetch(`${path}`, {
+  const response = await fetch(url, {
     method,
     headers: responseHeaders,
     body,
+    credentials: isCrossOrigin ? "include" : "same-origin",
   });
   if (response.ok) {
     const text = await response.text();
@@ -278,6 +288,9 @@ async function api_bytes(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
 ) {
+  const url = API_BASE_URL + path;
+  const isCrossOrigin = API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin;
+
   // build headers
   const headers: HeadersInit = {
     Accept: "application/octet-stream",
@@ -287,7 +300,11 @@ async function api_bytes(
   };
 
   // make request
-  const response = await fetch(`${path}`, { method, headers });
+  const response = await fetch(url, {
+    method,
+    headers,
+    credentials: isCrossOrigin ? "include" : "same-origin",
+  });
   if (response.ok) {
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
