@@ -1203,6 +1203,10 @@
           "type": "string"
         },
         "tool_type": {
+          "enum": [
+            "web_search",
+            "mcp_call"
+          ],
           "title": "Tool Type",
           "type": "string"
         },
@@ -1227,10 +1231,12 @@
           "title": "Context"
         },
         "arguments": {
-          "$ref": "#/$defs/JsonValue"
+          "title": "Arguments",
+          "type": "string"
         },
         "result": {
-          "$ref": "#/$defs/JsonValue"
+          "title": "Result",
+          "type": "string"
         },
         "error": {
           "anyOf": [
