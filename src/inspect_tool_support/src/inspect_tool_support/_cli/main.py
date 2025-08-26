@@ -85,8 +85,6 @@ def _ensure_server_is_running() -> None:
     # Start server (it will handle socket cleanup on startup)
     subprocess.Popen(
         [sys.argv[0], "server"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
     )
 
     # Wait for socket to become available
