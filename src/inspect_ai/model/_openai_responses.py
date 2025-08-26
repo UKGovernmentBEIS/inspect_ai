@@ -626,7 +626,36 @@ def _openai_input_items_from_chat_message_assistant(
 
     # items to return
     items: list[ResponseInputItemParam] = []
+    pending_response_output_id: str | None = None
+    pending_response_output: list[
+        ResponseOutputRefusalParam | ResponseOutputTextParam
+    ] = []
+
+    def flush_pending_context_text() -> None:
+        nonlocal pending_response_output_id
+        if len(pending_response_output) > 0:
+            items.append(
+                ResponseOutputMessageParam(
+                    type="message",
+                    role="assistant",
+                    # this actually can be `None`, and it will in fact be `None` when the
+                    # assistant message is synthesized by the scaffold as opposed to being
+                    # replayed from the model
+                    # Is it okay to dynamically generate this here? We need this in
+                    # order to read this back into the equivalent BaseModel for the bridge
+                    id=pending_response_output_id,  # type: ignore[typeddict-item]
+                    content=pending_response_output,
+                    status="completed",
+                )
+            )
+        pending_response_output_id = None
+        pending_response_output.clear()
+
     for content in _filter_consecutive_reasoning_blocks(content_items):
+        # flush if we aren't ContentText
+        if not isinstance(content, ContentText):
+            flush_pending_context_text()
+
         match content:
             case ContentReasoning():
                 items.append(responses_reasoning_from_reasoning(content))
@@ -660,8 +689,13 @@ def _openai_input_items_from_chat_message_assistant(
                 else:
                     message_id = None
 
-                # create content
-                response_content = (
+                # see if we need to flush
+                if message_id is not pending_response_output_id:
+                    flush_pending_context_text()
+
+                # register pending output
+                pending_response_output_id = message_id
+                pending_response_output.append(
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
                     if refusal
                     else ResponseOutputTextParam(
@@ -669,21 +703,8 @@ def _openai_input_items_from_chat_message_assistant(
                     )
                 )
 
-                # append item
-                items.append(
-                    ResponseOutputMessageParam(
-                        type="message",
-                        role="assistant",
-                        # this actually can be `None`, and it will in fact be `None` when the
-                        # assistant message is synthesized by the scaffold as opposed to being
-                        # replayed from the model
-                        # Is it okay to dynamically generate this here? We need this in
-                        # order to read this back into the equivalent BaseModel for the bridge
-                        id=message_id,  # type: ignore[typeddict-item]
-                        content=[response_content],
-                        status="completed",
-                    )
-                )
+    # final flush if necessary
+    flush_pending_context_text()
 
     return items + _tool_call_items_from_assistant_message(message)
 
