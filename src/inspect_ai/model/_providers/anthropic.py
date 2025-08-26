@@ -1099,8 +1099,8 @@ async def model_output_from_message(
 
             # record in internal
             assistant_internal().server_mcp_tool_uses[tool_result_block.tool_use_id] = (
-                pending_mcp_tool_use.model_dump(),
-                tool_result_block.model_dump(),
+                pending_mcp_tool_use.model_dump(exclude_none=True),
+                tool_result_block.model_dump(exclude_none=True),
             )
 
             content.append(
@@ -1167,8 +1167,14 @@ async def model_output_from_message(
 
             # record in internal
             assistant_internal().server_web_searches[pending_tool_use.id] = (
-                cast(ServerToolUseBlockParam, pending_tool_use.model_dump()),
-                cast(WebSearchToolResultBlockParam, content_block.model_dump()),
+                cast(
+                    ServerToolUseBlockParam,
+                    pending_tool_use.model_dump(exclude_none=True),
+                ),
+                cast(
+                    WebSearchToolResultBlockParam,
+                    content_block.model_dump(exclude_none=True),
+                ),
             )
 
             content.append(
@@ -1178,7 +1184,7 @@ async def model_output_from_message(
                     name=pending_tool_use.name,
                     arguments=to_json_str_safe(pending_tool_use.input),
                     result=web_search_result_block_adapter.dump_json(
-                        content_block.content
+                        content_block.content, exclude_none=True
                     ).decode(),
                     error=content_block.content.error_code
                     if isinstance(content_block.content, WebSearchToolResultError)
