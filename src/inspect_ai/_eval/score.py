@@ -50,6 +50,7 @@ def score(
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
+    copy: bool = True,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -61,6 +62,7 @@ def score(
            Defaults to previously used reducer(s).
        action: Whether to append or overwrite this score
        display: Progress/status display
+       copy: Whether to deepcopy the log before scoring.
 
     Returns:
        Log with scores yielded by scorer.
@@ -75,10 +77,12 @@ def score(
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
 
     if running_in_notebook():
-        return run_coroutine(score_async(log, scorers, epochs_reducer, action))
+        return run_coroutine(
+            score_async(log, scorers, epochs_reducer, action, copy=copy)
+        )
     else:
         return anyio.run(
-            score_async,
+            functools.partial(score_async, copy=copy),
             log,
             scorers,
             epochs_reducer,
@@ -240,63 +244,23 @@ async def score_async(
         # compute metrics
         log.results, log.reductions = eval_results(
             len(log.samples),
-            [scores for (scores, _) in scores_and_events],
+            [
+                {
+                    score_key: SampleScore(
+                        score=score,
+                        sample_id=sample.id,
+                        sample_metadata=sample.metadata,
+                    )
+                    for score_key, score in sample.scores.items()
+                }
+                for sample in log.samples
+                if sample.scores is not None
+            ],
             epochs_reducer,
             scorers,
             log_metrics,
         )
 
-    return log
-
-
-async def task_score(
-    log: EvalLog,
-    scorer: str | None = None,
-    scorer_args: dict[str, Any] | None = None,
-    action: ScoreAction | None = None,
-) -> EvalLog:
-    # confirm we have a scorer
-    scorers = resolve_scorers(log, scorer, scorer_args)
-    if len(scorers) == 0:
-        raise ValueError(
-            "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
-        )
-
-    # confirm we have samples
-    if log.samples is None or len(log.samples) == 0:
-        raise ValueError("There are no samples to score in the log.")
-
-    task_name = log.eval.task
-    display_manager().print(f"\nScoring {task_name} ({len(log.samples)} samples)")
-
-    # perform scoring
-    log = await score_async(log=log, scorers=scorers, action=action)
-
-    # compute and log metrics
-    if log.samples:
-        sample_scores = [
-            {
-                score_key: SampleScore(
-                    score=score,
-                    sample_id=sample.id,
-                    sample_metadata=sample.metadata,
-                )
-                for score_key, score in sample.scores.items()
-            }
-            for sample in log.samples
-            if sample.scores is not None
-        ]
-
-        epochs_reducer = reducers_from_log(log)
-        metrics = metrics_from_log(log)
-
-        log.results, log.reductions = eval_results(
-            log.results.total_samples if log.results else 0,
-            sample_scores,
-            epochs_reducer,
-            scorers,
-            metrics,
-        )
     return log
 
 

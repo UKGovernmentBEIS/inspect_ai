@@ -1,6 +1,13 @@
 ## Unreleased
 
+- ReAct: Add submit tool content to assistant message (in addition to setting the `completion`).
+- Fix error in reducing scores when all scores for a sample are NaN.
 - Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out `sample_init`, `sandbox`, `store`, and `state` events.
+
+## 0.3.125 (25 August 2025)
+
+- Scoring: Refactor `inspect score` to call same underlying code as `score()`.
+- Bugfix: Fix regression in CLI scoring.
 
 ## 0.3.124 (24 August 2025)
 
