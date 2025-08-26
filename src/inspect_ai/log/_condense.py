@@ -21,9 +21,11 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_info import ToolInfo
 
 from ._log import EvalSample
 from ._transcript import (
@@ -186,7 +188,12 @@ def walk_subtask_event(
 
 
 def walk_tool_event(event: ToolEvent, content_fn: Callable[[str], str]) -> ToolEvent:
-    return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
+    return event.model_copy(
+        update=dict(
+            arguments=walk_json_dict(event.arguments, content_fn),
+            events=walk_events(event.events, content_fn),
+        )
+    )
 
 
 def walk_info_event(event: InfoEvent, content_fn: Callable[[str], str]) -> InfoEvent:
@@ -218,6 +225,7 @@ def walk_sample(sample: Sample, content_fn: Callable[[str], str]) -> Sample:
 def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> ModelEvent:
     return event.model_copy(
         update=dict(
+            tools=walk_tools(event.tools, content_fn),
             input=walk_chat_messages(event.input, content_fn),
             output=walk_model_output(event.output, content_fn),
             call=walk_model_call(event.call, content_fn),
@@ -329,9 +337,15 @@ def walk_chat_message(
     else:
         return message.model_copy(
             update=dict(
+                tool_calls=[
+                    walk_tool_call(tool_call, content_fn)
+                    for tool_call in message.tool_calls
+                ]
+                if isinstance(message, ChatMessageAssistant) and message.tool_calls
+                else None,
                 content=[
                     walk_content(content, content_fn) for content in message.content
-                ]
+                ],
             )
         )
 
@@ -361,3 +375,35 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
         )
     elif isinstance(content, ContentDocument):
         return content.model_copy(update=dict(document=content_fn(content.document)))
+
+
+def walk_tools(
+    tools: list[ToolInfo], content_fn: Callable[[str], str]
+) -> list[ToolInfo]:
+    return [
+        tool.model_copy(
+            update=dict(
+                description=content_fn(tool.description),
+            )
+        )
+        for tool in tools
+    ]
+
+
+def walk_tool_call(tool_call: ToolCall, content_fn: Callable[[str], str]) -> ToolCall:
+    return ToolCall(
+        id=tool_call.id,
+        function=tool_call.function,
+        arguments=walk_json_dict(tool_call.arguments, content_fn),
+        parse_error=tool_call.parse_error,
+        view=tool_call.view.model_copy(
+            update=dict(
+                content=content_fn(tool_call.view.content)
+                if tool_call.view and tool_call.view.content
+                else None,
+            )
+        )
+        if tool_call.view
+        else None,
+        type=tool_call.type,
+    )
