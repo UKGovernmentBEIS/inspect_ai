@@ -4,7 +4,7 @@ from inspect_ai.agent import (
     agent,
     sandbox_agent_bridge,
 )
-from inspect_ai.model import user_prompt
+from inspect_ai.model import ChatMessageSystem, ChatMessageUser
 from inspect_ai.util import sandbox
 
 
@@ -12,8 +12,14 @@ from inspect_ai.util import sandbox
 def codex() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with sandbox_agent_bridge(state) as bridge:
-            # extract prompt from last user message
-            prompt = user_prompt(state.messages).text
+            # extract prompt message text
+            prompt = "\n\n".join(
+                [
+                    message.text
+                    for message in state.messages
+                    if isinstance(message, ChatMessageUser | ChatMessageSystem)
+                ]
+            )
 
             # execute the agent
             result = await sandbox().exec(
