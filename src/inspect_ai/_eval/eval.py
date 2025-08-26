@@ -623,7 +623,7 @@ async def _eval_async_inner(
             sample_shuffle=sample_shuffle,
             epochs=epochs.epochs if epochs else None,
             epochs_reducer=reducer_log_names(epochs_reducer)
-            if epochs_reducer
+            if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,

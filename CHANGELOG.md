@@ -11,6 +11,7 @@
 - ReAct Agent: Add submit tool content to assistant message (in addition to setting the `completion`).
 - Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out `sample_init`, `sandbox`, `store`, and `state` events.
 - Bugfix: Fix error in reducing scores when all scores for a sample are NaN.
+- Metrics: Compute metrics when an empty list of reducers is provided (do not reduce the scores before computing metrics).
 
 ## 0.3.125 (25 August 2025)
 
