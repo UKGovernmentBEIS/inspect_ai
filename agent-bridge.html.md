@@ -19,7 +19,6 @@
 
 While Inspect provides facilities for native agent development, you can
 also very easily integrate agents created with 3rd party frameworks like
-[AutoGen](https://microsoft.github.io/autogen/stable/) or
 [LangChain](https://python.langchain.com/docs/introduction/), or use
 fully custom agents you have developed or ported from a research paper.
 You can also use CLI based agents that run within sandboxes (e.g. [Codex
@@ -44,7 +43,8 @@ To bridge a Python based agent running in the same process as Inspect:
 
 1.  Write your custom Python agent as normal using the OpenAI connector
     provided by your agent system, specifying “inspect” as the model
-    name.
+    name. Note that both the Completions API and Responses API are
+    supported.
 
 2.  Run your custom Python agent within the `agent_bridge()` context
     manager which redirects OpenAI calls to the current Inspect model
@@ -63,27 +63,24 @@ from inspect_ai.model import messages_to_openai
 @agent
 def my_agent() -> AgentState:
     async def execute(state: AgentState) -> AgentState:
-        async with agent_bridge():
+        async with agent_bridge(state) as bridge:
             client = AsyncOpenAI()
             
-            completion = await client.chat.completions.create(
+            await client.chat.completions.create(
                 model="inspect",
                 messages=messages_to_openai(state.messages),
             )
-    
-            message = ChatMessageAssistant(
-                content=completion.choices[0].message.content
-            )
-            state.output = ModelOutput.from_message(message)
-            state.messages.append(message)
-            return state
+
+            return bridge.state
 
     return execute
 ```
 
 Line 10  
 Use the `agent_bridge()` context manager to redirect the OpenAI API to
-the Inspect model provider.
+the Inspect model provider. Pass the `state` so that the bridge can
+automatically keep track of changes to `messages` and `output` based on
+model calls passing through the bridge.
 
 Line 14  
 Use the OpenAI API with `model="inspect"`, which enables Inspect to
@@ -94,16 +91,13 @@ Line 15
 Convert the `state.messages` input into native OpenAI messages using the
 `messages_to_openai()` function.
 
-Lines 18,23  
-Update the `state` with the received completion.
-
 The following examples further demonstrate how to integrate other agent
 frameworks with Inspect:
 
 |  |  |
 |----|----|
-| [AutoGen](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen) | Demonstrates using a native [AutoGen](https://microsoft.github.io/autogen/) agent with Inspect to perform web research using the using the AutoGen [MultiModalWebSurfer](https://microsoft.github.io/autogen/stable//reference/python/autogen_ext.agents.web_surfer.html#autogen_ext.agents.web_surfer.MultimodalWebSurfer) |
 | [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent with Inspect to perform Q/A using the [Tavili Search API](https://tavily.com/) |
+| [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) | Demonstrates using the [Codex CLI](https://github.com/openai/codex) agent with Inspect to explore a Kali Linux system. |
 
 ## Sandbox Bridge
 
@@ -112,7 +106,8 @@ To bridge an agent running within a sandbox into Inspect:
 1.  Configure your sandbox (e.g. via its Dockerfile) to contain the
     agent that you want to run. The agent should be configured to talk
     to the OpenAI API on localhost port 3131
-    (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`).
+    (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`). Note that both
+    the Completions API and Responses API are supported.
 
 2.  Write a standard Inspect agent that uses the
     `sandbox_agent_bridge()` context manager and the `sandbox().exec()`
@@ -137,7 +132,7 @@ from inspect_ai.util import sandbox
 @agent
 def my_agent() -> AgentState:
     async def execute(state: AgentState) -> AgentState:
-        async with sandbox_agent_bridge():
+        async with sandbox_agent_bridge(state) as bridge:
             
             prompt = user_prompt(state.messages)
             
@@ -147,24 +142,21 @@ def my_agent() -> AgentState:
                     "--prompt",
                     prompt.text
                 ],
-                env={"OPENAI_BASE_URL": "http://localhost:13131/v1"}
+                env={"OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1"}
             )
             if not result.success:
                 raise RuntimeError(f"Agent error: {result.stderr}")
 
-            message = ChatMessageAssistant(
-                content=result.stdout
-            )
-            state.output = ModelOutput.from_message(message)
-            state.messages.append(message)
-            return state
+            return bridge.state
 
     return execute
 ```
 
 Line 11  
 Use the `sandbox_agent_bridge()` context manager to redirect the OpenAI
-API to the Inspect model provider.
+API to the Inspect model provider. Pass the `state` so that the bridge
+can automatically keep track of changes to `messages` and `output` based
+on model calls passing through the bridge.
 
 Line 13  
 Extract the last user message from the message history with
@@ -177,10 +169,8 @@ in and out).
 
 Line 21  
 Redirect the OpenAI API to talk to a proxy server that communicates back
-to the current Inspect model provider.
-
-Lines 26,31  
-Update and return the `state` with the received completion.
+to the current Inspect model provider. Note that we read the `port` to
+listen on from the `bridge` yielded by the context manager.
 
 The [Codex
 CLI](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex)
@@ -201,23 +191,6 @@ Inspect interface to Gemini:
 ``` python
 model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
 ```
-
-## Sandboxes
-
-If you need to execute untrusted LLM generated code in your agent, you
-can still use the Inspect [`sandbox()`](sandboxing.qmd) within bridged
-agent functions. Typically agent tools that can run code are
-customisable with an executor, and this is where you would plug in the
-Inspect `sandbox()`.
-
-For example, the AutoGen
-[`PythonCodeExecutionTool`](https://microsoft.github.io/autogen/stable/reference/python/autogen_ext.tools.code_execution.html#autogen_ext.tools.code_execution.PythonCodeExecutionTool)
-takes a
-[`CodeExecutor`](https://microsoft.github.io/autogen/stable/reference/python/autogen_core.code_executor.html#autogen_core.code_executor.CodeExecutor)
-in its constructor. AutoGen provides several built in code executors
-(e.g. local, docker, azure, etc.) and you can create custom ones. For
-example, you could create an `InspectSandboxCodeExecutor` which in turn
-delegates to the `sandbox().exec()` function.
 
 ## Transcript
 

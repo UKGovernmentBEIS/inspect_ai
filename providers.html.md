@@ -56,6 +56,7 @@ model args are forwarded to the constructor of the `AsyncOpenAI` class):
 | Model Arg | Description |
 |----|----|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
+| `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `service_tier` | Processing type used for serving the request (“auto”, “default”, or “flex”). |
 | `background` | Run generate requests asynchronously, polling response objects to check status over time. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
@@ -81,9 +82,9 @@ eval(
 ### Responses API
 
 By default, Inspect uses the standard OpenAI Chat Completions API for
-gpt-series models and the new [Responses
-API](https://platform.openai.com/docs/api-reference/responses) for
-o-series models and the `computer_use_preview` model.
+GPT-4 models and the new [Responses
+API](https://platform.openai.com/docs/api-reference/responses) for GPT-5
+and o-series models and the `computer_use_preview` model.
 
 If you want to manually enable or disable the Responses API you can use
 the `responses_api` model argument. For example:
@@ -96,6 +97,22 @@ Note that certain models including `o1-pro` and `computer_use_preview`
 *require* the use of the Responses API. Check the Open AI [models
 documentation](https://platform.openai.com/docs/models) for details on
 which models are supported by the respective APIs.
+
+### Responses Store
+
+By default, the Responses API stores requests on the server for
+retrieval of previous reasoning content (which is not transmitted as
+part of responses). To control this behavior explicitly use the
+`responses_store` model argument. For example:
+
+``` bash
+inspect eval math.py --model openai/o4-mini -M responses_store=false
+```
+
+For example, you might need to do this if you have a non-logging
+interface to OpenAI models (as `store` is incompatible with non-logging
+interfaces). Note that some features (such as computer use) *require*
+responses store to be `True`.
 
 ### Flex Processing
 

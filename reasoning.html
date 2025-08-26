@@ -502,7 +502,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#reasoning-content" id="toc-reasoning-content" class="nav-link" data-scroll-target="#reasoning-content">Reasoning Content</a></li>
   <li><a href="#reasoning-options" id="toc-reasoning-options" class="nav-link" data-scroll-target="#reasoning-options">Reasoning Options</a></li>
-  <li><a href="#openai-o-series" id="toc-openai-o-series" class="nav-link" data-scroll-target="#openai-o-series">OpenAI o-series</a></li>
+  <li><a href="#openai-reasoning-models" id="toc-openai-reasoning-models" class="nav-link" data-scroll-target="#openai-reasoning-models">OpenAI Reasoning Models</a></li>
   <li><a href="#claude-3.7-sonnet-and-claude-4" id="toc-claude-3.7-sonnet-and-claude-4" class="nav-link" data-scroll-target="#claude-3.7-sonnet-and-claude-4">Claude 3.7 Sonnet and Claude 4</a></li>
   <li><a href="#google-gemini" id="toc-google-gemini" class="nav-link" data-scroll-target="#google-gemini">Google Gemini</a></li>
   <li><a href="#grok" id="toc-grok" class="nav-link" data-scroll-target="#grok">Grok</a></li>
@@ -600,9 +600,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a> )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>reasoning_history</code> option lets you control how much of the model’s previous reasoning is presented in the message history sent to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. The default is <code>auto</code>, which uses a provider-specific recommended default (normally <code>all</code>). Use <code>last</code> to not let the reasoning overwhelm the context window.</p>
 </section>
-<section id="openai-o-series" class="level2">
-<h2 class="anchored" data-anchor-id="openai-o-series">OpenAI o-series</h2>
-<p>OpenAI has several reasoning models available including the o1, o3, and o4 famillies of models. Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
+<section id="openai-reasoning-models" class="level2">
+<h2 class="anchored" data-anchor-id="openai-reasoning-models">OpenAI Reasoning Models</h2>
+<p>OpenAI has several reasoning models available including the GPT-5 and o-series models. Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
 <section id="reasoning-effort" class="level4">
 <h4 class="anchored" data-anchor-id="reasoning-effort">Reasoning Effort</h4>
 <p>You can condition the amount of reasoning done via the <a href="https://platform.openai.com/docs/guides/reasoning#reasoning-effort"><code>reasoning_effort</code></a> option, which can be set to <code>minimal</code>, <code>low</code>, <code>medium</code>, or <code>high</code> (the default is <code>medium</code> if not specified). For example:</p>
@@ -622,17 +622,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>When using o-series models, Inspect automatically enables the <a href="https://platform.openai.com/docs/api-reference/responses/create#responses-create-store">store</a> option so that reasoning blocks can be retrieved by the model from the conversation history. To control this behavior explicitly use the <code>responses_store</code> model argument. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o4-mini <span class="at">-M</span> responses_store=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>For example, you might need to do this if you have a non-logging interface to OpenAI models (as <code>store</code> is incompatible with non-logging interfaces).</p>
 </section>
 </section>
 <section id="claude-3.7-sonnet-and-claude-4" class="level2">
 <h2 class="anchored" data-anchor-id="claude-3.7-sonnet-and-claude-4">Claude 3.7 Sonnet and Claude 4</h2>
 <p>Anthropic’s Claude 3.7 Sonnet and Claude 4 Sonnet/Opus models include optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. These are hybrid models that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="tokens" class="level4">
 <h4 class="anchored" data-anchor-id="tokens">Tokens</h4>
 <p>The <code>max_tokens</code> for any given request is determined as follows:</p>
@@ -641,10 +638,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>If you explicitly specify a <code>max_tokens</code>, that value will be used as the max tokens without modification (so should accommodate sufficient space for both your <code>reasoning_tokens</code> and normal output).</li>
 </ol>
 <p>Inspect will automatically use <a href="https://docs.anthropic.com/en/api/messages-streaming">response streaming</a> whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests. You can override the default behavior using the <code>streaming</code> model argument. For example:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096 <span class="dt">\</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> streaming=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096 <span class="dt">\</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-M</span> streaming=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="history" class="level4">
 <h4 class="anchored" data-anchor-id="history">History</h4>
@@ -663,9 +660,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro">Gemini 2.5 Pro</a>: <code>google/gemini-2.5-pro</code></p></li>
 </ul>
 <p>You can use the <code>--reasoning-tokens</code> option to control the amount of reasoning used by these models. For example:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-2.5-flash-preview-04-17 <span class="dt">\</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-2.5-flash-preview-04-17 <span class="dt">\</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The most recent Gemini models also include support for including a reasoning summary in model output.</p>
 </section>
 <section id="grok" class="level2">
@@ -677,7 +674,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>grok/grok-3-mini-fast</code></li>
 </ul>
 <p>You can condition the amount of reasoning done by Grok using the [<code>reasoning_effort</code>]https://docs.x.ai/docs/guides/reasoning) option, which can be set to <code>low</code> or <code>high</code>.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini <span class="at">--reasoning-effort</span> high</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini <span class="at">--reasoning-effort</span> high</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that Grok 4 does not yet support the <code>--reasoning-effort</code> parameter but is expected to soon.</p>
 </section>
 <section id="deepseek-r1" class="level2">

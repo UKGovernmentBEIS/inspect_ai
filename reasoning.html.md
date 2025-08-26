@@ -69,12 +69,11 @@ previous reasoning is presented in the message history sent to
 recommended default (normally `all`). Use `last` to not let the
 reasoning overwhelm the context window.
 
-## OpenAI o-series
+## OpenAI Reasoning Models
 
-OpenAI has several reasoning models available including the o1, o3, and
-o4 famillies of models. Learn more about the specific models available
-in the [OpenAI Models](https://platform.openai.com/docs/models)
-documentation.
+OpenAI has several reasoning models available including the GPT-5 and
+o-series models. Learn more about the specific models available in the
+[OpenAI Models](https://platform.openai.com/docs/models) documentation.
 
 #### Reasoning Effort
 
@@ -104,20 +103,6 @@ inspect eval math.py --model openai/o3 --reasoning-summary auto
 > Before using summarizers with the latest OpenAI reasoning models, you
 > may need to complete [organization
 > verification](https://help.openai.com/en/articles/10910291-api-organization-verification).
-
-When using o-series models, Inspect automatically enables the
-[store](https://platform.openai.com/docs/api-reference/responses/create#responses-create-store)
-option so that reasoning blocks can be retrieved by the model from the
-conversation history. To control this behavior explicitly use the
-`responses_store` model argument. For example:
-
-``` bash
-inspect eval math.py --model openai/o4-mini -M responses_store=false
-```
-
-For example, you might need to do this if you have a non-logging
-interface to OpenAI models (as `store` is incompatible with non-logging
-interfaces).
 
 ## Claude 3.7 Sonnet and Claude 4
 
