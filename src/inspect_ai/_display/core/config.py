@@ -39,6 +39,13 @@ def task_config_str(profile: TaskProfile, generate_config: bool = True) -> str:
             value = value if isinstance(value, list) else [value]
             value = [str(v) for v in value]
             config_print.append(f"{name}: {','.join(value)}")
+        elif name == "epochs_reducer":
+            if isinstance(value, list):
+                if len(value) == 0:
+                    value = "none"
+                else:
+                    value = ",".join([str(v) for v in value])
+            config_print.append(f"{name}: {value}")
         elif name not in ["limit", "model", "response_schema", "log_shared"]:
             if isinstance(value, list):
                 value = ",".join([str(v) for v in value])
