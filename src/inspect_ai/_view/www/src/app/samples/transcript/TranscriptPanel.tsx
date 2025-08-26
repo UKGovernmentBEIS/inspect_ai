@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { FC, memo, RefObject } from "react";
+import { FC, memo, RefObject, useMemo } from "react";
 import { Events } from "../../../@types/log";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
+import { useStore } from "../../../state/store";
 import { ApplicationIcons } from "../../appearance/icons";
 import { useLogRouteParams } from "../../routing/url";
 import { TranscriptOutline } from "./outline/TranscriptOutline";
@@ -25,10 +26,27 @@ interface TranscriptPanelProps {
 export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
   let { id, scrollRef, events, running, initialEventId, topOffset } = props;
 
+  // Sort out any types that are filtered out
+  const filteredEventTypes = useStore(
+    (state) => state.sample.eventFilter.filteredTypes,
+  );
+
+  // Apply the filter
+  const filteredEvents = useMemo(() => {
+    if (filteredEventTypes.size === 0) {
+      return events;
+    }
+    return events.filter((event) => {
+      return !filteredEventTypes.has(event.event);
+    });
+  }, [events, filteredEventTypes]);
+
+  // Convert to nodes
   const { eventNodes, defaultCollapsedIds } = useEventNodes(
-    events,
+    filteredEvents,
     running === true,
   );
+
   const { logPath } = useLogRouteParams();
 
   const [collapsed, setCollapsed] = useCollapsedState(
