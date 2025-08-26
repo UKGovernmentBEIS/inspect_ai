@@ -13,14 +13,14 @@ from inspect_ai.util._limit import Limit
 
 from ._agent import Agent
 from ._as_tool import agent_tool_info
-from ._filter import MessageFilter
+from ._filter import MessageFilter, content_only
 
 
 def handoff(
     agent: Agent,
     description: str | None = None,
     input_filter: MessageFilter | None = None,
-    output_filter: MessageFilter | None = None,
+    output_filter: MessageFilter | None = content_only,
     tool_name: str | None = None,
     limits: list[Limit] = [],
     **agent_kwargs: Any,
@@ -31,11 +31,15 @@ def handoff(
         agent: Agent to hand off to.
         description: Handoff tool description (defaults to agent description)
         input_filter: Filter to modify the message history before calling the tool.
-            Use the built-in `remove_tools` filter to remove all tool calls
-            or alternatively specify a custom `MessageFilter` function.
+            Use the built-in `remove_tools` filter to remove all tool calls.
+            Alternatively specify another `MessageFilter` function or list
+            of `MessageFilter` functions.
         output_filter: Filter to modify the message history after calling the tool.
-            Use the built-in `last_message` filter to return only the last message
-            or alternatively specify a custom `MessageFilter` function.
+            Defaults to `content_only()`, which produces a history that should
+            be safe to read by other models (tool calls are converted to text,
+            and both system messages and reasoning blocks are removed).
+            Alternatively specify another `MessageFilter` function or list
+            of `MessageFilter` functions.
         tool_name: Alternate tool name (defaults to `transfer_to_{agent_name}`)
         limits: List of limits to apply to the agent. Limits are scoped to each
             handoff to the agent. Should a limit be exceeded, the agent stops and a user
