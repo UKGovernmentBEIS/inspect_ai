@@ -27,7 +27,10 @@ from openai.types.responses.response import ToolChoice as ResponsesToolChoice
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
-from openai.types.responses.response_function_web_search import Action
+from openai.types.responses.response_function_web_search import (
+    Action,
+    ActionSearch,
+)
 from openai.types.responses.response_input_item_param import (
     Message,
 )
@@ -36,7 +39,7 @@ from openai.types.responses.response_output_item import (
     McpListTools,
     McpListToolsTool,
 )
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -92,7 +95,6 @@ from inspect_ai.model._openai_responses import (
     to_inspect_citation,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
-    tool_use_to_web_search_param,
     web_search_to_tool_use,
 )
 from inspect_ai.model._providers._openai_computer_use import (
@@ -566,9 +568,26 @@ def responses_output_items_from_assistant_message(
 
         elif isinstance(content, ContentToolUse):
             if content.tool_type == "web_search":
-                web_search = tool_use_to_web_search_param(content)
-                output.append(ResponseFunctionWebSearch.model_validate(web_search))
+                # if this originated from responses then the action will validate as
+                # a native OpenAI action -- otherwise just provide a plausible stand-in
+                # (the native model provider e.g. anthropic will have saved its call
+                # keyed by id so that it can replay with the correct fidelity)
+                try:
+                    action = action_adapter.validate_json(content.arguments)
+                except ValidationError:
+                    action = ActionSearch(type="search", query=content.arguments)
+
+                output.append(
+                    ResponseFunctionWebSearch(
+                        type="web_search_call",
+                        id=content.id,
+                        action=action,
+                        status="failed" if content.error else "completed",
+                    )
+                )
             elif content.name == "mcp_list_tools":
+                # currently this is only ever done by OpenAI Responses so
+                # it is safe to read in a validated way (unlike web search)
                 mcp_list_tools = tool_use_to_mcp_list_tools_param(content)
                 output.append(McpListTools.model_validate(mcp_list_tools))
             else:

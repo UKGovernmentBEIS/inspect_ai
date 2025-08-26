@@ -41,6 +41,7 @@ from openai.types.responses.response_create_params import (
 )
 from openai.types.responses.response_function_web_search_param import (
     Action,
+    ActionSearch,
 )
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
@@ -76,7 +77,7 @@ from openai.types.responses.response_usage import (
     OutputTokensDetails,
 )
 from openai.types.responses.tool_param import Mcp
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
@@ -589,10 +590,15 @@ action_adapter = TypeAdapter[Action](Action)
 def tool_use_to_web_search_param(
     content: ContentToolUse,
 ) -> ResponseFunctionWebSearchParam:
+    try:
+        action = action_adapter.validate_json(content.arguments)
+    except ValidationError:
+        action = ActionSearch(type="search", query=content.arguments)
+
     return ResponseFunctionWebSearchParam(
         type="web_search_call",
         id=content.id,
-        action=action_adapter.validate_json(content.arguments),
+        action=action,
         status="failed" if content.error else "completed",
     )
 
