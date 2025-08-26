@@ -141,14 +141,11 @@ def main() -> None:
         run_docker_build(platform, image_name, dockerfile)
 
         # Run container to build executable
-        run_docker_container(
-            platform, arch_suffix, image_name, args.dev, args.keep_running
-        )
+        run_docker_container(platform, arch_suffix, image_name, args.dev)
 
-        if not args.keep_running:
-            print(
-                f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"
-            )
+        print(
+            f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"
+        )
 
     finally:
         # Restore original directory

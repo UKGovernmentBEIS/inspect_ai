@@ -3,7 +3,7 @@ import sys
 from contextlib import asynccontextmanager
 from importlib import resources
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO
+from typing import AsyncIterator, BinaryIO, Literal
 
 import httpx
 from rich.prompt import Prompt
@@ -15,6 +15,15 @@ from inspect_ai.util._sandbox._recon import Architecture, detect_sandbox_os
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 BUCKET_BASE_URL = "https://inspect-tool-support.s3.us-east-2.amazonaws.com"
+
+
+InstallState = Literal["pypi", "main", "edited"]
+"""Represents the state of the inspect-ai installation.
+
+pypi: PyPI installation
+main: Non-PyPI install with no changes relative to main
+edited: Non-PyPI install with changes to tool support or version
+"""
 
 
 # TODO: Currently, this logic relies on a specific file existing at a specific path
@@ -72,24 +81,21 @@ def _prompt_user_action(message: str, executable_name: str, arch: Architecture) 
 async def _open_executable_for_arch(
     arch: Architecture,
 ) -> AsyncIterator[tuple[str, BinaryIO]]:
-    is_pypi_install = _is_pypi_install()
+    install_state = _get_install_state()
 
-    print(f"{is_pypi_install=}")
+    print(f"{install_state=}")
 
     executable_name = _get_versioned_executable_name(arch)
     dev_executable_name = f"{executable_name}-dev"
 
-    print(f"{executable_name=} / {dev_executable_name=}")
-
-    # 3.1. Local Executable Check - Check dev version first (unless it's PyPI)
-    if not is_pypi_install:
+    # 3.1. Local Executable Check - Check dev version first if appropriate
+    if install_state == "edited":
         try:
             async with _open_executable(dev_executable_name) as f:
                 print(f"found {dev_executable_name}")
                 yield dev_executable_name, f
                 return
         except (FileNotFoundError, ModuleNotFoundError):
-            print(f"didn't find {dev_executable_name}")
             pass
 
     # 3.1. Local Executable Check - Then check production version
@@ -99,21 +105,21 @@ async def _open_executable_for_arch(
             yield executable_name, f
             return
     except (FileNotFoundError, ModuleNotFoundError):
-        print(f"didn't find {executable_name}")
         pass
 
-    if is_pypi_install:
+    if install_state == "pypi":
         raise PrerequisiteError(
             f"Tool support executable {executable_name} is missing from the PyPI package installation. "
             "This indicates a problem with the package. Please reinstall inspect_ai."
         )
 
     # 3.2. S3 Download Attempt - Prompt user before downloading from S3
-    if await _download_from_s3(executable_name, arch):
-        async with _open_executable(executable_name) as f:
-            print(f"downloaded {executable_name} from s3")
-            yield executable_name, f
-            return
+    if install_state == "main":
+        if await _download_from_s3(executable_name, arch):
+            async with _open_executable(executable_name) as f:
+                print(f"downloaded {executable_name} from s3")
+                yield executable_name, f
+                return
 
     # 3.4. Local Build Process - Build dev version locally
     await _build_it(arch, dev_executable_name)
@@ -223,8 +229,8 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
     print(f"Successfully built {dev_executable_name}")
 
 
-def _is_pypi_install() -> bool:
-    """Detect if this is a PyPI installation (wheel from PyPI, not git or editable)."""
+def _get_install_state() -> InstallState:
+    """Detect the state of the inspect-ai installation."""
     import importlib.metadata
     from importlib.metadata import PackageNotFoundError
 
@@ -240,7 +246,8 @@ def _is_pypi_install() -> bool:
                 if file_path.suffix == ".egg-link" or "direct_url.json" in str(
                     file_path
                 ):
-                    return False
+                    # Not a PyPI install, check for changes
+                    return _check_for_changes()
 
         # Check if in site-packages and without source files (indicating PyPI wheel)
         if "site-packages" in str(package_path):
@@ -250,9 +257,11 @@ def _is_pypi_install() -> bool:
                 / "build_within_container.py"
             )
             # PyPI installs don't include source files like build scripts
-            return not build_script_path.exists()
+            if not build_script_path.exists():
+                return "pypi"
 
-        return False
+        # Not a PyPI install, check for changes
+        return _check_for_changes()
 
     except PackageNotFoundError:
         # Fallback: if in site-packages and no build script, likely PyPI
@@ -262,6 +271,64 @@ def _is_pypi_install() -> bool:
                 / "inspect_tool_support"
                 / "build_within_container.py"
             )
-            return not build_script_path.exists()
+            if not build_script_path.exists():
+                return "pypi"
 
-        return False
+        # Not a PyPI install, check for changes
+        return _check_for_changes()
+
+
+def _check_for_changes() -> Literal["main", "edited"]:
+    """Check if there are changes to tool support files relative to main.
+
+    Returns:
+        "main": No changes to tool support files relative to main branch,
+            or git is not available/functioning (assumes stable version)
+        "edited": Changes detected to tool support files - either
+            uncommitted changes (staged/unstaged) or committed changes relative
+            to main branch
+    """
+    try:
+        # Check if we're in a git repo
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            # Not a git repo, assume main for safety
+            return "main"
+
+        # Check for staged or unstaged changes to relevant paths
+        paths_to_check = [
+            "src/inspect_tool_support",
+            "tool_support_version.txt",
+        ]
+
+        for path in paths_to_check:
+            # Check for uncommitted changes (staged + unstaged)
+            result = subprocess.run(
+                ["git", "status", "--porcelain", path],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return "edited"
+
+            # Check for committed changes relative to main
+            result = subprocess.run(
+                ["git", "diff", "main", "--quiet", path],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                return "edited"
+
+        return InstallState.MAIN
+
+    except (subprocess.SubprocessError, FileNotFoundError):
+        # If git commands fail, assume main for safety
+        return InstallState.MAIN
