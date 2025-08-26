@@ -608,7 +608,11 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentReasoning):
-        return Part(text=content.reasoning or NO_CONTENT, thought=True)
+        return Part(
+            text=content.reasoning or NO_CONTENT,
+            thought=True,
+            thought_signature=content.signature.encode() if content.signature else None,
+        )
     elif isinstance(content, ContentData):
         raise RuntimeError("Google provider should never encounter ContentData")
     elif isinstance(content, ContentToolUse):
@@ -779,7 +783,12 @@ def completion_choice_from_candidate(
         )
 
         content = [
-            ContentReasoning(reasoning=part.text)
+            ContentReasoning(
+                reasoning=part.text,
+                signature=part.thought_signature.decode()
+                if part.thought_signature
+                else None,
+            )
             if part.thought is True
             else ContentText(
                 text=part.text, citations=get_candidate_citations(candidate)

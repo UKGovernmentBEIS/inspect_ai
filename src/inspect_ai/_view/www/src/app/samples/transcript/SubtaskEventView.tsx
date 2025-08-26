@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { Input2, Input5, Result2, SubtaskEvent } from "../../../@types/log";
+import { Input2, Input5, Result3, SubtaskEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { EventPanel } from "./event/EventPanel";
@@ -66,7 +66,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
 
 interface SubtaskSummaryProps {
   input: Input2 | Input5;
-  result: Result2;
+  result: Result3;
 }
 /**
  * Renders the StateEventView component.

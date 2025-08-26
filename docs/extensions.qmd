@@ -139,6 +139,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         ...
 
     @classmethod
+    def default_polling_interval(cls) -> float | None:
+       ...
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
@@ -191,15 +195,16 @@ The layer of indirection (creating a function that returns a SandboxEnvironment 
 The class methods take care of various stages of initialisation, setup, and teardown:
 
 | Method                  | Lifecycle                                                                                                                                | Purpose                                                                               |
-|-------------------|-------------------|----------------------------------|
-| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behaviour). |                                                                                       |
+|-------------------|-------------------|----------------------------------|                                                                               |
 | `task_init()`           | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run.                                    | Expensive initialisation operations (e.g. pulling or building images)                 |
 | `sample_init()`         | Called at the beginning of each `Sample`.                                                                                                | Create `SandboxEnvironment` instances for the sample.                                 |
 | `sample_cleanup()`      | Called at the end of each `Sample`                                                                                                       | Cleanup `SandboxEnvironment` instances for the sample.                                |
 | `task_cleanup()`        | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run.                                     | Last chance handler for any resources not yet cleaned up (see also discussion below). |
 | `cli_cleanup()`         | Called via `inspect sandbox cleanup`                                                                                                     | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`.         |
 | `config_files()`        | Called once to determine the names of 'default' config files for this provider (e.g. 'compose.yaml').                                    |                                                                                       |
-| `config_deserialize()`  | Called when a custom sandbox config type is read from a log file.                                                                        | Only required if a sandbox supports custom config types.                              |
+| `config_deserialize()`  | Called when a custom sandbox config type is read from a log file.                                                                        | Only required if a sandbox supports custom config types.     
+| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behaviour). |      
+| `default_polling_interval()` | Called when sandbox services are created to determine the default polling interval (in seconds) for request checking. Defaultss to 2 seconds. |                              |
 
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 

@@ -1,9 +1,14 @@
+from typing import Awaitable, Callable
+
 import anyio
 from pydantic import JsonValue
 
+from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.responses import inspect_responses_api_request
+from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
-from ..request import inspect_model_request
+from ..completions import inspect_completions_api_request
 
 MODEL_SERVICE = "bridge_model_service"
 
@@ -12,16 +17,41 @@ from logging import getLogger  # noqa: E402
 logger = getLogger(__file__)
 
 
-async def run_model_service(sandbox: SandboxEnvironment, started: anyio.Event) -> None:
+async def run_model_service(
+    sandbox: SandboxEnvironment,
+    web_search: WebSearchProviders,
+    state: AgentState | None,
+    instance: str,
+    started: anyio.Event,
+) -> None:
     await sandbox_service(
         name=MODEL_SERVICE,
-        methods=[generate],
+        methods={
+            "generate_completions": generate_completions(state),
+            "generate_responses": generate_responses(web_search, state),
+        },
         until=lambda: False,
         sandbox=sandbox,
+        instance=instance,
         started=started,
     )
 
 
-async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-    completion = await inspect_model_request(json_data)
-    return completion.model_dump(mode="json")
+def generate_completions(
+    state: AgentState | None,
+) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
+    async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        completion = await inspect_completions_api_request(json_data, state)
+        return completion.model_dump(mode="json")
+
+    return generate
+
+
+def generate_responses(
+    web_search: WebSearchProviders, state: AgentState | None
+) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
+    async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        completion = await inspect_responses_api_request(json_data, web_search, state)
+        return completion.model_dump(mode="json")
+
+    return generate

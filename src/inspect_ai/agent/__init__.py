@@ -1,7 +1,7 @@
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
-from ._bridge.bridge import agent_bridge, bridge
+from ._bridge.bridge import AgentBridge, agent_bridge, bridge
 from ._bridge.sandbox.bridge import SandboxAgentBridge, sandbox_agent_bridge
 from ._filter import MessageFilter, last_message, remove_tools
 from ._handoff import handoff
@@ -25,6 +25,7 @@ __all__ = [
     "as_solver",
     "agent_bridge",
     "sandbox_agent_bridge",
+    "AgentBridge",
     "SandboxAgentBridge",
     "last_message",
     "remove_tools",

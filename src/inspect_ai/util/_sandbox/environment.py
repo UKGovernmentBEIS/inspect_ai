@@ -225,6 +225,10 @@ class SandboxEnvironment(abc.ABC):
                 f"Expected instance of {sandbox_cls.__name__}, got {type(self).__name__}"
             )
 
+    def default_polling_interval(self) -> float:
+        """Polling interval for sandbox service requests."""
+        return 2
+
     @classmethod
     def default_concurrency(cls) -> int | None:
         """Default max_sandboxes for this provider (`None` means no maximum)"""
