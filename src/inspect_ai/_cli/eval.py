@@ -203,8 +203,17 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--epochs-reducer",
         type=str,
+        is_flag=False,
         help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
         envvar="INSPECT_EVAL_EPOCHS_REDUCER",
+    )
+    @click.option(
+        "--no-epochs-reducer",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help="Do not reduce per-epoch sample scores.",
+        envvar="INSPECT_EVAL_NO_EPOCHS_REDUCER",
     )
     @click.option(
         "--max-connections",
@@ -545,6 +554,7 @@ def eval_command(
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
     epochs_reducer: str | None,
+    no_epochs_reducer: bool | None,
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
@@ -630,6 +640,7 @@ def eval_command(
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
+        no_epochs_reducer=no_epochs_reducer,
         limit=limit,
         sample_id=sample_id,
         sample_shuffle=sample_shuffle,
@@ -732,6 +743,7 @@ def eval_set_command(
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
     epochs_reducer: str | None,
+    no_epochs_reducer: bool | None,
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
@@ -823,6 +835,7 @@ def eval_set_command(
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
+        no_epochs_reducer=no_epochs_reducer,
         limit=limit,
         sample_id=sample_id,
         sample_shuffle=sample_shuffle,
@@ -885,6 +898,7 @@ def eval_exec(
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
     epochs_reducer: str | None,
+    no_epochs_reducer: bool | None,
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
@@ -934,7 +948,12 @@ def eval_exec(
 
     # resolve epochs
     eval_epochs = (
-        Epochs(epochs, create_reducers(parse_comma_separated(epochs_reducer)))
+        Epochs(
+            epochs,
+            []
+            if no_epochs_reducer
+            else create_reducers(parse_comma_separated(epochs_reducer)),
+        )
         if epochs
         else None
     )

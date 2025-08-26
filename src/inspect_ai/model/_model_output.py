@@ -279,7 +279,6 @@ class ModelOutput(BaseModel):
                             ToolCall(
                                 id=tool_call_id,
                                 function=tool_name,
-                                internal=internal,
                                 arguments=tool_arguments,
                             )
                         ],

@@ -146,6 +146,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
                 f"Expected instance of {sandbox_cls.__name__}, got {type(self._sandbox).__name__}"
             )
 
+    @override
+    def default_polling_interval(self) -> float:
+        return self._sandbox.default_polling_interval()
+
     @contextlib.contextmanager
     def no_events(self) -> Iterator[None]:
         self._events = False

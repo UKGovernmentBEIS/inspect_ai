@@ -125,6 +125,8 @@ website:
           href: reference/inspect_ai.tool.qmd#toolparam
         - text: ToolSource
           href: reference/inspect_ai.tool.qmd#toolsource
+        - text: WebSearchProviders
+          href: reference/inspect_ai.tool.qmd#websearchproviders
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
       - section: inspect_ai.agent
@@ -144,8 +146,12 @@ website:
           href: reference/inspect_ai.agent.qmd#as_solver
         - text: agent_bridge
           href: reference/inspect_ai.agent.qmd#agent_bridge
+        - text: AgentBridge
+          href: reference/inspect_ai.agent.qmd#agentbridge
         - text: sandbox_agent_bridge
           href: reference/inspect_ai.agent.qmd#sandbox_agent_bridge
+        - text: SandboxAgentBridge
+          href: reference/inspect_ai.agent.qmd#sandboxagentbridge
         - text: remove_tools
           href: reference/inspect_ai.agent.qmd#remove_tools
         - text: last_message

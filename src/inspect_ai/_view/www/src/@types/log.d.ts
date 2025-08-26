@@ -254,10 +254,12 @@ export type Video = string;
 export type Format2 = "mp4" | "mpeg" | "mov";
 export type Type12 = "data";
 export type Type13 = "tool_use";
-export type ToolType = string;
+export type ToolType = "web_search" | "mcp_call";
 export type Id2 = string;
 export type Name8 = string;
 export type Context = string | null;
+export type Arguments = string;
+export type Result = string;
 export type Error = string | null;
 export type Type14 = "document";
 export type Document = string;
@@ -456,7 +458,7 @@ export type Options2 = {
 } | null;
 export type File = string | null;
 export type Input2 = string | null;
-export type Result = number | null;
+export type Result1 = number | null;
 export type Output = string | null;
 export type Completed = string | null;
 export type Uuid3 = string | null;
@@ -528,7 +530,7 @@ export type Event6 = "tool";
 export type Type19 = "function";
 export type Id8 = string;
 export type Function2 = string;
-export type Result1 =
+export type Result2 =
   | string
   | number
   | boolean
@@ -1163,7 +1165,6 @@ export interface ChatMessageSystem {
   content: Content;
   source: Source;
   metadata: Metadata5;
-  internal: unknown;
   role: Role;
 }
 /**
@@ -1273,8 +1274,8 @@ export interface ContentToolUse {
   id: Id2;
   name: Name8;
   context: Context;
-  arguments: JsonValue;
-  result: JsonValue;
+  arguments: Arguments;
+  result: Result;
   error: Error;
 }
 /**
@@ -1295,7 +1296,6 @@ export interface ChatMessageUser {
   content: Content1;
   source: Source1;
   metadata: Metadata6;
-  internal: unknown;
   role: Role1;
   tool_call_id: ToolCallId;
 }
@@ -1307,7 +1307,6 @@ export interface ChatMessageAssistant {
   content: Content2;
   source: Source2;
   metadata: Metadata7;
-  internal: unknown;
   role: Role2;
   tool_calls: ToolCalls;
   model: Model2;
@@ -1315,13 +1314,12 @@ export interface ChatMessageAssistant {
 export interface ToolCall {
   id: Id5;
   function: Function;
-  arguments: Arguments;
-  internal: unknown;
+  arguments: Arguments1;
   parse_error: ParseError;
   view: ToolCallContent | null;
   type: Type15;
 }
-export interface Arguments {
+export interface Arguments1 {
   [k: string]: unknown;
 }
 /**
@@ -1340,7 +1338,6 @@ export interface ChatMessageTool {
   content: Content4;
   source: Source3;
   metadata: Metadata8;
-  internal: unknown;
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
@@ -1466,7 +1463,7 @@ export interface SandboxEvent {
   options: Options2;
   file: File;
   input: Input2;
-  result: Result;
+  result: Result1;
   output: Output;
   completed: Completed;
 }
@@ -1610,10 +1607,9 @@ export interface ToolEvent {
   type: Type19;
   id: Id8;
   function: Function2;
-  arguments: Arguments1;
-  internal: unknown;
+  arguments: Arguments2;
   view: ToolCallContent | null;
-  result: Result1;
+  result: Result2;
   truncated: Truncated;
   error: ToolCallError | null;
   events: Events1;
@@ -1623,7 +1619,7 @@ export interface ToolEvent {
   failed: Failed;
   message_id: MessageId;
 }
-export interface Arguments1 {
+export interface Arguments2 {
   [k: string]: JsonValue;
 }
 /**
@@ -1797,7 +1793,7 @@ export interface SubtaskEvent {
   name: Name14;
   type: Type22;
   input: Input5;
-  result: Result2;
+  result: Result3;
   events: Events2;
   completed: Completed2;
   working_time: WorkingTime1;
@@ -1805,7 +1801,7 @@ export interface SubtaskEvent {
 export interface Input5 {
   [k: string]: unknown;
 }
-export interface Result2 {
+export interface Result3 {
   [k: string]: unknown;
 }
 export interface ModelUsage2 {

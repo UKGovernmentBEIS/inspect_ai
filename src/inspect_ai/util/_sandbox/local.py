@@ -108,6 +108,9 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             with open(file, "rb") as f:
                 return f.read()
 
+    def default_polling_interval(self) -> float:
+        return 0.2
+
     def _resolve_file(self, file: str) -> str:
         path = Path(file)
         if path.is_absolute():

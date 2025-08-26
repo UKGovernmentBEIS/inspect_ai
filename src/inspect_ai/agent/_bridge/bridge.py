@@ -1,6 +1,7 @@
 import contextlib
 import re
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
 
@@ -10,7 +11,6 @@ from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
-from inspect_ai.agent._bridge.request import inspect_model_request
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
@@ -19,10 +19,32 @@ from inspect_ai.model._openai_convert import (
     messages_to_openai,
 )
 from inspect_ai.model._providers.providers import validate_openai_client
+from inspect_ai.tool._tools._web_search._web_search import (
+    WebSearchProviders,
+)
+
+from .completions import inspect_completions_api_request
+from .responses import inspect_responses_api_request
+from .util import (
+    internal_web_search_providers,
+    resolve_web_search_providers,
+)
+
+
+@dataclass
+class AgentBridge:
+    """Agent bridge."""
+
+    state: AgentState
+    """State updated from messages traveling over the bridge."""
 
 
 @contextlib.asynccontextmanager
-async def agent_bridge() -> AsyncGenerator[None, None]:
+async def agent_bridge(
+    state: AgentState | None = None,
+    *,
+    web_search: WebSearchProviders | None = None,
+) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
     ::: callout-note
@@ -40,22 +62,50 @@ async def agent_bridge() -> AsyncGenerator[None, None]:
 
     See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
     documentation for additional details.
+
+    Args:
+       state: Initial state for agent bridge. Used as a basis for yielding
+         an updated state based on traffic over the bridge.
+       web_search: Configuration for mapping OpenAI Responses internal
+         web_search tool to Inspect. By default, will map to the
+         internal provider of the target model (supported for OpenAI,
+         Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
+         configuration to use to use an external provider like
+         Tavili or Exa for models that don't support internal search.
     """
     # ensure one time init
     init_openai_request_patch()
 
-    # set the patch enabled for this context and child coroutines
-    token = _patch_enabled.set(True)
+    # resolve web search config
+    web_search = resolve_web_search_providers(web_search)
+
+    # create a state value that will be used to track mesages going over the bridge
+    state = AgentState(messages=state.messages.copy() if state else [])
+
+    # set the patch config for this context and child coroutines
+    token = _patch_config.set(
+        PatchConfig(enabled=True, web_search=web_search, state=state)
+    )
     try:
-        yield
+        yield AgentBridge(state)
     finally:
-        _patch_enabled.reset(token)
+        _patch_config.reset(token)
 
 
 _patch_initialised: bool = False
 
-_patch_enabled: ContextVar[bool] = ContextVar(
-    "openai_request_patch_enabled", default=False
+
+@dataclass
+class PatchConfig:
+    enabled: bool = field(default=False)
+    web_search: WebSearchProviders = field(
+        default_factory=internal_web_search_providers
+    )
+    state: AgentState | None = field(default=None)
+
+
+_patch_config: ContextVar[PatchConfig] = ContextVar(
+    "openai_request_patch_config", default=PatchConfig()
 )
 
 
@@ -86,17 +136,31 @@ def init_openai_request_patch() -> None:
     ) -> Any:
         # we have patched the underlying request method so now need to figure out when to
         # patch and when to stand down
+        config = _patch_config.get()
         if (
             # enabled for this coroutine
-            _patch_enabled.get()
-            # completions request
-            and options.url == "/chat/completions"
+            config.enabled
+            # completions or responses request
+            and options.url in ["/chat/completions", "/responses"]
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
             model_name = str(json_data["model"])
             if re.match(r"^inspect/?", model_name):
-                return await inspect_model_request(json_data)
+                # streaming not currently supported for patch
+                if stream:
+                    raise RuntimeError(
+                        "Streaming not currently supported for agent_bridge()"
+                    )
+
+                if options.url == "/chat/completions":
+                    return await inspect_completions_api_request(
+                        json_data, config.state
+                    )
+                else:
+                    return await inspect_responses_api_request(
+                        json_data, config.web_search, config.state
+                    )
 
         # otherwise just delegate
         return await original_request(

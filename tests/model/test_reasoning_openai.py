@@ -51,6 +51,8 @@ def test_openai_reasoning_summary_playback():
     )[0]
     assert log.status == "success"
     assert log.samples
+    assert len(log.samples) > 0, "Log has samples"
     content = log.samples[0].output.message.content
-    assert isinstance(content, list)
-    assert isinstance(content[0], ContentReasoning)
+    assert isinstance(content, list), "Content is list."
+    assert len(content) > 0, "Content has items."
+    assert isinstance(content[0], ContentReasoning), "First content item is reasoning."

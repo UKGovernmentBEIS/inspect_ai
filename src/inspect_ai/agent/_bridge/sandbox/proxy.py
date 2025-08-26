@@ -510,12 +510,24 @@ def _http_date() -> str:
     return formatdate(timeval=None, usegmt=True)
 
 
-async def run_model_proxy(port: int) -> None:
-    # get generate method
-    sys.path.append("/var/tmp/sandbox-services/bridge_model_service")
-    from bridge_model_service import (  # type: ignore[import-not-found]
-        call_bridge_model_service_async,
-    )
+async def model_proxy_server(
+    port: int, call_bridge_model_service_async: Any = None
+) -> AsyncHTTPServer:
+    """Create and configure the model proxy server.
+
+    Args:
+        port: Port to run the server on
+        call_bridge_model_service_async: Optional bridge service function for testing
+
+    Returns:
+        Configured AsyncHTTPServer instance
+    """
+    # get generate method if not provided (for testing)
+    if call_bridge_model_service_async is None:
+        sys.path.append("/var/tmp/sandbox-services/bridge_model_service/<<<instance>>>")
+        from bridge_model_service import (  # type: ignore[import-not-found,no-redef]
+            call_bridge_model_service_async,
+        )
 
     # setup server
     server = AsyncHTTPServer(port=port)
@@ -529,6 +541,720 @@ async def run_model_proxy(port: int) -> None:
         # Simple fixed-width chunking; adjust max_len to change granularity
         for i in range(0, len(text), max_len):
             yield text[i : i + max_len]
+
+    @server.route("/v1/responses", method="POST")
+    async def responses(request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            json_body = request.get("json", {}) or {}
+            stream = json_body.get("stream", False)
+
+            completion = await call_bridge_model_service_async(
+                "generate_responses", json_data=json_body
+            )
+
+            if stream:
+
+                async def stream_response() -> AsyncIterator[bytes]:
+                    # Parse the completion as a dict
+                    resp = (
+                        completion
+                        if isinstance(completion, dict)
+                        else json.loads(completion)
+                    )
+
+                    # Helper to create SSE event
+                    def _sse_event(
+                        event_type: str, data: dict[str, Any], seq_num: int
+                    ) -> bytes:
+                        return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode(
+                            "utf-8"
+                        )
+
+                    seq_num = 0
+
+                    # 1. response.created event
+                    seq_num += 1
+                    yield _sse_event(
+                        "response.created",
+                        {
+                            "response": resp,
+                            "sequence_number": seq_num,
+                            "type": "response.created",
+                        },
+                        seq_num,
+                    )
+
+                    # 2. response.in_progress event
+                    seq_num += 1
+                    in_progress_resp = dict(resp)
+                    in_progress_resp["status"] = "in_progress"
+                    yield _sse_event(
+                        "response.in_progress",
+                        {
+                            "response": in_progress_resp,
+                            "sequence_number": seq_num,
+                            "type": "response.in_progress",
+                        },
+                        seq_num,
+                    )
+
+                    # 3. Process each output item
+                    for output_index, output_item in enumerate(resp.get("output", [])):
+                        # Use dict directly - output_item is a dict
+                        item_id = output_item.get("id", f"item_{output_index}")
+                        item_type = output_item.get("type")
+
+                        # 3a. response.output_item.added
+                        seq_num += 1
+                        # Set initial status to in_progress for streaming
+                        item_dict = dict(output_item)
+                        if "status" in item_dict:
+                            item_dict["status"] = "in_progress"
+
+                        yield _sse_event(
+                            "response.output_item.added",
+                            {
+                                "item": item_dict,
+                                "output_index": output_index,
+                                "sequence_number": seq_num,
+                                "type": "response.output_item.added",
+                            },
+                            seq_num,
+                        )
+
+                        # Process based on item type
+                        if item_type == "message":
+                            # Process message content - content is a list of dicts
+                            for content_index, content in enumerate(
+                                output_item.get("content", [])
+                            ):
+                                content_type = content.get("type")
+
+                                # 3b. response.content_part.added
+                                seq_num += 1
+                                content_dict = dict(content)
+                                if content_type == "output_text":
+                                    # Clear text for streaming
+                                    content_dict["text"] = ""
+                                elif content_type == "refusal":
+                                    content_dict["refusal"] = ""
+
+                                yield _sse_event(
+                                    "response.content_part.added",
+                                    {
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "content_index": content_index,
+                                        "part": content_dict,
+                                        "sequence_number": seq_num,
+                                        "type": "response.content_part.added",
+                                    },
+                                    seq_num,
+                                )
+
+                                # Stream content
+                                if content_type == "output_text":
+                                    text = content.get("text", "")
+                                    # Stream text in chunks
+                                    for chunk in _iter_chunks(text):
+                                        seq_num += 1
+                                        yield _sse_event(
+                                            "response.output_text.delta",
+                                            {
+                                                "item_id": item_id,
+                                                "output_index": output_index,
+                                                "content_index": content_index,
+                                                "delta": chunk,
+                                                "logprobs": [],  # Empty for simulated streaming
+                                                "sequence_number": seq_num,
+                                                "type": "response.output_text.delta",
+                                            },
+                                            seq_num,
+                                        )
+
+                                    # Text done event
+                                    seq_num += 1
+                                    yield _sse_event(
+                                        "response.output_text.done",
+                                        {
+                                            "item_id": item_id,
+                                            "output_index": output_index,
+                                            "content_index": content_index,
+                                            "text": text,
+                                            "logprobs": [],
+                                            "sequence_number": seq_num,
+                                            "type": "response.output_text.done",
+                                        },
+                                        seq_num,
+                                    )
+
+                                elif content_type == "refusal":
+                                    refusal_text = content.get("refusal", "")
+                                    # Stream refusal in chunks
+                                    for chunk in _iter_chunks(refusal_text):
+                                        seq_num += 1
+                                        yield _sse_event(
+                                            "response.refusal.delta",
+                                            {
+                                                "item_id": item_id,
+                                                "output_index": output_index,
+                                                "content_index": content_index,
+                                                "delta": chunk,
+                                                "sequence_number": seq_num,
+                                                "type": "response.refusal.delta",
+                                            },
+                                            seq_num,
+                                        )
+
+                                    # Refusal done event
+                                    seq_num += 1
+                                    yield _sse_event(
+                                        "response.refusal.done",
+                                        {
+                                            "item_id": item_id,
+                                            "output_index": output_index,
+                                            "content_index": content_index,
+                                            "refusal": refusal_text,
+                                            "sequence_number": seq_num,
+                                            "type": "response.refusal.done",
+                                        },
+                                        seq_num,
+                                    )
+
+                                # 3c. response.content_part.done
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.content_part.done",
+                                    {
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "content_index": content_index,
+                                        "part": content,
+                                        "sequence_number": seq_num,
+                                        "type": "response.content_part.done",
+                                    },
+                                    seq_num,
+                                )
+
+                        elif item_type == "function_call":
+                            # Handle function call streaming
+                            arguments = output_item.get("arguments", "")
+
+                            # Stream function arguments
+                            for chunk in _iter_chunks(arguments, max_len=32):
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.function_call_arguments.delta",
+                                    {
+                                        "item_id": item_id,
+                                        "output_index": output_index,
+                                        "delta": chunk,
+                                        "sequence_number": seq_num,
+                                        "type": "response.function_call_arguments.delta",
+                                    },
+                                    seq_num,
+                                )
+
+                            # Function arguments done
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.function_call_arguments.done",
+                                {
+                                    "item_id": item_id,
+                                    "output_index": output_index,
+                                    "arguments": arguments,
+                                    "sequence_number": seq_num,
+                                    "type": "response.function_call_arguments.done",
+                                },
+                                seq_num,
+                            )
+
+                        elif item_type == "computer_call":
+                            # Computer calls complete immediately (no streaming)
+                            pass
+
+                        elif item_type == "reasoning":
+                            # Handle reasoning item streaming
+                            if output_item.get("content"):
+                                for reasoning_idx, reasoning_content in enumerate(
+                                    output_item.get("content", [])
+                                ):
+                                    if (
+                                        reasoning_content.get("type")
+                                        == "reasoning_text"
+                                    ):
+                                        text = reasoning_content.get("text", "")
+                                        # Stream reasoning text
+                                        for chunk in _iter_chunks(text):
+                                            seq_num += 1
+                                            yield _sse_event(
+                                                "response.reasoning_text.delta",
+                                                {
+                                                    "item_id": item_id,
+                                                    "output_index": output_index,
+                                                    "content_index": reasoning_idx,
+                                                    "delta": chunk,
+                                                    "sequence_number": seq_num,
+                                                    "type": "response.reasoning_text.delta",
+                                                },
+                                                seq_num,
+                                            )
+
+                                        # Reasoning text done
+                                        seq_num += 1
+                                        yield _sse_event(
+                                            "response.reasoning_text.done",
+                                            {
+                                                "item_id": item_id,
+                                                "output_index": output_index,
+                                                "content_index": reasoning_idx,
+                                                "text": text,
+                                                "sequence_number": seq_num,
+                                                "type": "response.reasoning_text.done",
+                                            },
+                                            seq_num,
+                                        )
+
+                            # Handle reasoning summary if present
+                            if output_item.get("summary"):
+                                for summary_index, summary_part in enumerate(
+                                    output_item.get("summary", [])
+                                ):
+                                    # Add summary part
+                                    seq_num += 1
+                                    yield _sse_event(
+                                        "response.reasoning_summary_part.added",
+                                        {
+                                            "item_id": item_id,
+                                            "output_index": output_index,
+                                            "summary_index": summary_index,
+                                            "part": summary_part,
+                                            "sequence_number": seq_num,
+                                            "type": "response.reasoning_summary_part.added",
+                                        },
+                                        seq_num,
+                                    )
+
+                                    if summary_part.get("type") == "summary_text":
+                                        text = summary_part.get("text", "")
+                                        # Stream summary text
+                                        for chunk in _iter_chunks(text):
+                                            seq_num += 1
+                                            yield _sse_event(
+                                                "response.reasoning_summary_text.delta",
+                                                {
+                                                    "item_id": item_id,
+                                                    "output_index": output_index,
+                                                    "summary_index": summary_index,
+                                                    "delta": chunk,
+                                                    "sequence_number": seq_num,
+                                                    "type": "response.reasoning_summary_text.delta",
+                                                },
+                                                seq_num,
+                                            )
+
+                                        # Summary text done
+                                        seq_num += 1
+                                        yield _sse_event(
+                                            "response.reasoning_summary_text.done",
+                                            {
+                                                "item_id": item_id,
+                                                "output_index": output_index,
+                                                "summary_index": summary_index,
+                                                "text": text,
+                                                "sequence_number": seq_num,
+                                                "type": "response.reasoning_summary_text.done",
+                                            },
+                                            seq_num,
+                                        )
+
+                                    # Summary part done
+                                    seq_num += 1
+                                    yield _sse_event(
+                                        "response.reasoning_summary_part.done",
+                                        {
+                                            "item_id": item_id,
+                                            "output_index": output_index,
+                                            "summary_index": summary_index,
+                                            "part": summary_part,
+                                            "sequence_number": seq_num,
+                                            "type": "response.reasoning_summary_part.done",
+                                        },
+                                        seq_num,
+                                    )
+
+                        elif item_type == "file_search_call":
+                            # File search events
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.file_search_call.in_progress",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.file_search_call.in_progress",
+                                },
+                                seq_num,
+                            )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.file_search_call.searching",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.file_search_call.searching",
+                                },
+                                seq_num,
+                            )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.file_search_call.completed",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.file_search_call.completed",
+                                },
+                                seq_num,
+                            )
+
+                        elif item_type == "web_search_call":
+                            # Web search events
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.web_search_call.in_progress",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.web_search_call.in_progress",
+                                },
+                                seq_num,
+                            )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.web_search_call.searching",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.web_search_call.searching",
+                                },
+                                seq_num,
+                            )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.web_search_call.completed",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.web_search_call.completed",
+                                },
+                                seq_num,
+                            )
+
+                        elif item_type == "image_generation_call":
+                            # Image generation events
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.image_generation_call.in_progress",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.image_generation_call.in_progress",
+                                },
+                                seq_num,
+                            )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.image_generation_call.generating",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.image_generation_call.generating",
+                                },
+                                seq_num,
+                            )
+
+                            # Could simulate partial images here if result is available
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.image_generation_call.completed",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.image_generation_call.completed",
+                                },
+                                seq_num,
+                            )
+
+                        elif item_type == "code_interpreter_call":
+                            # Code interpreter events
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.code_interpreter_call.in_progress",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.code_interpreter_call.in_progress",
+                                },
+                                seq_num,
+                            )
+
+                            # Stream code if available
+                            code = item_dict.get("code", "")
+                            if code:
+                                for chunk in _iter_chunks(code):
+                                    seq_num += 1
+                                    yield _sse_event(
+                                        "response.code_interpreter_call_code.delta",
+                                        {
+                                            "output_index": output_index,
+                                            "item_id": item_id,
+                                            "delta": chunk,
+                                            "sequence_number": seq_num,
+                                            "type": "response.code_interpreter_call_code.delta",
+                                        },
+                                        seq_num,
+                                    )
+
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.code_interpreter_call_code.done",
+                                    {
+                                        "output_index": output_index,
+                                        "item_id": item_id,
+                                        "code": code,
+                                        "sequence_number": seq_num,
+                                        "type": "response.code_interpreter_call_code.done",
+                                    },
+                                    seq_num,
+                                )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.code_interpreter_call.interpreting",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.code_interpreter_call.interpreting",
+                                },
+                                seq_num,
+                            )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.code_interpreter_call.completed",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.code_interpreter_call.completed",
+                                },
+                                seq_num,
+                            )
+
+                        elif item_type == "mcp_call":
+                            # MCP call events
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.mcp_call.in_progress",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.mcp_call.in_progress",
+                                },
+                                seq_num,
+                            )
+
+                            # Stream MCP arguments
+                            arguments = item_dict.get("arguments", "")
+                            for chunk in _iter_chunks(arguments, max_len=32):
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.mcp_call_arguments.delta",
+                                    {
+                                        "output_index": output_index,
+                                        "item_id": item_id,
+                                        "delta": chunk,
+                                        "sequence_number": seq_num,
+                                        "type": "response.mcp_call_arguments.delta",
+                                    },
+                                    seq_num,
+                                )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.mcp_call_arguments.done",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "arguments": arguments,
+                                    "sequence_number": seq_num,
+                                    "type": "response.mcp_call_arguments.done",
+                                },
+                                seq_num,
+                            )
+
+                            # Complete or fail based on error
+                            if item_dict.get("error"):
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.mcp_call.failed",
+                                    {
+                                        "output_index": output_index,
+                                        "item_id": item_id,
+                                        "sequence_number": seq_num,
+                                        "type": "response.mcp_call.failed",
+                                    },
+                                    seq_num,
+                                )
+                            else:
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.mcp_call.completed",
+                                    {
+                                        "output_index": output_index,
+                                        "item_id": item_id,
+                                        "sequence_number": seq_num,
+                                        "type": "response.mcp_call.completed",
+                                    },
+                                    seq_num,
+                                )
+
+                        elif item_type == "mcp_list_tools":
+                            # MCP list tools events
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.mcp_list_tools.in_progress",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "sequence_number": seq_num,
+                                    "type": "response.mcp_list_tools.in_progress",
+                                },
+                                seq_num,
+                            )
+
+                            # Complete or fail based on error
+                            if item_dict.get("error"):
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.mcp_list_tools.failed",
+                                    {
+                                        "output_index": output_index,
+                                        "item_id": item_id,
+                                        "sequence_number": seq_num,
+                                        "type": "response.mcp_list_tools.failed",
+                                    },
+                                    seq_num,
+                                )
+                            else:
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.mcp_list_tools.completed",
+                                    {
+                                        "output_index": output_index,
+                                        "item_id": item_id,
+                                        "sequence_number": seq_num,
+                                        "type": "response.mcp_list_tools.completed",
+                                    },
+                                    seq_num,
+                                )
+
+                        elif item_type == "custom_tool_call":
+                            # Custom tool call events
+                            input_data = item_dict.get("input", "")
+
+                            # Stream custom tool input
+                            for chunk in _iter_chunks(input_data, max_len=32):
+                                seq_num += 1
+                                yield _sse_event(
+                                    "response.custom_tool_call_input.delta",
+                                    {
+                                        "output_index": output_index,
+                                        "item_id": item_id,
+                                        "delta": chunk,
+                                        "sequence_number": seq_num,
+                                        "type": "response.custom_tool_call_input.delta",
+                                    },
+                                    seq_num,
+                                )
+
+                            seq_num += 1
+                            yield _sse_event(
+                                "response.custom_tool_call_input.done",
+                                {
+                                    "output_index": output_index,
+                                    "item_id": item_id,
+                                    "input": input_data,
+                                    "sequence_number": seq_num,
+                                    "type": "response.custom_tool_call_input.done",
+                                },
+                                seq_num,
+                            )
+
+                        # 3d. response.output_item.done
+                        seq_num += 1
+                        # Update status to completed
+                        item_dict_completed = dict(output_item)
+                        if "status" in item_dict_completed:
+                            item_dict_completed["status"] = "completed"
+
+                        yield _sse_event(
+                            "response.output_item.done",
+                            {
+                                "item": item_dict_completed,
+                                "output_index": output_index,
+                                "sequence_number": seq_num,
+                                "type": "response.output_item.done",
+                            },
+                            seq_num,
+                        )
+
+                    # 4. response.completed event
+                    seq_num += 1
+                    completed_resp = dict(resp)
+                    completed_resp["status"] = "completed"
+                    yield _sse_event(
+                        "response.completed",
+                        {
+                            "response": completed_resp,
+                            "sequence_number": seq_num,
+                            "type": "response.completed",
+                        },
+                        seq_num,
+                    )
+
+                return {
+                    "status": 200,
+                    "body_iter": stream_response(),
+                    "headers": {
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                    },
+                    "chunked": True,
+                }
+            else:
+                return {"status": 200, "body": completion}
+
+        except Exception as ex:
+            _handle_model_proxy_error(ex)
+            os._exit(1)
 
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
@@ -544,25 +1270,26 @@ async def run_model_proxy(port: int) -> None:
             json_body["parallel_tool_calls"] = False
 
             completion = await call_bridge_model_service_async(
-                "generate", json_data=json_body
+                "generate_completions", json_data=json_body
             )
 
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
-                    comp = (
+                    # Parse the completion as a dict
+                    chat_completion = (
                         completion
                         if isinstance(completion, dict)
                         else json.loads(completion)
                     )
 
-                    comp_id = comp.get("id", "chatcmpl-simulated")
-                    created = comp.get("created", int(time.time()))
-                    model = comp.get("model", "")
-                    sys_fp = comp.get("system_fingerprint")
+                    comp_id = chat_completion.get("id")
+                    created = chat_completion.get("created")
+                    model = chat_completion.get("model")
+                    sys_fp = chat_completion.get("system_fingerprint")
 
                     def base_chunk() -> dict[str, Any]:
-                        obj = {
+                        obj: dict[str, Any] = {
                             "id": comp_id,
                             "object": "chat.completion.chunk",
                             "created": created,
@@ -574,9 +1301,11 @@ async def run_model_proxy(port: int) -> None:
                         return obj
 
                     # Stream each choice independently (common clients support this).
-                    for choice_idx, choice in enumerate(comp.get("choices", [])):
-                        msg = choice.get("message") or {}
-                        role = msg.get("role", "assistant")
+                    for choice_idx, choice in enumerate(
+                        chat_completion.get("choices", [])
+                    ):
+                        msg = choice.get("message")
+                        role = msg.get("role") if msg else "assistant"
 
                         # 1) Initial role chunk
                         chunk = base_chunk()
@@ -592,7 +1321,7 @@ async def run_model_proxy(port: int) -> None:
                         yield _sse_bytes(chunk)
 
                         # 2) Text content chunks
-                        content = msg.get("content")
+                        content = msg.get("content") if msg else None
                         if isinstance(content, str) and content:
                             for piece in _iter_chunks(content):
                                 chunk = base_chunk()
@@ -608,10 +1337,10 @@ async def run_model_proxy(port: int) -> None:
                                 # await asyncio.sleep(0)
 
                         # 3) Legacy function_call streaming (older models/libs)
-                        fn_call = msg.get("function_call") or None
-                        if isinstance(fn_call, dict):
-                            fn_name = fn_call.get("name") or ""
-                            fn_args = fn_call.get("arguments") or ""
+                        fn_call = msg.get("function_call") if msg else None
+                        if fn_call:
+                            fn_name = fn_call.get("name", "")
+                            fn_args = fn_call.get("arguments", "")
 
                             # name first
                             chunk = base_chunk()
@@ -639,14 +1368,15 @@ async def run_model_proxy(port: int) -> None:
                                 yield _sse_bytes(chunk)
 
                         # 4) Modern tool_calls streaming (fixed: repeat id/type on every delta)
-                        tool_calls = msg.get("tool_calls") or []
-                        if isinstance(tool_calls, list) and tool_calls:
+                        tool_calls = msg.get("tool_calls") if msg else None
+                        if tool_calls:
                             for tc_i, tc in enumerate(tool_calls):
                                 tc_id = tc.get("id")
-                                tc_type = tc.get("type", "function")
-                                fn = tc.get("function") or {}
-                                fn_name = fn.get("name") or ""
-                                fn_args = fn.get("arguments") or ""
+                                tc_type = tc.get("type")
+                                # Handle both function and custom tool calls
+                                fn = tc.get("function")
+                                fn_name = fn.get("name", "") if fn else ""
+                                fn_args = fn.get("arguments", "") if fn else ""
 
                                 # Emit initial tool_call with id/type/name
                                 chunk = base_chunk()
@@ -709,12 +1439,13 @@ async def run_model_proxy(port: int) -> None:
 
                     # 6) Optional usage chunk (if client requested include_usage and we have it)
                     stream_opts = json_body.get("stream_options") or {}
-                    if stream_opts.get("include_usage") and comp.get("usage"):
+                    usage = chat_completion.get("usage")
+                    if stream_opts.get("include_usage") and usage:
                         chunk = base_chunk()
                         chunk[
                             "choices"
                         ] = []  # per OpenAI: last chunk contains only usage
-                        chunk["usage"] = comp["usage"]
+                        chunk["usage"] = usage
                         yield _sse_bytes(chunk)
 
                     # 7) Overall terminal sentinel
@@ -732,25 +1463,23 @@ async def run_model_proxy(port: int) -> None:
             else:
                 return {"status": 200, "body": completion}
         except Exception as ex:
-            # Any error that occurs in here is essentially fatal to the entire
-            # agent. The exception results either from:
-            #
-            #  - The call to generate (which already benefits from Inspect's std
-            #    model retry behavior). In normal Inspect agents if generate fails
-            #    after requisite retries the sample fails, same here
-            #  - A logic error or unexpected data condition in our simulated
-            #    streaming -- if we are unable to stream a request back then
-            #    the agent can't proceed, so we fail the script hard
-            #
-            # Writing to stderr and exiting the script is seen as preferable to
-            # returning 500 to the proxied agent. This is because we are in a
-            # hard failure anyway so we need the user to see the error message
-            # and have the task fail (the 500 error would just result in retries)
-            sys.stderr.write(f"Unexpected error during model proxy call: {ex}")
-            sys.stderr.flush()
+            _handle_model_proxy_error(ex)
             os._exit(1)
 
-    # run server
+    # return configured server
+    return server
+
+
+async def run_model_proxy_server(port: int) -> None:
+    """Run the model proxy server.
+
+    Args:
+        port: Port to run the server on
+    """
+    # Create server
+    server = await model_proxy_server(port)
+
+    # Run server
     try:
         await server.start()
     except Exception as ex:
@@ -759,7 +1488,26 @@ async def run_model_proxy(port: int) -> None:
         os._exit(1)
 
 
+def _handle_model_proxy_error(ex: Exception) -> None:
+    # Any error that occurs in here is essentially fatal to the entire
+    # agent. The exception results either from:
+    #
+    #  - The call to generate (which already benefits from Inspect's std
+    #    model retry behavior). In normal Inspect agents if generate fails
+    #    after requisite retries the sample fails, same here
+    #  - A logic error or unexpected data condition in our simulated
+    #    streaming -- if we are unable to stream a request back then
+    #    the agent can't proceed, so we fail the script hard
+    #
+    # Writing to stderr and exiting the script is seen as preferable to
+    # returning 500 to the proxied agent. This is because we are in a
+    # hard failure anyway so we need the user to see the error message
+    # and have the task fail (the 500 error would just result in retries)
+    sys.stderr.write(f"Unexpected error during model proxy call: {ex}")
+    sys.stderr.flush()
+
+
 if __name__ == "__main__":
     DEFAULT_PROXY_PORT = 13131
     port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PROXY_PORT
-    asyncio.run(run_model_proxy(port=port_arg))
+    asyncio.run(run_model_proxy_server(port=port_arg))

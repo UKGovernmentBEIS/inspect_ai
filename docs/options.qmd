@@ -109,6 +109,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
 | `--epochs` | Number of times to repeat each sample (defaults to 1) |
 | `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
+| `--no-epochs-reducer` | Do not reduce epochs across samples (compute metrics across all samples and epochs together). |
 
 ## Parallelism
 

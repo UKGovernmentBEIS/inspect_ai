@@ -17,10 +17,10 @@ from ._google import GoogleOptions, google_search_provider
 from ._tavily import TavilyOptions, tavily_search_provider
 from ._web_search_provider import SearchProvider
 
-Provider: TypeAlias = Literal[
+WebSearchProvider: TypeAlias = Literal[
     "grok", "gemini", "openai", "anthropic", "perplexity", "tavily", "google", "exa"
 ]
-valid_providers = set(get_args(Provider))
+valid_providers = set(get_args(WebSearchProvider))
 
 
 # It would have been nice if the values below were TypedDicts. The problem is
@@ -31,15 +31,41 @@ valid_providers = set(get_args(Provider))
 #
 # If the caller uses this dict form and uses a value of `None`, it means that
 # they want to use that provider and to use the default options.
-class Providers(TypedDict, total=False):
+class WebSearchProviders(TypedDict, total=False):
+    """Provider configuration for `web_search()` tool.
+
+    The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
+
+    -   Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`, and `"perplexity"` - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
+
+    -   External providers: `"tavily"`, `"exa"`, and `"google"`. These are external services that work with any model and require separate accounts and API keys. Note that "google" is different from "gemini" - "google" refers to Google's Programmable Search Engine service, while "gemini" refers to Google's built-in search capability for Gemini models.
+
+    Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
+    """
+
     openai: dict[str, Any] | Literal[True]
+    """Use OpenAI internal provider. For available options see <https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses>."""
+
     anthropic: dict[str, Any] | Literal[True]
+    """Use Anthropic internal provider. For available options see <https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool>."""
+
     grok: dict[str, Any] | Literal[True]
+    """Use Grok internal provider. For available options see <https://docs.x.ai/docs/guides/live-search>."""
+
     gemini: dict[str, Any] | Literal[True]
+    """Use Gemini internal provider. For available options see <https://ai.google.dev/gemini-api/docs/google-search>."""
+
     perplexity: dict[str, Any] | Literal[True]
+    """Use Perplexity internal provider. For available options see <https://docs.perplexity.ai/api-reference/chat-completions-post>"""
+
     tavily: dict[str, Any] | Literal[True]
+    """Use Tavili external provider. For available options see <Use Exa external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#tavili-options>."""
+
     google: dict[str, Any] | Literal[True]
+    """Use Google external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#google-options>."""
+
     exa: dict[str, Any] | Literal[True]
+    """Use Exa external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#exa-options>."""
 
 
 class _NormalizedProviders(TypedDict, total=False):
@@ -63,7 +89,10 @@ class WebSearchDeprecatedArgs(TypedDict, total=False):
 
 @tool
 def web_search(
-    providers: Provider | Providers | list[Provider | Providers] | None = None,
+    providers: WebSearchProvider
+    | WebSearchProviders
+    | list[WebSearchProvider | WebSearchProviders]
+    | None = None,
     **deprecated: Unpack[WebSearchDeprecatedArgs],
 ) -> Tool:
     """Web search tool.
@@ -181,7 +210,10 @@ def web_search(
 
 
 def _normalize_config(
-    providers: Provider | Providers | list[Provider | Providers] | None,
+    providers: WebSearchProvider
+    | WebSearchProviders
+    | list[WebSearchProvider | WebSearchProviders]
+    | None,
     **deprecated: Unpack[WebSearchDeprecatedArgs],
 ) -> _NormalizedProviders:
     """

@@ -17,12 +17,15 @@ title: "inspect_ai.agent"
 ## Bridging
 
 ### agent_bridge
+### AgentBridge
 ### sandbox_agent_bridge
+### SandboxAgentBridge
 
 ## Filters
 
-### remove_tools
+### content_only
 ### last_message
+### remove_tools
 ### MessageFilter
 
 ## Protocol
