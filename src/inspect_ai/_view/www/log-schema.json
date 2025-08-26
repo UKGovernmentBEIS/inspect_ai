@@ -408,17 +408,6 @@
           "default": null,
           "title": "Metadata"
         },
-        "internal": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "role": {
           "const": "assistant",
           "default": "assistant",
@@ -458,7 +447,6 @@
         "content",
         "source",
         "metadata",
-        "internal",
         "role",
         "tool_calls",
         "model"
@@ -550,17 +538,6 @@
           "default": null,
           "title": "Metadata"
         },
-        "internal": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "role": {
           "const": "system",
           "default": "system",
@@ -573,7 +550,6 @@
         "content",
         "source",
         "metadata",
-        "internal",
         "role"
       ],
       "title": "ChatMessageSystem",
@@ -663,17 +639,6 @@
           "default": null,
           "title": "Metadata"
         },
-        "internal": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "role": {
           "const": "tool",
           "default": "tool",
@@ -721,7 +686,6 @@
         "content",
         "source",
         "metadata",
-        "internal",
         "role",
         "tool_call_id",
         "function",
@@ -814,17 +778,6 @@
           "default": null,
           "title": "Metadata"
         },
-        "internal": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "role": {
           "const": "user",
           "default": "user",
@@ -852,7 +805,6 @@
         "content",
         "source",
         "metadata",
-        "internal",
         "role",
         "tool_call_id"
       ],
@@ -1251,6 +1203,10 @@
           "type": "string"
         },
         "tool_type": {
+          "enum": [
+            "web_search",
+            "mcp_call"
+          ],
           "title": "Tool Type",
           "type": "string"
         },
@@ -1275,10 +1231,12 @@
           "title": "Context"
         },
         "arguments": {
-          "$ref": "#/$defs/JsonValue"
+          "title": "Arguments",
+          "type": "string"
         },
         "result": {
-          "$ref": "#/$defs/JsonValue"
+          "title": "Result",
+          "type": "string"
         },
         "error": {
           "anyOf": [
@@ -6279,17 +6237,6 @@
           "title": "Arguments",
           "type": "object"
         },
-        "internal": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
         "parse_error": {
           "anyOf": [
             {
@@ -6330,7 +6277,6 @@
         "id",
         "function",
         "arguments",
-        "internal",
         "parse_error",
         "view",
         "type"
@@ -6528,17 +6474,6 @@
           },
           "title": "Arguments",
           "type": "object"
-        },
-        "internal": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         },
         "view": {
           "anyOf": [
@@ -6765,7 +6700,6 @@
         "id",
         "function",
         "arguments",
-        "internal",
         "view",
         "result",
         "truncated",

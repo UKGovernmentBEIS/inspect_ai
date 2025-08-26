@@ -41,6 +41,8 @@ async def sandbox_service(
     until: Callable[[], bool],
     sandbox: SandboxEnvironment,
     user: str | None = None,
+    instance: str | None = None,
+    polling_interval: float | None = None,
     started: anyio.Event | None = None,
 ) -> None:
     """Run a service that is callable from within a sandbox.
@@ -68,16 +70,34 @@ async def sandbox_service(
     spec.loader.exec_module(foo)
     ```
 
+    If you are using an `instance`, then include that in the
+    path after the service name:
+
+    ```python
+    spec = importlib.util.spec_from_file_location(
+        "foo", "/var/tmp/sandbox-services/foo/<instance>/foo.py"
+    )
+    ```
+
     Args:
         name: Service name
         methods: Service methods.
         until: Function used to check whether the service should stop.
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
+        instance: If you want multiple instances of a service in a single sandbox
+           then use the `instance` param (and adjust the path for importing the
+           service as described above)
+        polling_interval: Polling interval for request checking. If not specified uses
+          sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
     """
+    # sort out polling interval
+    if polling_interval is None:
+        polling_interval = sandbox.default_polling_interval()
+
     # setup and start service
-    service = SandboxService(name, sandbox, user, started)
+    service = SandboxService(name, sandbox, user, instance, started)
     if isinstance(methods, list):
         methods = {v.__name__: v for v in methods}
     for name, method in methods.items():
@@ -86,7 +106,7 @@ async def sandbox_service(
 
     # wait for and process methods
     while not until():
-        await anyio.sleep(POLLING_INTERVAL)
+        await anyio.sleep(polling_interval)
         await service.handle_requests()
 
 
@@ -115,6 +135,15 @@ class SandboxService:
     foo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(foo)
     ```
+
+    If you are using an `instance`, then include that in the
+    path after the service name:
+
+    ```python
+    spec = importlib.util.spec_from_file_location(
+        "foo", "/var/tmp/sandbox-services/foo/<instance>/foo.py"
+    )
+    ```
     """
 
     def __init__(
@@ -122,6 +151,7 @@ class SandboxService:
         name: str,
         sandbox: SandboxEnvironment,
         user: str | None = None,
+        instance: str | None = None,
         started: anyio.Event | None = None,
     ) -> None:
         """Create a SandboxService.
@@ -131,6 +161,8 @@ class SandboxService:
             sandbox (SandboxEnvironment): Sandbox to publish service to.
             user (str | None): User to login as. Defaults to the sandbox environment's
               default user.
+            instance: Unique identifier for an instance of this named service
+               (should be a valid posix filename)
             started: Event to set when service has been started
         """
         self._name = name
@@ -138,6 +170,8 @@ class SandboxService:
         self._user = user
         self._started = started
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
+        if instance is not None:
+            self._service_dir = self._service_dir / instance
         self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
         self._responses_dir: str = ""
@@ -326,7 +360,7 @@ class SandboxService:
             from pathlib import Path
             from uuid import uuid4
 
-            requests_dir = Path("{SERVICES_DIR}", "{self._name}", "{REQUESTS_DIR}")
+            requests_dir = Path("{self._service_dir}", "{REQUESTS_DIR}")
             request_id = str(uuid4())
             request_data = dict({ID}=request_id, {METHOD}=method, {PARAMS}=params)
             request_path = requests_dir / (request_id + ".json")
@@ -338,7 +372,7 @@ class SandboxService:
             from json import JSONDecodeError, load
             from pathlib import Path
 
-            responses_dir = Path("{SERVICES_DIR}", "{self._name}", "{RESPONSES_DIR}")
+            responses_dir = Path("{self._service_dir}", "{RESPONSES_DIR}")
             response_path = responses_dir / (request_id + ".json")
             if response_path.exists():
                 # read and remove the file

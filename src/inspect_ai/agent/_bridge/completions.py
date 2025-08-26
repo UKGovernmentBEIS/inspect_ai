@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from logging import getLogger
 from time import time
 from typing import TYPE_CHECKING, Any
 
 from shortuuid import uuid
 
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
-from inspect_ai.model._model import get_model, model_roles
 from inspect_ai.model._openai_convert import messages_from_openai
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -14,18 +15,28 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
+from .util import resolve_inspect_model
+
 if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletion
+    from openai.types.chat import (
+        ChatCompletion,
+        ChatCompletionToolChoiceOptionParam,
+        ChatCompletionToolParam,
+    )
 
 
-async def inspect_model_request(json_data: dict[str, Any]) -> "ChatCompletion":
+logger = getLogger(__file__)
+
+
+async def inspect_completions_api_request(
+    json_data: dict[str, Any],
+    state: AgentState | None = None,
+) -> "ChatCompletion":
     validate_openai_client("agent bridge")
 
     from openai.types.chat import (
         ChatCompletion,
         ChatCompletionMessageParam,
-        ChatCompletionToolChoiceOptionParam,
-        ChatCompletionToolParam,
     )
 
     from inspect_ai.model._openai import (
@@ -33,59 +44,33 @@ async def inspect_model_request(json_data: dict[str, Any]) -> "ChatCompletion":
         openai_completion_usage,
     )
 
-    # resolve model and model name
-    model_name = str(json_data["model"])
-    if model_name == "inspect":
-        model = get_model()
-    else:
-        model_name = model_name.removeprefix("inspect/")
-        if model_name in model_roles():
-            model = get_model(role=model_name)
-        else:
-            model = get_model(model_name)
+    bridge_model_name = str(json_data["model"])
+    model = resolve_inspect_model(bridge_model_name)
     model_name = model.api.model_name
 
     # convert openai messages to inspect messages
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
-    input = await messages_from_openai(messages, model.api.model_name)
+    input = await messages_from_openai(messages, model_name)
 
-    # convert openai tools to inspect tools
-    tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
-    inspect_tools: list[ToolInfo] = []
-    for tool in tools:
-        assert tool["type"] == "function", '"custom" tool calls are not supported'
-        function = tool["function"].copy()
-        inspect_tools.append(
-            ToolInfo(
-                name=function["name"],
-                description=function["description"],
-                parameters=ToolParams.model_validate(function["parameters"]),
-            )
-        )
-
-    # convert openai tool choice to inspect tool_choice
-    inspect_tool_choice: ToolChoice | None = None
-    tool_choice: ChatCompletionToolChoiceOptionParam | None = json_data.get(
+    # read openai tools and tool choice
+    openai_tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
+    tools = tools_from_openai_tools(openai_tools)
+    openai_tool_choice: ChatCompletionToolChoiceOptionParam | None = json_data.get(
         "tool_choice", None
     )
-    if tool_choice is not None:
-        match tool_choice:
-            case "auto" | "none":
-                inspect_tool_choice = tool_choice
-            case "required":
-                inspect_tool_choice = "any"
-            case _:
-                assert tool_choice["type"] == "function", (
-                    '"custom" tool calls are not supported'
-                )
-                inspect_tool_choice = ToolFunction(name=tool_choice["function"]["name"])
+    tool_choice = tool_choice_from_openai_tool_choice(openai_tool_choice)
 
     output = await model.generate(
         input=input,
-        tools=inspect_tools,
-        tool_choice=inspect_tool_choice,
-        config=generate_config_from_openai(json_data),
+        tools=tools,
+        tool_choice=tool_choice,
+        config=generate_config_from_openai_completions(json_data),
     )
+
+    # update state
+    if state and bridge_model_name == "inspect":
+        state.messages = input + [output.message]
+        state.output = output
 
     # inspect completion to openai completion
     return ChatCompletion(
@@ -98,7 +83,42 @@ async def inspect_model_request(json_data: dict[str, Any]) -> "ChatCompletion":
     )
 
 
-def generate_config_from_openai(json_data: dict[str, Any]) -> GenerateConfig:
+def tool_choice_from_openai_tool_choice(
+    tool_choice: "ChatCompletionToolChoiceOptionParam" | None,
+) -> ToolChoice | None:
+    inspect_tool_choice: ToolChoice | None = None
+    if tool_choice is not None:
+        match tool_choice:
+            case "auto" | "none":
+                inspect_tool_choice = tool_choice
+            case "required":
+                inspect_tool_choice = "any"
+            case _:
+                assert tool_choice["type"] == "function", (
+                    '"custom" tool calls are not supported'
+                )
+                inspect_tool_choice = ToolFunction(name=tool_choice["function"]["name"])
+    return inspect_tool_choice
+
+
+def tools_from_openai_tools(tools: "list[ChatCompletionToolParam]") -> list[ToolInfo]:
+    inspect_tools: list[ToolInfo] = []
+    for tool in tools:
+        assert tool["type"] == "function", '"custom" tool calls are not supported'
+        function = tool["function"].copy()
+        inspect_tools.append(
+            ToolInfo(
+                name=function["name"],
+                description=function["description"],
+                parameters=ToolParams.model_validate(function["parameters"]),
+            )
+        )
+    return inspect_tools
+
+
+def generate_config_from_openai_completions(
+    json_data: dict[str, Any],
+) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get(
         "max_completion_tokens", json_data.get("max_tokens", None)

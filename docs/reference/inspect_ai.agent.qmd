@@ -17,7 +17,9 @@ title: "inspect_ai.agent"
 ## Bridging
 
 ### agent_bridge
+### AgentBridge
 ### sandbox_agent_bridge
+### SandboxAgentBridge
 
 ## Filters
 

@@ -2,7 +2,7 @@ from logging import getLogger
 from typing import Literal, Sequence, cast
 
 from inspect_ai._util._async import is_callable_coroutine
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -499,25 +499,24 @@ def _remove_submit_tool(
 
             # If a submit tool call was removed, we need to update the message
             if len(new_tools_calls) < len(message.tool_calls):
+                # Some models (OpenAI) don't like to see the reasoning
+                # content item that led to the submit tool call, so we
+                # remove the last reasoning item
+                new_content: str | list[Content] = message.content
+                if isinstance(new_content, list):
+                    new_content = new_content.copy()
+                    indices = [
+                        i for i, x in enumerate(new_content) if x.type == "reasoning"
+                    ]
+                    if indices:
+                        new_content.pop(indices[-1])
+
+                # update w/ new tool calls and new content
                 message = message.model_copy(
                     update=dict(
                         tool_calls=new_tools_calls,
-                        # Some models (OpenAI) don't like to see the reasoning
-                        # content item that led to the submit tool call, so we
-                        # have to remove it too.
-                        content=(
-                            [
-                                content
-                                for content in message.content
-                                if (
-                                    isinstance(content, str)
-                                    or content.type != "reasoning"
-                                )
-                            ]
-                            if isinstance(message.content, list)
-                            else message.content
-                        ),
-                    )
+                        content=new_content,
+                    ),
                 )
 
         # always append message

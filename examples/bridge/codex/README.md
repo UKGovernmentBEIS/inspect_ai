@@ -8,14 +8,13 @@ The example includes the following source files:
 |-------------------|-----------------------------------------------------|
 | [task.py](task.py) | Evaluation task which uses the codex agent. |
 | [agent.py](agent.py) | Codex agent (invokes the codex CLI within the sandbox). |
-| [rollout.py](rollout.py) | Code to parse codex rollout logs into messages. |
 | [dataset.json](dataset.json) | Dataset with questions and answer rubrics. |
 | [Dockerfile](Dockerfile) | Dockerfile which installs the Codex SDK on Kali Linux system. |
 
 You can run the example against various models by evaluating the `task.py` file:
 
 ``` bash
-inspect eval task.py --model openai/gpt-4o
+inspect eval task.py --model openai/gpt-5
 inspect eval task.py --model anthropic/claude-3-7-sonnet-latest
 inspect eval task.py --model google/gemini-2.5-pro
 ```

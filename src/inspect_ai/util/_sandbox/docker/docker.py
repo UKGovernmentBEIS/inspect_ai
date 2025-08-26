@@ -478,6 +478,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 f"Service '{self._service} is not currently running.'"
             )
 
+    def default_polling_interval(self) -> float:
+        return 0.2
+
     def container_file(self, file: str) -> str:
         path = Path(file)
         if not path.is_absolute():
