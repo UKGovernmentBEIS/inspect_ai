@@ -37,7 +37,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
   const toggle = toggleIcon(node, collapsed);
 
   const popoverId = `${node.id}-popover`;
-  const { isShowing } = useSamplePopover(popoverId);
+  const { isShowing, setShowing } = useSamplePopover(popoverId);
 
   const ref = useRef(null);
 
@@ -88,6 +88,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
         id={`${node.id}-popover`}
         positionEl={ref.current}
         isOpen={isShowing}
+        setIsOpen={setShowing}
         className={clsx(styles.popper)}
         placement="auto-end"
       >

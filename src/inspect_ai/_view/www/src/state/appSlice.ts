@@ -14,6 +14,7 @@ export interface AppSlice {
     hideFind: () => void;
 
     setShowingSampleDialog: (showing: boolean) => void;
+    setShowingTranscriptFilterDialog: (showing: boolean) => void;
     setWorkspaceTab: (tab: string) => void;
     clearWorkspaceTab: () => void;
 
@@ -65,6 +66,7 @@ const initialState: AppState = {
   showFind: false,
   dialogs: {
     sample: false,
+    transcriptFilter: false,
   },
   tabs: {
     workspace: kDefaultWorkspaceTab,
@@ -133,6 +135,16 @@ export const createAppSlice = (
           const state = get();
           state.appActions.clearSampleTab();
         }
+      },
+      setShowingTranscriptFilterDialog: (showing: boolean) => {
+        const state = get();
+        const isShowing = state.app.dialogs.transcriptFilter;
+        if (showing === isShowing) {
+          return;
+        }
+        set((state) => {
+          state.app.dialogs.transcriptFilter = showing;
+        });
       },
       setWorkspaceTab: (tab: string) => {
         set((state) => {
