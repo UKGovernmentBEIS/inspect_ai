@@ -77,7 +77,6 @@ from openai.types.responses.response_usage import (
 )
 from openai.types.responses.tool_param import Mcp
 from pydantic import JsonValue, TypeAdapter
-from shortuuid import uuid
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
@@ -627,11 +626,6 @@ def _openai_input_items_from_chat_message_assistant(
 
     # items to return
     items: list[ResponseInputItemParam] = []
-    # group content by message ID
-    messages_by_id: dict[
-        str | None, list[ResponseOutputTextParam | ResponseOutputRefusalParam]
-    ] = {}
-
     for content in _filter_consecutive_reasoning_blocks(content_items):
         match content:
             case ContentReasoning():
@@ -655,18 +649,19 @@ def _openai_input_items_from_chat_message_assistant(
                         f"OpenAI Responses: Unspected tool_type '{tool_type}'"
                     )
             case ContentText(text=text, refusal=refusal):
-                # get the message ID from ContentText.modelJson
-                content_message_id: str | None = None
+                # see if we have a message id
+                message_id: str | None = None
                 if (
                     isinstance(content.internal, dict)
                     and MESSAGE_ID in content.internal
                 ):
                     id_value = content.internal[MESSAGE_ID]
-                    content_message_id = id_value if isinstance(id_value, str) else None
+                    message_id = id_value if isinstance(id_value, str) else None
                 else:
-                    content_message_id = None
+                    message_id = None
 
-                new_content = (
+                # create content
+                response_content = (
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
                     if refusal
                     else ResponseOutputTextParam(
@@ -674,25 +669,21 @@ def _openai_input_items_from_chat_message_assistant(
                     )
                 )
 
-                if content_message_id not in messages_by_id:
-                    messages_by_id[content_message_id] = []
-                messages_by_id[content_message_id].append(new_content)
-
-    # create ResponseOutputMessage for each unique ID
-    for msg_id, content_list in messages_by_id.items():
-        output_message = ResponseOutputMessageParam(
-            type="message",
-            role="assistant",
-            # this actually can be `None`, and it will in fact be `None` when the
-            # assistant message is synthesized by the scaffold as opposed to being
-            # replayed from the model
-            # Is it okay to dynamically generate this here? We need this in
-            # order to read this back into the equivalent BaseModel for the bridge
-            id=msg_id,  # type: ignore[typeddict-item]
-            content=content_list,
-            status="completed",
-        )
-        items.append(output_message)
+                # append item
+                items.append(
+                    ResponseOutputMessageParam(
+                        type="message",
+                        role="assistant",
+                        # this actually can be `None`, and it will in fact be `None` when the
+                        # assistant message is synthesized by the scaffold as opposed to being
+                        # replayed from the model
+                        # Is it okay to dynamically generate this here? We need this in
+                        # order to read this back into the equivalent BaseModel for the bridge
+                        id=message_id,  # type: ignore[typeddict-item]
+                        content=[response_content],
+                        status="completed",
+                    )
+                )
 
     return items + _tool_call_items_from_assistant_message(message)
 
