@@ -70,8 +70,11 @@ def run_docker_container(
     """Run the Docker container to build the executable."""
     print("Starting container and building executable...")
 
-    # Ensure container_build directory exists
-    Path("container_build").mkdir(exist_ok=True)
+    # Ensure binaries directory exists
+    Path("../inspect_ai/binaries").mkdir(exist_ok=True)
+
+    # Find repository root (should be 3 levels up from this script)
+    repo_root = get_script_dir().parent.parent.parent
 
     cmd = [
         "docker",
@@ -80,17 +83,14 @@ def run_docker_container(
         "--platform",
         platform,
         "-v",
-        ".:/inspect_tool_support:ro",
-        "-v",
-        # We use an absolute path, because Docker <= 28.2.0 did not properly support
-        # relative parent paths for mount sources.
-        f"{Path('../inspect_ai/binaries').resolve()}:/output:rw",
+        f"{repo_root}:/workspace:rw",
         "-w",
-        "/inspect_tool_support",
+        "/workspace/src/inspect_tool_support",
         "-e",
         f"ARCH_SUFFIX={arch_suffix}",
         image_name,
-        "/inspect_tool_support/build_executable.sh",
+        "python3",
+        "/workspace/src/inspect_ai/tool/tool_support/build_executable.py",
         "--version",
         version,
     ]
