@@ -4,6 +4,7 @@ This module provides helper code for handling JSON-RPC communication between the
 It includes definitions for JSON-RPC request and response models, as well as functions to create and parse JSON-RPC requests and responses.
 """
 
+from functools import partial
 from typing import Type
 
 from inspect_ai.tool._tool import ToolError
@@ -147,10 +148,12 @@ class ToolSupportSandboxTransport(JSONRPCTransport):
 
 
 async def tool_support_sandbox(
-    *, sandbox_name: str | None = None
+    *, sandbox_name: str | None = None, with_web_browser: bool = False
 ) -> SandboxEnvironment:
     return await sandbox_with_injection(
-        SANDBOX_CLI, inject_tool_support_code, sandbox_name=sandbox_name
+        SANDBOX_CLI,
+        partial(inject_tool_support_code, with_browser=with_web_browser),
+        sandbox_name=sandbox_name
     )
 
 

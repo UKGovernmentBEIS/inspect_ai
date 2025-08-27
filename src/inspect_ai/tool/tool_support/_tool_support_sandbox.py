@@ -38,11 +38,15 @@ edited: Non-PyPI install with changes to tool support or version
 SANDBOX_CLI = "/opt/inspect-tool-support"
 
 
-async def inject_tool_support_code(sandbox: SandboxEnvironment) -> None:
+async def inject_tool_support_code(
+    sandbox: SandboxEnvironment, with_browser: bool = False
+) -> None:
     info = await detect_sandbox_os(sandbox)
     print(f"attempting to inject_tool_support_code for {info}")
 
-    async with _open_executable_for_arch(info["architecture"]) as (_, f):
+    async with _open_executable_for_arch(
+        info["architecture"], with_browser=with_browser
+    ) as (_, f):
         # TODO: The first tuple member, filename, isn't currently used, but it will be
         await sandbox.write_file(SANDBOX_CLI, f.read())
         # .write_file used `tee` which dropped execute permissions
@@ -86,14 +90,14 @@ def _prompt_user_action(message: str, executable_name: str, arch: Architecture) 
 @asynccontextmanager
 async def _open_executable_for_arch(
     arch: Architecture,
+    with_browser: bool = False,
 ) -> AsyncIterator[tuple[str, BinaryIO]]:
     install_state = _get_install_state()
 
     print(f"{install_state=}")
 
-    # TODO: Pass browser argument appropriately if/when needed
     executable_name = _get_executable_name(
-        arch, install_state == "edited", browser=False
+        arch, install_state == "edited", browser=with_browser
     )
 
     # 3.1. Local Executable Check
