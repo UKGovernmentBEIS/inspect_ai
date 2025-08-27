@@ -10,11 +10,15 @@ from rich.prompt import Prompt
 
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.tool._tool_support_build_config import BuildConfig, config_to_filename
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox._recon import Architecture, detect_sandbox_os
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+
+from ._tool_support_build_config import (
+    BuildConfig,
+    config_to_filename,
+)
 
 BUCKET_BASE_URL = "https://inspect-tool-support.s3.us-east-2.amazonaws.com"
 
@@ -75,7 +79,7 @@ def _prompt_user_action(message: str, executable_name: str, arch: Architecture) 
         if response != "y":
             raise PrerequisiteError(
                 f"Tool support executable {executable_name} is required but not present. "
-                f"To build it, run: python src/inspect_tool_support/build_within_container.py --arch {arch}"
+                f"To build it, run: python src/inspect_ai/tool/tool_support/build_within_container.py --arch {arch}"
             )
 
 
@@ -206,11 +210,7 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
     )
 
     # Find the build script
-    build_script_path = (
-        Path(__file__).parent.parent.parent
-        / "inspect_tool_support"
-        / "build_within_container.py"
-    )
+    build_script_path = Path(__file__).parent / "build_within_container.py"
 
     if not build_script_path.exists():
         raise FileNotFoundError(f"Build script not found at {build_script_path}")
@@ -252,7 +252,9 @@ def _get_install_state() -> InstallState:
         if "site-packages" in str(package_path):
             build_script_path = (
                 package_path.parent.parent
-                / "inspect_tool_support"
+                / "inspect_ai"
+                / "tool"
+                / "tool_support"
                 / "build_within_container.py"
             )
             # PyPI installs don't include source files like build scripts
@@ -267,7 +269,9 @@ def _get_install_state() -> InstallState:
         if "site-packages" in str(package_path):
             build_script_path = (
                 package_path.parent.parent
-                / "inspect_tool_support"
+                / "inspect_ai"
+                / "tool"
+                / "tool_support"
                 / "build_within_container.py"
             )
             if not build_script_path.exists():
@@ -306,7 +310,7 @@ def _check_for_changes() -> Literal["main", "edited"]:
 
         # Check for staged or unstaged changes to relevant paths
         paths_to_check = [
-            "src/inspect_tool_support",
+            "src/inspect_ai/tool/tool_support",
             "VERSION.txt",
         ]
 

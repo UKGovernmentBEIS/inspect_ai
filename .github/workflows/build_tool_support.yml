@@ -126,7 +126,7 @@ jobs:
 
       - name: Build executable for ${{ matrix.architecture }}
         run: |
-          cd src/inspect_tool_support
+          cd src/inspect_ai/tool/tool_support
           python build_within_container.py --arch ${{ matrix.architecture }} --dev=false
 
       - name: Upload executable artifact
