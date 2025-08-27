@@ -23,7 +23,12 @@ from openai.types.responses import (
 from openai.types.responses import (
     Tool as ResponsesTool,
 )
-from openai.types.responses.response import ToolChoice as ResponsesToolChoice
+from openai.types.responses.response import (
+    IncompleteDetails,
+)
+from openai.types.responses.response import (
+    ToolChoice as ResponsesToolChoice,
+)
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
@@ -61,6 +66,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
+from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai import (
     CONTENT_INTERNAL_TAG,
     _parse_content_with_internal,
@@ -173,6 +179,7 @@ async def inspect_responses_api_request_impl(
     response = Response(
         id=output.message.id or uuid(),
         created_at=int(time()),
+        incomplete_details=responses_incomplete_details(output.stop_reason),
         model=model_name,
         object="response",
         output=responses_output_items_from_assistant_message(output.message),
@@ -306,6 +313,16 @@ def responses_web_search_tool_options(
 
 
 tool_list_adapter = TypeAdapter(list[ResponsesTool])
+
+
+def responses_incomplete_details(stop_reason: StopReason) -> IncompleteDetails | None:
+    match stop_reason:
+        case "content_filter":
+            return "content_filter"
+        case "max_tokens":
+            return "max_output_tokens"
+        case _:
+            return None
 
 
 def responses_tool_params_to_tools(tool_params: list[ToolParam]) -> list[ResponsesTool]:
