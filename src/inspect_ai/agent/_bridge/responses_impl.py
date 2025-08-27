@@ -145,6 +145,12 @@ async def inspect_responses_api_request_impl(
     messages = messages_from_responses_input(input, tools, model_name)
     debug_log("INSPECT MESSAGES", messages)
 
+    # extract generate config (hoist instructions into system_message)
+    config = generate_config_from_openai_responses(json_data)
+    if config.system_message is not None:
+        messages.insert(0, ChatMessageSystem(content=config.system_message))
+        config.system_message = None
+
     # try to maintain id stability
     is_default_model = bridge_model_name == "inspect"
     if state and is_default_model:
@@ -155,7 +161,7 @@ async def inspect_responses_api_request_impl(
         input=messages,
         tool_choice=tool_choice,
         tools=tools,
-        config=generate_config_from_openai_responses(json_data),
+        config=config,
     )
 
     # update state

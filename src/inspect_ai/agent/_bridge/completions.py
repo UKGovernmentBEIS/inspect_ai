@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from shortuuid import uuid
 
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai_convert import messages_from_openai
 from inspect_ai.model._providers.providers import validate_openai_client
@@ -52,6 +53,12 @@ async def inspect_completions_api_request(
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
     input = await messages_from_openai(messages, model_name)
 
+    # extract generate config (hoist instructions into system_message)
+    config = generate_config_from_openai_completions(json_data)
+    if config.system_message is not None:
+        input.insert(0, ChatMessageSystem(content=config.system_message))
+        config.system_message = None
+
     # try to maintain id stability
     is_default_model = bridge_model_name == "inspect"
     if state and is_default_model:
@@ -69,7 +76,7 @@ async def inspect_completions_api_request(
         input=input,
         tools=tools,
         tool_choice=tool_choice,
-        config=generate_config_from_openai_completions(json_data),
+        config=config,
     )
 
     # update state
