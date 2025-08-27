@@ -15,9 +15,9 @@ import {
 } from "../../../@types/log";
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { Preformatted } from "../../../components/Preformatted";
 import { isJson } from "../../../utils/json";
+
+import { RenderedText } from "../../content/RenderedText";
 import { ContentDataView } from "./content-data/ContentDataView";
 import { ContentDocumentView } from "./documents/ContentDocumentView";
 import { JsonMessageContent } from "./JsonMessageContent";
@@ -67,7 +67,6 @@ export const MessageContent: FC<MessageContentProps> = ({
   contents,
   context,
 }) => {
-  const display = "raw";
   const normalized = normalizeContent(contents);
   if (Array.isArray(normalized)) {
     return normalized.map((content, index) => {
@@ -83,7 +82,6 @@ export const MessageContent: FC<MessageContentProps> = ({
           },
           index === contents.length - 1,
           context,
-          display,
         );
       } else {
         if (content) {
@@ -94,7 +92,6 @@ export const MessageContent: FC<MessageContentProps> = ({
               content,
               index === contents.length - 1,
               context,
-              display,
             );
           } else {
             console.error(`Unknown message content type '${content.type}'`);
@@ -116,7 +113,6 @@ export const MessageContent: FC<MessageContentProps> = ({
       contentText,
       true,
       context,
-      display,
     );
   }
 };
@@ -127,13 +123,12 @@ interface MessageRenderer {
     content: ContentType,
     isLast: boolean,
     context: MessagesContext,
-    display: "rendered" | "raw",
   ) => ReactNode;
 }
 
 const messageRenderers: Record<string, MessageRenderer> = {
   text: {
-    render: (key, content, isLast, _context, display) => {
+    render: (key, content, isLast, _context) => {
       // The context provides a way to share context between different
       // rendering. In this case, we'll use it to keep track of citations
       const c = content as ContentText;
@@ -160,15 +155,11 @@ const messageRenderers: Record<string, MessageRenderer> = {
       } else {
         return (
           <>
-            {display === "rendered" ? (
-              <MarkdownDiv
-                key={key}
-                markdown={purgeInternalContainers(c.text) || ""}
-                className={isLast ? "no-last-para-padding" : ""}
-              />
-            ) : (
-              <Preformatted text={c.text || ""} />
-            )}
+            <RenderedText
+              key={key}
+              markdown={purgeInternalContainers(c.text) || ""}
+              className={isLast ? "no-last-para-padding" : ""}
+            />
             {c.citations ? (
               <MessageCitations citations={c.citations as Citation[]} />
             ) : undefined}
@@ -178,7 +169,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
     },
   },
   reasoning: {
-    render: (key, content, isLast, _context, display) => {
+    render: (key, content, isLast, _context) => {
       const r = content as ContentReasoning;
       if (!r.reasoning && !r.redacted) {
         return undefined;
@@ -198,18 +189,14 @@ const messageRenderers: Record<string, MessageRenderer> = {
             Reasoning
           </div>
           <ExpandablePanel id={`${key}-reasoning`} collapse={true}>
-            {display === "rendered" ? (
-              <MarkdownDiv markdown={text} />
-            ) : (
-              <Preformatted text={text} />
-            )}
+            <RenderedText markdown={text} />{" "}
           </ExpandablePanel>
         </div>
       );
     },
   },
   image: {
-    render: (key, content, _isLast, _context, _display) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentImage;
       if (c.image.startsWith("data:")) {
         return <img src={c.image} className={styles.contentImage} key={key} />;
@@ -219,7 +206,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
     },
   },
   audio: {
-    render: (key, content, _isLast, _context, _display) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentAudio;
       return (
         <audio controls key={key}>
@@ -229,7 +216,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
     },
   },
   video: {
-    render: (key, content, _isLast, _context, _display) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentVideo;
       return (
         <video width="500" height="375" controls key={key}>
@@ -239,27 +226,27 @@ const messageRenderers: Record<string, MessageRenderer> = {
     },
   },
   tool: {
-    render: (key, content, _isLast, _context, _display) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentTool;
       return <ToolOutput output={c.content} key={key} />;
     },
   },
   // server-side tool use
   tool_use: {
-    render: (key, content, _isLast, _context, _display) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentToolUse;
       // If the tool use has a tool, render it
       return <ServerToolCall id={key} content={c} />;
     },
   },
   data: {
-    render: (key, content, _isLast, _context, _display) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentData;
       return <ContentDataView id={key} contentData={c} />;
     },
   },
   document: {
-    render: (key, content, _isLast, _context, _display) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentDocument;
       return <ContentDocumentView id={key} document={c} />;
     },

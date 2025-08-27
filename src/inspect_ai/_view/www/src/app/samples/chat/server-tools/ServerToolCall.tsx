@@ -12,16 +12,21 @@ import styles from "./ServerToolCall.module.css";
 interface ServerToolCallProps {
   id?: string;
   content: ContentToolUse;
+  className?: string | string[];
 }
 
 /**
  * Renders the ToolOutput component.
  */
-export const ServerToolCall: FC<ServerToolCallProps> = ({ id, content }) => {
-  return <McpToolUse id={id} content={content} />;
+export const ServerToolCall: FC<ServerToolCallProps> = ({
+  id,
+  content,
+  className,
+}) => {
+  return <McpToolUse id={id} content={content} className={className} />;
 };
 
-const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
+const McpToolUse: FC<ServerToolCallProps> = ({ id, content, className }) => {
   // Resolve the arguments from the content
   const args = resolveArgs(content);
 
@@ -30,7 +35,7 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
     : `${content.name}()`;
 
   return (
-    <div id={id} className={clsx(styles.mcpToolUse)}>
+    <div id={id} className={clsx(styles.mcpToolUse, className)}>
       <div
         className={clsx(
           styles.title,

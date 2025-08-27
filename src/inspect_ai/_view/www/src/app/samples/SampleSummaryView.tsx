@@ -1,12 +1,12 @@
 import clsx from "clsx";
 import { EvalSample, Target, TotalTime, WorkingTime } from "../../@types/log";
-import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { arrayToString, formatTime, inputString } from "../../utils/format";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../client/api/types";
 import { useSampleDescriptor, useScore } from "../../state/hooks";
+import { RenderedText } from "../content/RenderedText";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
@@ -117,7 +117,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
 
   columns.push({
     label: "Input",
-    value: <MarkdownDiv markdown={fields.input.join(" ")} />,
+    value: <RenderedText markdown={fields.input.join(" ")} />,
     size: `minmax(auto, 5fr)`,
     clamp: true,
   });
@@ -126,7 +126,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Target",
       value: (
-        <MarkdownDiv
+        <RenderedText
           markdown={arrayToString(fields?.target || "none")}
           className={clsx("no-last-para-padding", styles.target)}
         />
@@ -140,7 +140,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Answer",
       value: sample ? (
-        <MarkdownDiv
+        <RenderedText
           markdown={fields.answer || ""}
           className={clsx("no-last-para-padding", styles.answer)}
         />

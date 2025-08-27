@@ -56,6 +56,7 @@ export const ApplicationIcons = {
   config: "bi bi-gear",
   confirm: "bi bi-check",
   copy: "bi bi-copy",
+  display: "bi bi-card-text",
   epoch: (epoch: string) => {
     return `bi bi-${epoch}-circle`;
   },
@@ -100,6 +101,7 @@ export const ApplicationIcons = {
 
   next: "bi bi-chevron-right",
   noSamples: "bi bi-ban",
+  options: "bi bi-gear",
   play: "bi bi-play-fill",
   previous: "bi bi-chevron-left",
   refresh: "bi bi-arrow-clockwise",
