@@ -29,6 +29,6 @@ export default defineConfig({
     __LOGGING_FILTER__: JSON.stringify(
       process.env.DEV_LOGGING_NAMESPACES || "*",
     ),
-    __API_URL__: JSON.stringify(process.env.API_URL || ""),
+    __API_URL__: JSON.stringify(process.env.API_URL || "/api"),
   },
 });

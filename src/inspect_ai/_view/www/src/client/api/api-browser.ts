@@ -34,11 +34,11 @@ async function client_events() {
   const params = new URLSearchParams();
   params.append("loaded_time", String(loaded_time.valueOf()));
   params.append("last_eval_time", String(last_eval_time.valueOf()));
-  return (await api("GET", `/api/events?${params.toString()}`)).parsed;
+  return (await api("GET", `/events?${params.toString()}`)).parsed;
 }
 
 async function eval_logs() {
-  const logs = await api("GET", `/api/logs`);
+  const logs = await api("GET", `/logs`);
   last_eval_time = Date.now();
   return logs.parsed;
 }
@@ -50,18 +50,18 @@ async function eval_log(
 ): Promise<LogContents> {
   return await api(
     "GET",
-    `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`,
+    `/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`,
   );
 }
 
 async function eval_log_size(file: string): Promise<number> {
-  return (await api("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
+  return (await api("GET", `/log-size/${encodeURIComponent(file)}`)).parsed;
 }
 
 async function eval_log_bytes(file: string, start: number, end: number) {
   return await api_bytes(
     "GET",
-    `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
+    `/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
   );
 }
 
@@ -70,7 +70,7 @@ async function eval_log_headers(files: string[]) {
   for (const file of files) {
     params.append("file", file);
   }
-  return (await api("GET", `/api/log-headers?${params.toString()}`)).parsed;
+  return (await api("GET", `/log-headers?${params.toString()}`)).parsed;
 }
 
 async function eval_pending_samples(
@@ -113,7 +113,7 @@ async function eval_pending_samples(
   const result = (
     await apiRequest<PendingSampleResponse>(
       "GET",
-      `/api/pending-samples?${params.toString()}`,
+      `/pending-samples?${params.toString()}`,
       request,
     )
   ).parsed;
@@ -166,7 +166,7 @@ async function eval_log_sample_data(
   const result = (
     await apiRequest<SampleDataResponse>(
       "GET",
-      `/api/pending-sample-data?${params.toString()}`,
+      `/pending-sample-data?${params.toString()}`,
       request,
     )
   ).parsed;
@@ -192,7 +192,7 @@ async function log_message(log_file: string, message: string) {
   };
   await apiRequest<void>(
     "GET",
-    `/api/log-message?${params.toString()}`,
+    `/log-message?${params.toString()}`,
     request,
   );
 }
