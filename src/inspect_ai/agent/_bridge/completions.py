@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from shortuuid import uuid
 
-from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai_convert import messages_from_openai
@@ -16,7 +16,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model, sync_previous_message_ids
+from .util import apply_message_ids, resolve_inspect_model
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -31,7 +31,7 @@ logger = getLogger(__file__)
 
 async def inspect_completions_api_request(
     json_data: dict[str, Any],
-    state: AgentState | None = None,
+    bridge: AgentBridge,
 ) -> "ChatCompletion":
     validate_openai_client("agent bridge")
 
@@ -60,9 +60,7 @@ async def inspect_completions_api_request(
         config.system_message = None
 
     # try to maintain id stability
-    is_default_model = bridge_model_name == "inspect"
-    if state and is_default_model:
-        sync_previous_message_ids(state.messages, input)
+    apply_message_ids(bridge, input)
 
     # read openai tools and tool choice
     openai_tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
@@ -80,9 +78,9 @@ async def inspect_completions_api_request(
     )
 
     # update state
-    if state and is_default_model:
-        state.messages = input + [output.message]
-        state.output = output
+    if bridge_model_name == "inspect":
+        bridge.state.messages = input + [output.message]
+        bridge.state.output = output
 
     # inspect completion to openai completion
     return ChatCompletion(

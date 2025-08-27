@@ -51,7 +51,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -111,7 +111,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model, sync_previous_message_ids
+from .util import apply_message_ids, resolve_inspect_model
 
 logger = getLogger(__file__)
 
@@ -119,7 +119,7 @@ logger = getLogger(__file__)
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     web_search: WebSearchProviders,
-    state: AgentState | None = None,
+    bridge: AgentBridge,
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
@@ -152,9 +152,7 @@ async def inspect_responses_api_request_impl(
         config.system_message = None
 
     # try to maintain id stability
-    is_default_model = bridge_model_name == "inspect"
-    if state and is_default_model:
-        sync_previous_message_ids(state.messages, messages)
+    apply_message_ids(bridge, messages)
 
     # run inference
     output = await model.generate(
@@ -165,9 +163,9 @@ async def inspect_responses_api_request_impl(
     )
 
     # update state
-    if state and is_default_model:
-        state.messages = messages + [output.message]
-        state.output = output
+    if bridge_model_name == "inspect":
+        bridge.state.messages = messages + [output.message]
+        bridge.state.output = output
 
     debug_log("INSPECT OUTPUT", output.message)
 
