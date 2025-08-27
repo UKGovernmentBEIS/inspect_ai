@@ -395,7 +395,7 @@ async def _web_browser_cmd(
     # TODO: Is it worth it to plumb this down from the @tool?
     timeout = 180
     try:
-        sandbox_env = await tool_support_sandbox()
+        sandbox_env = await tool_support_sandbox(with_web_browser=True)
     except PrerequisiteError as e:
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.
