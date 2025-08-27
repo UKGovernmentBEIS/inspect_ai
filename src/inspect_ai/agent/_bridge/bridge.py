@@ -11,6 +11,7 @@ from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
@@ -29,14 +30,6 @@ from .util import (
     internal_web_search_providers,
     resolve_web_search_providers,
 )
-
-
-@dataclass
-class AgentBridge:
-    """Agent bridge."""
-
-    state: AgentState
-    """State updated from messages traveling over the bridge."""
 
 
 @contextlib.asynccontextmanager
@@ -82,12 +75,15 @@ async def agent_bridge(
     # create a state value that will be used to track mesages going over the bridge
     state = AgentState(messages=state.messages.copy() if state else [])
 
+    # create the bridge
+    bridge = AgentBridge(state)
+
     # set the patch config for this context and child coroutines
     token = _patch_config.set(
-        PatchConfig(enabled=True, web_search=web_search, state=state)
+        PatchConfig(enabled=True, web_search=web_search, bridge=bridge)
     )
     try:
-        yield AgentBridge(state)
+        yield bridge
     finally:
         _patch_config.reset(token)
 
@@ -101,7 +97,9 @@ class PatchConfig:
     web_search: WebSearchProviders = field(
         default_factory=internal_web_search_providers
     )
-    state: AgentState | None = field(default=None)
+    bridge: AgentBridge = field(
+        default_factory=lambda: AgentBridge(AgentState(messages=[]))
+    )
 
 
 _patch_config: ContextVar[PatchConfig] = ContextVar(
@@ -155,11 +153,11 @@ def init_openai_request_patch() -> None:
 
                 if options.url == "/chat/completions":
                     return await inspect_completions_api_request(
-                        json_data, config.state
+                        json_data, config.bridge
                     )
                 else:
                     return await inspect_responses_api_request(
-                        json_data, config.web_search, config.state
+                        json_data, config.web_search, config.bridge
                     )
 
         # otherwise just delegate

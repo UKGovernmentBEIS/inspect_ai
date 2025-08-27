@@ -476,7 +476,6 @@ def _chat_message_assistant_from_openai_response(
 
     return (
         ChatMessageAssistant(
-            id=response.id,
             content=message_content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
             model=model,
