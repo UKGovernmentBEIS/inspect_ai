@@ -54,6 +54,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
     >
       <div className={clsx(styles.messageGrid, "text-style-label")}>
         {message.role}
+        {message.role === "tool" ? `: ${message.function}` : ""}
         {supportsLinking() && messageUrl ? (
           <CopyButton
             icon={ApplicationIcons.link}

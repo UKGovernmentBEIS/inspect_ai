@@ -15886,6 +15886,9 @@ pre[class*="language-"] {
   max-height: 200px;
   object-fit: cover;
 }
+._jsonMessage_4pkcz_1 {
+  border-top: solid 1px var(--bs-border-color);
+}
 ._citations_t2k1z_1 {
   margin-top: 1em;
   margin-bottom: 1em;
