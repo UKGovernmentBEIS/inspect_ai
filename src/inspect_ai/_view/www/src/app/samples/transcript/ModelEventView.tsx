@@ -22,6 +22,7 @@ import { EventSection } from "./event/EventSection";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { usePrismHighlight } from "../../../state/hooks";
 import styles from "./ModelEventView.module.css";
+import { EventNodeContext } from "./TranscriptVirtualList";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
@@ -30,6 +31,7 @@ interface ModelEventViewProps {
   eventNode: EventNode<ModelEvent>;
   className?: string | string[];
   showToolCalls: boolean;
+  context?: EventNodeContext;
 }
 
 /**
@@ -39,6 +41,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   eventNode,
   showToolCalls,
   className,
+  context,
 }) => {
   const event = eventNode.event;
   const totalUsage = event.output.usage?.total_tokens;
@@ -58,7 +61,14 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   // are already shown in the tool call above)
   const userMessages = [];
   for (const msg of event.input.slice().reverse()) {
-    if ((msg.role === "user" && !msg.tool_call_id) || msg.role === "system") {
+    if (
+      (msg.role === "user" && !msg.tool_call_id) ||
+      msg.role === "system" ||
+      // If the client doesn't support tool events, then tools messages are allowed to be displayed
+      // in this view, since no tool events will be shown. This pretty much happens for bridged agents
+      // where tool events aren't captured.
+      (context?.hasToolEvents === false && msg.role === "tool")
+    ) {
       userMessages.push(msg);
     } else {
       break;
@@ -84,6 +94,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           messages={[...userMessages, ...(outputMessages || [])]}
           numbered={false}
           toolCallStyle={showToolCalls ? "complete" : "omit"}
+          resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
         />
         {event.pending ? (
           <div className={clsx(styles.progress)}>
@@ -122,6 +133,9 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           <ChatView
             id={`${eventNode.id}-model-input-full`}
             messages={[...event.input, ...(outputMessages || [])]}
+            resolveToolCallsIntoPreviousMessage={
+              context?.hasToolEvents !== false
+            }
           />
         </EventSection>
       </div>
