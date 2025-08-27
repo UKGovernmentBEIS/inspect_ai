@@ -133,7 +133,7 @@ def _get_tool_support_version() -> str:
         # Try to read from the package first
         with (
             importlib.resources.files("inspect_ai.tool")
-            .joinpath("tool_support_version.txt")
+            .joinpath("tool_support/VERSION.txt")
             .open() as f
         ):
             return f.read().strip()
@@ -141,7 +141,7 @@ def _get_tool_support_version() -> str:
         # Fallback: try to read from filesystem for git/editable installs
         try:
             package_path = Path(inspect_ai.__file__).parent
-            version_file = package_path / "tool" / "_tool_support_version.txt"
+            version_file = package_path / "tool" / "tool_support" / "VERSION.txt"
             if version_file.exists():
                 return version_file.read_text().strip()
         except Exception:
@@ -307,7 +307,7 @@ def _check_for_changes() -> Literal["main", "edited"]:
         # Check for staged or unstaged changes to relevant paths
         paths_to_check = [
             "src/inspect_tool_support",
-            "tool_support_version.txt",
+            "VERSION.txt",
         ]
 
         for path in paths_to_check:

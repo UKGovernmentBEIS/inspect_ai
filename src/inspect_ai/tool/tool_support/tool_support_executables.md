@@ -48,16 +48,16 @@ The following sections detail how these stakeholders interact in the publishing 
 
 When a **developer** makes any changes to `src/inspect_tool_support/`, the following is the process:
 
-1. **Developer** makes changes to `src/inspect_tool_support/` and bumps `tool_support_version.txt` file (e.g., 1 → 2)
+1. **Developer** makes changes to `src/inspect_tool_support/` and bumps `VERSION.txt` file (e.g., 1 → 2)
 2. **Developer** creates PR with code changes and version bump
-3. **GitHub Workflow `build_tool_support.yml`** detects `tool_support_version.txt` change in PR and automatically rebuilds on every push to the PR branch:
+3. **GitHub Workflow `build_tool_support.yml`** detects `VERSION.txt` change in PR and automatically rebuilds on every push to the PR branch:
    - Builds executables for both architectures using `build_within_container.py --all` from the latest commit
    - Stores as workflow artifacts, overwriting previous executables:
      - `inspect-tool-support-amd64-v2`
      - `inspect-tool-support-arm64-v2`
    - Comments on PR with build status and link to Actions artifacts
    - Sets PR status check (blocks merge if build fails)
-   - **Only triggers for PRs - ensures all `tool_support_version.txt` changes go through review process**
+   - **Only triggers for PRs - ensures all `VERSION.txt` changes go through review process**
    - **Ensures promoted executables are built from the final commit state**
 4. **Repository Maintainer** reviews PR, code changes, and downloads artifacts from Actions tab for testing
 5. **Repository Maintainer** manually triggers `promote_tool_support.yml` workflow (specifies PR number or workflow run):
@@ -76,7 +76,7 @@ For **Repository Maintainers** preparing PyPI releases:
 
 1. **Repository Maintainer** checks out the commit that will be published
 1. **Repository Maintainer** runs `download-tool-support.sh` script:
-   - Script reads version from `tool_support_version.txt`
+   - Script reads version from `VERSION.txt`
    - Downloads proper executables for both architectures from S3
    - No credentials needed (S3 objects are world-readable)
    - Places executables into `binaries` directory
@@ -101,7 +101,7 @@ The on-demand retrieval system handles these installation types:
    - Returns architecture (amd64/arm64) along with OS information
 
 2. **Version Resolution**
-   - Read required version from `tool_support_version.txt`
+   - Read required version from `VERSION.txt`
    - Build versioned executable name: `inspect-tool-support-{arch}-v{version}`
 
 3. **Resolve Required Executable**
@@ -118,7 +118,7 @@ The on-demand retrieval system handles these installation types:
       - Download URL: `s3://inspect-tool-support/inspect-tool-support-{arch}-v{version}`
       - Save to `binaries/` directory
       - If download successful → **DONE**
-      - **Note**: Download failure is expected when developers have bumped `tool_support_version.txt` but the new version hasn't been promoted to S3 yet. Simply proceed to local build without warning the user about the "failure"
+      - **Note**: Download failure is expected when developers have bumped `VERSION.txt` but the new version hasn't been promoted to S3 yet. Simply proceed to local build without warning the user about the "failure"
 
    3.3. **User Build Prompt**
       - If S3 download fails, prompt user: "Executable not found. Build locally? (requires Docker)"
@@ -141,7 +141,7 @@ The following components implement this publishing and retrieval system:
 
 ### Code Components
 
-#### `tool_support_version.txt`
+#### `VERSION.txt`
 
 Contains the version. Could be enhanced to also contain the fingerprint.
 
@@ -151,15 +151,15 @@ Public API function that orchestrates the entire retrieval process as detailed i
 
 #### `build-tool-support.yml`
 
- A GitHub workflow (configured to run on pushes to a PR branch) will notice `tool_support_version.txt` bump and will include a gated CI step to build `inspect-tool-support-amd64-v2` into action artifact
+ A GitHub workflow (configured to run on pushes to a PR branch) will notice `VERSION.txt` bump and will include a gated CI step to build `inspect-tool-support-amd64-v2` into action artifact
 
 **Triggers:**
-- PR opened/updated with changes to `tool_support_version.txt` (PRs only)
-- Every subsequent push to a PR branch with `tool_support_version.txt` changes (ensures latest commit)
+- PR opened/updated with changes to `VERSION.txt` (PRs only)
+- Every subsequent push to a PR branch with `VERSION.txt` changes (ensures latest commit)
 
 **Jobs:**
 1. **Version Detection**
-   - Extract old/new version from `tool_support_version.txt` file
+   - Extract old/new version from `VERSION.txt` file
    - Skip if version unchanged
    - Validate version format (simple integer)
 2. **Multi-Architecture Build**
@@ -215,4 +215,4 @@ These components require specific security measures and access controls:
 ## Potential Enhancements
 
 1. **Automatic Version Detection**: Detect when any changes have been made to `src/inspect_tool_support` and warn about (or make) the version bump
-2. **Verifiable Executables**: The `tool_support_version.txt` file could be enhanced to include the fingerprint of the executable which could be validated prior to injection
+2. **Verifiable Executables**: The `VERSION.txt` file could be enhanced to include the fingerprint of the executable which could be validated prior to injection

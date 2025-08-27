@@ -22,7 +22,7 @@ where = ["src"]
 include = ["inspect_ai*"]
 
 [tool.setuptools.package-data]
-inspect_ai = ["binaries/*", "tool/tool_support_version.txt"]
+inspect_ai = ["binaries/*", "tool/tool_support/VERSION.txt"]
 
 
 [tool.ruff]

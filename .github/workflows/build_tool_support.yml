@@ -23,7 +23,7 @@
 
 #   - Without this setting: The workflow runs and reports status,
 #   but PRs can still be merged even if builds fail
-#   - With this setting: PRs with tool_support_version.txt changes
+#   - With this setting: PRs with VERSION.txt changes
 #    cannot be merged until the build-tool-support status check
 #   passes
 
@@ -38,7 +38,7 @@
 name: Build Tool Support
 
 # TRIGGER MECHANISM:
-# This workflow only runs when PRs modify tool_support_version.txt. The 'paths' filter
+# This workflow only runs when PRs modify VERSION.txt. The 'paths' filter
 # ensures builds are triggered ONLY when this specific file changes, preventing
 # unnecessary builds for unrelated code changes. This approach:
 # 1. Conserves CI resources by avoiding builds when tool support code is unchanged
@@ -47,14 +47,14 @@ name: Build Tool Support
 on:
   pull_request:
     paths:
-      # Only trigger when tool_support_version.txt is modified
-      - "src/inspect_ai/tool/tool_support_version.txt"
+      # Only trigger when VERSION.txt is modified
+      - "src/inspect_ai/tool/tool_support/VERSION.txt"
     branches:
       - main
 
 jobs:
   # VERSION CHANGE DETECTION:
-  # This job compares tool_support_version.txt between the PR branch and base branch.
+  # This job compares VERSION.txt between the PR branch and base branch.
   # Even though the workflow only triggers when this file changes, we still need to:
   # 1. Extract the actual version numbers for artifact naming
   # 2. Validate the new version format is correct (simple integer)
@@ -77,11 +77,11 @@ jobs:
         id: check-version
         run: |
           # Get the current version from the PR branch
-          NEW_VERSION=$(cat src/inspect_ai/tool/tool_support_version.txt)
+          NEW_VERSION=$(cat src/inspect_ai/tool/tool_support/VERSION.txt)
 
           # Get the version from the base branch
           git checkout ${{ github.event.pull_request.base.sha }}
-          OLD_VERSION=$(cat src/inspect_ai/tool/tool_support_version.txt)
+          OLD_VERSION=$(cat src/inspect_ai/tool/tool_support/VERSION.txt)
 
           # Switch back to PR branch
           git checkout ${{ github.event.pull_request.head.sha }}

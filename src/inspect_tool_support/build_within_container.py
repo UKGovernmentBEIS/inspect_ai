@@ -14,8 +14,8 @@ def get_script_dir() -> Path:
 
 
 def read_version() -> str:
-    """Read version from tool_support_version.txt."""
-    version_file = Path("../inspect_ai/tool/tool_support_version.txt")
+    """Read version from VERSION.txt."""
+    version_file = Path("../inspect_ai/tool/tool_support/VERSION.txt")
     try:
         return version_file.read_text().strip()
     except FileNotFoundError:

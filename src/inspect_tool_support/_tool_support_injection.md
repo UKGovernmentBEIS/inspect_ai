@@ -142,13 +142,13 @@ Mechanism for `tool_support_sandbox` to obtain appropriate executables varies by
 The solution involves a versioned artifact system that publishes executables only when the underlying tool support code changes, ensuring efficiency while maintaining immediate availability.
 
 **Architecture:**
-- **Version File**: Single ordinal version number (e.g., `1`, `2`, `3`) stored in `src/inspect_ai/tool/tool_support_version.txt` 
+- **Version File**: Single ordinal version number (e.g., `1`, `2`, `3`) stored in `src/inspect_ai/tool/tool_support/VERSION.txt` 
 - **Artifact Naming**: `inspect-tool-support-{arch}-v{N}` (e.g., `inspect-tool-support-amd64-v5`)
 - **Hosting**: GitHub Releases for native repo integration and programmatic access
 - **Download Logic**: Enhanced `_go_get_it()` function downloads versioned executable matching the version file
 
 **Publishing Workflow:**
-1. **Manual Version Bump**: Developer increments version number in `tool_support_version.txt` file when `src/inspect_tool_support` code changes
+1. **Manual Version Bump**: Developer increments version number in `VERSION.txt` file when `src/inspect_tool_support` code changes
 2. **Pre-Merge Build**: GitHub Actions detects version change and builds/publishes artifacts to GitHub Releases
 3. **Merge Gating**: PR merge only proceeds after successful artifact publication  
 4. **Immediate Availability**: Post-merge, the code immediately references newly available artifacts
