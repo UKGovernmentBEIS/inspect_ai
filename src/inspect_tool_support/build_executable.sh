@@ -40,6 +40,7 @@ cd /tmp/inspect_tool_support-copy
 
 echo "Installing package..."
 pip install .
+PLAYWRIGHT_BROWSERS_PATH=0 playwright playwright install --with-deps chromium
 
 echo "Building with PyInstaller (bundling all Python dependencies)..."
 pyinstaller \

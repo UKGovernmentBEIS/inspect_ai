@@ -10,6 +10,7 @@ from rich.prompt import Prompt
 
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.tool._tool_support_build_config import BuildConfig, config_to_filename
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox._recon import Architecture, detect_sandbox_os
@@ -86,7 +87,10 @@ async def _open_executable_for_arch(
 
     print(f"{install_state=}")
 
-    executable_name = _get_versioned_executable_name(arch, install_state == "edited")
+    # TODO: Pass browser argument appropriately if/when needed
+    executable_name = _get_executable_name(
+        arch, install_state == "edited", browser=False
+    )
 
     # 3.1. Local Executable Check
     try:
@@ -147,13 +151,15 @@ def _get_tool_support_version() -> str:
         return "1"
 
 
-def _get_versioned_executable_name(arch: Architecture, dev: bool) -> str:
-    """Get the base versioned executable name for the given architecture.
-
-    This returns the production/S3 executable name. Development executables
-    are created by appending "-dev" to this base name.
-    """
-    return f"inspect-tool-support-{arch}-v{_get_tool_support_version()}{'-dev' if dev else ''}"
+def _get_executable_name(arch: Architecture, dev: bool, browser: bool) -> str:
+    return config_to_filename(
+        BuildConfig(
+            arch=arch,
+            version=int(_get_tool_support_version()),
+            browser=browser,
+            suffix="dev" if dev else None,
+        )
+    )
 
 
 async def _download_from_s3(filename: str, arch: Architecture) -> bool:
