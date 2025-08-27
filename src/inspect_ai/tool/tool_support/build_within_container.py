@@ -72,7 +72,11 @@ def run_docker_build(platform: str, image_name: str, dockerfile: str) -> None:
 
 
 def run_docker_container(
-    platform: str, arch_suffix: str, image_name: str, version: str, browser: bool = False
+    platform: str,
+    arch_suffix: str,
+    image_name: str,
+    version: str,
+    browser: bool = False,
 ) -> None:
     """Run the Docker container to build the executable."""
     print("Starting container and building executable...")
@@ -90,11 +94,15 @@ def run_docker_container(
 
     # Validate arch_suffix for BuildConfig
     if arch_suffix not in ["amd64", "arm64"]:
-        raise ValueError(f"Unexpected architecture suffix '{arch_suffix}'. Only 'amd64' and 'arm64' are supported.")
+        raise ValueError(
+            f"Unexpected architecture suffix '{arch_suffix}'. Only 'amd64' and 'arm64' are supported."
+        )
 
     # Validate suffix for BuildConfig
     if suffix is not None and suffix != "dev":
-        raise ValueError(f"Unexpected version suffix '{suffix}'. Only 'dev' is supported.")
+        raise ValueError(
+            f"Unexpected version suffix '{suffix}'. Only 'dev' is supported."
+        )
 
     # Type annotations for BuildConfig literals
     arch: Literal["amd64", "arm64"] = arch_suffix  # type: ignore
@@ -136,7 +144,9 @@ def main() -> None:
         "--arch", choices=["amd64", "arm64"], help="Build for specific architecture"
     )
     parser.add_argument(
-        "--all", action="store_true", help="Build for all architectures and browser variants (amd64/arm64 × browser/no-browser)"
+        "--all",
+        action="store_true",
+        help="Build for all architectures and browser variants (amd64/arm64 × browser/no-browser)",
     )
     parser.add_argument(
         "--dev",
@@ -177,7 +187,9 @@ def main() -> None:
                         cmd.append("--dev=false")
                     if browser:
                         cmd.append("--browser")
-                    print(f"Building {arch} {'with browser' if browser else 'without browser'}...")
+                    print(
+                        f"Building {arch} {'with browser' if browser else 'without browser'}..."
+                    )
                     subprocess.run(cmd, check=True)
             return
 

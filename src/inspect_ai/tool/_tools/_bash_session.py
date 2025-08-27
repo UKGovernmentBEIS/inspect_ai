@@ -3,15 +3,15 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Discriminator, Field, RootModel
 
 from inspect_ai.tool import ToolResult
-from inspect_ai.util import StoreModel, store_as
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
-
-from .._tool import Tool, ToolParsingError, tool
-from .._tool_support_helpers import (
+from inspect_ai.tool.tool_support._tool_support_helpers import (
     exec_model_request,
     exec_scalar_request,
     tool_support_sandbox,
 )
+from inspect_ai.util import StoreModel, store_as
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+
+from .._tool import Tool, ToolParsingError, tool
 
 # These models are cloned from the container code. If/when we decide to create
 # a package that is shared between the inspect and tool-container codebases, we'll

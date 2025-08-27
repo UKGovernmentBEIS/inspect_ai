@@ -7,11 +7,11 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
-from inspect_ai.tool._tool_support_helpers import (
+from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.tool.tool_support._tool_support_helpers import (
     exec_model_request,
     tool_support_sandbox,
 )
-from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._store_model import StoreModel, store_as
 
 from ._back_compat import old_web_browser_cmd

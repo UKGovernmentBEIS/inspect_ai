@@ -7,11 +7,14 @@ It includes definitions for JSON-RPC request and response models, as well as fun
 from typing import Type
 
 from inspect_ai.tool._tool import ToolError
-from inspect_ai.tool._tool_support_sandbox import SANDBOX_CLI, inject_tool_support_code
+from inspect_ai.tool.tool_support._tool_support_sandbox import (
+    SANDBOX_CLI,
+    inject_tool_support_code,
+)
 from inspect_ai.util._sandbox.context import sandbox_with_injection
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-from ._json_rpc_helpers import (
+from .._json_rpc_helpers import (
     BaseModelT,
     JSONRPCParamsType,
     JSONRPCServerErrorMapper,
@@ -20,9 +23,9 @@ from ._json_rpc_helpers import (
     _rpc_call_description,
     create_json_rpc_request,
 )
-from ._json_rpc_helpers import exec_model_request as model_request
-from ._json_rpc_helpers import exec_notification as notification_helper
-from ._json_rpc_helpers import exec_scalar_request as scalar_request
+from .._json_rpc_helpers import exec_model_request as model_request
+from .._json_rpc_helpers import exec_notification as notification_helper
+from .._json_rpc_helpers import exec_scalar_request as scalar_request
 
 
 async def exec_scalar_request(

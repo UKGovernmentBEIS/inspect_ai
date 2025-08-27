@@ -53,7 +53,9 @@ def main() -> None:
             env = os.environ.copy()
             env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
             subprocess.run(
-                ["playwright", "install", "--with-deps", "chromium"], env=env, check=True
+                ["playwright", "install", "--with-deps", "chromium-headless-shell"],
+                env=env,
+                check=True,
             )
         else:
             print("Skipping playwright installation (browser support disabled)")
