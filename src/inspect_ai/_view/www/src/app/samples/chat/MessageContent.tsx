@@ -16,8 +16,10 @@ import {
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
+import { isJson } from "../../../utils/json";
 import { ContentDataView } from "./content-data/ContentDataView";
 import { ContentDocumentView } from "./documents/ContentDocumentView";
+import { JsonMessageContent } from "./JsonMessageContent";
 import { MessageCitations } from "./MessageCitations";
 import styles from "./MessageContent.module.css";
 import { MessagesContext } from "./MessageContents";
@@ -146,18 +148,23 @@ const messageRenderers: Record<string, MessageRenderer> = {
         return text.trim();
       };
 
-      return (
-        <>
-          <MarkdownDiv
-            key={key}
-            markdown={purgeInternalContainers(c.text) || ""}
-            className={isLast ? "no-last-para-padding" : ""}
-          />
-          {c.citations ? (
-            <MessageCitations citations={c.citations as Citation[]} />
-          ) : undefined}
-        </>
-      );
+      if (isJson(c.text)) {
+        const obj = JSON.parse(c.text);
+        return <JsonMessageContent id={`${key}-json`} json={obj} />;
+      } else {
+        return (
+          <>
+            <MarkdownDiv
+              key={key}
+              markdown={purgeInternalContainers(c.text) || ""}
+              className={isLast ? "no-last-para-padding" : ""}
+            />
+            {c.citations ? (
+              <MessageCitations citations={c.citations as Citation[]} />
+            ) : undefined}
+          </>
+        );
+      }
     },
   },
   reasoning: {
