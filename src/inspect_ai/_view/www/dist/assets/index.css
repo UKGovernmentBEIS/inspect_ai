@@ -15825,6 +15825,9 @@ pre[class*="language-"] {
 ._metadataLabel_1ivu3_39 {
   padding-top: 1em;
 }
+._content_13ihw_1 {
+  white-space: pre-wrap;
+}
 ._webSearch_1376z_1 {
   display: grid;
   grid-template-columns: max-content 1fr;
