@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._web_search._web_search import (
-    Providers,
+    WebSearchProviders,
     _create_external_provider,
     _normalize_config,
     web_search,
@@ -122,7 +122,7 @@ class TestNormalizeConfig:
     def test_direct_providers_dict(self) -> None:
         """Test passing a Providers dict directly."""
         # Copy the dict to avoid modification
-        providers_dict: Providers = {"google": {}}
+        providers_dict: WebSearchProviders = {"google": {}}
         result = _normalize_config(providers_dict)
         assert result == providers_dict
 

@@ -554,6 +554,13 @@ export const useSamplePopover = (id: string) => {
   return {
     show,
     hide,
+    setShowing: (shouldShow: boolean) => {
+      if (shouldShow) {
+        show();
+      } else {
+        hide();
+      }
+    },
     isShowing,
   };
 };

@@ -33,7 +33,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
-from ._util import thin_input, thin_metadata
+from ._util import thin_input, thin_metadata, thin_text
 
 logger = getLogger(__name__)
 
@@ -44,6 +44,7 @@ class EvalConfigDefaults(TypedDict):
     epochs: int
     epochs_reducer: list[str]
     fail_on_error: bool
+    continue_on_fail: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -56,6 +57,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs": 1,
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
+        "continue_on_fail": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -94,6 +96,13 @@ class EvalConfig(BaseModel):
     fail on sample errors; Value between 0 and 1 to fail if a proportion
     of total samples fails. Value greater than 1 to fail eval if a count
     of samples fails.
+    """
+
+    continue_on_fail: bool | None = Field(default=None)
+    """Continue eval even if the `fail_on_error` condition is met.
+
+    `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
+    `False` to fail eval immediately when the `fail_on_error` condition is met (default).
     """
 
     retry_on_error: int | None = Field(default=None)
@@ -229,7 +238,19 @@ class EvalSampleSummary(BaseModel):
         # thin score explanations and metadata
         if self.scores is not None:
             self.scores = {
-                key: Score(value=score.value) for key, score in self.scores.items()
+                key: Score(
+                    value=score.value,
+                    answer=thin_text(score.answer)
+                    if score.answer is not None
+                    else None,
+                    explanation=thin_text(score.explanation)
+                    if score.explanation is not None
+                    else None,
+                    metadata=thin_metadata(score.metadata)
+                    if score.metadata is not None
+                    else None,
+                )
+                for key, score in self.scores.items()
             }
         return self
 

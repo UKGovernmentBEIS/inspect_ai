@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from functools import reduce
+from typing import Any
+
+import numpy as np
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
@@ -44,6 +47,24 @@ def test_nan_simple_reducers() -> None:
     _test_simple_reducers_impl(include_nan=True)
 
 
+def test_all_nan_simple_reducers() -> None:
+    simple_scores = [
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+    ]
+
+    assert _is_nan(avg_reducer(simple_scores).value)
+    assert _is_nan(median_reducer(simple_scores).value)
+    assert _is_nan(mode_reducer(simple_scores).value)
+    assert _is_nan(max_reducer(simple_scores).value)
+    assert _is_nan(at_least_3_reducer(simple_scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(simple_scores).value)
+    assert _is_nan(pass_at_3_threshhold(simple_scores).value)
+    assert _is_nan(pass_at_5_no_threshhold(simple_scores).value)
+    assert _is_nan(pass_at_5_threshhold(simple_scores).value)
+
+
 def test_list_reducers() -> None:
     _test_list_reducers_impl(include_nan=False)
 
@@ -52,12 +73,64 @@ def test_nan_list_reducers() -> None:
     _test_list_reducers_impl(include_nan=True)
 
 
+def test_all_nan_list_reducers() -> None:
+    list_scores = [
+        Score(value=[float("nan"), float("nan")]),
+        Score(value=[float("nan"), float("nan")]),
+        Score(value=[float("nan"), float("nan")]),
+    ]
+
+    def assert_list_nan(x: Any) -> bool:
+        return isinstance(x, list) and all(_is_nan(v) for v in x)
+
+    reduced = avg_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = median_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = mode_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = max_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = at_least_3_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = pass_at_2_no_threshhold(list_scores).value
+    assert_list_nan(reduced)
+
+
 def test_dict_reducers() -> None:
     _test_dict_reducers_impl(include_nan=False)
 
 
 def test_nan_dict_reducers() -> None:
     _test_dict_reducers_impl(include_nan=True)
+
+
+def test_all_nan_dict_reducers() -> None:
+    dict_scores = [
+        Score(value={"coolness": float("nan"), "spiciness": float("nan")}),
+        Score(value={"coolness": float("nan"), "spiciness": float("nan")}),
+        Score(value={"coolness": float("nan"), "spiciness": float("nan")}),
+    ]
+
+    def assert_dict_nan(x: Any) -> bool:
+        return (
+            isinstance(x, dict)
+            and all(key in x for key in ["coolness", "spiciness"])
+            and all(_is_nan(v) for v in x.values())
+        )
+
+    reduced = avg_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = median_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = mode_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = max_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = at_least_3_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = pass_at_2_no_threshhold(dict_scores).value
+    assert_dict_nan(reduced)
 
 
 def test_reducer_preserve_metadata() -> None:
@@ -214,10 +287,27 @@ def eval_with_reducer():
     return eval(task, model="mockllm/model", epochs=Epochs(5, max_score()))[0]
 
 
+def eval_no_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    return eval(task, model="mockllm/model", epochs=Epochs(5, []))[0]
+
+
 def test_reducer_by_name():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=Epochs(5, "at_least_2"))[0]
     assert log.eval.config.epochs_reducer == ["at_least_2"]
+
+
+def test_no_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=Epochs(5, []))[0]
+    assert log.eval.config.epochs_reducer == []
+
+
+def test_default_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=4)[0]
+    assert log.eval.config.epochs_reducer == ["mean"]
 
 
 def test_eval_reducer():
@@ -231,6 +321,11 @@ def test_score_reducer():
 
     log = score(eval_with_reducer(), match(), [mode_score(), mean_score()])
     assert log.eval.config.epochs_reducer == ["mode", "mean"]
+
+
+def test_score_no_reducer():
+    log = score(eval_no_reducer(), match())
+    assert log.eval.config.epochs_reducer == []
 
 
 def test_main_reducer():
@@ -321,3 +416,7 @@ def _test_dict_reducers_impl(include_nan: bool = False) -> None:
     assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
     assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+
+
+def _is_nan(x: Any) -> bool:
+    return isinstance(x, float) and np.isnan(x)

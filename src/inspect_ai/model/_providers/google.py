@@ -41,6 +41,7 @@ from google.genai.types import (
     Type,
 )
 from pydantic import JsonValue
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
@@ -591,7 +592,7 @@ async def content(
 
     elif isinstance(message, ChatMessageTool):
         response = FunctionResponse(
-            name=message.tool_call_id,
+            name=message.function,
             response={
                 "content": (
                     message.error.message if message.error is not None else message.text
@@ -607,7 +608,11 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentReasoning):
-        return Part(text=content.reasoning or NO_CONTENT, thought=True)
+        return Part(
+            text=content.reasoning or NO_CONTENT,
+            thought=True,
+            thought_signature=content.signature.encode() if content.signature else None,
+        )
     elif isinstance(content, ContentData):
         raise RuntimeError("Google provider should never encounter ContentData")
     elif isinstance(content, ContentToolUse):
@@ -778,7 +783,12 @@ def completion_choice_from_candidate(
         )
 
         content = [
-            ContentReasoning(reasoning=part.text)
+            ContentReasoning(
+                reasoning=part.text,
+                signature=part.thought_signature.decode()
+                if part.thought_signature
+                else None,
+            )
             if part.thought is True
             else ContentText(
                 text=part.text, citations=get_candidate_citations(candidate)
@@ -799,7 +809,7 @@ def completion_choice_from_candidate(
                 ):
                     tool_calls.append(
                         ToolCall(
-                            id=part.function_call.name,
+                            id=f"{part.function_call.name}_{uuid()}",
                             function=part.function_call.name,
                             arguments=part.function_call.args,
                         )

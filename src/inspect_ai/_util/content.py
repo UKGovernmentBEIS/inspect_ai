@@ -54,7 +54,7 @@ class ContentToolUse(ContentBase):
     type: Literal["tool_use"] = Field(default="tool_use")
     """Type."""
 
-    tool_type: str
+    tool_type: Literal["web_search", "mcp_call"]
     """The type of the tool call."""
 
     id: str
@@ -66,10 +66,10 @@ class ContentToolUse(ContentBase):
     context: str | None = Field(default=None)
     """Tool context (e.g. MCP Server)"""
 
-    arguments: JsonValue
+    arguments: str
     """Arguments passed to the tool."""
 
-    result: JsonValue
+    result: str
     """Result from the tool call."""
 
     error: str | None = Field(default=None)

@@ -3,7 +3,8 @@ from ._as_solver import as_solver
 from ._as_tool import as_tool
 from ._bridge.bridge import agent_bridge, bridge
 from ._bridge.sandbox.bridge import SandboxAgentBridge, sandbox_agent_bridge
-from ._filter import MessageFilter, last_message, remove_tools
+from ._bridge.types import AgentBridge
+from ._filter import MessageFilter, content_only, last_message, remove_tools
 from ._handoff import handoff
 from ._human.agent import human_cli
 from ._react import react
@@ -25,7 +26,9 @@ __all__ = [
     "as_solver",
     "agent_bridge",
     "sandbox_agent_bridge",
+    "AgentBridge",
     "SandboxAgentBridge",
+    "content_only",
     "last_message",
     "remove_tools",
     "MessageFilter",

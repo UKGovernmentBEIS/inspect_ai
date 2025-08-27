@@ -203,15 +203,6 @@ async def messages_to_openai(
 ) -> list[ChatCompletionMessageParam]:
     """Convert messages to OpenAI Completions API compatible messages.
 
-    ::: callout-note
-    The `message_to_openai()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
-
     Args:
        messages: List of messages to convert
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
@@ -290,15 +281,13 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
                 if c.internal is not None:
-                    content = f"{content}\n<{CONTENT_INTERNAL_TAG}>{base64.b64encode(json.dumps(c.internal).encode('utf-8')).decode('utf-8')}</{CONTENT_INTERNAL_TAG}>"
+                    content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
 
-    if message.internal:
-        content = f"""{content}\n<{INTERNAL_TAG}>{
-            base64.b64encode(json.dumps(message.internal).encode("utf-8")).decode(
-                "utf-8"
-            )
-        }</{INTERNAL_TAG}>\n"""
     return content
+
+
+def content_internal_tag(internal: JsonValue) -> str:
+    return f"<{CONTENT_INTERNAL_TAG}>{base64.b64encode(json.dumps(internal).encode('utf-8')).decode('utf-8')}</{CONTENT_INTERNAL_TAG}>"
 
 
 def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
@@ -394,14 +383,6 @@ async def messages_from_openai(
 ) -> list[ChatMessage]:
     """Convert OpenAI Completions API messages into Inspect messages.
 
-    ::: callout-note
-    The `messages_from_openai()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Args:
         messages: OpenAI Completions API Messages
         model: Optional model name to tag assistant messages with.
@@ -437,16 +418,8 @@ async def messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
-            internal: JsonValue | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
-                # Even though the choices API doesn't take advantage of .internal,
-                # we could be transforming from OpenAI choices to Inspect for agent
-                # bridge scenarios where a different model (that does use .internal)
-                # is the actual model being used.
-                asst_content, internal = _parse_content_with_internal(
-                    asst_content, INTERNAL_TAG
-                )
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
                     asst_content
                 )
@@ -505,7 +478,6 @@ async def messages_from_openai(
                     tool_calls=tool_calls or None,
                     model=model,
                     source="generate",
-                    internal=internal,
                 )
             )
         elif message["role"] == "tool":

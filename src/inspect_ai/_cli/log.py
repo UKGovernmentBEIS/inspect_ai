@@ -126,9 +126,18 @@ def list_command(
     default=False,
     help="Read and print only the header of the log file (i.e. no samples).",
 )
-def dump_command(path: str, header_only: bool) -> None:
+@click.option(
+    "--resolve-attachments",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Resolve attachments (e.g. images) to their full content.",
+)
+def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> None:
     """Print log file contents as JSON."""
-    log = read_eval_log(path, header_only=header_only)
+    log = read_eval_log(
+        path, header_only=header_only, resolve_attachments=resolve_attachments
+    )
     print(eval_log_json_str(log))
 
 
@@ -161,12 +170,12 @@ def convert_command(
 
 @log_command.command("headers", hidden=True)
 @click.argument("files", nargs=-1)
-def headers_command(files: tuple[str]) -> None:
+def headers_command(files: tuple[str, ...]) -> None:
     """Print log file headers as JSON."""
     headers(files)
 
 
-def headers(files: tuple[str]) -> None:
+def headers(files: tuple[str, ...]) -> None:
     """Print log file headers as JSON."""
     headers = read_eval_log_headers(list(files))
     print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))

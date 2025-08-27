@@ -50,6 +50,7 @@ NO_LOG_REALTIME_HELP = (
     "Do not log events in realtime (affects live viewing of samples in inspect view)"
 )
 NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (instead, continue running other samples)"
+CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval)."
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
@@ -202,8 +203,17 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--epochs-reducer",
         type=str,
+        is_flag=False,
         help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
         envvar="INSPECT_EVAL_EPOCHS_REDUCER",
+    )
+    @click.option(
+        "--no-epochs-reducer",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help="Do not reduce per-epoch sample scores.",
+        envvar="INSPECT_EVAL_NO_EPOCHS_REDUCER",
     )
     @click.option(
         "--max-connections",
@@ -280,6 +290,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=False,
         help=NO_FAIL_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_NO_FAIL_ON_ERROR",
+    )
+    @click.option(
+        "--continue-on-fail",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help=CONTINUE_ON_FAIL_HELP,
+        envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
     )
     @click.option(
         "--retry-on-error",
@@ -517,25 +535,26 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @click.argument("tasks", nargs=-1)
 @eval_options
 def eval_command(
-    tasks: tuple[str] | None,
+    tasks: tuple[str, ...] | None,
     solver: str | None,
     model: str | None,
     model_base_url: str | None,
-    m: tuple[str] | None,
+    m: tuple[str, ...] | None,
     model_config: str | None,
-    model_role: tuple[str] | None,
-    t: tuple[str] | None,
+    model_role: tuple[str, ...] | None,
+    t: tuple[str, ...] | None,
     task_config: str | None,
-    s: tuple[str] | None,
+    s: tuple[str, ...] | None,
     solver_config: str | None,
     tags: str | None,
-    metadata: tuple[str] | None,
+    metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
     epochs_reducer: str | None,
+    no_epochs_reducer: bool | None,
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
@@ -576,6 +595,7 @@ def eval_command(
     max_sandboxes: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
+    continue_on_fail: bool | None,
     retry_on_error: int | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
@@ -620,6 +640,7 @@ def eval_command(
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
+        no_epochs_reducer=no_epochs_reducer,
         limit=limit,
         sample_id=sample_id,
         sample_shuffle=sample_shuffle,
@@ -633,6 +654,7 @@ def eval_command(
         max_sandboxes=max_sandboxes,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
+        continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
@@ -688,11 +710,17 @@ def eval_command(
     is_flag=True,
     help="Overwrite existing bundle dir.",
 )
+@click.option(
+    "--log-dir-allow-dirty",
+    type=bool,
+    is_flag=True,
+    help="Do not fail if the log-dir contains files that are not part of the eval set.",
+)
 @eval_options
 @click.pass_context
 def eval_set_command(
     ctx: click.Context,
-    tasks: tuple[str] | None,
+    tasks: tuple[str, ...] | None,
     retry_attempts: int | None,
     retry_wait: int | None,
     retry_connections: float | None,
@@ -702,19 +730,20 @@ def eval_set_command(
     approval: str | None,
     model: str | None,
     model_base_url: str | None,
-    m: tuple[str] | None,
+    m: tuple[str, ...] | None,
     model_config: str | None,
-    model_role: tuple[str] | None,
-    t: tuple[str] | None,
+    model_role: tuple[str, ...] | None,
+    t: tuple[str, ...] | None,
     task_config: str | None,
-    s: tuple[str] | None,
+    s: tuple[str, ...] | None,
     solver_config: str | None,
     tags: str | None,
-    metadata: tuple[str] | None,
+    metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
     epochs_reducer: str | None,
+    no_epochs_reducer: bool | None,
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
@@ -755,6 +784,7 @@ def eval_set_command(
     max_sandboxes: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
+    continue_on_fail: bool | None,
     retry_on_error: int | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
@@ -765,6 +795,7 @@ def eval_set_command(
     no_score_display: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
+    log_dir_allow_dirty: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
     **common: Unpack[CommonOptions],
@@ -804,6 +835,7 @@ def eval_set_command(
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
+        no_epochs_reducer=no_epochs_reducer,
         limit=limit,
         sample_id=sample_id,
         sample_shuffle=sample_shuffle,
@@ -817,6 +849,7 @@ def eval_set_command(
         max_sandboxes=max_sandboxes,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
+        continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
@@ -833,6 +866,7 @@ def eval_set_command(
         retry_cleanup=not no_retry_cleanup,
         bundle_dir=bundle_dir,
         bundle_overwrite=True if bundle_overwrite else False,
+        log_dir_allow_dirty=log_dir_allow_dirty,
         **config,
     )
 
@@ -841,7 +875,7 @@ def eval_set_command(
 
 
 def eval_exec(
-    tasks: tuple[str] | None,
+    tasks: tuple[str, ...] | None,
     solver: str | None,
     log_level: str,
     log_level_transcript: str,
@@ -849,21 +883,22 @@ def eval_exec(
     log_format: Literal["eval", "json"] | None,
     model: str | None,
     model_base_url: str | None,
-    m: tuple[str] | None,
+    m: tuple[str, ...] | None,
     model_config: str | None,
-    model_role: tuple[str] | None,
-    t: tuple[str] | None,
+    model_role: tuple[str, ...] | None,
+    t: tuple[str, ...] | None,
     task_config: str | None,
-    s: tuple[str] | None,
+    s: tuple[str, ...] | None,
     solver_config: str | None,
     tags: str | None,
-    metadata: tuple[str] | None,
+    metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
     epochs_reducer: str | None,
+    no_epochs_reducer: bool | None,
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
@@ -877,6 +912,7 @@ def eval_exec(
     max_sandboxes: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
+    continue_on_fail: bool | None,
     retry_on_error: int | None,
     debug_errors: bool | None,
     no_log_samples: bool | None,
@@ -893,6 +929,7 @@ def eval_exec(
     retry_cleanup: bool | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
+    log_dir_allow_dirty: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
@@ -911,7 +948,12 @@ def eval_exec(
 
     # resolve epochs
     eval_epochs = (
-        Epochs(epochs, create_reducers(parse_comma_separated(epochs_reducer)))
+        Epochs(
+            epochs,
+            []
+            if no_epochs_reducer
+            else create_reducers(parse_comma_separated(epochs_reducer)),
+        )
         if epochs
         else None
     )
@@ -972,6 +1014,7 @@ def eval_exec(
             sample_shuffle=eval_sample_shuffle,
             epochs=eval_epochs,
             fail_on_error=fail_on_error,
+            continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
@@ -1001,6 +1044,7 @@ def eval_exec(
         params["retry_cleanup"] = retry_cleanup
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
+        params["log_dir_allow_dirty"] = log_dir_allow_dirty
         success, _ = eval_set(**params)
         return success
     else:
@@ -1115,6 +1159,14 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_NO_FAIL_ON_ERROR",
 )
 @click.option(
+    "--continue-on-fail",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help=CONTINUE_ON_FAIL_HELP,
+    envvar="INSPECT_EVAL_CONTINUE_ON_FAIL",
+)
+@click.option(
     "--retry-on-error",
     is_flag=False,
     flag_value="true",
@@ -1193,7 +1245,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 )
 @common_options
 def eval_retry_command(
-    log_files: tuple[str],
+    log_files: tuple[str, ...],
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -1202,6 +1254,7 @@ def eval_retry_command(
     trace: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
+    continue_on_fail: bool | None,
     retry_on_error: int | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
@@ -1256,6 +1309,7 @@ def eval_retry_command(
         sandbox_cleanup=sandbox_cleanup,
         trace=trace,
         fail_on_error=fail_on_error,
+        continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
         debug_errors=common["debug_errors"],
         log_samples=log_samples,

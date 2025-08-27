@@ -16,7 +16,7 @@ import {
 } from "./remoteZipFile";
 
 // don't try to load samples greater than 50mb
-const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_BYTES = 100 * 1024 * 1024;
 const OPEN_RETRY_LIMIT = 5;
 
 interface SampleEntry {

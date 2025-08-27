@@ -1,0 +1,14 @@
+# This workflow must exist on the default branch to enable GitHub's Web UI and API
+# to trigger workflow runs. The typical development process is to edit this file on
+# a feature branch, then use the Web UI/API to target and test the branch version.
+name: Minimal Test Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo confirmation
+        run: echo "Minimal test workflow ran successfully!"

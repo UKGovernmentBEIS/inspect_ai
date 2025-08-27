@@ -58,7 +58,7 @@ inspect eval arc.py --model openai/gpt-4o
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
+inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 #### Google
