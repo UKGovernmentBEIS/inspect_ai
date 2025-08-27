@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Any, Set
+from typing import Set
 
 from shortuuid import uuid
 
