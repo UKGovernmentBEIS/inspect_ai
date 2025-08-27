@@ -451,6 +451,8 @@ def duplicate_assistant_message_reducer(
         and len(messages) > 0
         and messages[-1].role == "assistant"
         and message.text == messages[-1].text
+        and [tool.function for tool in (message.tool_calls or [])]
+        == [tool.function for tool in (messages[-1].tool_calls or [])]
     ):
         return messages
     else:
