@@ -109,9 +109,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-version
     if: needs.detect-version.outputs.version-changed == 'true'
-    strategy:
-      matrix:
-        architecture: [amd64, arm64]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -124,16 +121,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build executable for ${{ matrix.architecture }}
+      - name: Build all executables
         run: |
           cd src/inspect_ai/tool/tool_support
-          python build_within_container.py --arch ${{ matrix.architecture }} --dev=false
+          python build_within_container.py --all --dev=false
 
-      - name: Upload executable artifact
+      - name: Upload executable artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: inspect-tool-support-${{ matrix.architecture }}-v${{ needs.detect-version.outputs.new-version }}
-          path: src/inspect_ai/binaries/inspect-tool-support-${{ matrix.architecture }}-v${{ needs.detect-version.outputs.new-version }}
+          name: inspect-tool-support-v${{ needs.detect-version.outputs.new-version }}-all
+          path: src/inspect_ai/binaries/inspect-tool-support-*-v${{ needs.detect-version.outputs.new-version }}*
           retention-days: 90
 
   update-pr-status:
@@ -159,7 +156,9 @@ jobs:
 
             **Built Executables:**
             - \`inspect-tool-support-amd64-v${{ needs.detect-version.outputs.new-version }}\`
+            - \`inspect-tool-support-amd64-v${{ needs.detect-version.outputs.new-version }}+browser\`
             - \`inspect-tool-support-arm64-v${{ needs.detect-version.outputs.new-version }}\`
+            - \`inspect-tool-support-arm64-v${{ needs.detect-version.outputs.new-version }}+browser\`
 
             **Download Artifacts:** [View workflow run](${run.html_url})
 

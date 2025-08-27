@@ -1,0 +1,48 @@
+# Base image will automatically use target platform
+FROM python:3.10-slim-bullseye AS base
+
+# Architecture-specific package installation
+FROM base AS packages-amd64
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    build-essential \
+    patchelf \
+    scons \
+    file \
+    git
+
+FROM base AS packages-arm64  
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    build-essential \
+    patchelf \
+    scons \
+    file \
+    git
+
+# Final stage - automatically selects correct packages stage
+FROM packages-${TARGETARCH} AS final
+RUN pip install --no-cache-dir \
+        pyinstaller \
+        # Install staticx from `add-type-checking` branch to fix PyInstaller compatibility
+        # The `main` branch of staticx naïvely treats any executable file as an ELF
+        # file when creating static binaries. The playwright package includes some
+        # .sh scripts (e.g. reinstall_chrome_beta_linux.sh), and they are obviously
+        # not ELF binaries.
+        # See: https://github.com/JonathonReinhart/staticx/issues/288
+        #
+        # The `add-type-checking` branch from https://github.com/JonathonReinhart/staticx/pull/277
+        # includes better file type detection to handle non-ELF executables.
+        #
+        # It's scary that this PR has been open since January, 2024. Yikes.
+        git+https://github.com/JonathonReinhart/staticx.git@add-type-checking \
+        psutil \
+        jsonrpcserver \
+        pydantic \
+        setuptools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+CMD ["tail", "-f", "/dev/null"]

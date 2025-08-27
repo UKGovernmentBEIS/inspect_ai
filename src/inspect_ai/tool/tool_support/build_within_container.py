@@ -6,6 +6,13 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
+from typing import Literal
+
+try:
+    from ._tool_support_build_config import BuildConfig, config_to_filename
+except ImportError:
+    # Handle direct execution
+    from _tool_support_build_config import BuildConfig, config_to_filename
 
 
 def get_script_dir() -> Path:
@@ -65,16 +72,42 @@ def run_docker_build(platform: str, image_name: str, dockerfile: str) -> None:
 
 
 def run_docker_container(
-    platform: str, arch_suffix: str, image_name: str, version: str
+    platform: str, arch_suffix: str, image_name: str, version: str, browser: bool = False
 ) -> None:
     """Run the Docker container to build the executable."""
     print("Starting container and building executable...")
 
     # Ensure binaries directory exists
-    Path("../inspect_ai/binaries").mkdir(exist_ok=True)
+    Path("../../binaries").mkdir(exist_ok=True)
 
     # Find repository root (should be 3 levels up from this script)
     repo_root = get_script_dir().parent.parent.parent
+
+    # Parse version to extract numeric version and suffix
+    parts = version.split("-", 1)
+    version_num = int(parts[0])
+    suffix = parts[1] if len(parts) > 1 else None
+
+    # Validate arch_suffix for BuildConfig
+    if arch_suffix not in ["amd64", "arm64"]:
+        raise ValueError(f"Unexpected architecture suffix '{arch_suffix}'. Only 'amd64' and 'arm64' are supported.")
+
+    # Validate suffix for BuildConfig
+    if suffix is not None and suffix != "dev":
+        raise ValueError(f"Unexpected version suffix '{suffix}'. Only 'dev' is supported.")
+
+    # Type annotations for BuildConfig literals
+    arch: Literal["amd64", "arm64"] = arch_suffix  # type: ignore
+    validated_suffix: Literal["dev"] | None = suffix  # type: ignore
+
+    # Create BuildConfig and generate filename
+    config = BuildConfig(
+        arch=arch,
+        version=version_num,
+        browser=browser,
+        suffix=validated_suffix,
+    )
+    filename = config_to_filename(config)
 
     cmd = [
         "docker",
@@ -85,14 +118,11 @@ def run_docker_container(
         "-v",
         f"{repo_root}:/workspace:rw",
         "-w",
-        "/workspace/src/inspect_tool_support",
-        "-e",
-        f"ARCH_SUFFIX={arch_suffix}",
+        "/workspace/inspect_tool_support",
         image_name,
         "python3",
-        "/workspace/src/inspect_ai/tool/tool_support/build_executable.py",
-        "--version",
-        version,
+        "/workspace/inspect_ai/tool/tool_support/build_executable.py",
+        filename,
     ]
 
     subprocess.run(cmd, check=True)
@@ -106,7 +136,7 @@ def main() -> None:
         "--arch", choices=["amd64", "arm64"], help="Build for specific architecture"
     )
     parser.add_argument(
-        "--all", action="store_true", help="Build for both amd64 and arm64"
+        "--all", action="store_true", help="Build for all architectures and browser variants (amd64/arm64 × browser/no-browser)"
     )
     parser.add_argument(
         "--dev",
@@ -115,6 +145,11 @@ def main() -> None:
         nargs="?",
         const=True,
         help="Build development version (adds -dev suffix). Use --dev=false for production builds.",
+    )
+    parser.add_argument(
+        "--browser",
+        action="store_true",
+        help="Build with browser support (adds +browser to filename).",
     )
 
     args = parser.parse_args()
@@ -133,13 +168,17 @@ def main() -> None:
 
         # Handle --all flag or no parameters (default behavior)
         if args.all or (not args.arch):
-            print("Building for all architectures...")
-            # Recursively call this script for each architecture
+            print("Building for all architectures and browser variants...")
+            # Recursively call this script for each architecture and browser combination
             for arch in ["amd64", "arm64"]:
-                cmd = [sys.executable, __file__, "--arch", arch]
-                if not args.dev:
-                    cmd.append("--dev=false")
-                subprocess.run(cmd, check=True)
+                for browser in [False, True]:
+                    cmd = [sys.executable, __file__, "--arch", arch]
+                    if not args.dev:
+                        cmd.append("--dev=false")
+                    if browser:
+                        cmd.append("--browser")
+                    print(f"Building {arch} {'with browser' if browser else 'without browser'}...")
+                    subprocess.run(cmd, check=True)
             return
 
         # Determine target architecture (only when --arch is explicitly specified)
@@ -154,7 +193,7 @@ def main() -> None:
         run_docker_build(platform, image_name, dockerfile)
 
         # Run container to build executable
-        run_docker_container(platform, arch_suffix, image_name, version)
+        run_docker_container(platform, arch_suffix, image_name, version, args.browser)
 
         print(
             f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"
