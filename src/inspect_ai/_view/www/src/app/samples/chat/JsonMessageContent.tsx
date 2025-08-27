@@ -20,6 +20,7 @@ export const JsonMessageContent: FC<JsonMessageContentProps> = ({
       id={id}
       record={json}
       className={clsx(styles.jsonMessage, className)}
+      useBorders={false}
     />
   );
 };
