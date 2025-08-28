@@ -15,7 +15,7 @@ import {
   Event8,
   Event9,
 } from "../../../@types/log";
-import { kDefaultExcludeSet } from "../../../state/sampleSlice";
+import { kDefaultExcludeEvents } from "../../../state/sampleSlice";
 import { useStore } from "../../../state/store";
 
 export type AllEventTypes =
@@ -65,28 +65,28 @@ export const useTranscriptFilter = () => {
       } else {
         newFiltered.add(type);
       }
-      setFilteredEventTypes(newFiltered);
+      setFilteredEventTypes(Array.from(newFiltered));
     },
     [filtered],
   );
 
   const setDebugFilter = useCallback(() => {
-    setFilteredEventTypes(new Set<string>());
+    setFilteredEventTypes([]);
   }, [setFilteredEventTypes]);
 
   const setDefaultFilter = useCallback(() => {
-    setFilteredEventTypes(new Set(kDefaultExcludeSet));
+    setFilteredEventTypes([...kDefaultExcludeEvents]);
   }, [setFilteredEventTypes]);
 
   const isDefaultFilter = useMemo(() => {
     return (
-      filtered.size === kDefaultExcludeSet.size &&
-      [...filtered].every((type) => kDefaultExcludeSet.has(type))
+      filtered.length === kDefaultExcludeEvents.length &&
+      [...filtered].every((type) => kDefaultExcludeEvents.includes(type))
     );
   }, [filtered]);
 
   const isDebugFilter = useMemo(() => {
-    return filtered.size === 0;
+    return filtered.length === 0;
   }, [filtered]);
 
   const arrangedEventTypes = useCallback((columns: number = 1) => {
@@ -94,8 +94,8 @@ export const useTranscriptFilter = () => {
 
     // Sort keys alphabetically with default disabled keys at the end
     const sortedKeys = keys.sort((a, b) => {
-      const aIsDefault = kDefaultExcludeSet.has(a);
-      const bIsDefault = kDefaultExcludeSet.has(b);
+      const aIsDefault = kDefaultExcludeEvents.includes(a);
+      const bIsDefault = kDefaultExcludeEvents.includes(b);
 
       // If one is in default exclude set and the other isn't, default goes to end
       if (aIsDefault && !bIsDefault) return 1;
