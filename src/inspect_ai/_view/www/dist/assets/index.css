@@ -14352,7 +14352,7 @@ a:hover {
 }
 
 .modal {
-  --bs-modal-margin: 0.5rem;
+  --bs-modal-margin: 0.25rem;
 }
 
 .modal-backdrop {
@@ -20286,11 +20286,11 @@ span.ap-marker-container:hover span.ap-marker {
   height: 100%;
   position: relative;
 }
-._title_yj2nt_1 {
+._title_1hch3_1 {
   flex: 1 1 auto;
 }
 
-._detail_yj2nt_5 {
+._detail_1hch3_5 {
   margin-left: auto;
   margin-right: auto;
   display: flex;
@@ -20298,12 +20298,12 @@ span.ap-marker-container:hover span.ap-marker {
   justify-content: center;
 }
 
-._detailText_yj2nt_13 {
+._detailText_1hch3_13 {
   display: flex;
   align-items: center;
 }
 
-._close_yj2nt_18 {
+._close_1hch3_18 {
   border-width: 0px;
   font-weight: 300;
   padding: 0em 0.5em;
@@ -20311,31 +20311,32 @@ span.ap-marker-container:hover span.ap-marker {
   text-align: right;
 }
 
-._modal_yj2nt_26 {
+._modal_1hch3_26 {
   border-radius: var(--bs-border-radius);
   display: block;
 }
 
-._hidden_yj2nt_31 {
+._hidden_1hch3_31 {
   display: none;
 }
 
-._modalBody_yj2nt_35 {
+._modalBody_1hch3_35 {
   max-width: 100%;
   margin-left: var(--bs-modal-margin);
   margin-right: var(--bs-modal-margin);
 }
 
-._content_yj2nt_41 {
+._content_1hch3_41 {
   height: 100%;
 }
 
-._header_yj2nt_45 {
+._header_1hch3_45 {
   padding: 0 0 0 1em;
   display: flex;
+  background-color: var(--bs-light);
 }
 
-._titleTool_yj2nt_50 {
+._titleTool_1hch3_51 {
   padding-top: 0;
   padding-bottom: 0;
   border: none;

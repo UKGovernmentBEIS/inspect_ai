@@ -210,7 +210,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
         {samplesDescriptor && totalSampleCount === 1 ? (
           <InlineSampleDisplay />
         ) : undefined}
-        {samplesDescriptor && totalSampleCount > 1 ? (
+        {samplesDescriptor && totalSampleCount > 1 && !showingSampleDialog ? (
           <SampleList
             listHandle={sampleListHandle}
             items={items}

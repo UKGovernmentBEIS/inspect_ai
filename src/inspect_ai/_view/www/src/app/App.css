@@ -65,7 +65,7 @@ a:hover {
 }
 
 .modal {
-  --bs-modal-margin: 0.5rem;
+  --bs-modal-margin: 0.25rem;
 }
 
 .modal-backdrop {

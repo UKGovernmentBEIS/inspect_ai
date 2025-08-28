@@ -45,6 +45,7 @@
 .header {
   padding: 0 0 0 1em;
   display: flex;
+  background-color: var(--bs-light);
 }
 
 .titleTool {
