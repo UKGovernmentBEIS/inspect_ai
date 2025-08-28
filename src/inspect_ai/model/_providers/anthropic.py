@@ -6,7 +6,7 @@ from contextvars import ContextVar
 from copy import copy
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Any, Iterable, Literal, Optional, Tuple, Union, cast
+from typing import Any, Iterable, Literal, Optional, Tuple, TypeGuard, Union, cast
 
 from anthropic import (
     APIConnectionError,
@@ -854,6 +854,34 @@ ToolParamDef = (
     | BetaToolTextEditor20250429Param
     | WebSearchTool20250305Param
 )
+
+
+def is_tool_param(param: ToolParamDef) -> TypeGuard[ToolParam]:
+    return "input_schema" in param
+
+
+def is_text_editor_tool(
+    param: ToolParamDef,
+) -> TypeGuard[
+    ToolTextEditor20250124Param
+    | BetaToolTextEditor20241022Param
+    | BetaToolTextEditor20250429Param
+]:
+    type = param.get("type", None)
+    if type is not None:
+        return type.startswith("text_editor") and not is_tool_param(param)
+    else:
+        return False
+
+
+def is_computer_tool(
+    param: ToolParamDef,
+) -> TypeGuard[BetaToolComputerUse20250124Param]:
+    return param.get("name") == "computer" and not is_tool_param(param)
+
+
+def is_web_search_tool(param: ToolParamDef) -> TypeGuard[WebSearchTool20250305Param]:
+    return param.get("name") == "web_search" and not is_tool_param(param)
 
 
 def add_cache_control(

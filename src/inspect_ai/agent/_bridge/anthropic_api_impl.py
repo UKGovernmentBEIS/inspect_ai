@@ -3,7 +3,7 @@ from __future__ import annotations
 from logging import getLogger
 from typing import Any, Literal, cast
 
-from anthropic.types import Message, ToolChoiceParam, Usage
+from anthropic.types import Message, ToolChoiceParam, Usage, WebSearchTool20250305Param
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import BetaRequestMCPServerURLDefinitionParam
 from shortuuid import uuid
@@ -15,11 +15,23 @@ from inspect_ai.model._providers.anthropic import (
     ToolParamDef,
     anthropic_extra_body_fields,
     assistant_message_blocks,
+    is_computer_tool,
+    is_text_editor_tool,
+    is_tool_param,
+    is_web_search_tool,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.tool._tools._computer._computer import computer
+from inspect_ai.tool._tools._text_editor import text_editor
+from inspect_ai.tool._tools._web_search._web_search import (
+    WebSearchProviders,
+    web_search,
+)
 
 from .types import AgentBridge
 from .util import apply_message_ids, resolve_inspect_model
@@ -128,12 +140,35 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
 def tools_from_anthropic_tools(
     anthropic_tools: list[ToolParamDef] | None,
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None,
-    web_search: WebSearchProviders,
-) -> list[ToolInfo]:
-    tools: list[ToolInfo] = []
+    web_search_providers: WebSearchProviders,
+) -> list[ToolInfo | Tool]:
+    tools: list[ToolInfo | Tool] = []
 
     for anthropic_tool in anthropic_tools or []:
-        pass
+        if is_tool_param(anthropic_tool):
+            tools.append(
+                ToolInfo(
+                    name=anthropic_tool["name"],
+                    description=anthropic_tool["description"],
+                    parameters=ToolParams.model_validate(
+                        anthropic_tool["input_schema"]
+                    ),
+                )
+            )
+        elif is_text_editor_tool(anthropic_tool):
+            tools.append(text_editor())
+        elif is_computer_tool(anthropic_tool):
+            tools.append(computer())
+        elif is_web_search_tool(anthropic_tool):
+            tools.append(
+                web_search(
+                    resolve_web_search_providers(anthropic_tool, web_search_providers)
+                )
+            )
+        else:
+            raise RuntimeError(
+                f"ToolParam of type {anthropic_tool['type']} not supported by agent bridge."
+            )
 
     for mcp_server in anthropic_mcp_servers or []:
         # allowed tools (default is 'all')
@@ -172,6 +207,37 @@ def tools_from_anthropic_tools(
         )
 
     return tools
+
+
+def tool_to_tool_info(tool: Tool) -> ToolInfo:
+    tool_def = ToolDef(tool)
+    return ToolInfo(
+        name=tool_def.name,
+        description=tool_def.description,
+        parameters=tool_def.parameters,
+        options=tool_def.options,
+    )
+
+
+def resolve_web_search_providers(
+    tool_param: WebSearchTool20250305Param, web_search: WebSearchProviders
+) -> WebSearchProviders:
+    # pass through anthropic options if there is no special anthropic config
+    anthropic_options = web_search.get("anthropic", False)
+    if anthropic_options is True or (
+        isinstance(anthropic_options, dict) and len(anthropic_options) == 0
+    ):
+        # this came from the user in the external scaffold. we want
+        # all the fields except the type as our 'web_search' config
+        tool_param = tool_param.copy()
+        del tool_param["type"]  # type: ignore[misc]
+
+        # this came from the inspect agent_bridge() call. we want
+        # to replace it with whatever the user specified in the scaffold.
+        web_search = web_search.copy()
+        web_search["anthropic"] = tool_param  # type: ignore[typeddict-item]
+
+    return web_search
 
 
 def tool_choice_from_anthropic_tool_choice(
