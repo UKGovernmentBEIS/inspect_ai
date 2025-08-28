@@ -326,11 +326,15 @@ export function createBrowserApi(
   options: { server_log_dir?: string } = {},
 ): LogViewAPI {
   const { server_log_dir } = options;
+
+  if (!server_log_dir) {
+    // No server_log_dir, just return the default browserApi
+    return browserApi;
+  }
+
   // Create eval_logs function that uses the provided server_log_dir
-  async function eval_logs_with_dir() {
-    const path = server_log_dir
-      ? `/api/logs?log_dir=${encodeURIComponent(server_log_dir)}`
-      : `/api/logs`;
+  async function eval_logs_with_server_dir() {
+    const path = `/api/logs?log_dir=${encodeURIComponent(server_log_dir!)}`;
     const logs = await api("GET", path);
     last_eval_time = Date.now();
     return logs.parsed;
@@ -338,6 +342,6 @@ export function createBrowserApi(
 
   return {
     ...browserApi,
-    ...(server_log_dir ? { eval_logs: eval_logs_with_dir } : {}),
+    eval_logs: eval_logs_with_server_dir,
   };
 }
