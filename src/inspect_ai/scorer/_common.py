@@ -61,15 +61,12 @@ def match_str(
         t = strip_numeric_punctuation(t)
         # normalize as required
         t = normalize_number(t)
-
-        if location == "begin" or location == "end":
-            # strip markdown `__` and `**` clumps from ends of words
-            words = [
-                re.sub(r"^(?:\*\*|__)|(?:\*\*|__)$", "", word)
-                for word in re.split(r"\s+", v)
-            ]
-            if location == "end":
-                words.reverse()
+        if location == "begin":
+            words = re.split(r"\s+", v)
+            v = first_number_normalized(words)
+        elif location == "end":
+            words = re.split(r"\s+", v)
+            words.reverse()
             v = first_number_normalized(words)
         elif location == "exact":
             v = normalize_number(v)
