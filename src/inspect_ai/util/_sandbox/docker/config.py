@@ -2,7 +2,16 @@ import os
 from logging import getLogger
 from pathlib import Path
 
+from pydantic import BaseModel
+
 logger = getLogger(__name__)
+
+
+class DockerConfig(BaseModel):
+    """Configuration for Docker sandbox environment."""
+
+    host: str | None = None
+    """Optional Docker host to connect to. If not specified, uses the default Docker daemon."""
 
 
 CONFIG_FILES = [
