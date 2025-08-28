@@ -190,11 +190,7 @@ async function log_message(log_file: string, message: string) {
       return;
     },
   };
-  await apiRequest<void>(
-    "GET",
-    `/log-message?${params.toString()}`,
-    request,
-  );
+  await apiRequest<void>("GET", `/log-message?${params.toString()}`, request);
 }
 
 interface Request<T> {
