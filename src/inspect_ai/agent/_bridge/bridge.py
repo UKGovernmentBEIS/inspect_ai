@@ -212,7 +212,7 @@ def init_anthropic_request_patch() -> None:
             # enabled for this coroutine
             config.enabled
             # messages request
-            and options.url in ["/messages"]
+            and options.url in ["/v1/messages"]
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
