@@ -1466,6 +1466,37 @@ async def model_proxy_server(
             _handle_model_proxy_error(ex)
             os._exit(1)
 
+    @server.route("/v1/messages", method="POST")
+    async def anthropic(request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            json_body = request.get("json", {}) or {}
+            stream = json_body.get("stream", False)
+
+            completion = await call_bridge_model_service_async(
+                "generate_anthropic", json_data=json_body
+            )
+
+            if stream:
+
+                async def stream_response() -> AsyncIterator[bytes]:
+                    # TODO: implement anthropic streaming
+                    yield b"data: [DONE]\n\n"
+
+                return {
+                    "status": 200,
+                    "body_iter": stream_response(),
+                    "headers": {
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                    },
+                    "chunked": True,
+                }
+            else:
+                return {"status": 200, "body": completion}
+        except Exception as ex:
+            _handle_model_proxy_error(ex)
+            os._exit(1)
+
     # return configured server
     return server
 
