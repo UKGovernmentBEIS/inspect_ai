@@ -994,7 +994,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant":
-        block_params = assistant_message_block_params(message)
+        block_params = await assistant_message_block_params(message)
 
         return MessageParam(
             role=message.role,
