@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 from shortuuid import uuid
 
-from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._openai_convert import messages_from_openai
 from inspect_ai.model._providers.providers import validate_openai_client
@@ -15,7 +16,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model
+from .util import apply_message_ids, resolve_inspect_model
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -30,7 +31,7 @@ logger = getLogger(__file__)
 
 async def inspect_completions_api_request(
     json_data: dict[str, Any],
-    state: AgentState | None = None,
+    bridge: AgentBridge,
 ) -> "ChatCompletion":
     validate_openai_client("agent bridge")
 
@@ -52,6 +53,15 @@ async def inspect_completions_api_request(
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
     input = await messages_from_openai(messages, model_name)
 
+    # extract generate config (hoist instructions into system_message)
+    config = generate_config_from_openai_completions(json_data)
+    if config.system_message is not None:
+        input.insert(0, ChatMessageSystem(content=config.system_message))
+        config.system_message = None
+
+    # try to maintain id stability
+    apply_message_ids(bridge, input)
+
     # read openai tools and tool choice
     openai_tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
     tools = tools_from_openai_tools(openai_tools)
@@ -64,13 +74,13 @@ async def inspect_completions_api_request(
         input=input,
         tools=tools,
         tool_choice=tool_choice,
-        config=generate_config_from_openai_completions(json_data),
+        config=config,
     )
 
     # update state
-    if state and bridge_model_name == "inspect":
-        state.messages = input + [output.message]
-        state.output = output
+    if bridge_model_name == "inspect":
+        bridge.state.messages = input + [output.message]
+        bridge.state.output = output
 
     # inspect completion to openai completion
     return ChatCompletion(

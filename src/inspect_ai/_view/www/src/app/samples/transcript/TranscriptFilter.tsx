@@ -27,6 +27,8 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
     arrangedEventTypes,
   } = useTranscriptFilter();
 
+  console.log("filtered", filtered);
+
   return (
     <PopOver
       id={`transcript-filter-popover`}
@@ -65,12 +67,12 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
               key={eventType}
               className={clsx(styles.row)}
               onClick={() => {
-                filterEventType(eventType, filtered.has(eventType));
+                filterEventType(eventType, filtered.includes(eventType));
               }}
             >
               <input
                 type="checkbox"
-                checked={!filtered.has(eventType)}
+                checked={!filtered.includes(eventType)}
                 onChange={(e) => {
                   filterEventType(eventType, e.target.checked);
                 }}

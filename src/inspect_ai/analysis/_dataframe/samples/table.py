@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
@@ -433,8 +434,30 @@ def sample_messages_from_events(
                     messages.append(message)
                     ids.add(id)
 
+    # remove duplicated assistant messages (can happen in agent bridge or any other
+    # time that the message list is fully re-constituted)
+    messages = functools.reduce(duplicate_assistant_message_reducer, messages, [])
+
     # then apply the filter
     return [message for message in messages if filter is None or filter(message)]
+
+
+def duplicate_assistant_message_reducer(
+    messages: list[ChatMessage],
+    message: ChatMessage,
+) -> list[ChatMessage]:
+    if (
+        message.role == "assistant"
+        and len(messages) > 0
+        and messages[-1].role == "assistant"
+        and message.text == messages[-1].text
+        and [tool.function for tool in (message.tool_calls or [])]
+        == [tool.function for tool in (messages[-1].tool_calls or [])]
+    ):
+        return messages
+    else:
+        messages.append(message)
+        return messages
 
 
 @lru_cache(maxsize=100)

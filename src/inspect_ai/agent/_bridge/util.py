@@ -1,5 +1,7 @@
 from typing import cast
 
+from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model import Model, get_model, model_roles
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -31,3 +33,14 @@ def internal_web_search_providers() -> WebSearchProviders:
     return WebSearchProviders(
         openai=True, anthropic=True, grok=True, gemini=True, perplexity=True
     )
+
+
+def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
+    # clear the ids so we can apply new ones
+    for message in messages:
+        message.id = None
+
+    # allocate ids based on message content (re-applying the same id for the same
+    # content, but also ensuring that if an id is already used we generate a new one)
+    for message in messages:
+        message.id = bridge._id_for_message(message, messages)

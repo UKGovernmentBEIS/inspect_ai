@@ -33,11 +33,11 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
 
   // Apply the filter
   const filteredEvents = useMemo(() => {
-    if (filteredEventTypes.size === 0) {
+    if (filteredEventTypes.length === 0) {
       return events;
     }
     return events.filter((event) => {
-      return !filteredEventTypes.has(event.event);
+      return !filteredEventTypes.includes(event.event);
     });
   }, [events, filteredEventTypes]);
 

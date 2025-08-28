@@ -835,6 +835,9 @@ async def task_run_sample(
                 scoring_time_limit = time_limit / 2 if time_limit else None
 
                 set_sample_state(state)
+                if state.scores is None:
+                    state.scores = {}
+                solver_score_names = [*state.scores]
 
                 # scoring
                 try:
@@ -844,47 +847,46 @@ async def task_run_sample(
                             async with span(name="scorers"):
                                 for scorer in scorers or []:
                                     scorer_name = unique_scorer_name(
-                                        scorer, list(results.keys())
+                                        scorer, list({*solver_score_names, *results})
                                     )
                                     async with span(name=scorer_name, type="scorer"):
-                                        score_result = (
-                                            await scorer(state, Target(sample.target))
-                                            if scorer
-                                            else None
+                                        if not scorer:
+                                            continue
+                                        score_result = await scorer(
+                                            state, Target(sample.target)
                                         )
-                                        if score_result is not None:
-                                            sample_score = SampleScore(
-                                                score=score_result,
-                                                sample_id=sample.id,
-                                                sample_metadata=sample.metadata,
-                                                scorer=registry_unqualified_name(
-                                                    scorer
-                                                ),
-                                            )
-                                            transcript()._event(
-                                                ScoreEvent(
-                                                    score=score_result,
-                                                    target=sample.target,
-                                                )
-                                            )
-                                            results[scorer_name] = sample_score
 
-                                # add scores returned by solvers
-                                if state.scores is not None:
-                                    for name, score in state.scores.items():
-                                        results[name] = SampleScore(
-                                            score=score,
-                                            sample_id=state.sample_id,
-                                            sample_metadata=state.metadata,
-                                        )
+                                        if scorer_name in state.scores:
+                                            raise RuntimeError(
+                                                f"Scorer {scorer_name} has modified state.scores"
+                                            )
+                                        state.scores[scorer_name] = score_result
+
                                         transcript()._event(
                                             ScoreEvent(
-                                                score=score, target=sample.target
+                                                score=score_result,
+                                                target=sample.target,
                                             )
                                         )
 
-                                # propagate results into scores
-                                state.scores = {k: v.score for k, v in results.items()}
+                                        sample_score = SampleScore(
+                                            score=score_result,
+                                            sample_id=sample.id,
+                                            sample_metadata=sample.metadata,
+                                            scorer=registry_unqualified_name(scorer),
+                                        )
+                                        results[scorer_name] = sample_score
+
+                                for name in solver_score_names:
+                                    score = state.scores[name]
+                                    transcript()._event(
+                                        ScoreEvent(score=score, target=sample.target)
+                                    )
+                                    results[name] = SampleScore(
+                                        score=score,
+                                        sample_id=state.sample_id,
+                                        sample_metadata=state.metadata,
+                                    )
 
                 except anyio.get_cancelled_exc_class():
                     if active.interrupt_action:

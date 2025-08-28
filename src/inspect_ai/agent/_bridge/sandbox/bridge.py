@@ -1,5 +1,4 @@
 import contextlib
-from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from typing import AsyncIterator
@@ -7,7 +6,6 @@ from typing import AsyncIterator
 import anyio
 from shortuuid import uuid
 
-from inspect_ai.agent._agent import AgentState
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
@@ -15,18 +13,20 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox import SandboxEnvironment
 from inspect_ai.util._sandbox import sandbox as default_sandbox
 
+from ..._agent import AgentState
+from ..types import AgentBridge
 from ..util import internal_web_search_providers
 from .service import run_model_service
 
 logger = getLogger(__file__)
 
 
-@dataclass
-class SandboxAgentBridge:
+class SandboxAgentBridge(AgentBridge):
     """Sandbox agent bridge."""
 
-    state: AgentState
-    """State updated from messages traveling over the bridge."""
+    def __init__(self, state: AgentState, port: int) -> None:
+        super().__init__(state)
+        self.port = port
 
     port: int
     """Model proxy server port."""
@@ -88,9 +88,12 @@ async def sandbox_agent_bridge(
             # event to signal startup of model service
             started = anyio.Event()
 
+            # create the bridge
+            bridge = SandboxAgentBridge(state=state, port=port)
+
             # sandbox service that receives model requests
             tg.start_soon(
-                run_model_service, sandbox, web_search, state, instance, started
+                run_model_service, sandbox, web_search, bridge, instance, started
             )
 
             # proxy server that runs in container and forwards to sandbox service
@@ -101,7 +104,7 @@ async def sandbox_agent_bridge(
 
             # main agent
             try:
-                yield SandboxAgentBridge(state=state, port=port)
+                yield bridge
             finally:
                 tg.cancel_scope.cancel()
     except Exception as ex:
