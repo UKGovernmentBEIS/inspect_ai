@@ -28,6 +28,7 @@ interface RecordTreeProps {
   scrollRef?: RefObject<HTMLDivElement | null>;
   defaultExpandLevel?: number;
   processStore?: boolean;
+  useBorders?: boolean;
 }
 
 /**
@@ -40,6 +41,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
   scrollRef,
   defaultExpandLevel = 1,
   processStore = false,
+  useBorders = true,
 }) => {
   // The virtual list handle and state
   const listHandle = useRef<VirtuosoHandle | null>(null);
@@ -155,7 +157,9 @@ export const RecordTree: FC<RecordTreeProps> = ({
         key={item.id}
         className={clsx(
           styles.keyPairContainer,
-          index < items.length - 1 ? styles.keyPairBordered : undefined,
+          index < items.length - 1 && useBorders
+            ? styles.keyPairBordered
+            : undefined,
           "text-size-small",
         )}
         style={{

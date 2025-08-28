@@ -1,17 +1,18 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { MarkdownDiv } from "../../../../components/MarkdownDiv";
 
 import { usePrismHighlight } from "../../../../state/hooks";
+import { RenderedText } from "../../../content/RenderedText";
 import styles from "./ToolInput.module.css";
 
 interface ToolInputProps {
   highlightLanguage?: string;
   contents?: string | object;
   toolCallView?: { content: string };
+  className?: string | string[];
 }
 export const ToolInput: FC<ToolInputProps> = (props) => {
-  const { highlightLanguage, contents, toolCallView } = props;
+  const { highlightLanguage, contents, toolCallView, className } = props;
 
   const prismParentRef = usePrismHighlight(toolCallView?.content);
 
@@ -19,10 +20,10 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
 
   if (toolCallView) {
     return (
-      <MarkdownDiv
+      <RenderedText
         markdown={toolCallView.content}
         ref={prismParentRef}
-        className={clsx("tool-output", styles.toolView)}
+        className={clsx("tool-output", styles.toolView, className)}
       />
     );
   }
@@ -33,7 +34,12 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
   return (
     <div ref={prismParentRef}>
       <pre
-        className={clsx("tool-output", styles.outputPre, styles.bottomMargin)}
+        className={clsx(
+          "tool-output",
+          styles.outputPre,
+          styles.bottomMargin,
+          className,
+        )}
       >
         <code
           className={clsx(

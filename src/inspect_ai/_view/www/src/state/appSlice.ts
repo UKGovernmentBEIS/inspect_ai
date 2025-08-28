@@ -15,6 +15,7 @@ export interface AppSlice {
 
     setShowingSampleDialog: (showing: boolean) => void;
     setShowingTranscriptFilterDialog: (showing: boolean) => void;
+    setShowingOptionsDialog: (showing: boolean) => void;
     setWorkspaceTab: (tab: string) => void;
     clearWorkspaceTab: () => void;
 
@@ -55,6 +56,8 @@ export interface AppSlice {
     setUrlHash: (urlHash: string) => void;
 
     setSingleFileMode: (singleFile: boolean) => void;
+
+    setDisplayMode: (mode: "raw" | "rendered") => void;
   };
 }
 
@@ -67,6 +70,7 @@ const initialState: AppState = {
   dialogs: {
     sample: false,
     transcriptFilter: false,
+    options: false,
   },
   tabs: {
     workspace: kDefaultWorkspaceTab,
@@ -78,6 +82,7 @@ const initialState: AppState = {
   messages: {},
   propertyBags: {},
   pagination: {},
+  displayMode: "rendered",
 };
 
 export const createAppSlice = (
@@ -144,6 +149,16 @@ export const createAppSlice = (
         }
         set((state) => {
           state.app.dialogs.transcriptFilter = showing;
+        });
+      },
+      setShowingOptionsDialog: (showing: boolean) => {
+        const state = get();
+        const isShowing = state.app.dialogs.options;
+        if (showing === isShowing) {
+          return;
+        }
+        set((state) => {
+          state.app.dialogs.options = showing;
         });
       },
       setWorkspaceTab: (tab: string) => {
@@ -292,6 +307,11 @@ export const createAppSlice = (
       clearPagination: (name: string) => {
         set((state) => {
           delete state.app.pagination[name];
+        });
+      },
+      setDisplayMode: (mode: "raw" | "rendered") => {
+        set((state) => {
+          state.app.displayMode = mode;
         });
       },
     },

@@ -1,11 +1,11 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../../client/api/types";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { useStore } from "../../../state/store";
 import { arrayToString, inputString } from "../../../utils/format";
 import { isVscode } from "../../../utils/vscode";
+import { RenderedText } from "../../content/RenderedText";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -69,21 +69,26 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.wrapAnywhere,
         )}
       >
-        <MarkdownDiv markdown={inputString(sample.input).join(" ")} />
+        <RenderedText
+          markdown={inputString(sample.input).join(" ")}
+          forceRender={true}
+        />
       </div>
       <div className={clsx("sample-target", "three-line-clamp", styles.cell)}>
         {sample?.target ? (
-          <MarkdownDiv
+          <RenderedText
             markdown={arrayToString(sample.target)}
             className={clsx("no-last-para-padding", styles.noLeft)}
+            forceRender={true}
           />
         ) : undefined}
       </div>
       <div className={clsx("sample-answer", "three-line-clamp", styles.cell)}>
         {sample ? (
-          <MarkdownDiv
+          <RenderedText
             markdown={answer || ""}
             className={clsx("no-last-para-padding", styles.noLeft)}
+            forceRender={true}
           />
         ) : (
           ""
