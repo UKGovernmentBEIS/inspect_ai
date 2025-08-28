@@ -242,9 +242,13 @@ async def compose_cleanup_images(
             # See if this image was created by
             # inspect directly
             if image.startswith(project.name):
+                docker_cmd = ["docker"]
+                if project.docker_host:
+                    docker_cmd.extend(["-H", project.docker_host])
+
                 # see if this image is present
                 image_result = await subprocess(
-                    ["docker", "images", "-q", image],
+                    docker_cmd + ["images", "-q", image],
                     timeout=timeout,
                     capture_output=True,
                 )
@@ -256,7 +260,7 @@ async def compose_cleanup_images(
                 # remove the image
                 if remove_image:
                     result = await subprocess(
-                        ["docker", "rmi", image],
+                        docker_cmd + ["rmi", image],
                         timeout=timeout,
                         capture_output=True,
                     )
@@ -279,7 +283,12 @@ async def compose_command(
     ansi: Literal["never", "always", "auto"] | None = None,
 ) -> ExecResult[str]:
     # The base docker compose command
-    compose_command = ["docker", "compose"]
+    compose_command = ["docker"]
+
+    if project.docker_host:
+        compose_command.extend(["-H", project.docker_host])
+
+    compose_command.append("compose")
 
     # env to forward
     env = project.env if (project.env and forward_env) else {}

@@ -6,8 +6,9 @@ import shlex
 import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import Literal, NamedTuple, Union, overload
+from typing import Any, Literal, NamedTuple, Union, overload
 
+from pydantic import BaseModel
 from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError
@@ -45,7 +46,7 @@ from .compose import (
     compose_services,
     compose_up,
 )
-from .config import CONFIG_FILES, DOCKERFILE
+from .config import CONFIG_FILES, DOCKERFILE, DockerConfig
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -63,6 +64,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     def default_concurrency(cls) -> int | None:
         count = os.cpu_count() or 1
         return 2 * count
+
+    @classmethod
+    def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
+        """Deserialize Docker-specific configuration from a dict."""
+        return DockerConfig(**config)
 
     @classmethod
     async def task_init(
@@ -102,7 +108,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
-                    await build_internal_image(image)
+                    await build_internal_image(image, project.docker_host)
                 # pull any remote images
                 elif (
                     service.get("build", None) is None
@@ -132,9 +138,27 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # don't even consider sample-specific environment if there are no sample metadata refs
         if resolved and len(resolved.env) > 0:
+            docker_host = None
+            if isinstance(config, DockerConfig):
+                docker_host = config.host
+            elif (
+                config is not None
+                and hasattr(config, "host")
+                and isinstance(getattr(config, "host", None), str | type(None))
+            ):
+                # For BaseModel instances, only extract host if it exists and is the right type
+                docker_host = getattr(config, "host", None)
+
+            docker_cmd = ["docker"]
+            if docker_host:
+                docker_cmd.extend(["-H", docker_host])
+            docker_cmd.extend(
+                ["compose", "-f", resolved.config_file, "config", "--images"]
+            )
+
             # resolve images using our env vars
             result = await subprocess(
-                ["docker", "compose", "-f", resolved.config_file, "config", "--images"],
+                docker_cmd,
                 env=resolved.env,
             )
             if result.success:
@@ -455,21 +479,25 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # return container connection
         if container:
+            docker_exec_cmd = ["docker"]
+            if self._project.docker_host:
+                docker_exec_cmd.extend(["-H", self._project.docker_host])
+            docker_exec_cmd.extend(
+                [
+                    "exec",
+                    "-it",
+                    *(["--user", user] if user else []),
+                    container,
+                    "bash",
+                    "-l",
+                ]
+            )
+
             return SandboxConnection(
                 type="docker",
-                command=shlex.join(
-                    [
-                        "docker",
-                        "exec",
-                        "-it",
-                        *(["--user", user] if user else []),
-                        container,
-                        "bash",
-                        "-l",
-                    ]
-                ),
+                command=shlex.join(docker_exec_cmd),
                 vscode_command=vscode_command,
-                ports=await get_ports_info(container),
+                ports=await get_ports_info(container, self._project.docker_host),
                 container=container,
             )
         # error (not currently running)
@@ -504,16 +532,24 @@ async def container_working_dir(
         return default
 
 
-async def get_ports_info(container: str) -> list[PortMapping] | None:
+async def get_ports_info(
+    container: str, docker_host: str | None = None
+) -> list[PortMapping] | None:
     try:
-        result = await subprocess(
+        docker_cmd = ["docker"]
+        if docker_host:
+            docker_cmd.extend(["-H", docker_host])
+        docker_cmd.extend(
             [
-                "docker",
                 "inspect",
                 container,
                 "--format",
                 "{{json .NetworkSettings.Ports}}",
-            ],
+            ]
+        )
+
+        result = await subprocess(
+            docker_cmd,
             timeout=60,
         )
 
