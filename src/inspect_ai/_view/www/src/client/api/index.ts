@@ -35,20 +35,17 @@ const resolveApi = (): ClientAPI => {
     const urlParams = new URLSearchParams(window.location.search);
     const log_file = urlParams.get("log_file");
     const log_dir = urlParams.get("log_dir");
-    const server_list = urlParams.get("server_list") === "true";
+    const forceBrowserApi = urlParams.get("inspect_server") === "true";
 
-    if (log_file !== null || log_dir !== null) {
-      const resolved_log_dir = log_dir === null ? undefined : log_dir;
-      const resolved_log_file = log_file === null ? undefined : log_file;
+    const resolved_log_dir = log_dir ?? undefined;
+    const resolved_log_file = log_file ?? undefined;
 
-      // Use server API to list logs if server_list=true is specified
-      if (server_list && resolved_log_dir) {
-        const api = createBrowserApi({ server_log_dir: resolved_log_dir });
-        return clientApi(api, resolved_log_file);
-      } else {
-        const api = simpleHttpApi(resolved_log_dir, resolved_log_file);
-        return clientApi(api, resolved_log_file);
-      }
+    if (forceBrowserApi) {
+      return clientApi(createBrowserApi({ server_log_dir: resolved_log_dir }), resolved_log_file);
+    }
+
+    if (resolved_log_dir !== undefined || resolved_log_file !== undefined) {
+      return clientApi(simpleHttpApi(resolved_log_dir, resolved_log_file), resolved_log_file);
     }
 
     // No signal information so use the standard
