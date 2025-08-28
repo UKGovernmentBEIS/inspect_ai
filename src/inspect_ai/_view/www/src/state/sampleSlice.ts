@@ -15,12 +15,12 @@ let selectedSampleRef: { current: EvalSample | undefined } = {
   current: undefined,
 };
 
-export const kDefaultExcludeSet = new Set([
+export const kDefaultExcludeEvents = [
   "sample_init",
   "sandbox",
   "state",
   "store",
-]);
+];
 
 export interface SampleSlice {
   sample: SampleState;
@@ -44,7 +44,7 @@ export interface SampleSlice {
     collapseId: (key: string, id: string, collapsed: boolean) => void;
     clearCollapsedIds: (key: string) => void;
 
-    setFilteredEventTypes: (types: Set<string>) => void;
+    setFilteredEventTypes: (types: string[]) => void;
 
     setVisiblePopover: (id: string) => void;
     clearVisiblePopover: () => void;
@@ -84,7 +84,7 @@ const initialState: SampleState = {
   runningEvents: [],
   collapsedEvents: null,
   eventFilter: {
-    filteredTypes: new Set<string>(kDefaultExcludeSet),
+    filteredTypes: [...kDefaultExcludeEvents],
   },
 
   collapsedIdBuckets: {},
@@ -211,7 +211,7 @@ export const createSampleSlice = (
           delete state.sample.collapsedIdBuckets[key];
         });
       },
-      setFilteredEventTypes: (types: Set<string>) => {
+      setFilteredEventTypes: (types: string[]) => {
         set((state) => {
           state.sample.eventFilter.filteredTypes = types;
         });
