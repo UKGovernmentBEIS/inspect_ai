@@ -330,7 +330,7 @@ export function createBrowserApi(
   async function eval_logs_with_dir() {
     const path = log_dir
       ? `/api/logs?log_dir=${encodeURIComponent(log_dir)}`
-      : `/logs`;
+      : `/api/logs`;
     const logs = await api("GET", path);
     last_eval_time = Date.now();
     return logs.parsed;
