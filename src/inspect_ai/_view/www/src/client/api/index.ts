@@ -1,11 +1,11 @@
 import JSON5 from "json5";
 import { dirname } from "../../utils/path";
 import { getVscodeApi } from "../../utils/vscode";
-import browserApi from "./api-browser";
+import { createBrowserApi } from "./api-browser";
 import simpleHttpApi from "./api-http";
 import vscodeApi from "./api-vscode";
 import { clientApi } from "./client-api";
-import { ClientAPI, LogViewAPI } from "./types";
+import { ClientAPI } from "./types";
 
 /**
  * Resolves the client API
@@ -43,10 +43,7 @@ const resolveApi = (): ClientAPI => {
 
       // Use server API to list logs if server_list=true is specified
       if (server_list && resolved_log_dir) {
-        const api = {
-          ...browserApi,
-          eval_logs: () => browserApi.eval_logs(resolved_log_dir),
-        };
+        const api = createBrowserApi({ log_dir: resolved_log_dir });
         return clientApi(api, resolved_log_file);
       } else {
         const api = simpleHttpApi(resolved_log_dir, resolved_log_file);
@@ -56,7 +53,7 @@ const resolveApi = (): ClientAPI => {
 
     // No signal information so use the standard
     // browser API (inspect view)
-    return clientApi(browserApi);
+    return clientApi(createBrowserApi());
   }
 };
 

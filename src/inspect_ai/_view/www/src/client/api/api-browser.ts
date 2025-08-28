@@ -18,9 +18,8 @@ async function client_events() {
   return (await api("GET", `/api/events?${params.toString()}`)).parsed;
 }
 
-async function eval_logs(log_dir?: string) {
-  const path = log_dir ? `/api/logs?log_dir=${encodeURIComponent(log_dir)}` : `/logs`;
-  const logs = await api("GET", path);
+async function eval_logs() {
+  const logs = await api("GET", "/logs");
   last_eval_time = Date.now();
   return logs.parsed;
 }
@@ -319,4 +318,26 @@ const browserApi: LogViewAPI = {
   eval_pending_samples,
   eval_log_sample_data,
 };
-export default browserApi;
+
+/**
+ * Create a browser API with optional server-side log listing
+ */
+export function createBrowserApi(
+  options: { log_dir?: string } = {},
+): LogViewAPI {
+  const { log_dir } = options;
+  // Create eval_logs function that uses the provided log_dir
+  async function eval_logs_with_dir() {
+    const path = log_dir
+      ? `/api/logs?log_dir=${encodeURIComponent(log_dir)}`
+      : `/logs`;
+    const logs = await api("GET", path);
+    last_eval_time = Date.now();
+    return logs.parsed;
+  }
+
+  return {
+    ...browserApi,
+    ...(log_dir ? { eval_logs: eval_logs_with_dir } : {}),
+  };
+}
