@@ -159,6 +159,7 @@ class TaskState:
         completed: bool = False,
         metadata: dict[str, Any] = {},
         store: dict[str, Any] | None = None,
+        scores: dict[str, Score] | None = None,
     ) -> None:
         self._model = model
         self._sample_id = sample_id
@@ -174,6 +175,7 @@ class TaskState:
         self._completed = completed
         self._store = Store(store)
         self._uuid = uuid()
+        self._scores = scores
 
         if choices:
             self.choices = Choices(choices)
@@ -373,8 +375,14 @@ class TaskState:
         """The scoring target for this `Sample`."""
         return self._target
 
-    scores: dict[str, Score] | None = None
-    """Scores yielded by running task."""
+    @property
+    def scores(self) -> dict[str, Score] | None:
+        """Scores yielded by running task."""
+        return self._scores
+
+    @scores.setter
+    def scores(self, scores: dict[str, Score] | None) -> None:
+        self._scores = scores
 
     @property
     def uuid(self) -> str:
