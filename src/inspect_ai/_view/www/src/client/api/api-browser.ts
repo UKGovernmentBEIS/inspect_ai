@@ -19,7 +19,7 @@ async function client_events() {
 }
 
 async function eval_logs() {
-  const logs = await api("GET", "/logs");
+  const logs = await api("GET", "/api/logs");
   last_eval_time = Date.now();
   return logs.parsed;
 }
