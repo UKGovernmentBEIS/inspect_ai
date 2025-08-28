@@ -323,13 +323,13 @@ const browserApi: LogViewAPI = {
  * Create a browser API with optional server-side log listing
  */
 export function createBrowserApi(
-  options: { log_dir?: string } = {},
+  options: { server_log_dir?: string } = {},
 ): LogViewAPI {
-  const { log_dir } = options;
-  // Create eval_logs function that uses the provided log_dir
+  const { server_log_dir } = options;
+  // Create eval_logs function that uses the provided server_log_dir
   async function eval_logs_with_dir() {
-    const path = log_dir
-      ? `/api/logs?log_dir=${encodeURIComponent(log_dir)}`
+    const path = server_log_dir
+      ? `/api/logs?log_dir=${encodeURIComponent(server_log_dir)}`
       : `/api/logs`;
     const logs = await api("GET", path);
     last_eval_time = Date.now();
@@ -338,6 +338,6 @@ export function createBrowserApi(
 
   return {
     ...browserApi,
-    ...(log_dir ? { eval_logs: eval_logs_with_dir } : {}),
+    ...(server_log_dir ? { eval_logs: eval_logs_with_dir } : {}),
   };
 }

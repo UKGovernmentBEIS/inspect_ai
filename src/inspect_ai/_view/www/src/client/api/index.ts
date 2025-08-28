@@ -43,7 +43,7 @@ const resolveApi = (): ClientAPI => {
 
       // Use server API to list logs if server_list=true is specified
       if (server_list && resolved_log_dir) {
-        const api = createBrowserApi({ log_dir: resolved_log_dir });
+        const api = createBrowserApi({ server_log_dir: resolved_log_dir });
         return clientApi(api, resolved_log_file);
       } else {
         const api = simpleHttpApi(resolved_log_dir, resolved_log_file);
