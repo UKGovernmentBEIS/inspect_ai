@@ -7,6 +7,7 @@ from typing import Any, AsyncGenerator, AsyncIterator
 import pytest
 from aiohttp import ClientSession
 from anthropic import AsyncAnthropic
+from anthropic.types import ToolParam
 from openai import AsyncOpenAI
 from openai.types.responses import (
     FunctionToolParam,
@@ -1308,3 +1309,669 @@ async def test_model_proxy_responses_streaming_reasoning(
     # Verify the streamed text
     assert reasoning_text == "Let me think about this step by step..."
     assert summary_text == "I analyzed the problem carefully."
+
+
+# ============ Anthropic Messages API Tests ============
+
+
+@pytest.fixture
+async def proxy_server_anthropic() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
+    """Fixture to create and start the model proxy server for Anthropic testing."""
+    from inspect_ai.agent._bridge.sandbox.proxy import model_proxy_server
+
+    # Mock the bridge service for Anthropic
+    async def mock_bridge_service_anthropic(
+        method: str, json_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Mock implementation of call_bridge_model_service_async for Anthropic."""
+        if method == "generate_anthropic":
+            # Get the messages from the request
+            messages = json_data.get("messages", [])
+            tools = json_data.get("tools", [])
+
+            # Check for special test triggers
+            last_message_content = ""
+            if messages:
+                last_msg = messages[-1]
+                if isinstance(last_msg.get("content"), str):
+                    last_message_content = last_msg.get("content", "")
+                elif isinstance(last_msg.get("content"), list):
+                    # Handle content array format
+                    for content in last_msg.get("content", []):
+                        if content.get("type") == "text":
+                            last_message_content = content.get("text", "")
+                            break
+
+            # Generate different responses based on content
+            if "test_web_search" in last_message_content:
+                # Return a web search tool use response
+                return {
+                    "id": "msg_web_search_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": json_data.get("model", "claude-opus-4-1-20250805"),
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "I'll search the web for that information.",
+                        },
+                        {
+                            "type": "server_tool_use",
+                            "id": "srvtoolu_test123",
+                            "name": "web_search",
+                            "input": {"query": "latest AI news"},
+                        },
+                    ],
+                    "stop_reason": "tool_use",
+                    "stop_sequence": None,
+                    "usage": {
+                        "input_tokens": 25,
+                        "output_tokens": 20,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                }
+            elif "test_mcp" in last_message_content:
+                # Return an MCP tool use response
+                return {
+                    "id": "msg_mcp_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": json_data.get("model", "claude-opus-4-1-20250805"),
+                    "content": [
+                        {"type": "text", "text": "I'll use the MCP tool for that."},
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_mcp123",
+                            "name": "mcp_function",
+                            "input": {"param": "value"},
+                        },
+                    ],
+                    "stop_reason": "tool_use",
+                    "stop_sequence": None,
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 15,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                }
+            elif "test_thinking" in last_message_content:
+                # Return a thinking response
+                return {
+                    "id": "msg_thinking_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": json_data.get("model", "claude-opus-4-1-20250805"),
+                    "content": [
+                        {
+                            "type": "thinking",
+                            "thinking": "Let me work through this problem step by step.",
+                            "signature": "EqQBCgIYAhIM1gbcDa9GJwZA2b3hGgxBdjrkzLoky3dl1pkiMOYds",
+                        },
+                        {
+                            "type": "text",
+                            "text": "Based on my analysis, the answer is 42.",
+                        },
+                    ],
+                    "stop_reason": "end_turn",
+                    "stop_sequence": None,
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 50,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                }
+            elif tools and "weather" in last_message_content.lower():
+                # Return a tool use response
+                return {
+                    "id": "msg_tool_test",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": json_data.get("model", "claude-opus-4-1-20250805"),
+                    "content": [
+                        {"type": "text", "text": "I'll check the weather for you."},
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_test123",
+                            "name": "get_weather",
+                            "input": {"location": "San Francisco, CA"},
+                        },
+                    ],
+                    "stop_reason": "tool_use",
+                    "stop_sequence": None,
+                    "usage": {
+                        "input_tokens": 30,
+                        "output_tokens": 25,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                }
+            else:
+                # Default text response
+                response_text = (
+                    f"You said: {last_message_content}"
+                    if last_message_content
+                    else "Hello! How can I help you today?"
+                )
+                return {
+                    "id": "msg_test123",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": json_data.get("model", "claude-opus-4-1-20250805"),
+                    "content": [{"type": "text", "text": response_text}],
+                    "stop_reason": "end_turn",
+                    "stop_sequence": None,
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 15,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                }
+        else:
+            raise ValueError(f"Unknown method: {method}")
+
+    # Create server with mocked bridge service
+    server = await model_proxy_server(
+        port=0, call_bridge_model_service_async=mock_bridge_service_anthropic
+    )
+
+    # Start server manually (not using start() which blocks)
+    server.server = await asyncio.start_server(
+        server._handle_client, server.host, server.port
+    )
+
+    # Get the actual port that was assigned
+    port = server.server.sockets[0].getsockname()[1]
+    base_url = f"http://127.0.0.1:{port}"
+
+    try:
+        yield server, base_url
+    finally:
+        # Clean up
+        if server.server:
+            server.server.close()
+            await server.server.wait_closed()
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_non_streaming(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API non-streaming endpoint."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Make request
+    response = await client.messages.create(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "Hello, Claude!"}],
+        max_tokens=256,
+    )
+
+    # Verify response
+    assert response.type == "message"
+    assert response.role == "assistant"
+    assert len(response.content) == 1
+    assert response.content[0].type == "text"
+    assert response.content[0].text == "You said: Hello, Claude!"
+    assert response.stop_reason == "end_turn"
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_streaming(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API streaming endpoint."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Stream response
+    collected_text = ""
+    events = []
+
+    async with client.messages.stream(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "Hello streaming!"}],
+        max_tokens=256,
+    ) as stream:
+        async for event in stream:
+            events.append(event)
+
+            # Manually collect text from events
+            if hasattr(event, "type"):
+                if event.type == "content_block_delta":
+                    if hasattr(event, "delta") and hasattr(event.delta, "text"):
+                        collected_text += event.delta.text
+
+    # Verify we received events
+    assert len(events) > 0
+
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "message_start" in event_types
+    assert "content_block_start" in event_types
+    assert "content_block_delta" in event_types
+    assert "content_block_stop" in event_types
+    assert "message_delta" in event_types
+    assert "message_stop" in event_types
+
+    # Verify the streamed text
+    assert collected_text == "You said: Hello streaming!"
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_with_tool_use(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API with tool use."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Define tool
+    tools: list[ToolParam] = [
+        ToolParam(
+            name="get_weather",
+            description="Get the current weather in a given location",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    }
+                },
+                "required": ["location"],
+            },
+        )
+    ]
+
+    # Make request with tools
+    response = await client.messages.create(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "What's the weather in San Francisco?"}],
+        max_tokens=256,
+        tools=tools,
+        tool_choice={"type": "any"},
+    )
+
+    # Verify response
+    assert response.type == "message"
+    assert len(response.content) == 2
+
+    # First should be text
+    assert response.content[0].type == "text"
+    assert "weather" in response.content[0].text.lower()
+
+    # Second should be tool_use
+    assert response.content[1].type == "tool_use"
+    assert response.content[1].name == "get_weather"
+    assert response.content[1].input == {"location": "San Francisco, CA"}
+    assert response.stop_reason == "tool_use"
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_streaming_with_tool_use(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API streaming with tool use."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Define tool
+    tools: list[ToolParam] = [
+        ToolParam(
+            name="get_weather",
+            description="Get the current weather in a given location",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    }
+                },
+                "required": ["location"],
+            },
+        )
+    ]
+
+    # Stream response with tools
+    collected_text = ""
+    collected_json = ""
+    events = []
+
+    async with client.messages.stream(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "What's the weather in San Francisco?"}],
+        max_tokens=256,
+        tools=tools,
+        tool_choice={"type": "any"},
+    ) as stream:
+        async for event in stream:
+            events.append(event)
+
+            # Collect text and JSON from events
+            if hasattr(event, "type"):
+                if event.type == "content_block_delta":
+                    if hasattr(event, "delta"):
+                        if hasattr(event.delta, "text"):
+                            collected_text += event.delta.text
+                        elif hasattr(event.delta, "partial_json"):
+                            collected_json += event.delta.partial_json
+
+    # Verify we received events
+    assert len(events) > 0
+
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "message_start" in event_types
+    assert "content_block_start" in event_types
+    assert "content_block_delta" in event_types
+    assert "content_block_stop" in event_types
+    assert "message_delta" in event_types
+    assert "message_stop" in event_types
+
+    # Verify the content
+    assert "weather" in collected_text.lower()
+    assert "San Francisco" in collected_json
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_with_thinking(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API with thinking blocks."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Make request that triggers thinking
+    response = await client.messages.create(
+        model="claude-opus-4-1-20250805",
+        messages=[
+            {"role": "user", "content": "test_thinking: Solve this complex problem"}
+        ],
+        max_tokens=256,
+    )
+
+    # Verify response
+    assert response.type == "message"
+    assert len(response.content) == 2
+
+    # First should be thinking block
+    assert response.content[0].type == "thinking"
+    assert "step by step" in response.content[0].thinking
+    assert response.content[0].signature is not None
+
+    # Second should be text
+    assert response.content[1].type == "text"
+    assert "42" in response.content[1].text
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_streaming_with_thinking(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API streaming with thinking blocks."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Stream response with thinking
+    thinking_text = ""
+    answer_text = ""
+    signature = ""
+    events = []
+
+    async with client.messages.stream(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "test_thinking: Solve this problem"}],
+        max_tokens=256,
+    ) as stream:
+        async for event in stream:
+            events.append(event)
+
+            # Collect thinking, text, and signature from events
+            if hasattr(event, "type"):
+                if event.type == "content_block_delta":
+                    if hasattr(event, "delta"):
+                        if hasattr(event.delta, "thinking"):
+                            thinking_text += event.delta.thinking
+                        elif hasattr(event.delta, "text"):
+                            answer_text += event.delta.text
+                        elif hasattr(event.delta, "signature"):
+                            signature = event.delta.signature
+
+    # Verify we received events
+    assert len(events) > 0
+
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "message_start" in event_types
+    assert "content_block_start" in event_types
+    assert "content_block_delta" in event_types
+    assert "content_block_stop" in event_types
+    assert "message_delta" in event_types
+    assert "message_stop" in event_types
+
+    # Verify the content
+    assert "step by step" in thinking_text
+    assert "42" in answer_text
+    assert len(signature) > 0
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_content_array_format(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API with content array format in request."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Make request with content array format
+    response = await client.messages.create(
+        model="claude-opus-4-1-20250805",
+        messages=[
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Hello from content array!"}],
+            }
+        ],
+        max_tokens=256,
+    )
+
+    # Verify response
+    assert response.type == "message"
+    assert response.role == "assistant"
+    assert len(response.content) == 1
+    assert response.content[0].type == "text"
+    assert response.content[0].text == "You said: Hello from content array!"
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_web_search_tool(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API with web search tool."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Make request that triggers web search
+    response = await client.messages.create(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "test_web_search: Find latest AI news"}],
+        max_tokens=256,
+    )
+
+    # Verify response
+    assert response.type == "message"
+    assert len(response.content) == 2
+
+    # First should be text
+    assert response.content[0].type == "text"
+    assert "search" in response.content[0].text.lower()
+
+    # Second should be server_tool_use (web search)
+    # Note: Anthropic SDK might expose this as a different type
+    assert response.content[1].type in ["server_tool_use", "tool_use"]
+    if hasattr(response.content[1], "name"):
+        assert response.content[1].name == "web_search"
+    if hasattr(response.content[1], "input"):
+        assert response.content[1].input == {"query": "latest AI news"}
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_mcp_tool(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API with MCP tool."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Make request that triggers MCP tool
+    response = await client.messages.create(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "test_mcp: Use MCP function"}],
+        max_tokens=256,
+    )
+
+    # Verify response
+    assert response.type == "message"
+    assert len(response.content) == 2
+
+    # First should be text
+    assert response.content[0].type == "text"
+    assert "mcp" in response.content[0].text.lower()
+
+    # Second should be tool_use (MCP)
+    assert response.content[1].type == "tool_use"
+    assert response.content[1].name == "mcp_function"
+    assert response.content[1].input == {"param": "value"}
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_streaming_web_search(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API streaming with web search tool."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Stream response with web search
+    collected_text = ""
+    collected_json = ""
+    events = []
+
+    async with client.messages.stream(
+        model="claude-opus-4-1-20250805",
+        messages=[{"role": "user", "content": "test_web_search: Search for AI"}],
+        max_tokens=256,
+    ) as stream:
+        async for event in stream:
+            events.append(event)
+
+            # Collect text and JSON from events
+            if hasattr(event, "type"):
+                if event.type == "content_block_delta":
+                    if hasattr(event, "delta"):
+                        if hasattr(event.delta, "text"):
+                            collected_text += event.delta.text
+                        elif hasattr(event.delta, "partial_json"):
+                            collected_json += event.delta.partial_json
+
+    # Verify we received events
+    assert len(events) > 0
+
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "message_start" in event_types
+    assert "content_block_start" in event_types
+    assert "content_block_delta" in event_types
+    assert "content_block_stop" in event_types
+
+    # Verify the content
+    assert "search" in collected_text.lower()
+    assert "latest AI news" in collected_json
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_messages_streaming_mcp_tool(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Anthropic Messages API streaming with MCP tool."""
+    _server, base_url = proxy_server_anthropic
+
+    # Use Anthropic client
+    client = AsyncAnthropic(base_url=base_url)
+
+    # Stream response with MCP tool
+    collected_text = ""
+    collected_json = ""
+    events = []
+
+    async with client.messages.stream(
+        model="claude-opus-4-1-20250805",
+        messages=[
+            {"role": "user", "content": "test_mcp: Use MCP function with streaming"}
+        ],
+        max_tokens=256,
+    ) as stream:
+        async for event in stream:
+            events.append(event)
+
+            # Collect text and JSON from events
+            if hasattr(event, "type"):
+                if event.type == "content_block_delta":
+                    if hasattr(event, "delta"):
+                        if hasattr(event.delta, "text"):
+                            collected_text += event.delta.text
+                        elif hasattr(event.delta, "partial_json"):
+                            collected_json += event.delta.partial_json
+
+    # Verify we received events
+    assert len(events) > 0
+
+    # Check key event types were received
+    event_types = {e.type for e in events if hasattr(e, "type")}
+    assert "message_start" in event_types
+    assert "content_block_start" in event_types
+    assert "content_block_delta" in event_types
+    assert "content_block_stop" in event_types
+    assert "message_delta" in event_types
+    assert "message_stop" in event_types
+
+    # Verify the content
+    assert "mcp" in collected_text.lower()
+    assert '"param": "value"' in collected_json or '"param":"value"' in collected_json
