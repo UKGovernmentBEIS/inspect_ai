@@ -109,7 +109,7 @@ export type SampleIdentifier = {
 };
 
 export interface EventFilter {
-  filteredTypes: Set<string>;
+  filteredTypes: string[];
 }
 
 export interface SampleState {
