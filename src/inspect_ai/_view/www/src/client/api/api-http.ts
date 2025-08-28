@@ -66,7 +66,7 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
       // http
       return Promise.resolve([]);
     },
-    eval_logs: async (): Promise<LogFiles | undefined> => {
+    eval_logs: async (_log_dir_param?: string): Promise<LogFiles | undefined> => {
       // First check based upon the log dir
       if (log_dir) {
         const manifest = await getManifest();

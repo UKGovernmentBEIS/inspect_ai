@@ -18,8 +18,9 @@ async function client_events() {
   return (await api("GET", `/api/events?${params.toString()}`)).parsed;
 }
 
-async function eval_logs() {
-  const logs = await api("GET", `/api/logs`);
+async function eval_logs(log_dir?: string) {
+  const path = log_dir ? `/api/logs?log_dir=${encodeURIComponent(log_dir)}` : `/logs`;
+  const logs = await api("GET", path);
   last_eval_time = Date.now();
   return logs.parsed;
 }

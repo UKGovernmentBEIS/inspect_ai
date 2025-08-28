@@ -5,9 +5,8 @@ import browserApi from "./api-browser";
 import simpleHttpApi from "./api-http";
 import vscodeApi from "./api-vscode";
 import { clientApi } from "./client-api";
-import { ClientAPI } from "./types";
+import { ClientAPI, LogViewAPI } from "./types";
 
-//
 /**
  * Resolves the client API
  */
@@ -36,11 +35,23 @@ const resolveApi = (): ClientAPI => {
     const urlParams = new URLSearchParams(window.location.search);
     const log_file = urlParams.get("log_file");
     const log_dir = urlParams.get("log_dir");
+    const server_list = urlParams.get("server_list") === "true";
+
     if (log_file !== null || log_dir !== null) {
       const resolved_log_dir = log_dir === null ? undefined : log_dir;
       const resolved_log_file = log_file === null ? undefined : log_file;
-      const api = simpleHttpApi(resolved_log_dir, resolved_log_file);
-      return clientApi(api, resolved_log_file);
+
+      // Use server API to list logs if server_list=true is specified
+      if (server_list && resolved_log_dir) {
+        const api = {
+          ...browserApi,
+          eval_logs: () => browserApi.eval_logs(resolved_log_dir),
+        };
+        return clientApi(api, resolved_log_file);
+      } else {
+        const api = simpleHttpApi(resolved_log_dir, resolved_log_file);
+        return clientApi(api, resolved_log_file);
+      }
     }
 
     // No signal information so use the standard

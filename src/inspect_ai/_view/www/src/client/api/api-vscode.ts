@@ -30,7 +30,7 @@ async function client_events() {
   return [];
 }
 
-async function eval_logs() {
+async function eval_logs(log_dir?: string) {
   const response = await vscodeClient(kMethodEvalLogs, []);
   if (response) {
     const parsed = JSON5.parse(response);
