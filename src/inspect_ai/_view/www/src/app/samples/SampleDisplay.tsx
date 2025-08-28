@@ -159,7 +159,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   const setShowing = useStore(
     (state) => state.appActions.setShowingTranscriptFilterDialog,
   );
+
+  const displayMode = useStore((state) => state.app.displayMode);
+  const setDisplayMode = useStore((state) => state.appActions.setDisplayMode);
+
   const filterRef = useRef<HTMLButtonElement | null>(null);
+  const optionsRef = useRef<HTMLButtonElement | null>(null);
 
   const handlePrintClick = useCallback(() => {
     printSample(id, targetId);
@@ -168,6 +173,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);
   }, [setShowing, isShowing]);
+
+  const toggleDisplayMode = useCallback(() => {
+    setDisplayMode(displayMode === "rendered" ? "raw" : "rendered");
+  }, [displayMode, setDisplayMode]);
 
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
@@ -189,6 +198,17 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
       />,
     );
   }
+
+  tools.push(
+    <ToolButton
+      key="options-button"
+      label={"Raw"}
+      icon={ApplicationIcons.display}
+      onClick={toggleDisplayMode}
+      ref={optionsRef}
+      latched={displayMode === "raw"}
+    />,
+  );
 
   if (!isVscode()) {
     tools.push(
