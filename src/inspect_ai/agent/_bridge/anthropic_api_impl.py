@@ -1,16 +1,37 @@
 from __future__ import annotations
 
+import base64
+import io
 from logging import getLogger
-from typing import Any, Literal, cast
+from os import PathLike
+from typing import IO, Any, Literal, cast
 
-from anthropic.types import Message, ToolChoiceParam, Usage, WebSearchTool20250305Param
+from anthropic.types import (
+    DocumentBlockParam,
+    ImageBlockParam,
+    Message,
+    MessageParam,
+    SearchResultBlockParam,
+    TextBlockParam,
+    ToolChoiceParam,
+    Usage,
+    WebSearchTool20250305Param,
+)
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import BetaRequestMCPServerURLDefinitionParam
 from shortuuid import uuid
 
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageSystem
+from inspect_ai._util.content import Content, ContentDocument, ContentImage, ContentText
+from inspect_ai._util.images import as_data_uri
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelUsage, StopReason
+from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
     ToolParamDef,
     anthropic_extra_body_fields,
@@ -19,13 +40,15 @@ from inspect_ai.model._providers.anthropic import (
     is_text_editor_tool,
     is_tool_param,
     is_web_search_tool,
+    model_output_from_message,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
-from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._computer._computer import computer
 from inspect_ai.tool._tools._text_editor import text_editor
 from inspect_ai.tool._tools._web_search._web_search import (
@@ -47,6 +70,7 @@ async def inspect_anthropic_api_request_impl(
     # resolve model
     bridge_model_name = str(json_data["model"])
     model = resolve_inspect_model(bridge_model_name)
+    model_name = model.api.model_name
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
@@ -62,7 +86,11 @@ async def inspect_anthropic_api_request_impl(
     tool_choice = tool_choice_from_anthropic_tool_choice(anthropic_tool_choice)
 
     # convert to inspect messages
-    messages: list[ChatMessage] = []
+    input: list[MessageParam] = json_data["messages"]
+    debug_log("SCAFFOLD INPUT", input)
+
+    messages = await messages_from_anthropic_input(model_name, input, tools)
+    debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_anthropic(json_data)
@@ -81,6 +109,8 @@ async def inspect_anthropic_api_request_impl(
         config=config,
     )
 
+    debug_log("INSPECT OUTPUT", output.message)
+
     # update state
     if bridge_model_name == "inspect":
         bridge.state.messages = messages + [output.message]
@@ -96,6 +126,7 @@ async def inspect_anthropic_api_request_impl(
         type="message",
         usage=anthropic_usage(output.usage or ModelUsage()),
     )
+    debug_log("SCAFFOLD RESPONSE", message)
 
     return message
 
@@ -209,16 +240,6 @@ def tools_from_anthropic_tools(
     return tools
 
 
-def tool_to_tool_info(tool: Tool) -> ToolInfo:
-    tool_def = ToolDef(tool)
-    return ToolInfo(
-        name=tool_def.name,
-        description=tool_def.description,
-        parameters=tool_def.parameters,
-        options=tool_def.options,
-    )
-
-
 def resolve_web_search_providers(
     tool_param: WebSearchTool20250305Param, web_search: WebSearchProviders
 ) -> WebSearchProviders:
@@ -255,6 +276,140 @@ def tool_choice_from_anthropic_tool_choice(
             return "none"
         case "tool":
             return ToolFunction(name=tool_choice["name"])
+
+
+async def messages_from_anthropic_input(
+    model: str, input: list[MessageParam], tools: list[ToolInfo | Tool]
+) -> list[ChatMessage]:
+    messages: list[ChatMessage] = []
+
+    # resolve tools to tool info
+    tools_info = [
+        tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
+        for tool in tools
+    ]
+
+    # track tool names for tool ids
+    tool_names: dict[str, str] = {}
+
+    for param in input:
+        if param["role"] == "assistant":
+            # create assistant message
+            message = Message.model_validate(param)
+            output, _ = await model_output_from_message(
+                client=None, model=model, message=message, tools=tools_info
+            )
+            messages.append(output.message)
+
+            # record tool names for creating ChatMessageTool
+            for tool_call in output.message.tool_calls or []:
+                tool_names[tool_call.id] = tool_call.function
+
+        elif param["role"] == "user":
+            if isinstance(param["content"], str):
+                messages.append(ChatMessageUser(content=param["content"]))
+            else:
+                pending_user_content: list[
+                    TextBlockParam | ImageBlockParam | DocumentBlockParam
+                ] = []
+
+                def flush_pending_user_content() -> None:
+                    messages.append(
+                        ChatMessageUser(
+                            content=[
+                                content_block_to_content(b)
+                                for b in pending_user_content  # noqa: B023
+                            ]
+                        )
+                    )
+
+                for c in param["content"]:
+                    if not isinstance(c, dict):
+                        logger.warning(f"Unexpected message content: {c}")
+                        continue
+                    if c["type"] == "tool_result":
+                        flush_pending_user_content()
+                        content = (
+                            c["content"]
+                            if isinstance(c["content"], str)
+                            else [content_block_to_content(b) for b in c["content"]]
+                        )
+                        messages.append(
+                            ChatMessageTool(
+                                tool_call_id=c["tool_use_id"],
+                                function=tool_names.get(c["tool_use_id"], None),
+                                content=content,
+                                error=ToolCallError(
+                                    type="unknown", message=str(c["content"])
+                                )
+                                if c["is_error"]
+                                else None,
+                            )
+                        )
+
+                flush_pending_user_content()
+
+        else:
+            raise RuntimeError(f"Unexpected message role: {param['role']}")
+
+    return messages
+
+
+def content_block_to_content(
+    block: TextBlockParam
+    | ImageBlockParam
+    | DocumentBlockParam
+    | SearchResultBlockParam,
+) -> Content:
+    if block["type"] == "text":
+        return ContentText(
+            text=block["text"],
+            citations=[to_inspect_citation(cite) for cite in block["citations"]]
+            if block["citations"] is not None
+            else None,
+        )
+    elif block["type"] == "image":
+        if block["source"]["type"] == "base64":
+            data = base_64_data(block["source"]["data"])
+            return ContentImage(
+                image=as_data_uri(
+                    mime_type=block["source"]["media_type"],
+                    data=data,
+                )
+            )
+        else:
+            return ContentImage(image=block["source"]["url"])
+    elif block["type"] == "document":
+        source = block["source"]
+        if source["type"] == "text":
+            return ContentDocument(
+                document=source["data"], mime_type=source["media_type"]
+            )
+        elif source["type"] == "url":
+            return ContentDocument(document=source["url"])
+        elif source["type"] == "base64":
+            data = base_64_data(source["data"])
+            return ContentDocument(
+                document=as_data_uri(source["media_type"], data),
+                mime_type=source["media_type"],
+            )
+        elif source["type"] == "content":
+            c = source["content"]
+            if isinstance(c, str):
+                return ContentText(text=c)
+            else:
+                return content_block_to_content(list(c)[0])
+    else:
+        raise RuntimeError(f"Unsupported content block type: {type(block)}")
+
+
+def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
+    if isinstance(data, io.IOBase):
+        data = base64.b64encode(data.read()).decode("utf-8")
+    if isinstance(data, str):
+        return data
+    else:
+        raise RuntimeError("Unsupported image content type: {data}")
 
 
 def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:

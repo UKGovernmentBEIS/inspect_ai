@@ -1138,7 +1138,7 @@ _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
 
 
 async def model_output_from_message(
-    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex | None,
     model: str,
     message: Message,
     tools: list[ToolInfo],
@@ -1267,9 +1267,10 @@ async def model_output_from_message(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
         elif isinstance(content_block, ThinkingBlock):
-            reasoning_tokens += await count_tokens(
-                client, model, content_block.thinking
-            )
+            if client is not None:
+                reasoning_tokens += await count_tokens(
+                    client, model, content_block.thinking
+                )
             content.append(
                 ContentReasoning(
                     reasoning=content_block.thinking, signature=content_block.signature

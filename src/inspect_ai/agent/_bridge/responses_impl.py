@@ -114,6 +114,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._computer._computer import computer
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -172,12 +173,12 @@ async def inspect_responses_api_request_impl(
         config=config,
     )
 
+    debug_log("INSPECT OUTPUT", output.message)
+
     # update state
     if bridge_model_name == "inspect":
         bridge.state.messages = messages + [output.message]
         bridge.state.output = output
-
-    debug_log("INSPECT OUTPUT", output.message)
 
     # return response
     response = Response(
@@ -372,7 +373,7 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
 
 def messages_from_responses_input(
     input: str | list[ResponseInputItemParam],
-    tools: list[ToolInfo],
+    tools: list[ToolInfo | Tool],
     model_name: str | None = None,
 ) -> list[ChatMessage]:
     # enture input is a list
@@ -384,6 +385,12 @@ def messages_from_responses_input(
                 content=[ResponseInputTextParam(type="input_text", text=input)],
             )
         ]
+
+    # resolve tools to tool info
+    tools_info = [
+        tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
+        for tool in tools
+    ]
 
     messages: list[ChatMessage] = []
     function_calls_by_id: dict[str, str] = {}
@@ -433,7 +440,7 @@ def messages_from_responses_input(
                             id=param["call_id"],
                             function=param["name"],
                             arguments=param["arguments"],
-                            tools=tools,
+                            tools=tools_info,
                         )
                     )
                 elif is_response_computer_tool_call(param):
