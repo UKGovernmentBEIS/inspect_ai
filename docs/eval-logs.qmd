@@ -201,7 +201,7 @@ Eval log files can get quite large (multiple GB) so it is often useful to read o
 log_header = read_eval_log(log_file, header_only=True)
 ```
 
-The log header is a standard `EvalLog` object without the `samples` and `reductions` fields.
+The log header is a standard `EvalLog` object without the `samples` fields. The `reductions` field is included for `eval` log files and not for `json` log files.
 
 ### Summaries
 

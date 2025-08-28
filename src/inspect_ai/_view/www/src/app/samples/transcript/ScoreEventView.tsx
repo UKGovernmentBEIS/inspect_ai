@@ -1,6 +1,5 @@
 import { FC, Fragment } from "react";
 import { ScoreEvent, Value1 } from "../../../@types/log";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
@@ -8,6 +7,7 @@ import { EventPanel } from "./event/EventPanel";
 
 import clsx from "clsx";
 import { RecordTree } from "../../content/RecordTree";
+import { RenderedText } from "../../content/RenderedText";
 import styles from "./ScoreEventView.module.css";
 import { EventNode } from "./types";
 
@@ -46,7 +46,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
             <div className={clsx(styles.separator)}></div>
             <div className={"text-style-label"}>Target</div>
             <div>
-              <MarkdownDiv markdown={resolvedTarget || ""} />
+              <RenderedText markdown={resolvedTarget || ""} />
             </div>
           </Fragment>
         ) : (
@@ -55,12 +55,12 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Answer</div>
         <div>
-          <MarkdownDiv markdown={event.score.answer || ""} />
+          <RenderedText markdown={event.score.answer || ""} />
         </div>
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Explanation</div>
         <div>
-          <MarkdownDiv markdown={event.score.explanation || ""} />
+          <RenderedText markdown={event.score.explanation || ""} />
         </div>
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Score</div>
