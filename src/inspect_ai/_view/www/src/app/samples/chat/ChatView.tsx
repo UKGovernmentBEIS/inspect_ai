@@ -9,6 +9,7 @@ interface ChatViewProps {
   id?: string;
   messages: Messages;
   toolCallStyle?: ChatViewToolCallStyle;
+  resolveToolCallsIntoPreviousMessage?: boolean;
   title?: string;
   indented?: boolean;
   numbered?: boolean;
@@ -22,11 +23,19 @@ export const ChatView: FC<ChatViewProps> = ({
   id,
   messages,
   toolCallStyle = "complete",
+  resolveToolCallsIntoPreviousMessage = true,
   indented,
   numbered = true,
   className,
 }) => {
-  const collapsedMessages = resolveMessages(messages);
+  const collapsedMessages = resolveToolCallsIntoPreviousMessage
+    ? resolveMessages(messages)
+    : messages.map((msg) => {
+        return {
+          message: msg,
+          toolMessages: [],
+        };
+      });
   const result = (
     <div className={clsx(className)}>
       {collapsedMessages.map((msg, index) => {

@@ -16,7 +16,11 @@ import { ChatViewToolCallStyle, Citation } from "./types";
 
 interface MessageContentsProps {
   id: string;
-  message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
+  message:
+    | ChatMessageAssistant
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageTool;
   toolMessages: ChatMessageTool[];
   toolCallStyle: ChatViewToolCallStyle;
 }

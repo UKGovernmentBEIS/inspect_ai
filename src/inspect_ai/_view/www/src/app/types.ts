@@ -45,6 +45,7 @@ export interface AppState {
   dialogs: {
     sample: boolean;
     transcriptFilter: boolean;
+    options: boolean;
   };
   scrollPositions: Record<string, number>;
   listPositions: Record<string, StateSnapshot>;
@@ -60,6 +61,7 @@ export interface AppState {
   rehydrated?: boolean;
   pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
+  displayMode?: "rendered" | "raw";
 }
 
 export interface LogsState {
