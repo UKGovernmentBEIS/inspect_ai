@@ -1,7 +1,9 @@
 from textwrap import dedent
 from typing import Any, cast
 
+from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
+from anthropic.types import ToolChoiceAnyParam
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
@@ -171,6 +173,27 @@ def responses_web_search_agent() -> Agent:
 @agent
 def anthropic_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
+        def tools_param() -> Any:
+            if tools:
+                return [
+                    {
+                        "name": "get_weather",
+                        "description": "Get the current weather in a given location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. San Francisco, CA",
+                                }
+                            },
+                            "required": ["location"],
+                        },
+                    }
+                ]
+            else:
+                return None
+
         async with agent_bridge(state) as bridge:
             client = AsyncAnthropic()
 
@@ -180,13 +203,19 @@ def anthropic_agent(tools: bool) -> Agent:
                 temperature=0.8,
                 top_p=0.5,
                 top_k=2,
-                thinking={"type": "enabled", "budget_tokens": 2048},
+                thinking={"type": "enabled", "budget_tokens": 2048}
+                if not tools
+                else ANTHROPIC_NOT_GIVEN,
                 messages=[
                     {
                         "role": "user",
                         "content": user_prompt(state.messages).text,
                     }
                 ],
+                tools=tools_param(),
+                tool_choice=ToolChoiceAnyParam(type="any")
+                if tools
+                else ANTHROPIC_NOT_GIVEN,
             )
 
             return bridge.state
@@ -422,7 +451,10 @@ def check_anthropic_bridge_log_json(log_json: str, tools: bool):
     assert r'"temperature": 0.8' in log_json
     assert r'"top_p": 0.5' in log_json
     assert r'"top_k": 2' in log_json
-    assert r'"budget_tokens": 2048' in log_json
+    if tools:
+        assert r'"name": "get_weather"' in log_json
+    else:
+        assert r'"budget_tokens": 2048' in log_json
 
 
 @skip_if_no_anthropic
