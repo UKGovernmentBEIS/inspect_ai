@@ -7,6 +7,8 @@ from os import PathLike
 from typing import IO, Any, Literal, cast
 
 from anthropic.types import (
+    ContentBlock,
+    ContentBlockParam,
     DocumentBlockParam,
     ImageBlockParam,
     Message,
@@ -25,6 +27,7 @@ from inspect_ai._util.content import Content, ContentDocument, ContentImage, Con
 from inspect_ai._util.images import as_data_uri
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
@@ -36,11 +39,11 @@ from inspect_ai.model._providers.anthropic import (
     ToolParamDef,
     anthropic_extra_body_fields,
     assistant_message_blocks,
+    content_and_tool_calls_from_assistant_content_blocks,
     is_computer_tool,
     is_text_editor_tool,
     is_tool_param,
     is_web_search_tool,
-    model_output_from_message,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
@@ -70,7 +73,6 @@ async def inspect_anthropic_api_request_impl(
     # resolve model
     bridge_model_name = str(json_data["model"])
     model = resolve_inspect_model(bridge_model_name)
-    model_name = model.api.model_name
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
@@ -89,7 +91,7 @@ async def inspect_anthropic_api_request_impl(
     input: list[MessageParam] = json_data["messages"]
     debug_log("SCAFFOLD INPUT", input)
 
-    messages = await messages_from_anthropic_input(model_name, input, tools)
+    messages = await messages_from_anthropic_input(input, tools)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -279,7 +281,7 @@ def tool_choice_from_anthropic_tool_choice(
 
 
 async def messages_from_anthropic_input(
-    model: str, input: list[MessageParam], tools: list[ToolInfo | Tool]
+    input: list[MessageParam], tools: list[ToolInfo | Tool]
 ) -> list[ChatMessage]:
     messages: list[ChatMessage] = []
 
@@ -294,15 +296,25 @@ async def messages_from_anthropic_input(
 
     for param in input:
         if param["role"] == "assistant":
+            # resolve str to block
+            if isinstance(param["content"], str):
+                param_content: list[ContentBlockParam | ContentBlock] = [
+                    TextBlockParam(type="text", text=param["content"])
+                ]
+            else:
+                param_content = list(param["content"])
             # create assistant message
-            message = Message.model_validate(param)
-            output, _ = await model_output_from_message(
-                client=None, model=model, message=message, tools=tools_info
+            assistant_content, tool_calls = (
+                content_and_tool_calls_from_assistant_content_blocks(
+                    param_content, tools_info
+                )
             )
-            messages.append(output.message)
+            messages.append(
+                ChatMessageAssistant(content=assistant_content, tool_calls=tool_calls)
+            )
 
             # record tool names for creating ChatMessageTool
-            for tool_call in output.message.tool_calls or []:
+            for tool_call in tool_calls or []:
                 tool_names[tool_call.id] = tool_call.function
 
         elif param["role"] == "user":
@@ -314,14 +326,17 @@ async def messages_from_anthropic_input(
                 ] = []
 
                 def flush_pending_user_content() -> None:
-                    messages.append(
-                        ChatMessageUser(
-                            content=[
-                                content_block_to_content(b)
-                                for b in pending_user_content  # noqa: B023
-                            ]
+                    nonlocal pending_user_content
+                    if len(pending_user_content) > 0:  # noqa: B023
+                        messages.append(
+                            ChatMessageUser(
+                                content=[
+                                    content_block_to_content(b)
+                                    for b in pending_user_content  # noqa: B023
+                                ]
+                            )
                         )
-                    )
+                        pending_user_content.clear()  # noqa: B023
 
                 for c in param["content"]:
                     if not isinstance(c, dict):
@@ -342,10 +357,18 @@ async def messages_from_anthropic_input(
                                 error=ToolCallError(
                                     type="unknown", message=str(c["content"])
                                 )
-                                if c["is_error"]
+                                if c.get("is_error", False) is True
                                 else None,
                             )
                         )
+                    elif (
+                        c["type"] == "text"
+                        or c["type"] == "image"
+                        or c["type"] == "document"
+                    ):
+                        pending_user_content.append(c)
+                    else:
+                        raise RuntimeError("Unexpected input parameter: {c}")
 
                 flush_pending_user_content()
 
@@ -364,8 +387,10 @@ def content_block_to_content(
     if block["type"] == "text":
         return ContentText(
             text=block["text"],
-            citations=[to_inspect_citation(cite) for cite in block["citations"]]
-            if block["citations"] is not None
+            citations=[
+                to_inspect_citation(cite) for cite in block.get("citations", []) or []
+            ]
+            if block.get("citations", None) is not None
             else None,
         )
     elif block["type"] == "image":

@@ -6,7 +6,17 @@ from contextvars import ContextVar
 from copy import copy
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Any, Iterable, Literal, Optional, Tuple, TypeGuard, Union, cast
+from typing import (
+    Any,
+    Iterable,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeGuard,
+    Union,
+    cast,
+)
 
 from anthropic import (
     APIConnectionError,
@@ -21,6 +31,8 @@ from anthropic import (
 from anthropic._types import Body
 from anthropic.types import (
     Base64PDFSourceParam,
+    ContentBlock,
+    ContentBlockParam,
     ContentBlockSourceParam,
     DocumentBlockParam,
     ImageBlockParam,
@@ -1138,19 +1150,82 @@ _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
 
 
 async def model_output_from_message(
-    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex | None,
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
     model: str,
     message: Message,
     tools: list[ToolInfo],
 ) -> tuple[ModelOutput, bool]:
     # extract content and tool calls
-    content: list[Content] = []
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        message.content, tools
+    )
+
+    # count reasoning tokens
     reasoning_tokens = 0
+    for content_block in message.content:
+        if isinstance(content_block, ThinkingBlock):
+            reasoning_tokens += await count_tokens(
+                client, model, content_block.thinking
+            )
+
+    # resolve choice
+    stop_reason, pause_turn = message_stop_reason(message)
+    choice = ChatCompletionChoice(
+        message=ChatMessageAssistant(
+            content=content, tool_calls=tool_calls, model=model, source="generate"
+        ),
+        stop_reason=stop_reason,
+    )
+
+    # return ModelOutput
+    usage = message.usage.model_dump()
+    input_tokens_cache_write = usage.get("cache_creation_input_tokens", None)
+    input_tokens_cache_read = usage.get("cache_read_input_tokens", None)
+    total_tokens = (
+        message.usage.input_tokens
+        + (input_tokens_cache_write or 0)
+        + (input_tokens_cache_read or 0)
+        + message.usage.output_tokens  # includes reasoning tokens
+    )
+    return (
+        ModelOutput(
+            model=message.model,
+            choices=[choice],
+            usage=ModelUsage(
+                input_tokens=message.usage.input_tokens,
+                output_tokens=message.usage.output_tokens,
+                total_tokens=total_tokens,
+                input_tokens_cache_write=input_tokens_cache_write,
+                input_tokens_cache_read=input_tokens_cache_read,
+                reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+            ),
+        ),
+        pause_turn,
+    )
+
+
+content_block_adapter = TypeAdapter[ContentBlock](ContentBlock)
+
+
+def content_and_tool_calls_from_assistant_content_blocks(
+    content_blocks_input: Sequence[ContentBlockParam | ContentBlock],
+    tools: list[ToolInfo],
+) -> tuple[list[Content], list[ToolCall] | None]:
+    # reoslve params to blocks
+    content_blocks: list[ContentBlock] = []
+    for block in content_blocks_input:
+        if isinstance(block, dict):
+            content_blocks.append(content_block_adapter.validate_python(block))
+        else:
+            content_blocks.append(block)
+
+    # extract content and tool calls
+    content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
 
     pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] = dict()
-    for content_block in message.content:
+    for content_block in content_blocks:
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
             tool_use_block = BetaMCPToolUseBlock.model_validate(
                 content_block.model_dump()
@@ -1267,50 +1342,13 @@ async def model_output_from_message(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
         elif isinstance(content_block, ThinkingBlock):
-            if client is not None:
-                reasoning_tokens += await count_tokens(
-                    client, model, content_block.thinking
-                )
             content.append(
                 ContentReasoning(
                     reasoning=content_block.thinking, signature=content_block.signature
                 )
             )
 
-    # resolve choice
-    stop_reason, pause_turn = message_stop_reason(message)
-    choice = ChatCompletionChoice(
-        message=ChatMessageAssistant(
-            content=content, tool_calls=tool_calls, model=model, source="generate"
-        ),
-        stop_reason=stop_reason,
-    )
-
-    # return ModelOutput
-    usage = message.usage.model_dump()
-    input_tokens_cache_write = usage.get("cache_creation_input_tokens", None)
-    input_tokens_cache_read = usage.get("cache_read_input_tokens", None)
-    total_tokens = (
-        message.usage.input_tokens
-        + (input_tokens_cache_write or 0)
-        + (input_tokens_cache_read or 0)
-        + message.usage.output_tokens  # includes reasoning tokens
-    )
-    return (
-        ModelOutput(
-            model=message.model,
-            choices=[choice],
-            usage=ModelUsage(
-                input_tokens=message.usage.input_tokens,
-                output_tokens=message.usage.output_tokens,
-                total_tokens=total_tokens,
-                input_tokens_cache_write=input_tokens_cache_write,
-                input_tokens_cache_read=input_tokens_cache_read,
-                reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
-            ),
-        ),
-        pause_turn,
-    )
+    return content, tool_calls
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
