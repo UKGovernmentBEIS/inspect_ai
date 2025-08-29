@@ -304,21 +304,6 @@ async function open_log_file() {
   // No op
 }
 
-const browserApi: LogViewAPI = {
-  client_events,
-  eval_logs,
-  eval_log,
-  eval_log_size,
-  eval_log_bytes,
-  eval_log_overviews: eval_log_headers,
-  log_message,
-  download_file,
-
-  open_log_file,
-  eval_pending_samples,
-  eval_log_sample_data,
-};
-
 /**
  * Create a browser API with optional server-side log listing
  */
