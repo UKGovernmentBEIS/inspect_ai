@@ -323,25 +323,29 @@ const browserApi: LogViewAPI = {
  * Create a browser API with optional server-side log listing
  */
 export function createBrowserApi(
-  options: { server_log_dir?: string } = {},
+  options: { log_dir?: string } = {},
 ): LogViewAPI {
-  const { server_log_dir } = options;
-
-  if (!server_log_dir) {
-    // No server_log_dir, just return the default browserApi
-    return browserApi;
-  }
-
-  // Create eval_logs function that uses the provided server_log_dir
-  async function eval_logs_with_server_dir() {
-    const path = `/api/logs?log_dir=${encodeURIComponent(server_log_dir!)}`;
-    const logs = await api("GET", path);
-    last_eval_time = Date.now();
-    return logs.parsed;
-  }
+  const { log_dir } = options;
 
   return {
-    ...browserApi,
-    eval_logs: eval_logs_with_server_dir,
+    client_events,
+    eval_logs: async () => {
+      const path = log_dir
+        ? `/api/logs?log_dir=${encodeURIComponent(log_dir)}`
+        : "/api/logs";
+      const logs = await api("GET", path);
+      last_eval_time = Date.now();
+      return logs.parsed;
+    },
+    eval_log,
+    eval_log_size,
+    eval_log_bytes,
+    eval_log_overviews: eval_log_headers,
+    log_message,
+    download_file,
+
+    open_log_file,
+    eval_pending_samples,
+    eval_log_sample_data,
   };
 }

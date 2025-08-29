@@ -41,11 +41,17 @@ const resolveApi = (): ClientAPI => {
     const resolved_log_file = log_file ?? undefined;
 
     if (forceBrowserApi) {
-      return clientApi(createBrowserApi({ server_log_dir: resolved_log_dir }), resolved_log_file);
+      return clientApi(
+        createBrowserApi({ log_dir: resolved_log_dir }),
+        resolved_log_file,
+      );
     }
 
     if (resolved_log_dir !== undefined || resolved_log_file !== undefined) {
-      return clientApi(simpleHttpApi(resolved_log_dir, resolved_log_file), resolved_log_file);
+      return clientApi(
+        simpleHttpApi(resolved_log_dir, resolved_log_file),
+        resolved_log_file,
+      );
     }
 
     // No signal information so use the standard
