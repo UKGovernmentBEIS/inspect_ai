@@ -36,7 +36,6 @@ def codex() -> Agent:
                 ],
                 env={
                     "OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1",
-                    "OPENAI_API_KEY": bridge.authorization,
                 },
             )
 

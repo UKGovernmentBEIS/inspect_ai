@@ -47,19 +47,13 @@ HOP_BY_HOP = {
 class AsyncHTTPServer:
     """Async HTTP server supporting GET/POST/OPTIONS with streaming + proxy utilities."""
 
-    def __init__(
-        self,
-        host: str = "127.0.0.1",
-        port: int = 8000,
-        authorization: str = "",
-    ) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 8000) -> None:
         self.host = host
         self.port = port
         self.routes: MethodRoutes = {"GET": {}, "POST": {}, "OPTIONS": {}}
         self.server: asyncio.Server | None = None
         self.enable_cors: bool = True
         self.server_name: str = "asyncio-proxy"
-        self.authorization = authorization
 
     # -------- Routing --------
     def route(
@@ -395,12 +389,9 @@ class AsyncHTTPServer:
                 await writer.drain()
                 return
 
-            # authorize
-            authorized = self._authorize(headers)
-
             # Find handler
             handler = self._find_handler(method, path)
-            if authorized and handler:
+            if handler:
                 # Build request context for handler
                 request_data: dict[str, Any] = {
                     "method": method,
@@ -499,23 +490,6 @@ class AsyncHTTPServer:
             writer.close()
             await writer.wait_closed()
 
-    def _authorize(self, headers: dict[str, str]) -> bool:
-        if self.authorization:
-            if "x-api-key" in headers:
-                return headers["x-api-key"] == self.authorization
-            elif "authorization" in headers:
-                authorization = headers["authorization"]
-                authorization = (
-                    authorization[7:]
-                    if authorization.upper().startswith("BEARER ")
-                    else authorization
-                )
-                return authorization == self.authorization
-            else:
-                return True
-        else:
-            return True
-
     # -------- Lifecycle --------
     async def start(self) -> None:
         self.server = await asyncio.start_server(
@@ -537,15 +511,12 @@ def _http_date() -> str:
 
 
 async def model_proxy_server(
-    port: int,
-    authorization: str,
-    call_bridge_model_service_async: Any = None,
+    port: int, call_bridge_model_service_async: Any = None
 ) -> AsyncHTTPServer:
     """Create and configure the model proxy server.
 
     Args:
         port: Port to run the server on
-        authorization: Authoriziation key
         call_bridge_model_service_async: Optional bridge service function for testing
 
     Returns:
@@ -559,7 +530,7 @@ async def model_proxy_server(
         )
 
     # setup server
-    server = AsyncHTTPServer(port=port, authorization=authorization)
+    server = AsyncHTTPServer(port=port)
 
     def _sse_bytes(payload: dict[str, Any]) -> bytes:
         # data-only SSE, as used by OpenAI's Chat Completions stream
@@ -1766,9 +1737,14 @@ async def model_proxy_server(
     return server
 
 
-async def run_model_proxy_server(port: int, authorization: str = "") -> None:
+async def run_model_proxy_server(port: int) -> None:
+    """Run the model proxy server.
+
+    Args:
+        port: Port to run the server on
+    """
     # Create server
-    server = await model_proxy_server(port, authorization)
+    server = await model_proxy_server(port)
 
     # Run server
     try:
@@ -1801,5 +1777,4 @@ def _handle_model_proxy_error(ex: Exception) -> None:
 if __name__ == "__main__":
     DEFAULT_PROXY_PORT = 13131
     port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PROXY_PORT
-    authorization = sys.stdin.read()
-    asyncio.run(run_model_proxy_server(port=port_arg, authorization=authorization))
+    asyncio.run(run_model_proxy_server(port=port_arg))
