@@ -12,6 +12,7 @@
 - Sandbox Service: New `polling_interval` option for controlling polling interval from sandbox to scaffold (defaults to 2 seconds, overridden to 0.2 seconds for Docker sandbox).
 - ReAct Agent: Add submit tool content to assistant message (in addition to setting the `completion`).
 - Metrics: Compute metrics when an empty list of reducers is provided (do not reduce the scores before computing metrics). Add `--no-epochs-reducer` CLI flag for specifying no reducers.
+- Scoring: Make `match` more lenient when numeric matches container markdown formatting.
 - Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out `sample_init`, `sandbox`, `store`, and `state` events.
 - Inspect View: Add support for displaying raw markdown source when viewing sample data.
 - Inspect View: Remove sample list / title content when sample is displaying (prevents find from matching content behind the sample detail).
