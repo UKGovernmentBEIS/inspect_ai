@@ -1682,7 +1682,7 @@ async def model_proxy_server(
 
                     # 3. message_delta event with cumulative usage
                     usage = message.get("usage", {})
-                    message_delta_data = {
+                    message_delta_data: dict[str, Any] = {
                         "type": "message_delta",
                         "delta": {
                             "stop_reason": message.get("stop_reason"),
