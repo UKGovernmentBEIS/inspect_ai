@@ -657,61 +657,66 @@ async def extract_system_message_as_parts(
 
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
 def schema_from_param(
-    param: ToolParam | ToolParams, nullable: bool | None = False
+    param: ToolParam | ToolParams,
+    nullable: bool | None = False,
+    description: str | None = None,
 ) -> Schema:
     if isinstance(param, ToolParams):
         param = ToolParam(
             type=param.type, properties=param.properties, required=param.required
         )
 
+    # use fallback description if the param doesn't have its own
+    param_description = param.description or description
+
     if param.type == "number":
         return Schema(
-            type=Type.NUMBER, description=param.description, nullable=nullable
+            type=Type.NUMBER, description=param_description, nullable=nullable
         )
     elif param.type == "integer":
         return Schema(
-            type=Type.INTEGER, description=param.description, nullable=nullable
+            type=Type.INTEGER, description=param_description, nullable=nullable
         )
     elif param.type == "boolean":
         return Schema(
-            type=Type.BOOLEAN, description=param.description, nullable=nullable
+            type=Type.BOOLEAN, description=param_description, nullable=nullable
         )
     elif param.type == "string":
         if param.format == "date-time":
             return Schema(
                 type=Type.STRING,
-                description=param.description,
+                description=param_description,
                 format="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
                 nullable=nullable,
             )
         elif param.format == "date":
             return Schema(
                 type=Type.STRING,
-                description=param.description,
+                description=param_description,
                 format="^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
                 nullable=nullable,
             )
         elif param.format == "time":
             return Schema(
                 type=Type.STRING,
-                description=param.description,
+                description=param_description,
                 format="^[0-9]{2}:[0-9]{2}:[0-9]{2}$",
                 nullable=nullable,
             )
         return Schema(
-            type=Type.STRING, description=param.description, nullable=nullable
+            type=Type.STRING, description=param_description, nullable=nullable
         )
     elif param.type == "array":
         return Schema(
             type=Type.ARRAY,
-            description=param.description,
+            description=param_description,
             items=schema_from_param(param.items) if param.items else None,
             nullable=nullable,
         )
     elif param.type == "object":
         return Schema(
             type=Type.OBJECT,
-            description=param.description,
+            description=param_description,
             properties={k: schema_from_param(v) for k, v in param.properties.items()}
             if param.properties is not None
             else {},
@@ -721,13 +726,20 @@ def schema_from_param(
     # convert unions to optional params if the second type is 'null'
     elif param.anyOf:
         if len(param.anyOf) == 2 and param.anyOf[1].type == "null":
-            return schema_from_param(param.anyOf[0], nullable=True)
+            return schema_from_param(
+                param.anyOf[0], nullable=True, description=param_description
+            )
         else:
-            return Schema(type=Type.TYPE_UNSPECIFIED)
+            return Schema(type=Type.TYPE_UNSPECIFIED, description=param_description)
     elif param.enum:
-        return Schema(type=Type.STRING, format="enum", enum=param.enum)
+        return Schema(
+            type=Type.STRING,
+            format="enum",
+            enum=param.enum,
+            description=param_description,
+        )
     else:
-        return Schema(type=Type.TYPE_UNSPECIFIED)
+        return Schema(type=Type.TYPE_UNSPECIFIED, description=param_description)
 
 
 def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
