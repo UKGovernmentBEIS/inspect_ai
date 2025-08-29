@@ -7,7 +7,7 @@ The example includes the following source files:
 | File | Description |
 |-------------------|-----------------------------------------------------|
 | [task.py](task.py) | Evaluation task which uses the codex agent. |
-| [agent.py](agent.py) | Codex agent (invokes the codex CLI within the sandbox). |
+| [codex.py](codex.py) | Codex agent (invokes the codex CLI within the sandbox). |
 | [dataset.json](dataset.json) | Dataset with questions and answer rubrics. |
 | [Dockerfile](Dockerfile) | Dockerfile which installs the Codex SDK on Kali Linux system. |
 

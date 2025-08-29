@@ -15988,9 +15988,13 @@ a._citationLink_t2k1z_9:hover {
 ._textCode_bv5nm_18 {
   word-wrap: anywhere;
 }
-._toolCallView_16q6n_1 {
+._toolCallView_l6wae_1 {
   display: grid;
-  row-gap: 1em;
+  row-gap: 0.5em;
+}
+
+._toolCallView_l6wae_1:not(:first-child) {
+  margin-top: 1em;
 }
 ._outputPre_1jznn_1 {
   padding: 0.5em;
@@ -16011,13 +16015,18 @@ a._citationLink_t2k1z_9:hover {
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
-._image_a8byr_1 {
+._image_1vcac_1 {
   margin-right: 0.2rem;
   opacity: 0.4;
 }
 
-._toolTitle_a8byr_6 {
+._toolTitle_1vcac_6 {
   color: unset !important;
+}
+
+._description_1vcac_10 {
+  margin-left: 0.3em;
+  color: var(--bs-secondary-color);
 }
 ._content_1b2jp_1 {
   margin-bottom: 1em;

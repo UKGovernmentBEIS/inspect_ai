@@ -1,7 +1,5 @@
-import base64
 import functools
 import json
-import re
 import socket
 from copy import copy
 from typing import Any, Literal
@@ -58,6 +56,11 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    content_internal_tag,
+    parse_content_with_internal,
+)
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -256,10 +259,6 @@ def openai_completion_params(
     return params
 
 
-INTERNAL_TAG = "internal"
-CONTENT_INTERNAL_TAG = "content-internal"
-
-
 def openai_assistant_content(message: ChatMessageAssistant) -> str:
     # In agent bridge scenarios, we could encounter concepts such as reasoning and
     # .internal use in the ChatMessageAssistant that are not supported by the OpenAI
@@ -284,10 +283,6 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
                     content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
 
     return content
-
-
-def content_internal_tag(internal: JsonValue) -> str:
-    return f"<{CONTENT_INTERNAL_TAG}>{base64.b64encode(json.dumps(internal).encode('utf-8')).decode('utf-8')}</{CONTENT_INTERNAL_TAG}>"
 
 
 def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
@@ -423,7 +418,7 @@ async def messages_from_openai(
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
                     asst_content
                 )
-                asst_content, content_internal = _parse_content_with_internal(
+                asst_content, content_internal = parse_content_with_internal(
                     asst_content, CONTENT_INTERNAL_TAG
                 )
                 if smuggled_reasoning:
@@ -488,8 +483,7 @@ async def messages_from_openai(
                 # of it to support agent bridge scenarios. We have to strip that
                 # data. To be clear, if it's <think>, we'll strip the <think> tag,
                 # but the reasoning summary itself will remain in the content.
-                content, _ = _parse_content_with_internal(tool_content, INTERNAL_TAG)
-                content, _ = parse_content_with_reasoning(content)
+                content, _ = parse_content_with_reasoning(tool_content)
             else:
                 content = []
                 for tc in tool_content:
@@ -560,9 +554,7 @@ def content_from_openai(
         content["type"] = list(content.keys())[0]  # type: ignore[arg-type]
     if content["type"] == "text":
         text = content["text"]
-        text, content_internal = _parse_content_with_internal(
-            text, CONTENT_INTERNAL_TAG
-        )
+        text, content_internal = parse_content_with_internal(text, CONTENT_INTERNAL_TAG)
         if parse_reasoning:
             content_text, reasoning = parse_content_with_reasoning(text)
             if reasoning:
@@ -768,41 +760,3 @@ class OpenAIAsyncHttpxClient(httpx.AsyncClient):
         )
 
         super().__init__(**kwargs)
-
-
-def _parse_content_with_internal(
-    content: str, tag: str
-) -> tuple[str, JsonValue | None]:
-    """
-    Extracts and removes a smuggled <internal>...</internal> tag from the content string, if present.
-
-    Note:
-        This OpenAI model does not natively use `.internal`. However, in bridge
-        scenarios—where output from a model that does use `.internal` is routed
-        through this code—such a tag may be present and should be handled.
-
-    Args:
-        content: The input string, possibly containing an <internal> tag with
-        base64-encoded JSON.
-        tag: The name of the tag for internal data (e.g. <internal>)
-
-    Returns:
-        tuple[str, JsonValue | None]:
-            - The content string with the <internal>...</internal> tag removed (if present), otherwise the original string.
-            - The decoded and parsed internal value (if present), otherwise None.
-
-    Raises:
-        json.JSONDecodeError: If the content of the <internal> tag is not valid JSON after decoding.
-        UnicodeDecodeError: If the content of the <internal> tag is not valid UTF-8 after base64 decoding.
-    """
-    internal_pattern = rf"<{tag}>(.*?)</{tag}>"
-    internal_match = re.search(rf"<{tag}>(.*?)</{tag}>", content, re.DOTALL)
-
-    return (
-        (
-            re.sub(internal_pattern, "", content, flags=re.DOTALL).strip(),
-            json.loads(base64.b64decode(internal_match.group(1)).decode("utf-8")),
-        )
-        if internal_match
-        else (content, None)
-    )

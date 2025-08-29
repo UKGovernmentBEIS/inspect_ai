@@ -1466,6 +1466,273 @@ async def model_proxy_server(
             _handle_model_proxy_error(ex)
             os._exit(1)
 
+    @server.route("/v1/messages", method="POST")
+    async def anthropic(request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            json_body = request.get("json", {}) or {}
+            stream = json_body.get("stream", False)
+
+            completion = await call_bridge_model_service_async(
+                "generate_anthropic", json_data=json_body
+            )
+
+            if stream:
+
+                async def stream_response() -> AsyncIterator[bytes]:
+                    try:
+                        # Parse the completion as a dict
+                        message = (
+                            completion
+                            if isinstance(completion, dict)
+                            else json.loads(completion)
+                        )
+                    except (json.JSONDecodeError, TypeError) as e:
+                        # Send error event if we can't parse the response
+                        error_event = {
+                            "type": "error",
+                            "error": {
+                                "type": "invalid_response_error",
+                                "message": f"Failed to parse response: {str(e)}",
+                            },
+                        }
+                        yield f"event: error\ndata: {json.dumps(error_event)}\n\n".encode(
+                            "utf-8"
+                        )
+                        return
+
+                    def _sse_anthropic(event_type: str, data: dict[str, Any]) -> bytes:
+                        # Anthropic uses both event: and data: lines
+                        return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode(
+                            "utf-8"
+                        )
+
+                    # 1. message_start event
+                    message_start = {
+                        "type": "message_start",
+                        "message": {
+                            "id": message.get("id"),
+                            "type": "message",
+                            "role": message.get("role", "assistant"),
+                            "content": [],
+                            "model": message.get("model"),
+                            "stop_reason": None,
+                            "stop_sequence": None,
+                            "usage": {
+                                "input_tokens": message.get("usage", {}).get(
+                                    "input_tokens", 0
+                                ),
+                                "output_tokens": 1,
+                            },
+                        },
+                    }
+                    yield _sse_anthropic("message_start", message_start)
+
+                    # 2. Process content blocks
+                    content = message.get("content", [])
+                    for index, block in enumerate(content):
+                        # Optionally send ping events between blocks
+                        if index > 0 and index % 3 == 0:
+                            yield _sse_anthropic("ping", {"type": "ping"})
+                        block_type = block.get("type")
+
+                        if block_type == "text":
+                            # content_block_start
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": {"type": "text", "text": ""},
+                                },
+                            )
+
+                            # Stream text in chunks
+                            text = block.get("text", "")
+                            for chunk in _iter_chunks(text):
+                                yield _sse_anthropic(
+                                    "content_block_delta",
+                                    {
+                                        "type": "content_block_delta",
+                                        "index": index,
+                                        "delta": {"type": "text_delta", "text": chunk},
+                                    },
+                                )
+                                await asyncio.sleep(0)  # Yield to event loop
+
+                            # content_block_stop
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
+                        elif block_type in ["tool_use", "server_tool_use"]:
+                            # content_block_start for tool_use or server_tool_use
+                            content_block = {
+                                "type": block_type,
+                                "id": block.get("id"),
+                                "name": block.get("name"),
+                                "input": {},
+                            }
+
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": content_block,
+                                },
+                            )
+
+                            # Stream input as partial JSON
+                            input_data = block.get("input", {})
+                            input_json = json.dumps(input_data, ensure_ascii=False)
+
+                            # Stream the JSON in chunks
+                            for i in range(0, len(input_json), 20):
+                                chunk = input_json[i : i + 20]
+                                yield _sse_anthropic(
+                                    "content_block_delta",
+                                    {
+                                        "type": "content_block_delta",
+                                        "index": index,
+                                        "delta": {
+                                            "type": "input_json_delta",
+                                            "partial_json": chunk,
+                                        },
+                                    },
+                                )
+                                await asyncio.sleep(0)
+
+                            # content_block_stop
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
+                        elif block_type == "web_search_tool_result":
+                            # Handle web search tool result blocks
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": {
+                                        "type": "web_search_tool_result",
+                                        "tool_use_id": block.get("tool_use_id"),
+                                        "content": block.get("content", []),
+                                    },
+                                },
+                            )
+
+                            # Web search results are not streamed as deltas
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
+                        elif block_type == "thinking":
+                            # content_block_start for thinking
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": {
+                                        "type": "thinking",
+                                        "thinking": "",
+                                    },
+                                },
+                            )
+
+                            # Stream thinking text
+                            thinking_text = block.get("thinking", "")
+                            for chunk in _iter_chunks(thinking_text):
+                                yield _sse_anthropic(
+                                    "content_block_delta",
+                                    {
+                                        "type": "content_block_delta",
+                                        "index": index,
+                                        "delta": {
+                                            "type": "thinking_delta",
+                                            "thinking": chunk,
+                                        },
+                                    },
+                                )
+                                await asyncio.sleep(0)
+
+                            # Add signature if present
+                            if block.get("signature"):
+                                yield _sse_anthropic(
+                                    "content_block_delta",
+                                    {
+                                        "type": "content_block_delta",
+                                        "index": index,
+                                        "delta": {
+                                            "type": "signature_delta",
+                                            "signature": block.get("signature"),
+                                        },
+                                    },
+                                )
+
+                            # content_block_stop
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
+                    # 3. message_delta event with cumulative usage
+                    usage = message.get("usage", {})
+                    message_delta_data: dict[str, Any] = {
+                        "type": "message_delta",
+                        "delta": {
+                            "stop_reason": message.get("stop_reason"),
+                            "stop_sequence": message.get("stop_sequence"),
+                        },
+                        "usage": {
+                            "output_tokens": usage.get("output_tokens", 0),
+                        },
+                    }
+
+                    # Add optional usage fields if present
+                    if "input_tokens" in usage:
+                        message_delta_data["usage"]["input_tokens"] = usage[
+                            "input_tokens"
+                        ]
+                    if "cache_creation_input_tokens" in usage:
+                        message_delta_data["usage"]["cache_creation_input_tokens"] = (
+                            usage["cache_creation_input_tokens"]
+                        )
+                    if "cache_read_input_tokens" in usage:
+                        message_delta_data["usage"]["cache_read_input_tokens"] = usage[
+                            "cache_read_input_tokens"
+                        ]
+
+                    # Add server_tool_use if applicable (e.g., for web search)
+                    if "server_tool_use" in usage:
+                        message_delta_data["usage"]["server_tool_use"] = usage[
+                            "server_tool_use"
+                        ]
+
+                    yield _sse_anthropic("message_delta", message_delta_data)
+
+                    # 4. message_stop event
+                    yield _sse_anthropic("message_stop", {"type": "message_stop"})
+
+                return {
+                    "status": 200,
+                    "body_iter": stream_response(),
+                    "headers": {
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                    },
+                    "chunked": True,
+                }
+            else:
+                return {"status": 200, "body": completion}
+        except Exception as ex:
+            _handle_model_proxy_error(ex)
+            os._exit(1)
+
     # return configured server
     return server
 
