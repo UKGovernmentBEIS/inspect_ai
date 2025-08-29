@@ -1,4 +1,4 @@
-from agent import claude_code
+from claude import claude_code
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import json_dataset

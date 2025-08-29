@@ -7,7 +7,7 @@ The example includes the following source files:
 | File | Description |
 |-------------------|-----------------------------------------------------|
 | [task.py](task.py) | Evaluation task which uses the claude code agent. |
-| [agent.py](agent.py) | Claude code agent (invokes the claude CLI within the sandbox). |
+| [claude.py](claude.py) | Claude code agent (invokes the claude CLI within the sandbox). |
 | [dataset.json](dataset.json) | Dataset with questions and answer rubrics. |
 | [Dockerfile](Dockerfile) | Dockerfile which installs the Claude Code on a Kali Linux system. |
 

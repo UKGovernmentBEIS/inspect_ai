@@ -399,7 +399,10 @@ def test_bridged_web_search_tool_anthropic():
 @skip_if_no_anthropic
 @skip_if_no_openai
 def test_bridged_web_search_tool_openai_to_anthropic():
-    log = eval(web_search_task(), model="anthropic/claude-sonnet-4-20250514")[0]
+    log = eval(
+        web_search_task(responses_web_search_agent()),
+        model="anthropic/claude-sonnet-4-20250514",
+    )[0]
     check_web_search_tool_use(log, "web_search")
 
 
