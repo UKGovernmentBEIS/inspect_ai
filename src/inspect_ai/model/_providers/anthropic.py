@@ -96,6 +96,11 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    content_internal_tag,
+    parse_content_with_internal,
+)
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -1275,10 +1280,17 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 content_text = content_text.replace("<result>", "").replace(
                     "</result>", ""
                 )
+
+            # parse out <internal> tags which might be here due to the bridge
+            content_text, content_internal = parse_content_with_internal(
+                content_text, CONTENT_INTERNAL_TAG
+            )
+
             content.append(
                 ContentText(
                     type="text",
                     text=content_text,
+                    internal=content_internal,
                     citations=(
                         [
                             to_inspect_citation(citation)
@@ -1428,6 +1440,10 @@ async def message_block_params(
     content: Content,
 ) -> list[MessageBlockParam]:
     if isinstance(content, ContentText):
+        text = content.text or NO_CONTENT
+        if content.internal:
+            text = f"{text}\n{content_internal_tag(content.internal)}"
+
         citations = (
             [
                 citation
@@ -1440,11 +1456,7 @@ async def message_block_params(
             else None
         )
 
-        return [
-            TextBlockParam(
-                type="text", text=content.text or NO_CONTENT, citations=citations
-            )
-        ]
+        return [TextBlockParam(type="text", text=text, citations=citations)]
     elif isinstance(content, ContentImage):
         return [await image_block_param(content.image)]
 
@@ -1594,7 +1606,14 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 
 def _content_list(input: str | list[Content]) -> list[Content]:
-    return [ContentText(text=input)] if isinstance(input, str) else input
+    if isinstance(input, str):
+        # parse out <internal> tags which might be here due to the bridge
+        input, content_internal = parse_content_with_internal(
+            input, CONTENT_INTERNAL_TAG
+        )
+        return [ContentText(text=input, internal=content_internal)]
+    else:
+        return input
 
 
 async def image_block_param(image: str) -> ImageBlockParam:

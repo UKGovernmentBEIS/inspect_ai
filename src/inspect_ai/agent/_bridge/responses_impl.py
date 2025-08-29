@@ -66,12 +66,12 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
-from inspect_ai.model._model_output import StopReason
-from inspect_ai.model._openai import (
+from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
-    _parse_content_with_internal,
     content_internal_tag,
+    parse_content_with_internal,
 )
+from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     content_from_response_input_content_param,
     is_assistant_message_param,
@@ -405,7 +405,7 @@ def messages_from_responses_input(
                     for output in param["content"]:
                         text = str(output.get("text", output.get("refusal", "")))
 
-                        asst_content, content_internal = _parse_content_with_internal(
+                        asst_content, content_internal = parse_content_with_internal(
                             text, CONTENT_INTERNAL_TAG
                         )
 

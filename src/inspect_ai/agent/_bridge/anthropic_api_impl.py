@@ -33,6 +33,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
@@ -385,8 +386,11 @@ def content_block_to_content(
     | SearchResultBlockParam,
 ) -> Content:
     if block["type"] == "text":
+        text = block["text"]
+        text, content_internal = parse_content_with_internal(text, CONTENT_INTERNAL_TAG)
         return ContentText(
-            text=block["text"],
+            text=text,
+            internal=content_internal,
             citations=[
                 to_inspect_citation(cite) for cite in block.get("citations", []) or []
             ]
