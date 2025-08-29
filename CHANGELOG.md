@@ -7,6 +7,7 @@
 - Model API: Refine available tool types for `ContentToolUse` ("web_search" or "mcp_call")
 - Model API: Remove `internal` field from `ChatMessageBase` (no longer used).
 - OpenAI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.
+- Google: Pass tool parameter descriptions for nullable and `enum` typed fields.
 - Google: Support `thought_signature` for thought parts.
 - Sandbox Service: New `instance` option for multiple services of the same type in a single container.
 - Sandbox Service: New `polling_interval` option for controlling polling interval from sandbox to scaffold (defaults to 2 seconds, overridden to 0.2 seconds for Docker sandbox).
