@@ -86,10 +86,10 @@ async def sandbox_service(
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
         instance: If you want multiple instances of a service in a single sandbox
-           then use the `instance` param (and adjust the path for importing the
-           service as described above)
+            then use the `instance` param (and adjust the path for importing the
+            service as described above)
         polling_interval: Polling interval for request checking. If not specified uses
-          sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
+            sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
     """
     # sort out polling interval
