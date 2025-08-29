@@ -1,4 +1,5 @@
 .toolCallView {
   display: grid;
-  row-gap: 1em;
+  row-gap: 0.5em;
+  margin-top: 1em;
 }
