@@ -24,12 +24,20 @@ logger = getLogger(__file__)
 class SandboxAgentBridge(AgentBridge):
     """Sandbox agent bridge."""
 
-    def __init__(self, state: AgentState, port: int) -> None:
+    def __init__(self, state: AgentState, port: int, authorization: str | None) -> None:
         super().__init__(state)
-        self.port = port
+        self._port = port
+        self._authorization = authorization
 
-    port: int
-    """Model proxy server port."""
+    @property
+    def port(self) -> int:
+        """Model proxy server port."""
+        return self._port
+
+    @property
+    def authorization(self) -> str:
+        """Model proxy authorization key."""
+        return self._authorization or ""
 
 
 @contextlib.asynccontextmanager
@@ -38,6 +46,7 @@ async def sandbox_agent_bridge(
     *,
     sandbox: SandboxEnvironment | None = None,
     port: int = 13131,
+    authorization: bool | str = True,
     web_search: WebSearchProviders | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
@@ -64,6 +73,8 @@ async def sandbox_agent_bridge(
            an updated state based on traffic over the bridge.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
+        authorization: Use an authorization key for access to the bridge
+           inside the sandbox.
         web_search: Configuration for mapping OpenAI Responses internal
             web_search tool to Inspect. By default, will map to the
             internal provider of the target model (supported for OpenAI,
@@ -77,6 +88,15 @@ async def sandbox_agent_bridge(
     # resolve sandbox
     sandbox = sandbox or default_sandbox()
 
+    # resolve authorization
+    authorization_key: str | None = (
+        uuid()
+        if authorization is True
+        else None
+        if authorization is False
+        else authorization
+    )
+
     # resolve web search config
     web_search = web_search or internal_web_search_providers()
 
@@ -89,7 +109,9 @@ async def sandbox_agent_bridge(
             started = anyio.Event()
 
             # create the bridge
-            bridge = SandboxAgentBridge(state=state, port=port)
+            bridge = SandboxAgentBridge(
+                state=state, port=port, authorization=authorization_key
+            )
 
             # sandbox service that receives model requests
             tg.start_soon(
@@ -97,7 +119,7 @@ async def sandbox_agent_bridge(
             )
 
             # proxy server that runs in container and forwards to sandbox service
-            tg.start_soon(run_model_proxy, sandbox, port, instance, started)
+            tg.start_soon(run_model_proxy, sandbox, bridge, instance, started)
 
             # ensure services are up
             await anyio.sleep(0.1)
@@ -112,7 +134,10 @@ async def sandbox_agent_bridge(
 
 
 async def run_model_proxy(
-    sandbox: SandboxEnvironment, port: int, instance: str, started: anyio.Event
+    sandbox: SandboxEnvironment,
+    bridge: SandboxAgentBridge,
+    instance: str,
+    started: anyio.Event,
 ) -> None:
     # wait for model service to be started up
     await started.wait()
@@ -129,7 +154,9 @@ async def run_model_proxy(
         )
 
     # run the model proxy script
-    result = await sandbox.exec([MODEL_PROXY_PY, str(port)])
+    result = await sandbox.exec(
+        [MODEL_PROXY_PY, str(bridge.port)], input=bridge.authorization
+    )
     if not result.success:
         raise RuntimeError(
             f"Error running model proxy script for agent bridge: {result.stderr}"

@@ -107,7 +107,11 @@ def my_agent() -> AgentState:
                     "--prompt",
                     prompt.text
                 ],
-                env={"OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1"} # <4>
+                env={ # <4>
+                    "OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1",
+                    "OPENAI_API_KEY": bridge.authorization
+                } # <4>
+                
             )
             if not result.success:
                 raise RuntimeError(f"Agent error: {result.stderr}")
@@ -120,7 +124,7 @@ def my_agent() -> AgentState:
 1.  Use the `sandbox_agent_bridge()` context manager to redirect the OpenAI API to the Inspect model provider. Pass the `state` so that the bridge can automatically keep track of changes to `messages` and `output` based on model calls passing through the bridge.
 2.  Extract the last user message from the message history with `user_prompt()`.
 3.  Run the agent, using a CLI argument for input and stdout for output (other agents may use more sophisticated encoding schemes for messages in and out).
-4.  Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the `port` to listen on from the `bridge` yielded by the context manager.
+4.  Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the `port` to listen on from the `bridge` yielded by the context manager as well as forward the `authorization` key from the bridge to the OpenAI client.
 5.  Return the `state` changes automatically tracked by the `bridge`.
 
 The [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/claude) and [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex) examples provide more in-depth demonstrations of running custom agents in sandboxes.
