@@ -5,6 +5,7 @@ from typing import Any
 from typing_extensions import override
 
 from inspect_ai._util.constants import MODEL_NONE
+from inspect_ai._util.error import aws_credentials_error, is_aws_credentials_error
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 
@@ -25,7 +26,12 @@ class FileRecorder(Recorder):
 
         # initialise filesystem
         self.fs = filesystem(log_dir, fs_options)
-        self.fs.mkdir(self.log_dir, exist_ok=True)
+        try:
+            self.fs.mkdir(self.log_dir, exist_ok=True)
+        except Exception as ex:
+            if is_aws_credentials_error(ex):
+                raise aws_credentials_error(log_dir) from None
+            raise
 
     def is_local(self) -> bool:
         return self.fs.is_local()
