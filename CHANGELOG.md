@@ -1,12 +1,12 @@
 ## Unreleased
 
-- Agent Bridge: Responses API is now supported alongside the Completions API for both in-process and sandbox-based agent bridges.
+- Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.
 - Agent Bridge: Bridge can now automatically keep track of `AgentState` changes via inspecting model traffic running over the bridge.
 - Agent Bridge: Improved id stability across generations to prevent duplicated messages in `messages_df()`.
 - Agent `handoff()`: Use `content_only()` filter by default for handoff output and improve detection of new content from handed off to agents. 
 - Model API: Refine available tool types for `ContentToolUse` ("web_search" or "mcp_call")
 - Model API: Remove `internal` field from `ChatMessageBase` (no longer used).
-- OpenAPI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.
+- OpenAI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.
 - Google: Support `thought_signature` for thought parts.
 - Sandbox Service: New `instance` option for multiple services of the same type in a single container.
 - Sandbox Service: New `polling_interval` option for controlling polling interval from sandbox to scaffold (defaults to 2 seconds, overridden to 0.2 seconds for Docker sandbox).
