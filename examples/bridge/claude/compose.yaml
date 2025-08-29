@@ -1,6 +1,0 @@
-services:
-  default:
-    build: .
-    command: tail -f /dev/null
-    network_mode: bridge
-  
