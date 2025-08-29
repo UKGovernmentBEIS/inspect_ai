@@ -134,7 +134,24 @@ Agents can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
-3.  Agents can participate in multi-agent systems where the conversation
+3.  Agents can be used as a standard tool using the `as_tool()`
+    function:
+
+    ``` python
+    from inspect_ai.agent import as_tool
+    from inspect_ai.solver import use_tools, generate
+
+    eval(
+        task="research_bench", 
+        solver=[
+            use_tools(as_tool(web_surfer())),
+            generate()
+        ]
+    )
+    print(f"The most popular movies were: {state.output.completion}")
+    ```
+
+4.  Agents can participate in multi-agent systems where the conversation
     history is shared across agents. Use the `handoff()` function to
     create a tool that enables handing off the conversation from one
     agent to another:
@@ -151,23 +168,6 @@ Agents can be used in the following ways:
             generate()
         ]
     )
-    ```
-
-4.  Agents can be used as a standard tool using the `as_tool()`
-    function:
-
-    ``` python
-    from inspect_ai.agent import as_tool
-    from inspect_ai.solver import use_tools, generate
-
-    eval(
-        task="research_bench", 
-        solver=[
-            use_tools(as_tool(web_surfer())),
-            generate()
-        ]
-    )
-    print(f"The most popular movies were: {state.output.completion}")
     ```
 
     The difference between `handoff()` and `as_tool()` is that

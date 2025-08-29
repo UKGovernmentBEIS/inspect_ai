@@ -283,16 +283,22 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>Agent Bridge: Responses API is now supported alongside the Completions API for both in-process and sandbox-based agent bridges.</li>
+<li>Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.</li>
 <li>Agent Bridge: Bridge can now automatically keep track of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> changes via inspecting model traffic running over the bridge.</li>
+<li>Agent Bridge: Improved id stability across generations to prevent duplicated messages in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messages_df">messages_df()</a></span>.</li>
+<li>Agent <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span>: Use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#content_only">content_only()</a></span> filter by default for handoff output and improve detection of new content from handed off to agents.</li>
 <li>Model API: Refine available tool types for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttooluse">ContentToolUse</a></span> (“web_search” or “mcp_call”)</li>
 <li>Model API: Remove <code>internal</code> field from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagebase">ChatMessageBase</a></span> (no longer used).</li>
-<li>OpenAPI: Added <code>responses_store</code> model arg for explicitly enabling or disabling the responses API.</li>
+<li>OpenAI: Added <code>responses_store</code> model arg for explicitly enabling or disabling the responses API.</li>
 <li>Google: Support <code>thought_signature</code> for thought parts.</li>
 <li>Sandbox Service: New <code>instance</code> option for multiple services of the same type in a single container.</li>
 <li>Sandbox Service: New <code>polling_interval</code> option for controlling polling interval from sandbox to scaffold (defaults to 2 seconds, overridden to 0.2 seconds for Docker sandbox).</li>
 <li>ReAct Agent: Add submit tool content to assistant message (in addition to setting the <code>completion</code>).</li>
+<li>Metrics: Compute metrics when an empty list of reducers is provided (do not reduce the scores before computing metrics). Add <code>--no-epochs-reducer</code> CLI flag for specifying no reducers.</li>
+<li>Scoring: Make <code>match</code> more lenient when numeric matches container markdown formatting.</li>
 <li>Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out <code>sample_init</code>, <code>sandbox</code>, <code>store</code>, and <code>state</code> events.</li>
+<li>Inspect View: Add support for displaying raw markdown source when viewing sample data.</li>
+<li>Inspect View: Remove sample list / title content when sample is displaying (prevents find from matching content behind the sample detail).</li>
 <li>Bugfix: Fix error in reducing scores when all scores for a sample are NaN.</li>
 </ul>
 </section>

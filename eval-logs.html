@@ -789,7 +789,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="log-headers">Log Headers</h3>
 <p>Eval log files can get quite large (multiple GB) so it is often useful to read only the header, which contains metadata and aggregated scores. Use the <code>header_only</code> option to read only the header of a log file:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>log_header <span class="op">=</span> read_eval_log(log_file, header_only<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The log header is a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> object without the <code>samples</code> and <code>reductions</code> fields.</p>
+<p>The log header is a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> object without the <code>samples</code> fields. The <code>reductions</code> field is included for <code>eval</code> log files and not for <code>json</code> log files.</p>
 </section>
 <section id="summaries" class="level3">
 <h3 class="anchored" data-anchor-id="summaries">Summaries</h3>

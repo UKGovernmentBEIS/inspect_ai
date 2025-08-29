@@ -21,7 +21,8 @@ While Inspect provides facilities for native agent development, you can
 also very easily integrate agents created with 3rd party frameworks like
 [LangChain](https://python.langchain.com/docs/introduction/), or use
 fully custom agents you have developed or ported from a research paper.
-You can also use CLI based agents that run within sandboxes (e.g. [Codex
+You can also use CLI based agents that run within sandboxes
+(e.g. [Claude Code](https://www.anthropic.com/claude-code) or [Codex
 CLI](https://github.com/openai/codex)).
 
 Agents are *bridged* into Inspect such that their native model calling
@@ -35,16 +36,24 @@ are two types of agent bridges supported:
     `sandbox_agent_bridge()` context manager (these agents can be
     written in any language).
 
-We’ll cover each of these configurations in turn below.
+We’ll cover each of these configurations in turn below. You can also
+learn from the following examples:
+
+|  |  |
+|----|----|
+| [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent to perform Q/A using the [Tavili Search API](https://tavily.com/) |
+| [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude) | Demonstrates using a [Claude Code](https://www.anthropic.com/claude-code) agent to explore a Kali Linux system. |
+| [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) | Demonstrates using a [Codex CLI](https://github.com/openai/codex) agent to explore a Kali Linux system. |
 
 ## Agent Bridge
 
-To bridge a Python based agent running in the same process as Inspect:
+The `agent_bridge()` can bridge agents written against the Python APIs
+for OpenAI Completions, OpenAI Responses, and Anthropic. To bridge a
+Python based agent running in the same process as Inspect:
 
-1.  Write your custom Python agent as normal using the OpenAI connector
-    provided by your agent system, specifying “inspect” as the model
-    name. Note that both the Completions API and Responses API are
-    supported.
+1.  Write your custom Python agent as normal using the OpenAI or
+    Anthropic connector provided by your agent system, specifying
+    “inspect” as the model name.
 
 2.  Run your custom Python agent within the `agent_bridge()` context
     manager which redirects OpenAI calls to the current Inspect model
@@ -91,31 +100,30 @@ Line 15
 Convert the `state.messages` input into native OpenAI messages using the
 `messages_to_openai()` function.
 
-The following examples further demonstrate how to integrate other agent
-frameworks with Inspect:
-
-|  |  |
-|----|----|
-| [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent with Inspect to perform Q/A using the [Tavili Search API](https://tavily.com/) |
-| [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) | Demonstrates using the [Codex CLI](https://github.com/openai/codex) agent with Inspect to explore a Kali Linux system. |
+The
+[LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
+example provides a more in-depth demonstration of using the Python agent
+bridge with Inspect.
 
 ## Sandbox Bridge
 
-To bridge an agent running within a sandbox into Inspect:
+The `sandbox_agent_bridge()` can bridge agents written against the
+OpenAI Completions, OpenAI Responses, or Anthropic API. To bridge an
+agent running in a sandbox to Inspect:
 
 1.  Configure your sandbox (e.g. via its Dockerfile) to contain the
     agent that you want to run. The agent should be configured to talk
     to the OpenAI API on localhost port 3131
-    (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`). Note that both
-    the Completions API and Responses API are supported.
+    (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1` or
+    `ANTHROPIC_BASE_URL=http://localhost:13131`).
 
 2.  Write a standard Inspect agent that uses the
     `sandbox_agent_bridge()` context manager and the `sandbox().exec()`
     method to invoke the custom agent.
 
 The sandbox bridge works via running a proxy server inside the sandbox
-container which receives requests for the OpenAI Completions API. This
-proxy server in turn relays requests to the current Inspect model
+container which receives requests for the OpenAI and Anthropic APIs.
+This proxy server in turn relays requests to the current Inspect model
 provider.
 
 For example, here we build an agent that runs a custom agent binary
@@ -172,9 +180,11 @@ Redirect the OpenAI API to talk to a proxy server that communicates back
 to the current Inspect model provider. Note that we read the `port` to
 listen on from the `bridge` yielded by the context manager.
 
-The [Codex
+The [Claude
+Code](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/claude)
+and [Codex
 CLI](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex)
-example provides a more in-depth demonstration of running custom agents
+examples provide more in-depth demonstrations of running custom agents
 in sandboxes.
 
 ## Models

@@ -546,19 +546,39 @@ Note
 </div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like <a href="https://python.langchain.com/docs/introduction/">LangChain</a>, or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g.&nbsp;<a href="https://github.com/openai/codex">Codex CLI</a>).</p>
+<p>While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like <a href="https://python.langchain.com/docs/introduction/">LangChain</a>, or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g.&nbsp;<a href="https://www.anthropic.com/claude-code">Claude Code</a> or <a href="https://github.com/openai/codex">Codex CLI</a>).</p>
 <p>Agents are <em>bridged</em> into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:</p>
 <ol type="1">
 <li><p>Bridging to Python-based agents that run in the same process as Inspect via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager.</p></li>
 <li><p>Bridging to agents that run in a sandbox via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager (these agents can be written in any language).</p></li>
 </ol>
-<p>We’ll cover each of these configurations in turn below.</p>
+<p>We’ll cover each of these configurations in turn below. You can also learn from the following examples:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 30%">
+<col style="width: 70%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain</a></td>
+<td>Demonstrates using a native <a href="https://www.langchain.com/">LangChain</a> agent to perform Q/A using the <a href="https://tavily.com/">Tavili Search API</a></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude">Claude Code</a></td>
+<td>Demonstrates using a <a href="https://www.anthropic.com/claude-code">Claude Code</a> agent to explore a Kali Linux system.</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex">Codex CLI</a></td>
+<td>Demonstrates using a <a href="https://github.com/openai/codex">Codex CLI</a> agent to explore a Kali Linux system.</td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="agent-bridge" class="level2">
 <h2 class="anchored" data-anchor-id="agent-bridge">Agent Bridge</h2>
-<p>To bridge a Python based agent running in the same process as Inspect:</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, and Anthropic. To bridge a Python based agent running in the same process as Inspect:</p>
 <ol type="1">
-<li><p>Write your custom Python agent as normal using the OpenAI connector provided by your agent system, specifying “inspect” as the model name. Note that both the Completions API and Responses API are supported.</p></li>
+<li><p>Write your custom Python agent as normal using the OpenAI or Anthropic connector provided by your agent system, specifying “inspect” as the model name.</p></li>
 <li><p>Run your custom Python agent within the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager which redirects OpenAI calls to the current Inspect model provider.</p></li>
 </ol>
 <p>For example, here we build an agent that uses the OpenAI SDK directly (imaging using your favourite agent framework in its place):</p>
@@ -596,32 +616,16 @@ Note
 <span data-code-cell="annotated-cell-1" data-code-lines="15" data-code-annotation="3">Convert the <code>state.messages</code> input into native OpenAI messages using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> function.</span>
 </dd>
 </dl>
-<p>The following examples further demonstrate how to integrate other agent frameworks with Inspect:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 30%">
-<col style="width: 70%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain</a></td>
-<td>Demonstrates using a native <a href="https://www.langchain.com/">LangChain</a> agent with Inspect to perform Q/A using the <a href="https://tavily.com/">Tavili Search API</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex">Codex CLI</a></td>
-<td>Demonstrates using the <a href="https://github.com/openai/codex">Codex CLI</a> agent with Inspect to explore a Kali Linux system.</td>
-</tr>
-</tbody>
-</table>
+<p>The <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain</a> example provides a more in-depth demonstration of using the Python agent bridge with Inspect.</p>
 </section>
 <section id="sandbox-bridge" class="level2">
 <h2 class="anchored" data-anchor-id="sandbox-bridge">Sandbox Bridge</h2>
-<p>To bridge an agent running within a sandbox into Inspect:</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> can bridge agents written against the OpenAI Completions, OpenAI Responses, or Anthropic API. To bridge an agent running in a sandbox to Inspect:</p>
 <ol type="1">
-<li><p>Configure your sandbox (e.g.&nbsp;via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI API on localhost port 3131 (e.g.&nbsp;<code>OPENAI_BASE_URL=http://localhost:13131/v1</code>). Note that both the Completions API and Responses API are supported.</p></li>
+<li><p>Configure your sandbox (e.g.&nbsp;via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI API on localhost port 3131 (e.g.&nbsp;<code>OPENAI_BASE_URL=http://localhost:13131/v1</code> or <code>ANTHROPIC_BASE_URL=http://localhost:13131</code>).</p></li>
 <li><p>Write a standard Inspect agent that uses the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager and the <code>sandbox().exec()</code> method to invoke the custom agent.</p></li>
 </ol>
-<p>The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI Completions API. This proxy server in turn relays requests to the current Inspect model provider.</p>
+<p>The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI and Anthropic APIs. This proxy server in turn relays requests to the current Inspect model provider.</p>
 <p>For example, here we build an agent that runs a custom agent binary (passing it input on the command line and reading output from stdout):</p>
 <div class="sourceCode" id="annotated-cell-2"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai <span class="im">import</span> AsyncOpenAI</span>
 <span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
@@ -669,7 +673,7 @@ Note
 <span data-code-cell="annotated-cell-2" data-code-lines="21" data-code-annotation="4">Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the <code>port</code> to listen on from the <code>bridge</code> yielded by the context manager.</span>
 </dd>
 </dl>
-<p>The <a href="https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex">Codex CLI</a> example provides a more in-depth demonstration of running custom agents in sandboxes.</p>
+<p>The <a href="https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/claude">Claude Code</a> and <a href="https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex">Codex CLI</a> examples provide more in-depth demonstrations of running custom agents in sandboxes.</p>
 </section>
 <section id="models" class="level2">
 <h2 class="anchored" data-anchor-id="models">Models</h2>

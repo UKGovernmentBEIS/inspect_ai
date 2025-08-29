@@ -808,6 +808,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>--epochs-reducer</code></td>
 <td>Method for reducing per-epoch sample scores into a single score. Built in reducers include <code>mean</code>, <code>median</code>, <code>mode</code>, <code>max</code>, <code>at_least_{n}</code>, and <code>pass_at_{k}</code>.</td>
 </tr>
+<tr class="odd">
+<td><code>--no-epochs-reducer</code></td>
+<td>Do not reduce epochs across samples (compute metrics across all samples and epochs together).</td>
+</tr>
 </tbody>
 </table>
 </section>

@@ -43,6 +43,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--sample-shuffle` | text | Shuffle order of samples (pass a seed to make the order deterministic) | None |
 | `--epochs` | integer | Number of times to repeat dataset (defaults to 1) | None |
 | `--epochs-reducer` | text | Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least\_{n}’. | None |
+| `--no-epochs-reducer` | boolean | Do not reduce per-epoch sample scores. | `False` |
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |

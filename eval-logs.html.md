@@ -262,8 +262,9 @@ Use the `header_only` option to read only the header of a log file:
 log_header = read_eval_log(log_file, header_only=True)
 ```
 
-The log header is a standard `EvalLog` object without the `samples` and
-`reductions` fields.
+The log header is a standard `EvalLog` object without the `samples`
+fields. The `reductions` field is included for `eval` log files and not
+for `json` log files.
 
 ### Summaries
 
