@@ -4,11 +4,12 @@ import "prismjs/components/prism-python";
 
 import { Arguments1 } from "../../../../@types/log";
 
+export const kToolTodoContentType = "agent/todo-list";
 export interface ToolCallResult {
   functionCall: string;
-  input?: string;
+  input?: unknown;
   description?: string;
-  highlightLanguage?: string;
+  contentType?: string;
 }
 
 /**
@@ -31,14 +32,14 @@ export const resolveToolInput = (
     functionCall,
     input,
     description,
-    highlightLanguage: inputDescriptor?.language,
+    contentType: inputDescriptor?.contentType,
   };
 };
 
 interface ToolInputDescriptor {
   inputArg?: string;
   descriptionArg?: string;
-  language?: string;
+  contentType?: string;
 }
 
 const extractInputMetadata = (
@@ -47,23 +48,28 @@ const extractInputMetadata = (
   if (toolName === "bash") {
     return {
       inputArg: "cmd",
-      language: "bash",
+      contentType: "bash",
     };
   } else if (toolName === "python") {
     return {
       inputArg: "code",
-      language: "python",
+      contentType: "python",
     };
   } else if (toolName === "web_search") {
     return {
       inputArg: "query",
-      language: "json",
+      contentType: "json",
     };
   } else if (toolName === "Bash") {
     return {
       inputArg: "command",
       descriptionArg: "description",
-      language: "bash",
+      contentType: "bash",
+    };
+  } else if (toolName == "TodoWrite") {
+    return {
+      inputArg: "todos",
+      contentType: kToolTodoContentType,
     };
   } else {
     return undefined;
@@ -73,7 +79,7 @@ const extractInputMetadata = (
 const extractInput = (
   args: Record<string, unknown>,
   inputDescriptor?: ToolInputDescriptor,
-): { input?: string; description?: string; args: string[] } => {
+): { input?: unknown; description?: string; args: string[] } => {
   const formatArg = (key: string, value: unknown) => {
     const quotedValue =
       value === null
@@ -96,11 +102,11 @@ const extractInput = (
   // Use the input descriptor to snip apart args
   if (inputDescriptor) {
     const filterKeys = new Set<string>();
-    const base: { input?: string; description?: string } = {};
+    const base: { input?: unknown; description?: string } = {};
 
     if (inputDescriptor.inputArg && args[inputDescriptor.inputArg]) {
       filterKeys.add(inputDescriptor.inputArg);
-      base.input = String(args[inputDescriptor.inputArg]);
+      base.input = args[inputDescriptor.inputArg];
     }
 
     if (

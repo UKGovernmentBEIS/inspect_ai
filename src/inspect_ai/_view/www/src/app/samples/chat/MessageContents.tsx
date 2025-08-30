@@ -51,7 +51,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
     // Render the tool calls made by this message
     const toolCalls = message.tool_calls.map((tool_call, idx) => {
       // Extract tool input
-      const { input, description, functionCall, highlightLanguage } =
+      const { input, description, functionCall, contentType } =
         resolveToolInput(tool_call.function, tool_call.arguments);
 
       let toolMessage;
@@ -83,7 +83,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
             functionCall={functionCall}
             input={input}
             description={description}
-            highlightLanguage={highlightLanguage}
+            contentType={contentType}
             output={resolvedToolOutput}
           />
         );

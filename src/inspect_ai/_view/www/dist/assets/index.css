@@ -16015,6 +16015,17 @@ a._citationLink_t2k1z_9:hover {
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
+._todoList_1t8rx_1 {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.3em;
+}
+
+._inProgress_1t8rx_9 {
+  font-weight: bold;
+}
 ._image_1vcac_1 {
   margin-right: 0.2rem;
   opacity: 0.4;
