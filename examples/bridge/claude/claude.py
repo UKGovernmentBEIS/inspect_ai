@@ -26,7 +26,7 @@ def claude_code() -> Agent:
                 [m.text for m in state.messages if isinstance(m, ChatMessageSystem)]
             )
             if system_message:
-                cmd.append("--append-system-prompt", system_message)
+                cmd.extend(["--append-system-prompt", system_message])
 
             # user prompt
             prompt = "\n\n".join(
@@ -41,8 +41,8 @@ def claude_code() -> Agent:
                     "ANTHROPIC_BASE_URL": f"http://localhost:{bridge.port}",
                     "ANTHROPIC_API_KEY": "sk-ant-api03-DOq5tyLPrk9M4hPE",
                     "ANTHROPIC_SMALL_FAST_MODEL": "inspect",
-                    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1,
-                    "IS_SANDBOX": 1,
+                    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+                    "IS_SANDBOX": "1",
                 },
             )
 
