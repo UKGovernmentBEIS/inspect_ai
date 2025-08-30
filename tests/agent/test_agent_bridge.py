@@ -1,6 +1,9 @@
 from textwrap import dedent
 from typing import Any, cast
 
+from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
+from anthropic import AsyncAnthropic
+from anthropic.types import ToolChoiceAnyParam
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
@@ -167,6 +170,84 @@ def responses_web_search_agent() -> Agent:
     return execute
 
 
+@agent
+def anthropic_agent(tools: bool) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        def tools_param() -> Any:
+            if tools:
+                return [
+                    {
+                        "name": "get_weather",
+                        "description": "Get the current weather in a given location",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. San Francisco, CA",
+                                }
+                            },
+                            "required": ["location"],
+                        },
+                    }
+                ]
+            else:
+                return None
+
+        async with agent_bridge(state) as bridge:
+            client = AsyncAnthropic()
+
+            await client.messages.create(
+                model="inspect",
+                max_tokens=4096,
+                temperature=0.8,
+                top_p=0.5,
+                top_k=2,
+                thinking={"type": "enabled", "budget_tokens": 2048}
+                if not tools
+                else ANTHROPIC_NOT_GIVEN,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": user_prompt(state.messages).text,
+                    }
+                ],
+                tools=tools_param(),
+                tool_choice=ToolChoiceAnyParam(type="any")
+                if tools
+                else ANTHROPIC_NOT_GIVEN,
+            )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def anthropic_web_search_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = AsyncAnthropic()
+
+            await client.messages.create(
+                model="inspect",
+                max_tokens=1024,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": user_prompt(state.messages).text,
+                    }
+                ],
+                tools=[
+                    {"type": "web_search_20250305", "name": "web_search", "max_uses": 5}
+                ],
+            )
+
+            return bridge.state
+
+    return execute
+
+
 @task
 def bridged_task(agent: Agent):
     return Task(
@@ -182,7 +263,7 @@ def bridged_task(agent: Agent):
 
 
 @task
-def web_search_task():
+def web_search_task(agent: Agent):
     return Task(
         dataset=[
             Sample(
@@ -190,7 +271,7 @@ def web_search_task():
                 target="Anora",
             )
         ],
-        solver=responses_web_search_agent(),
+        solver=agent,
         scorer=includes(),
     )
 
@@ -282,16 +363,58 @@ def test_bridged_agent_responses_tools():
 
 @skip_if_no_openai
 def test_bridged_web_search_tool_openai():
-    log = eval(web_search_task(), model="openai/gpt-5")[0]
+    log = eval(web_search_task(responses_web_search_agent()), model="openai/gpt-5")[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"search_context_size": "low"' in log_json
     check_web_search_tool_use(log, "web_search")
 
 
 @skip_if_no_anthropic
-@skip_if_no_openai
+def test_bridged_agent_anthropic():
+    log_json = eval_bridged_task(
+        "anthropic/claude-sonnet-4-20250514", agent=anthropic_agent(False)
+    )
+    check_anthropic_bridge_log_json(log_json, tools=False)
+
+
+@skip_if_no_anthropic
+def test_bridged_agent_anthropic_tools():
+    log_json = eval_bridged_task(
+        "anthropic/claude-sonnet-4-20250514", agent=anthropic_agent(True)
+    )
+    check_anthropic_bridge_log_json(log_json, tools=True)
+
+
+@skip_if_no_anthropic
 def test_bridged_web_search_tool_anthropic():
-    log = eval(web_search_task(), model="anthropic/claude-sonnet-4-20250514")[0]
+    log = eval(
+        web_search_task(anthropic_web_search_agent()),
+        model="anthropic/claude-sonnet-4-20250514",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"max_uses": 5' in log_json
+    check_web_search_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+@skip_if_no_openai
+def test_bridged_web_search_tool_openai_to_anthropic():
+    log = eval(
+        web_search_task(responses_web_search_agent()),
+        model="anthropic/claude-sonnet-4-20250514",
+    )[0]
+    check_web_search_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+@skip_if_no_openai
+def test_bridged_web_search_tool_anthropic_to_openai():
+    log = eval(
+        web_search_task(anthropic_web_search_agent()),
+        model="openai/gpt-5",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"max_uses": 5' in log_json
     check_web_search_tool_use(log, "web_search")
 
 
@@ -315,7 +438,7 @@ def check_web_search_tool_use(log: EvalLog, tool_name: str):
 
 
 def check_anthropic_log_json(log_json: str):
-    assert r'"model": "anthropic/claude-3-haiku-20240307"' in log_json
+    assert r'"model": "anthropic/claude-sonnet-4-20250514"' in log_json
     assert r'"temperature": 0.8' in log_json
     assert r'"top_p": 0.5' in log_json
     assert dedent("""
@@ -325,11 +448,23 @@ def check_anthropic_log_json(log_json: str):
     """)
 
 
+def check_anthropic_bridge_log_json(log_json: str, tools: bool):
+    assert r'"model": "anthropic/claude-sonnet-4-20250514"' in log_json
+    assert r'"max_tokens": 4096' in log_json
+    assert r'"temperature": 0.8' in log_json
+    assert r'"top_p": 0.5' in log_json
+    assert r'"top_k": 2' in log_json
+    if tools:
+        assert r'"name": "get_weather"' in log_json
+    else:
+        assert r'"budget_tokens": 2048' in log_json
+
+
 @skip_if_no_anthropic
 @skip_if_no_openai
 def test_anthropic_bridged_agent():
     log_json = eval_bridged_task(
-        "anthropic/claude-3-haiku-20240307", agent=completions_agent(False)
+        "anthropic/claude-sonnet-4-20250514", agent=completions_agent(False)
     )
     check_anthropic_log_json(log_json)
 
@@ -340,7 +475,7 @@ def test_bridged_agent_context():
     logs = eval(
         [bridged_task(agent=completions_agent(False)), openai_api_task()],
         max_tasks=2,
-        model="anthropic/claude-3-haiku-20240307",
+        model="anthropic/claude-sonnet-4-20250514",
     )
     for log in logs:
         assert log.status == "success"

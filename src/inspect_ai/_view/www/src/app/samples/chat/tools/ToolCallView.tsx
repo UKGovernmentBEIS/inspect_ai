@@ -21,6 +21,7 @@ interface ToolCallViewProps {
   id: string;
   functionCall: string;
   input?: string;
+  description?: string;
   highlightLanguage?: string;
   view?: ToolCallContent;
   output:
@@ -53,6 +54,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   id,
   functionCall,
   input,
+  description,
   highlightLanguage,
   view,
   output,
@@ -115,7 +117,10 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
     <div className={clsx(styles.toolCallView)}>
       <div>
         {mode !== "compact" && (!view || view.title) ? (
-          <ToolTitle title={view?.title || functionCall} />
+          <ToolTitle
+            title={view?.title || functionCall}
+            description={description}
+          />
         ) : (
           ""
         )}

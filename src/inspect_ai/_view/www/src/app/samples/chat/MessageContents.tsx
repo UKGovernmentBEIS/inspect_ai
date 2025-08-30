@@ -51,10 +51,8 @@ export const MessageContents: FC<MessageContentsProps> = ({
     // Render the tool calls made by this message
     const toolCalls = message.tool_calls.map((tool_call, idx) => {
       // Extract tool input
-      const { input, functionCall, highlightLanguage } = resolveToolInput(
-        tool_call.function,
-        tool_call.arguments,
-      );
+      const { input, description, functionCall, highlightLanguage } =
+        resolveToolInput(tool_call.function, tool_call.arguments);
 
       let toolMessage;
       if (tool_call.id) {
@@ -84,6 +82,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
             key={`tool-call-${idx}`}
             functionCall={functionCall}
             input={input}
+            description={description}
             highlightLanguage={highlightLanguage}
             output={resolvedToolOutput}
           />

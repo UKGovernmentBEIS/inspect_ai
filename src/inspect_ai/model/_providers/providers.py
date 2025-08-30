@@ -55,18 +55,8 @@ def openai_api() -> type[ModelAPI]:
 
 @modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
-    FEATURE = "Anthropic API"
-    PACKAGE = "anthropic"
-    MIN_VERSION = "0.52.0"
-
-    # verify we have the package
-    try:
-        import anthropic  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+    # validate
+    validate_anthropic_client("Anthropic API")
 
     # in the clear
     from .anthropic import AnthropicAPI
@@ -330,3 +320,17 @@ def validate_openai_client(feature: str) -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+
+def validate_anthropic_client(feature: str) -> None:
+    PACKAGE = "anthropic"
+    MIN_VERSION = "0.52.0"
+
+    # verify we have the package
+    try:
+        import anthropic  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(feature, [PACKAGE])
+
+    # verify version
+    verify_required_version(feature, PACKAGE, MIN_VERSION)
