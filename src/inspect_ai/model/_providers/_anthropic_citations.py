@@ -5,6 +5,7 @@ from anthropic.types import (
     CitationContentBlockLocationParam,
     CitationPageLocation,
     CitationPageLocationParam,
+    CitationsSearchResultLocation,
     CitationsWebSearchResultLocation,
     CitationWebSearchResultLocationParam,
     TextCitation,
@@ -19,7 +20,19 @@ from inspect_ai._util.citation import (
 )
 
 
-def to_inspect_citation(input: TextCitation) -> Citation:
+def to_inspect_citation(input: TextCitation | TextCitationParam) -> Citation:
+    if isinstance(input, dict):
+        if input["type"] == "char_location":
+            input = CitationCharLocation.model_validate(input)
+        elif input["type"] == "content_block_location":
+            input = CitationContentBlockLocation.model_validate(input)
+        elif input["type"] == "page_location":
+            input = CitationPageLocation.model_validate(input)
+        elif input["type"] == "search_result_location":
+            input = CitationsSearchResultLocation.model_validate(input)
+        elif input["type"] == "web_search_result_location":
+            input = CitationsWebSearchResultLocation.model_validate(input)
+
     match input:
         case CitationsWebSearchResultLocation(
             cited_text=cited_text,

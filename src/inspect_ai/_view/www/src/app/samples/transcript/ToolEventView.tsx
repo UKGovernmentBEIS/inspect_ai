@@ -30,7 +30,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
   const event = eventNode.event;
 
   // Extract tool input
-  const { input, functionCall, highlightLanguage } = useMemo(
+  const { input, description, functionCall, highlightLanguage } = useMemo(
     () => resolveToolInput(event.function, event.arguments),
     [event.function, event.arguments],
   );
@@ -69,6 +69,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           id={`${eventNode.id}-tool-call`}
           functionCall={functionCall}
           input={input}
+          description={description}
           highlightLanguage={highlightLanguage}
           output={event.error?.message || event.result}
           mode="compact"
