@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install OpenAI Codex CLI globally (available to all users)
+# Install Claude Code globally (available to all users)
 RUN npm install -g @anthropic-ai/claude-code && npm cache clean --force
 
 # Ensure global bin dirs are on PATH for any user
