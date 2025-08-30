@@ -7,6 +7,7 @@ import { Arguments1 } from "../../../../@types/log";
 export interface ToolCallResult {
   functionCall: string;
   input?: string;
+  description?: string;
   highlightLanguage?: string;
 }
 
@@ -19,38 +20,60 @@ export const resolveToolInput = (
 ): ToolCallResult => {
   const toolName = fn;
 
-  const [inputKey, highlightLanguage] = extractInputMetadata(toolName);
-  const { input, args } = extractInput(
+  const inputDescriptor = extractInputMetadata(toolName);
+  const { input, description, args } = extractInput(
     toolArgs as Record<string, unknown>,
-    inputKey,
+    inputDescriptor,
   );
   const functionCall =
     args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
   return {
     functionCall,
     input,
-    highlightLanguage,
+    description,
+    highlightLanguage: inputDescriptor?.language,
   };
 };
 
+interface ToolInputDescriptor {
+  inputArg?: string;
+  descriptionArg?: string;
+  language?: string;
+}
+
 const extractInputMetadata = (
   toolName: string,
-): [string | undefined, string | undefined] => {
+): ToolInputDescriptor | undefined => {
   if (toolName === "bash") {
-    return ["cmd", "bash"];
+    return {
+      inputArg: "cmd",
+      language: "bash",
+    };
   } else if (toolName === "python") {
-    return ["code", "python"];
+    return {
+      inputArg: "code",
+      language: "python",
+    };
   } else if (toolName === "web_search") {
-    return ["query", "text"];
+    return {
+      inputArg: "query",
+      language: "json",
+    };
+  } else if (toolName === "Bash") {
+    return {
+      inputArg: "command",
+      descriptionArg: "description",
+      language: "bash",
+    };
   } else {
-    return [undefined, undefined];
+    return undefined;
   }
 };
 
 const extractInput = (
   args: Record<string, unknown>,
-  inputKey?: string,
-): { input?: string; args: string[] } => {
+  inputDescriptor?: ToolInputDescriptor,
+): { input?: string; description?: string; args: string[] } => {
   const formatArg = (key: string, value: unknown) => {
     const quotedValue =
       value === null
@@ -62,33 +85,51 @@ const extractInput = (
             : String(value);
     return `${key}: ${quotedValue}`;
   };
-  if (args) {
-    if (inputKey && args[inputKey]) {
-      const input = args[inputKey];
-      const filteredArgs = Object.keys(args)
-        .filter((key) => {
-          return key !== inputKey;
-        })
-        .map((key) => {
-          return formatArg(key, args[key]);
-        });
-      return {
-        input: String(input),
-        args: filteredArgs,
-      };
-    } else {
-      const formattedArgs = Object.keys(args).map((key) => {
+
+  // No args
+  if (!args) {
+    return {
+      args: [],
+    };
+  }
+
+  // Use the input descriptor to snip apart args
+  if (inputDescriptor) {
+    const filterKeys = new Set<string>();
+    const base: { input?: string; description?: string } = {};
+
+    if (inputDescriptor.inputArg && args[inputDescriptor.inputArg]) {
+      filterKeys.add(inputDescriptor.inputArg);
+      base.input = String(args[inputDescriptor.inputArg]);
+    }
+
+    if (
+      inputDescriptor.descriptionArg &&
+      args[inputDescriptor.descriptionArg]
+    ) {
+      filterKeys.add(inputDescriptor.descriptionArg);
+      base.description = String(args[inputDescriptor.descriptionArg]);
+    }
+
+    const filteredArgs = Object.keys(args)
+      .filter((key) => {
+        return !filterKeys.has(key);
+      })
+      .map((key) => {
         return formatArg(key, args[key]);
       });
 
-      return {
-        input: undefined,
-        args: formattedArgs,
-      };
-    }
+    return {
+      ...base,
+      args: filteredArgs,
+    };
+  } else {
+    const formattedArgs = Object.keys(args).map((key) => {
+      return formatArg(key, args[key]);
+    });
+
+    return {
+      args: formattedArgs,
+    };
   }
-  return {
-    input: undefined,
-    args: [],
-  };
 };

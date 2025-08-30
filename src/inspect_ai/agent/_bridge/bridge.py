@@ -1,4 +1,5 @@
 import contextlib
+import importlib
 import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -19,11 +20,15 @@ from inspect_ai.model._openai_convert import (
     messages_from_openai,
     messages_to_openai,
 )
-from inspect_ai.model._providers.providers import validate_openai_client
+from inspect_ai.model._providers.providers import (
+    validate_anthropic_client,
+    validate_openai_client,
+)
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
 
+from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
 from .responses import inspect_responses_api_request
 from .util import (
@@ -67,7 +72,7 @@ async def agent_bridge(
          Tavili or Exa for models that don't support internal search.
     """
     # ensure one time init
-    init_openai_request_patch()
+    init_bridge_request_patch()
 
     # resolve web search config
     web_search = resolve_web_search_providers(web_search)
@@ -103,15 +108,22 @@ class PatchConfig:
 
 
 _patch_config: ContextVar[PatchConfig] = ContextVar(
-    "openai_request_patch_config", default=PatchConfig()
+    "bridge_request_patch_config", default=PatchConfig()
 )
 
 
-def init_openai_request_patch() -> None:
+def init_bridge_request_patch() -> None:
     global _patch_initialised
     if _patch_initialised:
         return
 
+    init_openai_request_patch()
+    init_anthropic_request_patch()
+
+    _patch_initialised = True
+
+
+def init_openai_request_patch() -> None:
     validate_openai_client("agent bridge")
 
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
@@ -143,13 +155,9 @@ def init_openai_request_patch() -> None:
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
-            model_name = str(json_data["model"])
-            if re.match(r"^inspect/?", model_name):
-                # streaming not currently supported for patch
+            if targets_inspect_model(json_data):
                 if stream:
-                    raise RuntimeError(
-                        "Streaming not currently supported for agent_bridge()"
-                    )
+                    raise_stream_error()
 
                 if options.url == "/chat/completions":
                     return await inspect_completions_api_request(
@@ -170,7 +178,71 @@ def init_openai_request_patch() -> None:
         )
 
     setattr(AsyncAPIClient, "request", patched_request)
-    _patch_initialised = True
+
+
+def init_anthropic_request_patch() -> None:
+    # don't patch if no anthropic
+    if not importlib.util.find_spec("anthropic"):
+        return
+
+    validate_anthropic_client("agent bridge")
+
+    from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
+    from anthropic._models import FinalRequestOptions
+    from anthropic._types import ResponseT
+
+    # get reference to original method
+    original_request = getattr(AsyncAPIClient, "request")
+    if original_request is None:
+        raise RuntimeError("Couldn't find 'request' method on AsyncAPIClient")
+
+    @wraps(original_request)
+    async def patched_request(
+        self: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        *,
+        stream: bool = False,
+        stream_cls: type[_AsyncStreamT] | None = None,
+    ) -> Any:
+        # we have patched the underlying request method so now need to figure out when to
+        # patch and when to stand down
+        config = _patch_config.get()
+        if (
+            # enabled for this coroutine
+            config.enabled
+            # messages request
+            and options.url in ["/v1/messages"]
+        ):
+            # must also be an explicit request for an inspect model
+            json_data = cast(dict[str, Any], options.json_data)
+            if targets_inspect_model(json_data):
+                if stream:
+                    raise_stream_error()
+
+                return await inspect_anthropic_api_request(
+                    json_data, config.web_search, config.bridge
+                )
+
+        # otherwise just delegate
+        return await original_request(
+            self,
+            cast_to,
+            options,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
+
+    setattr(AsyncAPIClient, "request", patched_request)
+
+
+def targets_inspect_model(json_data: dict[str, Any]) -> bool:
+    model_name = str(json_data["model"])
+    return re.match(r"^inspect/?", model_name) is not None
+
+
+def raise_stream_error() -> None:
+    raise RuntimeError("Streaming not currently supported for agent_bridge()")
 
 
 @agent
