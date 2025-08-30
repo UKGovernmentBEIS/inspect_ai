@@ -152,10 +152,12 @@ website:
           href: reference/inspect_ai.agent.qmd#sandbox_agent_bridge
         - text: SandboxAgentBridge
           href: reference/inspect_ai.agent.qmd#sandboxagentbridge
-        - text: remove_tools
-          href: reference/inspect_ai.agent.qmd#remove_tools
+        - text: content_only
+          href: reference/inspect_ai.agent.qmd#content_only
         - text: last_message
           href: reference/inspect_ai.agent.qmd#last_message
+        - text: remove_tools
+          href: reference/inspect_ai.agent.qmd#remove_tools
         - text: MessageFilter
           href: reference/inspect_ai.agent.qmd#messagefilter
         - text: Agent

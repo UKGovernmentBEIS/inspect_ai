@@ -11,6 +11,23 @@ export const isJson = (text: string): boolean => {
   return false;
 };
 
+export const asJsonObjArray = (text: string): Object[] | undefined => {
+  text = text.trim();
+  if (text.startsWith("[") && text.endsWith("]")) {
+    try {
+      const arr = JSON.parse(text);
+      if (Array.isArray(arr) && arr.every((item) => typeof item === "object")) {
+        return arr as Object[];
+      } else {
+        return undefined;
+      }
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
 export const parsedJson = (text: string): unknown | undefined => {
   text = text.trim();
   if (text.startsWith("{") && text.endsWith("}")) {

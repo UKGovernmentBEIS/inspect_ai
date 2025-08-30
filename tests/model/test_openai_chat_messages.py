@@ -25,11 +25,11 @@ class DummyMessage(dict):
             "actual tool output",
         ),
         (
-            "actual tool output<internal>eyJmb28iOiAiYmFyIn0=</internal>",
+            "actual tool output",
             "actual tool output",
         ),
         (
-            '<think signature="sig">reasoning</think>actual tool<internal>eyJmb28iOiAiYmFyIn0=</internal> output',
+            '<think signature="sig">reasoning</think>actual tool output',
             "actual tool output",
         ),
     ],

@@ -1,4 +1,4 @@
-from agent import codex
+from codex import codex
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import json_dataset

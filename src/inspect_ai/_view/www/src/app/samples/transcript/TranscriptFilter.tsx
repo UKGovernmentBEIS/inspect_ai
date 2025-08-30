@@ -27,8 +27,6 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
     arrangedEventTypes,
   } = useTranscriptFilter();
 
-  console.log("filtered", filtered);
-
   return (
     <PopOver
       id={`transcript-filter-popover`}
