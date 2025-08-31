@@ -43,6 +43,10 @@ export const ApplicationIcons = {
     remove: "bi bi-dash",
     replace: "bi bi-plus-slash-minus",
   },
+  checkbox: {
+    checked: "bi bi-check-circle",
+    unchecked: "bi bi-circle",
+  },
   chevron: {
     right: "bi bi-chevron-right",
     down: "bi bi-chevron-down",

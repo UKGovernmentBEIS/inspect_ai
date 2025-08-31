@@ -20,9 +20,9 @@ import { ToolTitle } from "./ToolTitle";
 interface ToolCallViewProps {
   id: string;
   functionCall: string;
-  input?: string;
+  input?: unknown;
   description?: string;
-  highlightLanguage?: string;
+  contentType?: string;
   view?: ToolCallContent;
   output:
     | string
@@ -55,7 +55,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   functionCall,
   input,
   description,
-  highlightLanguage,
+  contentType,
   view,
   output,
   mode,
@@ -125,7 +125,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           ""
         )}
         <ToolInput
-          highlightLanguage={highlightLanguage}
+          contentType={contentType}
           contents={contents}
           toolCallView={view}
         />

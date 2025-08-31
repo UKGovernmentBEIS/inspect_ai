@@ -1,0 +1,11 @@
+.todoList {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.3em;
+}
+
+.inProgress {
+  font-weight: bold;
+}

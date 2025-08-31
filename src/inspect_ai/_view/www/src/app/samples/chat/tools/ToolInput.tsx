@@ -1,18 +1,20 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, Ref } from "react";
 
 import { usePrismHighlight } from "../../../../state/hooks";
 import { RenderedText } from "../../../content/RenderedText";
 import styles from "./ToolInput.module.css";
+import { kToolTodoContentType } from "./tool";
+import { TodoWriteInput } from "./tool-input/TodoWriteInput";
 
 interface ToolInputProps {
-  highlightLanguage?: string;
-  contents?: string | object;
+  contentType?: string;
+  contents?: unknown | object;
   toolCallView?: { content: string };
   className?: string | string[];
 }
 export const ToolInput: FC<ToolInputProps> = (props) => {
-  const { highlightLanguage, contents, toolCallView, className } = props;
+  const { contentType, contents, toolCallView, className } = props;
 
   const prismParentRef = usePrismHighlight(toolCallView?.content);
 
@@ -26,13 +28,40 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
         className={clsx("tool-output", styles.toolView, className)}
       />
     );
+  } else {
+    return (
+      <RenderTool
+        contents={contents!}
+        contentType={contentType || ""}
+        parentRef={prismParentRef}
+        className={className}
+      />
+    );
+  }
+};
+
+interface RenderToolProps {
+  contents: string | object;
+  contentType: string;
+  parentRef: Ref<HTMLDivElement>;
+  className?: string | string[];
+}
+
+const RenderTool: FC<RenderToolProps> = ({
+  contents,
+  contentType,
+  parentRef,
+  className,
+}) => {
+  if (contentType === kToolTodoContentType) {
+    return <TodoWriteInput contents={contents} parentRef={parentRef} />;
   }
 
   const formattedContent =
     typeof contents === "object" ? JSON.stringify(contents) : contents;
 
   return (
-    <div ref={prismParentRef}>
+    <div ref={parentRef}>
       <pre
         className={clsx(
           "tool-output",
@@ -45,7 +74,7 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
           className={clsx(
             "source-code",
             "sourceCode",
-            highlightLanguage ? `language-${highlightLanguage}` : undefined,
+            contentType ? `language-${contentType}` : undefined,
             styles.outputCode,
           )}
         >
