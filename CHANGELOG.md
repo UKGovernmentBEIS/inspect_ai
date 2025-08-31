@@ -21,6 +21,7 @@
 - Inspect View: Remove sample list / title content when sample is displaying (prevents find from matching content behind the sample detail).
 - Inspect View: Custom rendering for TodoWrite tool calls.
 - Bugfix: Fix error in reducing scores when all scores for a sample are NaN.
+- Bugfix: Correctly extract authorization token from header in MCP remote server config.
 
 
 ## 0.3.125 (25 August 2025)

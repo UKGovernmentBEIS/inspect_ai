@@ -55,7 +55,7 @@ class MCPServerConfigHTTP(MCPServerConfig):
         if self.headers and "Authorization" in self.headers:
             authorization = str(self.headers["Authorization"])
             authorization = (
-                authorization[:7]
+                authorization[7:]
                 if authorization.upper().startswith("BEARER ")
                 else authorization
             )
