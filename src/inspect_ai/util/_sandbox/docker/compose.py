@@ -313,7 +313,7 @@ async def compose_command(
 
     # function to run command (wrapped in concurrency limiter)
     async def run_command(command_timeout: int | None) -> ExecResult[str]:
-        async with concurrency("docker-cli", docker_cli_concurrency):
+        async with concurrency("docker-cli", docker_cli_concurrency, visible=False):
             result = await subprocess(
                 compose_command,
                 input=input,
