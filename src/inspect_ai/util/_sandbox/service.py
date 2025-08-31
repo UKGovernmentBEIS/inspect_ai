@@ -12,6 +12,7 @@ import anyio
 from pydantic import JsonValue
 
 from inspect_ai._util._async import coro_log_exceptions
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
@@ -92,6 +93,9 @@ async def sandbox_service(
             sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
     """
+    # validate python in sandbox
+    await validate_sandbox_python(name, sandbox, user)
+
     # sort out polling interval
     if polling_interval is None:
         polling_interval = sandbox.default_polling_interval()
@@ -401,3 +405,14 @@ class SandboxService:
             else:
                 return False, None
         """)
+
+
+async def validate_sandbox_python(
+    service_name: str, sandbox: SandboxEnvironment, user: str | None = None
+) -> None:
+    # validate python in sandbox
+    result = await sandbox.exec(["which", "python3"], user=user)
+    if not result.success:
+        raise PrerequisiteError(
+            f"The {service_name} requires that Python be installed in the sandbox."
+        )
