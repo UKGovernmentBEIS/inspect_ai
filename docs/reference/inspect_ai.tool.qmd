@@ -22,6 +22,9 @@ title: "inspect_ai.tool"
 ### mcp_server_sse
 ### mcp_tools
 ### MCPServer
+### MCPServerConfig 
+### MCPServerConfigStdio
+### MCPServerConfigHTTP 
 
 ## Dynamic 
 
