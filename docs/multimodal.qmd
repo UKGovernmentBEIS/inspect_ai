@@ -191,7 +191,7 @@ If you are constructing chat messages programmatically, then the equivalent to t
 input = [
     ChatMessageUser(content=[
          ContentText(text="Please describe the contents of the attached PDF."),
-        ContentDocument(video="attention.pdf")
+        ContentDocument(document="attention.pdf")
     ])
 ]
 ```
