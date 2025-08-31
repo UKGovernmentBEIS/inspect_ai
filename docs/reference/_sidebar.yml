@@ -101,6 +101,12 @@ website:
           href: reference/inspect_ai.tool.qmd#mcp_tools
         - text: MCPServer
           href: reference/inspect_ai.tool.qmd#mcpserver
+        - text: 'MCPServerConfig '
+          href: 'reference/inspect_ai.tool.qmd#mcpserverconfig '
+        - text: MCPServerConfigStdio
+          href: reference/inspect_ai.tool.qmd#mcpserverconfigstdio
+        - text: 'MCPServerConfigHTTP '
+          href: 'reference/inspect_ai.tool.qmd#mcpserverconfighttp '
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
