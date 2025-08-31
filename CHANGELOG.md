@@ -17,6 +17,7 @@
 - Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out `sample_init`, `sandbox`, `store`, and `state` events.
 - Inspect View: Add support for displaying raw markdown source when viewing sample data.
 - Inspect View: Remove sample list / title content when sample is displaying (prevents find from matching content behind the sample detail).
+- Inspect View: Custom rendering for TodoWrite tool calls.
 - Bugfix: Fix error in reducing scores when all scores for a sample are NaN.
 
 
