@@ -537,17 +537,22 @@ def consecutive_tool_message_reducer(
     messages: list[Content],
     message: Content,
 ) -> list[Content]:
-    if (
-        message.role == "function"
-        and len(messages) > 0
-        and messages[-1].role == "function"
-    ):
+    if is_tool_message(message) and len(messages) > 0 and is_tool_message(messages[-1]):
         messages[-1] = Content(
-            role="function", parts=(messages[-1].parts or []) + (message.parts or [])
+            role="user", parts=(messages[-1].parts or []) + (message.parts or [])
         )
     else:
         messages.append(message)
     return messages
+
+
+def is_tool_message(message: Content) -> bool:
+    return (
+        message.role == "user"
+        and message.parts is not None
+        and len(message.parts) > 0
+        and message.parts[0].function_response is not None
+    )
 
 
 async def content(
@@ -599,7 +604,7 @@ async def content(
                 )
             },
         )
-        return Content(role="function", parts=[Part(function_response=response)])
+        return Content(role="user", parts=[Part(function_response=response)])
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:

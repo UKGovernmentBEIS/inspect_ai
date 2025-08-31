@@ -9,6 +9,7 @@
 - OpenAI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.
 - Google: Pass tool parameter descriptions for nullable and `enum` typed fields.
 - Google: Support `thought_signature` for thought parts.
+- Google: Use role="user" for tool call results rather than role="function".
 - Sandbox Service: New `instance` option for multiple services of the same type in a single container.
 - Sandbox Service: New `polling_interval` option for controlling polling interval from sandbox to scaffold (defaults to 2 seconds, overridden to 0.2 seconds for Docker sandbox).
 - ReAct Agent: Add submit tool content to assistant message (in addition to setting the `completion`).
