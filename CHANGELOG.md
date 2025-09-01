@@ -1,5 +1,6 @@
 ## 0.3.127 (01 September 2025)
 
+- Scoring: Use fallback unicode numeric string parser when default `str_to_float()` fails.
 - Bugfix: Preserve sample list state (e.g. scroll position, selection) across sample open/close.
 
 ## 0.3.126 (01 September 2025)

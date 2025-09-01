@@ -1,6 +1,10 @@
+from typing import Final
+
 import pytest
 
 from inspect_ai._util.text import str_to_float
+from inspect_ai.scorer._common import normalize_number
+from inspect_ai.scorer._unicode import unicode_number_to_float
 
 
 def test_str_to_float_basic():
@@ -150,3 +154,101 @@ def test_str_to_float_trailing_decimal_groups():
     # Test with signs
     assert str_to_float("+123.45.67") == 123.45
     assert str_to_float("-987.65.43") == -987.65
+
+
+def test_basic_ascii_and_fullwidth() -> None:
+    assert unicode_number_to_float("3") == 3.0
+    assert unicode_number_to_float("４５．６") == pytest.approx(45.6)
+    assert unicode_number_to_float("1 234,56") == pytest.approx(1234.56)
+
+
+def test_grouping_and_decimal_heuristics() -> None:
+    # Rightmost of dot/comma is decimal
+    assert unicode_number_to_float("1,234.56") == pytest.approx(1234.56)
+    assert unicode_number_to_float("1.234,56") == pytest.approx(1234.56)
+    # NBSP / thin spaces as grouping
+    assert unicode_number_to_float("12\u00a0345,67") == pytest.approx(12345.67)
+    assert unicode_number_to_float("12\u202f345,67") == pytest.approx(12345.67)
+    # Apostrophe-like grouping with comma decimal
+    assert unicode_number_to_float("3’141’592,65") == pytest.approx(3141592.65)
+
+
+def test_unicode_digits_other_scripts() -> None:
+    # Arabic-Indic with Arabic decimal (U+066B) and thousands separator (U+066C)
+    assert unicode_number_to_float("١٢٬٣٤٥٫٦٧") == pytest.approx(12345.67)
+    # Eastern Arabic-Indic alternative
+    assert unicode_number_to_float("٤٥٫٦٧") == pytest.approx(45.67)
+
+
+def test_unicode_signs_and_toggling() -> None:
+    # U+2212 MINUS SIGN and fullwidth minus, multiple minus toggle
+    assert unicode_number_to_float("−-+3") == 3.0  # two minuses overall → positive
+    assert unicode_number_to_float("－3") == -3.0
+    assert unicode_number_to_float("+＋3") == 3.0  # plus variants collapse
+
+
+def test_single_char_numerics() -> None:
+    # Roman numeral and vulgar fractions via unicodedata.numeric
+    assert unicode_number_to_float("Ⅻ") == 12.0
+    assert unicode_number_to_float("½") == 0.5
+    assert unicode_number_to_float("⅔") == pytest.approx(2 / 3)
+
+
+def test_fractions_in_base() -> None:
+    assert unicode_number_to_float("2½") == 2.5
+    assert unicode_number_to_float("−½") == -0.5
+    assert unicode_number_to_float("12⅓") == pytest.approx(12 + 1 / 3)
+
+
+def test_superscript_exponents() -> None:
+    assert unicode_number_to_float("3²") == 9.0
+    assert unicode_number_to_float("1.5⁻³") == pytest.approx(1.5**-3)
+    assert unicode_number_to_float("⅔³") == pytest.approx((2 / 3) ** 3)
+    # Sign binds to base, then exponent applies
+    assert unicode_number_to_float("-2²") == 4.0
+    assert unicode_number_to_float("-2³") == -8.0
+    assert unicode_number_to_float("-½²") == pytest.approx(0.25)
+
+
+def test_scientific_notation_then_exponent() -> None:
+    # ASCII e/E exponent is part of base; superscript exponent applies after
+    assert unicode_number_to_float("1e3²") == 1_000.0**2
+    assert unicode_number_to_float("1.2E3³") == 1_200.0**3
+
+
+def test_chinese_numerals_basic() -> None:
+    assert unicode_number_to_float("一百二十三") == 123.0
+    assert unicode_number_to_float("两千零三") == 2003.0
+    assert unicode_number_to_float("壹仟贰佰叁拾肆") == 1234.0
+    assert unicode_number_to_float("二〇二五") == 2025.0
+    assert unicode_number_to_float("十") == 10.0  # omitted '一十'
+    assert unicode_number_to_float("廿三") == 23.0
+    assert unicode_number_to_float("卌六") == 46.0
+
+
+def test_chinese_with_decimal_and_fraction() -> None:
+    assert unicode_number_to_float("一百二十三点四五") == pytest.approx(123.45)
+    assert unicode_number_to_float("十二⅓") == pytest.approx(12 + 1 / 3)
+
+
+def test_chinese_large_units() -> None:
+    # 1兆 + 2345亿 + 6789万 + 1 = 1_234_567_890_001
+    expected: Final[float] = 1_234_567_890_001.0
+    assert (
+        unicode_number_to_float("一兆二千三百四十五亿六千七百八十九万零一") == expected
+    )
+
+
+def test_error_cases() -> None:
+    with pytest.raises(ValueError):
+        unicode_number_to_float("abc")
+    with pytest.raises(ValueError):
+        unicode_number_to_float("1x2")
+    with pytest.raises(ValueError):
+        unicode_number_to_float("1½⅓")  # multiple vulgar fraction chars
+    with pytest.raises(ValueError):
+        unicode_number_to_float("")  # empty
+
+
+def test_normalize_unicode_numeric():
+    assert normalize_number("三三") == normalize_number("三三")
