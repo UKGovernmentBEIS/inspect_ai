@@ -22,7 +22,7 @@ class MCPServerConfig(BaseModel):
 class MCPServerConfigStdio(MCPServerConfig):
     """Configuration for MCP servers with stdio interface."""
 
-    type: Literal["stdio"]
+    type: Literal["stdio"] = Field(default="stdio")
     """Server type."""
 
     command: str
