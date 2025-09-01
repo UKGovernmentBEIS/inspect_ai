@@ -231,7 +231,7 @@ equivalent to the above would be:
 input = [
     ChatMessageUser(content=[
          ContentText(text="Please describe the contents of the attached PDF."),
-        ContentDocument(video="attention.pdf")
+        ContentDocument(document="attention.pdf")
     ])
 ]
 ```
