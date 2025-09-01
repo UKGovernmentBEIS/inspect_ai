@@ -3,6 +3,7 @@
 - Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.
 - Agent Bridge: Bridge can now automatically keep track of `AgentState` changes via inspecting model traffic running over the bridge.
 - Agent Bridge: Improved id stability across generations to prevent duplicated messages in `messages_df()`.
+- Agent Bridge: Ensure that explicitly specified `GenerateConfig` values for models override bridged agent config.
 - Agent `handoff()`: Use `content_only()` filter by default for handoff output and improve detection of new content from handed off to agents. 
 - Model API: Refine available tool types for `ContentToolUse` ("web_search" or "mcp_call")
 - Model API: Remove `internal` field from `ChatMessageBase` (no longer used).

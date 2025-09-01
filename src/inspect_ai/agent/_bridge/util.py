@@ -2,11 +2,27 @@ from typing import cast
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._model import Model, get_model, model_roles
+from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
+from inspect_ai.model._model import Model, active_model, get_model, model_roles
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+
+
+def resolve_generate_config(
+    model: Model, bridge_config: GenerateConfig
+) -> GenerateConfig:
+    # give config built into the model instance priority over
+    # bridged agent default
+    config = bridge_config.merge(model.config)
+
+    # apply active model config if appropriate
+    is_active_model = model == active_model()
+    if is_active_model:
+        config = config.merge(active_generate_config())
+
+    return config
 
 
 def resolve_inspect_model(model_name: str) -> Model:

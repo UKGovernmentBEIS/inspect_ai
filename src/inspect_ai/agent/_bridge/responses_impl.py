@@ -65,7 +65,10 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+)
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -122,7 +125,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 
-from .util import apply_message_ids, resolve_inspect_model
+from .util import apply_message_ids, resolve_generate_config, resolve_inspect_model
 
 logger = getLogger(__file__)
 
@@ -164,6 +167,9 @@ async def inspect_responses_api_request_impl(
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
+
+    # give inspect-level config priority over agent default config
+    config = resolve_generate_config(model, config)
 
     # run inference
     output = await model.generate(
