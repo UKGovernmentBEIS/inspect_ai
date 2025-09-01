@@ -61,7 +61,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 
 from .types import AgentBridge
-from .util import apply_message_ids, resolve_inspect_model
+from .util import apply_message_ids, resolve_generate_config, resolve_inspect_model
 
 logger = getLogger(__file__)
 
@@ -103,6 +103,9 @@ async def inspect_anthropic_api_request_impl(
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
+
+    # give inspect-level config priority over agent default config
+    config = resolve_generate_config(model, config)
 
     # run inference
     output = await model.generate(
