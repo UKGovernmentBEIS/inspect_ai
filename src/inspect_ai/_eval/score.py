@@ -1,7 +1,8 @@
 import functools
+import sys
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal
 
 import anyio
 
@@ -41,6 +42,11 @@ from inspect_ai.util._store import init_subtask_store
 
 from .task.results import eval_results
 
+if sys.version_info >= (3, 11):
+    pass
+else:
+    pass
+
 ScoreAction = Literal["append", "overwrite"]
 
 
@@ -78,11 +84,11 @@ def score(
 
     if running_in_notebook():
         return run_coroutine(
-            score_async(log, scorers, epochs_reducer, action, copy=copy)
+            score_async(log, scorers, epochs_reducer, action, copy=copy, samples=None)
         )
     else:
         return anyio.run(
-            functools.partial(score_async, copy=copy),
+            functools.partial(score_async, copy=copy, samples=None),
             log,
             scorers,
             epochs_reducer,
@@ -159,11 +165,14 @@ async def score_async(
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
+    samples: Callable[[int], Awaitable[EvalSample]] | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
     Args:
-       log (EvalLog): Evaluation log.
+       log (EvalLog):
+         Evaluation log. Only the headers are needed if `samples`
+         is passed as well.
        scorers (list[Scorer]): Scorers to apply to log
        epochs_reducer (ScoreReducers  | None):
          Reducer function(s) for aggregating scores in each sample.
@@ -171,92 +180,80 @@ async def score_async(
        action: Whether to append or overwrite this score
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
+       samples:
+         Function to read samples from the log, which accepts the
+         sample index and returns an EvalSample. Can be used to
+         stream samples without loading the entire log into memory.
 
     Returns:
        Log with scores yielded by scorer.
     """
-    if log.samples is None or len(log.samples) == 0:
+    if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
-
-    if not display_type_initialized():
-        init_display_type(display or "plain")
 
     if copy:
         # deepcopy so we don't mutate the passed log
         log = deepcopy(log)
 
-    assert (
-        log.samples is not None  # make the type checker happy after re-assignment above
-    )
+    total_samples: int | None = None
+    if samples is None:
+        _samples = log.samples
+        assert _samples is not None
+
+        async def _read_sample(idx_sample: int) -> EvalSample:
+            return _samples[idx_sample]
+
+        samples = _read_sample
+        total_samples = len(_samples)
+    else:
+        total_samples = log.results.total_samples if log.results else None
+
+    assert total_samples is not None
+
+    if not display_type_initialized():
+        init_display_type(display or "plain")
 
     # prime the scoring tasks
     action = action or "append"
-    states = [
-        TaskState(
-            model=ModelName(log.eval.model),
-            sample_id=sample.id,
-            epoch=sample.epoch,
-            input=sample.input,
-            target=Target(sample.target),
-            choices=sample.choices,
-            messages=sample.messages,
-            output=sample.output,
-            completed=True,
-            metadata=sample.metadata,
-            store=sample.store,
-            scores=(sample.scores or {}).copy() if action == "append" else {},
-        )
-        for sample in log.samples
-    ]
-    with display_manager().progress(total=len(states)) as p:
 
-        def progress() -> None:
+    with display_manager().progress(total=total_samples) as p:
+        scores: list[dict[str, SampleScore] | None] = [None] * total_samples
+
+        async def _score_sample(idx_sample: int) -> None:
+            sample = await samples(idx_sample)
+            score = await run_score_task(log, sample, scorers, action)
+            scores[idx_sample] = {
+                score_key: SampleScore(
+                    score=score,
+                    sample_id=sample.id,
+                    sample_metadata=sample.metadata,
+                )
+                for score_key, score in score.items()
+            }
             p.update(1)
 
-        # do scoring
-        scores_and_events: list[
-            tuple[dict[str, SampleScore], Transcript]
-        ] = await tg_collect(
-            [
-                functools.partial(
-                    run_score_task, log, state, Target(sample.target), scorers, progress
-                )
-                for (sample, state) in zip(log.samples, states)
-            ]
+        await tg_collect(
+            (
+                functools.partial(_score_sample, idx_sample)
+                for idx_sample in range(total_samples)
+            )
         )
-
-        # write them back (gather ensures that they come back in the same order)
-        for idx_sample, (scores, transcript) in enumerate(scores_and_events):
-            sample = log.samples[idx_sample]
-            sample.scores = _get_updated_scores(sample, scores, action=action)
-            sample.events = _get_updated_events(sample, transcript, action=action)
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
-        log_metrics = metrics_from_log(log)
+        log_metrics = metrics_from_log_header(log)
 
         # override epochs_reducer if specified
         epochs_reducer = create_reducers(epochs_reducer)
         if epochs_reducer:
             log.eval.config.epochs_reducer = reducer_log_names(epochs_reducer)
         else:
-            epochs_reducer = reducers_from_log(log)
+            epochs_reducer = reducers_from_log_header(log)
 
         # compute metrics
         log.results, log.reductions = eval_results(
-            len(log.samples),
-            [
-                {
-                    score_key: SampleScore(
-                        score=score,
-                        sample_id=sample.id,
-                        sample_metadata=sample.metadata,
-                    )
-                    for score_key, score in sample.scores.items()
-                }
-                for sample in log.samples
-                if sample.scores is not None
-            ],
+            total_samples,
+            list(filter(None, scores)),
             epochs_reducer,
             scorers,
             log_metrics,
@@ -266,21 +263,36 @@ async def score_async(
 
 
 async def run_score_task(
-    log: EvalLog,
-    state: TaskState,
-    target: Target,
+    log_header: EvalLog,
+    sample: EvalSample,
     scorers: list[Scorer],
-    progress: Callable[..., None],
-) -> tuple[dict[str, SampleScore], Transcript]:
+    action: ScoreAction,
+) -> dict[str, Score]:
+    target = Target(sample.target)
+    state = TaskState(
+        model=ModelName(log_header.eval.model),
+        sample_id=sample.id,
+        epoch=sample.epoch,
+        input=sample.input,
+        target=target,
+        choices=sample.choices,
+        messages=sample.messages,
+        output=sample.output,
+        completed=True,
+        metadata=sample.metadata,
+        store=sample.store,
+        scores=(sample.scores or {}).copy() if action == "append" else {},
+    )
+
     # get the model then initialize the async context
     model = get_model(
-        model=log.eval.model,
-        config=log.plan.config.merge(log.eval.model_generate_config),
-        **log.eval.model_args,
+        model=log_header.eval.model,
+        config=log_header.plan.config.merge(log_header.eval.model_generate_config),
+        **log_header.eval.model_args,
     )
 
     # get the model roles
-    model_roles = model_roles_config_to_model_roles(log.eval.model_roles)
+    model_roles = model_roles_config_to_model_roles(log_header.eval.model_roles)
 
     # initialize active model and store
     init_task_context(model, model_roles)
@@ -319,11 +331,15 @@ async def run_score_task(
                     scorer=registry_unqualified_name(scorer),
                 )
 
-    progress()
-    return results, transcript()
+    sample.scores = _get_updated_scores(sample, results, action=action)
+    sample.events = _get_updated_events(sample, transcript(), action=action)
+
+    return sample.scores
 
 
-def metrics_from_log(log: EvalLog) -> list[Metric] | dict[str, list[Metric]] | None:
+def metrics_from_log_header(
+    log: EvalLog,
+) -> list[Metric] | dict[str, list[Metric]] | None:
     # See if we have metrics in the eval itself
     if log.eval.metrics:
         if isinstance(log.eval.metrics, list):
@@ -340,7 +356,7 @@ def metric_from_log(metric: EvalMetricDefinition) -> Metric:
     return registry_create("metric", metric.name, **(metric.options or {}))
 
 
-def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:
+def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
     return create_reducers(log.eval.config.epochs_reducer)
 
 
