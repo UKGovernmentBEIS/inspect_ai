@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.126 (01 September 2025)
 
 - Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.
 - Agent Bridge: Bridge can now automatically keep track of `AgentState` changes via inspecting model traffic running over the bridge.
@@ -24,7 +24,6 @@
 - Inspect View: Custom rendering for TodoWrite tool calls.
 - Bugfix: Fix error in reducing scores when all scores for a sample are NaN.
 - Bugfix: Correctly extract authorization token from header in MCP remote server config.
-
 
 ## 0.3.125 (25 August 2025)
 

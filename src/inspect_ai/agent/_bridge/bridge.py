@@ -45,17 +45,10 @@ async def agent_bridge(
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
-    ::: callout-note
-    The `agent_bridge()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Provide Inspect integration for 3rd party agents that use the
-    OpenAI Completions API. The bridge patches the OpenAI client
-    library to redirect any model named "inspect" (or prefaced with
+    the OpenAI Completions API, OpenAI Responses API, or Anthropic API.
+    The bridge patches the OpenAI and Anthropic client libraries
+    to redirect any model named "inspect" (or prefaced with
     "inspect/" for non-default models) into the Inspect model API.
 
     See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
@@ -64,8 +57,8 @@ async def agent_bridge(
     Args:
        state: Initial state for agent bridge. Used as a basis for yielding
          an updated state based on traffic over the bridge.
-       web_search: Configuration for mapping OpenAI Responses internal
-         web_search tool to Inspect. By default, will map to the
+       web_search: Configuration for mapping model internal
+         web_search tools to Inspect. By default, will map to the
          internal provider of the target model (supported for OpenAI,
          Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
          configuration to use to use an external provider like

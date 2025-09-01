@@ -42,30 +42,21 @@ async def sandbox_agent_bridge(
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
-    ::: callout-note
-    The `sandbox_agent_bridge()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Provide Inspect integration for agents running inside sandboxes. Runs
-    an OpenAI-compatible proxy server in the container -- this proxy server
+    a proxy server in the container that provides REST entpoints for the OpenAI Completions API, OpenAI Responses API, and Anthropic API. This proxy server
     runs on port 13131 and routes requests to the current Inspect model provider.
 
-    You should set `OPENAI_BASE_URL=http://localhost:13131/v1` when executing
+    You should set `OPENAI_BASE_URL=http://localhost:13131/v1` or `ANTHROPIC_BASE_URL=http://localhost:13131` when executing
     the agent within the container and ensure that your agent targets the
-    model name "inspect" when calling OpenAI. Use "inspect/<full-model-name>"
-    to target other Inspect model providers.
+    model name "inspect" when calling OpenAI or Anthropic. Use "inspect/<full-model-name>" to target other Inspect model providers.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
            an updated state based on traffic over the bridge.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
-        web_search: Configuration for mapping OpenAI Responses internal
-            web_search tool to Inspect. By default, will map to the
+        web_search: Configuration for mapping model internal
+            web_search tools to Inspect. By default, will map to the
             internal provider of the target model (supported for OpenAI,
             Anthropic, Gemini, Grok, and Perplxity). Pass an alternate
             configuration to use to use an external provider like

@@ -3,16 +3,6 @@ title: Agent Bridge
 code-annotations: select
 ---
 
-::: callout-note
-The `agent_bridge()` and `sandbox_agent_bridge()` functions described below are available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-
-Note that a previous (and now deprecated) variation of the agent bridge is available in all versions of Inspect via the `bridge()` function.
-:::
-
 ## Overview
 
 While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Claude Code](https://www.anthropic.com/claude-code) or [Codex CLI](https://github.com/openai/codex)).
