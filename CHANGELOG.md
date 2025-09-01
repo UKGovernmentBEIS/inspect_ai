@@ -1,3 +1,7 @@
+## 0.3.127 (01 September 2025)
+
+- Bugfix: Preserve sample list state (e.g. scroll position, selection) across sample open/close.
+
 ## 0.3.126 (01 September 2025)
 
 - Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.
