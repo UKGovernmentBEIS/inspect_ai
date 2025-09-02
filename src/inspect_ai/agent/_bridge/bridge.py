@@ -71,7 +71,7 @@ async def agent_bridge(
     web_search = resolve_web_search_providers(web_search)
 
     # create a state value that will be used to track mesages going over the bridge
-    state = AgentState(messages=state.messages.copy() if state else [])
+    state = state or AgentState(messages=[])
 
     # create the bridge
     bridge = AgentBridge(state)

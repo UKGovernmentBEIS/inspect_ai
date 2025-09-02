@@ -72,7 +72,7 @@ async def sandbox_agent_bridge(
     web_search = web_search or internal_web_search_providers()
 
     # create a state value that will be used to track mesages going over the bridge
-    state = AgentState(messages=state.messages.copy() if state else [])
+    state = state or AgentState(messages=[])
 
     try:
         async with anyio.create_task_group() as tg:
