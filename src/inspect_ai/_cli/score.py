@@ -12,7 +12,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 from typing_extensions import Unpack
 
-from inspect_ai._cli.util import parse_cli_config
+from inspect_ai._cli.util import int_or_bool_flag_callback, parse_cli_config
 from inspect_ai._display import display
 from inspect_ai._display.core.results import task_scores
 from inspect_ai._display.core.rich import rich_theme
@@ -58,18 +58,24 @@ if TYPE_CHECKING:
     "--overwrite",
     type=bool,
     is_flag=True,
+    envvar="INSPECT_SCORE_OVERWRITE",
     help="Overwrite log file with the scored version",
 )
 @click.option(
     "--output-file",
     type=click.Path(dir_okay=False, writable=True),
+    envvar="INSPECT_SCORE_OUTPUT_FILE",
     help="Output file to write the scored log to.",
 )
 @click.option(
     "--stream",
-    type=bool,
-    is_flag=True,
-    help="Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs.",
+    flag_value="true",
+    type=str,
+    is_flag=False,
+    default=False,
+    callback=int_or_bool_flag_callback(True, false_value=False, is_one_true=False),
+    help="Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being scored.",
+    envvar="INSPECT_SCORE_STREAM",
 )
 @common_options
 def score_command(
@@ -79,7 +85,7 @@ def score_command(
     scorer: str | None,
     s: tuple[str, ...] | None,
     action: ScoreAction | None,
-    stream: bool = False,
+    stream: int | bool = False,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
@@ -110,7 +116,7 @@ async def score(
     action: ScoreAction | None,
     log_level: str | None,
     output_file: str | None = None,
-    stream: bool = False,
+    stream: int | bool = False,
 ) -> None:
     platform_init()
 
@@ -118,7 +124,7 @@ async def score(
     scorer_args = parse_cli_config(args=s, config=None)
 
     recorder = create_recorder_for_location(log_file, log_dir)
-    eval_log = await recorder.read_log(log_file, header_only=stream)
+    eval_log = await recorder.read_log(log_file, header_only=bool(stream))
     num_samples = (
         len(eval_log.samples)
         if eval_log.samples
@@ -144,20 +150,27 @@ async def score(
 
     read_sample = None
     if stream:
-        sample_summaries = await recorder.read_log_sample_summaries(log_file)
         sample_map = sorted(
-            ((x.id, x.epoch) for x in sample_summaries),
+            (
+                (x.id, x.epoch)
+                for x in await recorder.read_log_sample_summaries(log_file)
+            ),
             key=lambda x: (
                 x[1],
                 (x[0] if isinstance(x[0], str) else str(x[0]).zfill(20)),
             ),
         )
+        semaphore = anyio.Semaphore(len(sample_map) if stream is True else stream)
 
         @contextlib.asynccontextmanager
         async def _read_sample(idx_sample: int) -> AsyncGenerator[EvalSample, None]:
-            sample = await recorder.read_log_sample(log_file, *sample_map[idx_sample])
-            yield sample
-            await write_recorder.log_sample(eval_log.eval, sample)
+            async with semaphore:
+                sample = await recorder.read_log_sample(
+                    log_file, *sample_map[idx_sample]
+                )
+                yield sample
+                await write_recorder.log_sample(eval_log.eval, sample)
+                del sample
 
         read_sample = _read_sample
         await write_recorder.log_init(eval_log.eval, location=output_file)
