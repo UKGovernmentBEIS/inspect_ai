@@ -458,6 +458,11 @@ def messages_from_responses_input(
                 elif is_response_reasoning_item(param):
                     content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_web_search_call(param):
+                    # Workaround for OpenAI server implementation change
+                    # https://github.com/openai/openai-java/issues/526
+                    action = param["action"]
+                    if action["type"] == "find_in_page":  # type: ignore[comparison-overlap]
+                        action["type"] = "find"
                     web_search = ResponseFunctionWebSearch.model_validate(param)
                     content.append(web_search_to_tool_use(web_search))
                 elif is_response_mcp_list_tools(param):
