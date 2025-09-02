@@ -1,33 +1,83 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { resolve } from "path";
+import dts from "vite-plugin-dts";
 
-export default defineConfig({
-  mode: "development",
-  base: "",
-  build: {
-    minify: false,
-    rollupOptions: {
-      output: {
-        entryFileNames: `assets/index.js`,
-        chunkFileNames: `assets/[name].js`,
-        assetFileNames: `assets/[name].[ext]`,
-      },
+export default defineConfig(({ mode }) => {
+  const isLibrary = mode === "library";
+
+  const baseConfig = {
+    plugins: [
+      react({
+        jsxRuntime: "automatic",
+        fastRefresh: !isLibrary,
+      }),
+    ],
+    resolve: {
+      dedupe: ["react", "react-dom"],
     },
-    sourcemap: true,
-  },
-  plugins: [
-    react({
-      jsxRuntime: "automatic",
-      fastRefresh: true,
-    }),
-  ],
-  resolve: {
-    dedupe: ["react", "react-dom"],
-  },
-  define: {
-    __DEV_WATCH__: JSON.stringify(process.env.DEV_LOGGING === "true"),
-    __LOGGING_FILTER__: JSON.stringify(
-      process.env.DEV_LOGGING_NAMESPACES || "*",
-    ),
-  },
+    define: {
+      __DEV_WATCH__: JSON.stringify(process.env.DEV_LOGGING === "true"),
+      __LOGGING_FILTER__: JSON.stringify(
+        process.env.DEV_LOGGING_NAMESPACES || "*",
+      ),
+    },
+  };
+
+  if (isLibrary) {
+    // Library build configuration
+    return {
+      ...baseConfig,
+      plugins: [
+        ...baseConfig.plugins,
+        dts({
+          insertTypesEntry: true,
+          exclude: ["**/*.test.ts", "**/*.test.tsx", "src/tests/**/*"],
+        }),
+      ],
+      build: {
+        outDir: "lib",
+        lib: {
+          entry: resolve(__dirname, "src/index.ts"),
+          name: "InspectAILogViewer",
+          fileName: "index",
+          formats: ["es"],
+        },
+        rollupOptions: {
+          external: [
+            "react",
+            "react-dom",
+
+          ],
+          output: {
+            globals: {
+              react: "React",
+              "react-dom": "ReactDOM",
+              "react-router-dom": "ReactRouterDOM",
+            },
+          },
+        },
+        sourcemap: true,
+        minify: false,
+      },
+    };
+  } else {
+    // App build configuration
+    return {
+      ...baseConfig,
+      mode: "development",
+      base: "",
+      build: {
+        minify: false,
+        rollupOptions: {
+          output: {
+            entryFileNames: `assets/index.js`,
+            chunkFileNames: `assets/[name].js`,
+            assetFileNames: `assets/[name].[ext]`,
+          },
+        },
+        sourcemap: true,
+      },
+    };
+  }
 });
