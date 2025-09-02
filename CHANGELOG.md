@@ -5,6 +5,7 @@
 - Mistral: Support for updated use of `ThinkChunk` types in mistralai v1.9.10.
 - Groq: Support for `--reasoning-effort` parameter (works w/ gpt-oss models).
 - Scoring: Use fallback unicode numeric string parser when default `str_to_float()` fails.
+- Bugfix: Work around OpenAI breaking change that renamed "find" web search action to "find_in_page" (bump required version of `openai` package to v1.104.0).
 
 ## 0.3.127 (01 September 2025)
 

@@ -249,7 +249,7 @@ def openai_responses_tool_choice(
                 and any(tool["type"] == "computer_use_preview" for tool in tools)
                 else ToolChoiceTypesParam(type="web_search_preview")
                 if tool_choice.name == "web_search"
-                and any(tool["type"] == "web_search_preview" for tool in tools)
+                and any(tool["type"] == "web_search" for tool in tools)
                 else ToolChoiceFunctionParam(type="function", name=tool_choice.name)
             )
 
@@ -996,10 +996,7 @@ def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam
 
 
 def is_web_search_tool_param(tool_param: ToolParam) -> TypeGuard[WebSearchToolParam]:
-    return tool_param.get("type") in [
-        "web_search_preview",
-        "web_search_preview_2025_03_11",
-    ]
+    return tool_param.get("type") in ["web_search", "web_search_2025_08_26"]
 
 
 def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
