@@ -1,4 +1,4 @@
-## Unreleased 
+## 0.3.128 (02 September 2025)
 
 - Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.
 - Agent Bridge: Respect reference vs. value semantics of agent caller (enables preservation of messages when agent is run via `as_solver()`).
