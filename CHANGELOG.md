@@ -4,6 +4,7 @@
 - Agent Bridge: Respect reference vs. value semantics of agent caller (enables preservation of messages when agent is run via `as_solver()`).
 - Mistral: Support for updated use of `ThinkChunk` types in mistralai v1.9.10.
 - Scoring: Use fallback unicode numeric string parser when default `str_to_float()` fails.
+- Bugfix: Work around OpenAI breaking change that renamed "find" web search action to "find_in_page" (bump required version of `openai` package to v1.104.0).
 
 ## 0.3.127 (01 September 2025)
 
