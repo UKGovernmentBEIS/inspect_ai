@@ -147,10 +147,15 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.model_usage_events) == 0
     assert len(mock_hooks.eval_set_start_events) == 0
 
-def test_can_subscribe_to_eval_set_start_events_when_eval_set_is_used(mock_hooks: MockHooks, tmp_path: Path) -> None:
+
+def test_can_subscribe_to_eval_set_start_events_when_eval_set_is_used(
+    mock_hooks: MockHooks, tmp_path: Path
+) -> None:
     mock_hooks.assert_no_events()
 
-    eval_set(Task(dataset=[Sample("sample_1")]), log_dir=str(tmp_path), model="mockllm/model")
+    eval_set(
+        Task(dataset=[Sample("sample_1")]), log_dir=str(tmp_path), model="mockllm/model"
+    )
 
     assert len(mock_hooks.eval_set_start_events) == 1
 
