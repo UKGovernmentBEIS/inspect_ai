@@ -1,6 +1,6 @@
+from pathlib import Path
 from typing import Generator, Type, TypeVar
 from unittest.mock import patch
-from pathlib import Path
 
 import pytest
 
@@ -13,6 +13,7 @@ from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
+    EvalSetStart,
     Hooks,
     ModelUsageData,
     RunEnd,
@@ -23,7 +24,6 @@ from inspect_ai.hooks._hooks import (
     TaskStart,
     hooks,
     override_api_key,
-    EvalSetStart,
 )
 from inspect_ai.hooks._startup import init_hooks
 from inspect_ai.solver._solver import Generate, Solver, solver
