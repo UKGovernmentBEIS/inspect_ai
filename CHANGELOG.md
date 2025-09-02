@@ -1,6 +1,7 @@
 ## Unreleased 
 
 - Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.
+- Mistral: Support for updated use of `ThinkChunk` types in mistralai v1.9.10.
 - Scoring: Use fallback unicode numeric string parser when default `str_to_float()` fails.
 
 ## 0.3.127 (01 September 2025)

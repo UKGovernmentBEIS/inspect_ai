@@ -412,11 +412,19 @@ async def mistral_message_content(
 
 def mistral_system_message_content(
     content: str | list[Content],
-) -> str | list[TextChunk]:
+) -> str | list[TextChunk | ThinkChunk]:
     if isinstance(content, str):
         return content or NO_CONTENT
     else:
-        return [TextChunk(text=c.text) for c in content if isinstance(c, ContentText)]
+        message_content: list[TextChunk | ThinkChunk] = []
+        for c in content:
+            if isinstance(c, ContentText):
+                message_content.append(TextChunk(text=c.text))
+            elif isinstance(c, ContentReasoning):
+                message_content.append(
+                    ThinkChunk(thinking=[TextChunk(text=c.reasoning)])
+                )
+        return message_content
 
 
 async def mistral_content_chunk(content: Content) -> ContentChunk:
@@ -429,7 +437,7 @@ async def mistral_content_chunk(content: Content) -> ContentChunk:
         # return chunk
         return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
     elif isinstance(content, ContentReasoning):
-        raise TypeError("Mistral models use <think> tags for reasoning.")
+        return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     else:
         raise RuntimeError(
             "Mistral models do not support audio, video, and document inputs."
@@ -525,7 +533,13 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                     detail = "auto"
             return [ContentImage(image=content.image_url.url, detail=detail)]
     elif isinstance(content, ThinkChunk):
-        raise TypeError("Mistral models use <think> tags for reasoning.")
+        return [
+            ContentReasoning(
+                reasoning="\n".join(
+                    t.text for t in content.thinking if isinstance(t, TextChunk)
+                )
+            )
+        ]
     elif isinstance(content, AudioChunk):
         raise TypeError("AudioChunk content is not supported by Inspect.")
 
