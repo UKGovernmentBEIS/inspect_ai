@@ -17,6 +17,7 @@ from inspect_ai.model._model_output import ModelUsage
 
 logger = getLogger(__name__)
 
+
 @dataclass(frozen=True)
 class EvalSetStart:
     """Eval-set start hook event data."""
@@ -282,6 +283,7 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
         return hook_type
 
     return wrapper
+
 
 async def emit_eval_set_start(log_dir: str) -> None:
     data = EvalSetStart(log_dir=log_dir)
