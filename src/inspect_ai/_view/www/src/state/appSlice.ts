@@ -10,8 +10,12 @@ export interface AppSlice {
   capabilities: Capabilities;
   appActions: {
     setStatus: (status: AppStatus) => void;
-    setShowFind: (show: boolean) => void;
+    showFind: () => void;
     hideFind: () => void;
+    setFindResults: (results: Record<number, number>) => void;
+    setFindIndex: (index: number) => void;
+    setSearching: (searching: boolean) => void;
+    setFindTerm: (term?: string) => void;
 
     setShowingSampleDialog: (showing: boolean) => void;
     setShowingTranscriptFilterDialog: (showing: boolean) => void;
@@ -66,7 +70,10 @@ const kDefaultSampleTab = kSampleTranscriptTabId;
 
 const initialState: AppState = {
   status: { loading: false },
-  showFind: false,
+  find: {
+    showing: false,
+    searching: false,
+  },
   dialogs: {
     sample: false,
     transcriptFilter: false,
@@ -114,17 +121,32 @@ export const createAppSlice = (
           state.app.status = status;
         }),
 
-      setShowFind: (show: boolean) =>
+      showFind: () =>
         set((state) => {
-          state.app.showFind = show;
+          state.app.find.showing = true;
         }),
-
       hideFind: () => {
         clearDocumentSelection();
         set((state) => {
-          state.app.showFind = false;
+          state.app.find.showing = false;
         });
       },
+      setFindResults: (results: Record<number, number>) =>
+        set((state) => {
+          state.app.find.results = results;
+        }),
+      setFindIndex: (index: number) =>
+        set((state) => {
+          state.app.find.index = index;
+        }),
+      setSearching: (searching: boolean) =>
+        set((state) => {
+          state.app.find.searching = searching;
+        }),
+      setFindTerm: (term?: string) =>
+        set((state) => {
+          state.app.find.term = term;
+        }),
       setShowingSampleDialog: (showing: boolean) => {
         const state = get();
         const isShowing = state.app.dialogs.sample;

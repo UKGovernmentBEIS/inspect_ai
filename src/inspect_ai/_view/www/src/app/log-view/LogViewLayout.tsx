@@ -15,10 +15,11 @@ export const LogViewLayout: FC = () => {
   const appStatus = useStore((state) => state.app.status);
 
   // Find
-  const nativeFind = useStore((state) => state.capabilities.nativeFind);
-  const showFind = useStore((state) => state.app.showFind);
-  const setShowFind = useStore((state) => state.appActions.setShowFind);
+  const showFind = useStore((state) => state.appActions.showFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
+  const isFindShowing = useStore((state) => state.app.find.showing);
+
+  // Are displaying in single file mode
   const singleFileMode = useStore((state) => state.app.singleFileMode);
 
   // Logs Data
@@ -33,18 +34,18 @@ export const LogViewLayout: FC = () => {
 
   const handleKeyboard = useCallback(
     (e: KeyboardEvent) => {
-      // Add keyboard shortcuts for find, if needed
-      if (nativeFind || !setShowFind) {
-        return;
-      }
-
+      // Add keyboard shortcuts forßfind, if needed
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        setShowFind(true);
+        showFind();
+        e.stopPropagation();
+        e.preventDefault();
       } else if (e.key === "Escape") {
         hideFind();
+        e.stopPropagation();
+        e.preventDefault();
       }
     },
-    [nativeFind, setShowFind, hideFind],
+    [showFind, hideFind],
   );
 
   return (
@@ -60,7 +61,7 @@ export const LogViewLayout: FC = () => {
         tabIndex={0}
         onKeyDown={handleKeyboard}
       >
-        {!nativeFind && showFind ? <FindBand /> : ""}
+        {isFindShowing ? <FindBand /> : ""}
         {!singleFileMode ? <Navbar /> : ""}
         <ProgressBar animating={appStatus.loading} />
         {appStatus.error ? (

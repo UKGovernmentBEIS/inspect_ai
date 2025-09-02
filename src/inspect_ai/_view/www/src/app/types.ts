@@ -37,7 +37,13 @@ import { ScorerInfo } from "../state/scoring";
 
 export interface AppState {
   status: AppStatus;
-  showFind: boolean;
+  find: {
+    showing: boolean;
+    term?: string;
+    index?: number;
+    results?: Record<number, number>;
+    searching: boolean;
+  };
   tabs: {
     workspace: string;
     sample: string;

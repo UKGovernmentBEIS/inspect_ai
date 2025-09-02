@@ -1,4 +1,12 @@
-import { FC, memo, ReactNode, RefObject, useMemo } from "react";
+import {
+  FC,
+  memo,
+  ReactNode,
+  RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { Messages } from "../../../@types/log";
 
 import { ChatMessageRow } from "./ChatMessageRow";
@@ -8,7 +16,15 @@ import clsx from "clsx";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import { ChatViewToolCallStyle } from "./types";
 
-import { ContextProp, ItemProps } from "react-virtuoso";
+import {
+  ContextProp,
+  ItemProps,
+  ListRange,
+  VirtuosoHandle,
+} from "react-virtuoso";
+import { useStore } from "../../../state/store";
+import { findMessageIndexes } from "../../find/message";
+import { highlightNthOccurrence } from "../../find/util";
 import styles from "./ChatViewVirtualList.module.css";
 
 interface ChatViewVirtualListProps {
@@ -45,6 +61,53 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
       return resolveMessages(messages);
     }, [messages]);
 
+    // The list handle
+    const listHandle = useRef<VirtuosoHandle>(null);
+
+    // Find state
+    const searching = useStore((state) => state.app.find.searching);
+    const findIndex = useStore((state) => state.app.find.index);
+    const findResults = useStore((state) => state.app.find.results);
+    const setFindIndex = useStore((state) => state.appActions.setFindIndex);
+    const setFindResults = useStore((state) => state.appActions.setFindResults);
+    const term = useStore((state) => state.app.find.term);
+
+    useEffect(() => {
+      if (term && searching) {
+        const result = findMessageIndexes(
+          term,
+          collapsedMessages.map((m) => m.message),
+        );
+        setFindIndex(0);
+        setFindResults(result);
+      }
+    }, [collapsedMessages, searching, term]);
+
+    useEffect(() => {
+      // Turn the dictionary into an array of message indexes
+      const arr: number[] = [];
+
+      if (findResults) {
+        for (const [key, count] of Object.entries(findResults)) {
+          arr.push(...Array(count).fill(parseInt(key)));
+        }
+      }
+
+      if (findIndex !== undefined && findIndex > -1 && findIndex < arr.length) {
+        // Scroll to the message with the findIndex
+        listHandle.current?.scrollToIndex({
+          index: arr[findIndex],
+          align: "center",
+        });
+        setTimeout(() => {
+          const el = rowRefs.current[arr[findIndex]];
+          if (term && el && el.parentElement) {
+            highlightNthOccurrence(el.parentElement, term, 1);
+          }
+        }, 100);
+      }
+    }, [findResults, findIndex, term]);
+
     const initialMessageIndex = useMemo(() => {
       if (initialMessageId === null || initialMessageId === undefined) {
         return undefined;
@@ -63,12 +126,17 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
       return index !== -1 ? index : undefined;
     }, [initialMessageId, collapsedMessages]);
 
+    const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
     const renderRow = (index: number, item: ResolvedMessage): ReactNode => {
       const number =
         collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
 
       return (
         <ChatMessageRow
+          ref={(el: HTMLDivElement | null) => {
+            rowRefs.current[index] = el;
+          }}
           parentName={id || "chat-virtual-list"}
           number={number}
           resolvedMessage={item}
@@ -109,6 +177,16 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         live={running}
         showProgress={running}
         components={{ Item }}
+        listHandle={listHandle}
+        rangeChanged={(range: ListRange) => {
+          // Clean up refs outside the current range
+          Object.keys(rowRefs.current).forEach((indexStr) => {
+            const index = parseInt(indexStr, 10);
+            if (index < range.startIndex || index > range.endIndex) {
+              delete rowRefs.current[index];
+            }
+          });
+        }}
       />
     );
   },

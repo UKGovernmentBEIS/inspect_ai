@@ -7,7 +7,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
+import {
+  Components,
+  ListRange,
+  Virtuoso,
+  VirtuosoHandle,
+} from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
 import { PulsingDots } from "./PulsingDots";
@@ -40,6 +45,10 @@ interface LiveVirtualListProps<T> {
   offsetTop?: number;
 
   components?: Components<T>;
+
+  listHandle: RefObject<VirtuosoHandle | null>;
+
+  rangeChanged?: (range: ListRange) => void;
 }
 
 /**
@@ -56,9 +65,10 @@ export const LiveVirtualList = <T,>({
   initialTopMostItemIndex,
   offsetTop,
   components,
+  listHandle,
+  rangeChanged,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
-  const listHandle = useRef<VirtuosoHandle>(null);
   const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
     `live-virtual-list-${id}`,
@@ -197,6 +207,7 @@ export const LiveVirtualList = <T,>({
       isScrolling={isScrolling}
       restoreStateFrom={getRestoreState()}
       totalListHeightChanged={heightChanged}
+      rangeChanged={rangeChanged}
       components={{
         Footer,
         ...components,

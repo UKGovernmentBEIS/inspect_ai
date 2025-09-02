@@ -1,13 +1,33 @@
-import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
+import clsx from "clsx";
+import {
+  FC,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
-import "./FindBand.css";
+import styles from "./FindBand.module.css";
 
 interface FindBandProps {}
 
 export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
-  const storeHideFind = useStore((state) => state.appActions.hideFind);
+  const hideFind = useStore((state) => state.appActions.hideFind);
+
+  const setFindTerm = useStore((state) => state.appActions.setFindTerm);
+  const findTerm = useStore((state) => state.app.find.term);
+  const findIndex = useStore((state) => state.app.find.index);
+  const findResults = useStore((state) => state.app.find.results);
+  const searching = useStore((state) => state.app.find.searching);
+  const setFindIndex = useStore((state) => state.appActions.setFindIndex);
+  const setSearching = useStore((state) => state.appActions.setSearching);
+
+  const findMatches = useMemo(() => {
+    return Object.values(findResults || {}).reduce((a, b) => a + b, 0);
+  }, [findResults]);
 
   useEffect(() => {
     setTimeout(() => {
@@ -15,105 +35,67 @@ export const FindBand: FC<FindBandProps> = () => {
     }, 10);
   }, []);
 
-  const getParentExpandablePanel = useCallback(
-    (selection: Selection): HTMLElement | undefined => {
-      let node = selection.anchorNode;
-      while (node) {
-        if (
-          node instanceof HTMLElement &&
-          node.classList.contains("expandable-panel")
-        ) {
-          return node;
-        }
-        node = node.parentElement;
-      }
-      return undefined;
-    },
-    [],
-  );
-
   const handleSearch = useCallback(
     (back = false) => {
-      const searchTerm = searchBoxRef.current?.value ?? "";
-      const focusedElement = document.activeElement as HTMLElement;
-      // @ts-expect-error: `Window.find` is non-standard
-      const result = window.find(
-        searchTerm,
-        false,
-        back,
-        false,
-        false,
-        true,
-        false,
-      );
-      const noResultEl = document.getElementById("inspect-find-no-results");
-
-      if (!noResultEl) return;
-
-      noResultEl.style.opacity = result ? "0" : "1";
-
-      if (result) {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const parentPanel = getParentExpandablePanel(selection);
-          if (parentPanel) {
-            parentPanel.style.display = "block";
-            parentPanel.style.webkitLineClamp = "";
-            parentPanel.style.webkitBoxOrient = "";
-          }
-
-          const range = selection.getRangeAt(0);
-          const element = range.startContainer.parentElement;
-
-          if (element) {
-            setTimeout(() => {
-              element.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-            }, 100);
-          }
-        }
+      if (searching) {
+        const currentIndex = findIndex ?? -1;
+        const nextIndex = !back ? currentIndex + 1 : currentIndex - 1;
+        const normalized = Math.max(
+          0,
+          Math.min((findMatches ?? 1) - 1, nextIndex),
+        );
+        setFindIndex(normalized);
+      } else {
+        setSearching(true);
       }
-
-      focusedElement?.focus();
     },
-    [getParentExpandablePanel],
+    [findTerm, findIndex, findMatches, searching, setFindIndex],
   );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape") {
-        storeHideFind();
+        hideFind();
       } else if (e.key === "Enter") {
         handleSearch(false);
       }
     },
-    [storeHideFind, handleSearch],
+    [hideFind, handleSearch],
   );
 
-  const showSearch = useCallback(() => {
+  const next = useCallback(() => {
     handleSearch(true);
   }, [handleSearch]);
 
-  const hideSearch = useCallback(() => {
+  const previous = useCallback(() => {
     handleSearch(false);
   }, [handleSearch]);
 
   return (
-    <div className="findBand">
+    <div className={clsx(styles.findBand)}>
       <input
         type="text"
-        ref={searchBoxRef}
+        value={findTerm}
+        onChange={(e) => setFindTerm(e.target.value)}
         placeholder="Find"
         onKeyDown={handleKeyDown}
+        ref={searchBoxRef}
       />
-      <span id="inspect-find-no-results">No results</span>
+      <span
+        className={clsx(
+          styles.findNoResults,
+          findResults !== undefined ? styles.visible : undefined,
+        )}
+      >
+        {findResults !== undefined && findMatches > 0
+          ? `${findIndex! + 1} of ${findMatches}`
+          : "No results"}
+      </span>
       <button
         type="button"
         title="Previous match"
         className="btn next"
-        onClick={showSearch}
+        onClick={next}
       >
         <i className={ApplicationIcons.arrows.up} />
       </button>
@@ -121,7 +103,7 @@ export const FindBand: FC<FindBandProps> = () => {
         type="button"
         title="Next match"
         className="btn prev"
-        onClick={hideSearch}
+        onClick={previous}
       >
         <i className={ApplicationIcons.arrows.down} />
       </button>
@@ -129,7 +111,7 @@ export const FindBand: FC<FindBandProps> = () => {
         type="button"
         title="Close"
         className="btn close"
-        onClick={storeHideFind}
+        onClick={hideFind}
       >
         <i className={ApplicationIcons.close} />
       </button>

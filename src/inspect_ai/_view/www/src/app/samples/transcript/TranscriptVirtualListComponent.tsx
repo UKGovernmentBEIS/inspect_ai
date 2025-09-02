@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { FC, RefObject, useCallback, useMemo } from "react";
+import { FC, RefObject, useCallback, useMemo, useRef } from "react";
 import { RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
 
+import { VirtuosoHandle } from "react-virtuoso";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import styles from "./TranscriptVirtualListComponent.module.css";
 
@@ -30,6 +31,9 @@ export const TranscriptVirtualListComponent: FC<
   offsetTop,
   className,
 }) => {
+  // The list handle
+  const listHandle = useRef<VirtuosoHandle>(null);
+
   const initialEventIndex = useMemo(() => {
     if (initialEventId === null || initialEventId === undefined) {
       return undefined;
@@ -116,6 +120,7 @@ export const TranscriptVirtualListComponent: FC<
       offsetTop={offsetTop}
       renderRow={renderRow}
       live={running}
+      listHandle={listHandle}
     />
   );
 };

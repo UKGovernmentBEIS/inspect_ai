@@ -16534,7 +16534,7 @@ a._citationLink_t2k1z_9:hover {
   height: 100%;
   min-height: 0;
 }
-.findBand {
+._findBand_3mjyk_1 {
   position: absolute;
   top: 0;
   right: 0;
@@ -16553,7 +16553,7 @@ a._citationLink_t2k1z_9:hover {
   box-shadow: var(--bs-box-shadow);
 }
 
-.findBand input {
+._findBand_3mjyk_1 input {
   height: 2em;
   font-size: 0.9em;
   margin: 0.1rem;
@@ -16563,7 +16563,20 @@ a._citationLink_t2k1z_9:hover {
   background: var(--inspect-input-background);
 }
 
-#inspect-find-no-results {
+._findBand_3mjyk_1 .btn.next,
+._findBand_3mjyk_1 .btn.prev {
+  padding: 0;
+  font-size: var(--inspect-fond-size-larger);
+}
+
+._findBand_3mjyk_1 .btn.close {
+  padding: 0;
+  font-size: var(--inspect-font-size-title-secondary);
+  margin-top: -0.1rem;
+  margin-bottom: -0.1rem;
+}
+
+._findNoResults_3mjyk_43 {
   font-size: 0.9em;
   opacity: 0;
   margin-top: auto;
@@ -16571,17 +16584,8 @@ a._citationLink_t2k1z_9:hover {
   margin-right: 0.5em;
 }
 
-.findBand .btn.next,
-.findBand .btn.prev {
-  padding: 0;
-  font-size: var(--inspect-fond-size-larger);
-}
-
-.findBand .btn.close {
-  padding: 0;
-  font-size: var(--inspect-font-size-title-secondary);
-  margin-top: -0.1rem;
-  margin-bottom: -0.1rem;
+._visible_3mjyk_51 {
+  opacity: 1 !important;
 }
 ._tabs_jdywf_1 {
   align-items: center;
