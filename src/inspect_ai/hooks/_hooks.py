@@ -17,6 +17,13 @@ from inspect_ai.model._model_output import ModelUsage
 
 logger = getLogger(__name__)
 
+@dataclass(frozen=True)
+class EvalSetStart:
+    """Eval-set start hook event data."""
+
+    log_dir: str
+    """The log dir to which eval-set logs will be written"""
+
 
 @dataclass(frozen=True)
 class RunStart:
@@ -139,6 +146,17 @@ class Hooks:
         expensive.
         """
         return True
+
+    async def on_eval_set_start(self, data: EvalSetStart) -> None:
+        """On eval-set start
+
+        An eval-set is a single invocation of `eval_set()`, which will run an eval
+        with automated retries in a variety of failure cases
+
+        Args:
+            data: Eval-set start data
+        """
+        pass
 
     async def on_run_start(self, data: RunStart) -> None:
         """On run start.
@@ -264,6 +282,10 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
         return hook_type
 
     return wrapper
+
+async def emit_eval_set_start(log_dir: str) -> None:
+    data = EvalSetStart(log_dir=log_dir)
+    await _emit_to_all(lambda hook: hook.on_eval_set_start(data))
 
 
 async def emit_run_start(run_id: str, tasks: list[ResolvedTask]) -> None:

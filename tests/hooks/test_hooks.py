@@ -1,10 +1,11 @@
 from typing import Generator, Type, TypeVar
 from unittest.mock import patch
+from pathlib import Path
 
 import pytest
 
 import inspect_ai.hooks._startup as hooks_startup_module
-from inspect_ai import eval
+from inspect_ai import eval, eval_set
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_var
 from inspect_ai._util.error import PrerequisiteError
@@ -22,6 +23,7 @@ from inspect_ai.hooks._hooks import (
     TaskStart,
     hooks,
     override_api_key,
+    EvalSetStart,
 )
 from inspect_ai.hooks._startup import init_hooks
 from inspect_ai.solver._solver import Generate, Solver, solver
@@ -31,6 +33,7 @@ from inspect_ai.solver._task_state import TaskState
 class MockHooks(Hooks):
     def __init__(self) -> None:
         self.should_enable = True
+        self.eval_set_start_events: list[EvalSetStart] = []
         self.run_start_events: list[RunStart] = []
         self.run_end_events: list[RunEnd] = []
         self.task_start_events: list[TaskStart] = []
@@ -40,6 +43,7 @@ class MockHooks(Hooks):
         self.model_usage_events: list[ModelUsageData] = []
 
     def assert_no_events(self) -> None:
+        assert not self.eval_set_start_events
         assert not self.run_start_events
         assert not self.run_end_events
         assert not self.task_start_events
@@ -50,6 +54,9 @@ class MockHooks(Hooks):
 
     def enabled(self) -> bool:
         return self.should_enable
+
+    async def on_eval_set_start(self, data: EvalSetStart) -> None:
+        self.eval_set_start_events.append(data)
 
     async def on_run_start(self, data: RunStart) -> None:
         self.run_start_events.append(data)
@@ -138,6 +145,14 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
     assert len(mock_hooks.model_usage_events) == 0
+    assert len(mock_hooks.eval_set_start_events) == 0
+
+def test_can_subscribe_to_eval_set_start_events_when_eval_set_is_used(mock_hooks: MockHooks, tmp_path: Path) -> None:
+    mock_hooks.assert_no_events()
+
+    eval_set(Task(dataset=[Sample("sample_1")]), log_dir=str(tmp_path), model="mockllm/model")
+
+    assert len(mock_hooks.eval_set_start_events) == 1
 
 
 def test_can_subscribe_to_events_with_multiple_hooks(

@@ -49,6 +49,8 @@ from .task import Epochs
 from .task.resolved import ResolvedTask
 from .task.task import PreviousTask
 from .task.tasks import Tasks
+from inspect_ai.hooks._hooks import emit_eval_set_start
+import anyio
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +290,8 @@ def eval_set(
     # ensure log_dir
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
+
+    anyio.run(emit_eval_set_start, log_dir)
 
     # resolve some parameters
     retry_connections = retry_connections or 1.0
