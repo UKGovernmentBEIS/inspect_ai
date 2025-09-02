@@ -2,6 +2,7 @@ import hashlib
 import logging
 from typing import Any, Literal, NamedTuple, Set, cast
 
+import anyio
 import rich
 from pydantic_core import to_json
 from rich.status import Status
@@ -20,6 +21,7 @@ from inspect_ai._util.file import basename, filesystem
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent
 from inspect_ai.approval._policy import ApprovalPolicy
+from inspect_ai.hooks._hooks import emit_eval_set_start
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
@@ -49,8 +51,6 @@ from .task import Epochs
 from .task.resolved import ResolvedTask
 from .task.task import PreviousTask
 from .task.tasks import Tasks
-from inspect_ai.hooks._hooks import emit_eval_set_start
-import anyio
 
 logger = logging.getLogger(__name__)
 
