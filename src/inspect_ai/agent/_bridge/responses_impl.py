@@ -8,6 +8,7 @@ from openai.types.responses import (
     ResponseComputerToolCall,
     ResponseFunctionToolCall,
     ResponseFunctionWebSearch,
+    ResponseInputContentParam,
     ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
@@ -500,11 +501,7 @@ def messages_from_responses_input(
 
         if is_response_input_message(item):
             # normalize item content
-            item_content: list[
-                ResponseInputTextParam
-                | ResponseInputImageParam
-                | ResponseInputFileParam
-            ] = (
+            item_content: list[ResponseInputContentParam] = (
                 [ResponseInputTextParam(type="input_text", text=item["content"])]
                 if isinstance(item["content"], str)
                 else item["content"]
