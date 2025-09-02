@@ -44,5 +44,8 @@ async def file_as_data_uri(file: str) -> str:
     else:
         bytes, mime_type = await file_as_data(file)
         base64_file = base64.b64encode(bytes).decode("utf-8")
-        file = f"data:{mime_type};base64,{base64_file}"
-        return file
+        return as_data_uri(mime_type, base64_file)
+
+
+def as_data_uri(mime_type: str, data: str) -> str:
+    return f"data:{mime_type};base64,{data}"

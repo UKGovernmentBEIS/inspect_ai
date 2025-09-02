@@ -8,7 +8,10 @@ from shortuuid import uuid
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+)
 from inspect_ai.model._openai_convert import messages_from_openai
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -16,7 +19,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
-from .util import apply_message_ids, resolve_inspect_model
+from .util import apply_message_ids, resolve_generate_config, resolve_inspect_model
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -69,6 +72,9 @@ async def inspect_completions_api_request(
         "tool_choice", None
     )
     tool_choice = tool_choice_from_openai_tool_choice(openai_tool_choice)
+
+    # give inspect-level config priority over agent default config
+    config = resolve_generate_config(model, config)
 
     output = await model.generate(
         input=input,

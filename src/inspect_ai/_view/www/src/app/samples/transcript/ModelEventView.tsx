@@ -69,7 +69,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       // where tool events aren't captured.
       (context?.hasToolEvents === false && msg.role === "tool")
     ) {
-      userMessages.push(msg);
+      userMessages.unshift(msg);
     } else {
       break;
     }
