@@ -18,12 +18,6 @@ async function client_events() {
   return (await api("GET", `/api/events?${params.toString()}`)).parsed;
 }
 
-async function eval_logs() {
-  const logs = await api("GET", "/api/logs");
-  last_eval_time = Date.now();
-  return logs.parsed;
-}
-
 async function eval_log(
   file: string,
   headerOnly?: number,
