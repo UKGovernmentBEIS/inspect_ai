@@ -1,8 +1,14 @@
+import contextlib
 import functools
-import sys
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal
+from typing import (
+    Any,
+    AsyncContextManager,
+    AsyncGenerator,
+    Callable,
+    Literal,
+)
 
 import anyio
 
@@ -42,11 +48,6 @@ from inspect_ai.util._store import init_subtask_store
 
 from .task.results import eval_results
 
-if sys.version_info >= (3, 11):
-    pass
-else:
-    pass
-
 ScoreAction = Literal["append", "overwrite"]
 
 
@@ -84,11 +85,11 @@ def score(
 
     if running_in_notebook():
         return run_coroutine(
-            score_async(log, scorers, epochs_reducer, action, copy=copy, samples=None)
+            score_async(log, scorers, epochs_reducer, action, copy=copy)
         )
     else:
         return anyio.run(
-            functools.partial(score_async, copy=copy, samples=None),
+            functools.partial(score_async, copy=copy),
             log,
             scorers,
             epochs_reducer,
@@ -165,7 +166,7 @@ async def score_async(
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
-    samples: Callable[[int], Awaitable[EvalSample]] | None = None,
+    samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -182,7 +183,7 @@ async def score_async(
        copy: Whether to deepcopy the log before scoring.
        samples:
          Function to read samples from the log, which accepts the
-         sample index and returns an EvalSample. Can be used to
+         sample index and async yields an EvalSample. Can be used to
          stream samples without loading the entire log into memory.
 
     Returns:
@@ -200,8 +201,9 @@ async def score_async(
         _samples = log.samples
         assert _samples is not None
 
-        async def _read_sample(idx_sample: int) -> EvalSample:
-            return _samples[idx_sample]
+        @contextlib.asynccontextmanager
+        async def _read_sample(idx_sample: int) -> AsyncGenerator[EvalSample, None]:
+            yield _samples[idx_sample]
 
         samples = _read_sample
         total_samples = len(_samples)
@@ -220,15 +222,17 @@ async def score_async(
         scores: list[dict[str, SampleScore] | None] = [None] * total_samples
 
         async def _score_sample(idx_sample: int) -> None:
-            sample = await samples(idx_sample)
-            score = await run_score_task(log, sample, scorers, action)
+            async with samples(idx_sample) as sample:
+                await _run_score_task(log, sample, scorers, action)
+
+            assert sample.scores is not None
             scores[idx_sample] = {
                 score_key: SampleScore(
                     score=score,
                     sample_id=sample.id,
                     sample_metadata=sample.metadata,
                 )
-                for score_key, score in score.items()
+                for score_key, score in sample.scores.items()
             }
             p.update(1)
 
@@ -262,12 +266,12 @@ async def score_async(
     return log
 
 
-async def run_score_task(
+async def _run_score_task(
     log_header: EvalLog,
     sample: EvalSample,
     scorers: list[Scorer],
     action: ScoreAction,
-) -> dict[str, Score]:
+) -> None:
     target = Target(sample.target)
     state = TaskState(
         model=ModelName(log_header.eval.model),
@@ -333,8 +337,6 @@ async def run_score_task(
 
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, transcript(), action=action)
-
-    return sample.scores
 
 
 def metrics_from_log_header(

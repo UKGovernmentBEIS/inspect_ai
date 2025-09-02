@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import pathlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, AsyncGenerator
 
 import anyio
 import click
@@ -23,7 +24,7 @@ from inspect_ai._eval.score import (
 )
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.platform import platform_init
-from inspect_ai.log._log import EvalLog
+from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
 
 from .common import CommonOptions, common_options, process_common_options
@@ -64,6 +65,12 @@ if TYPE_CHECKING:
     type=click.Path(dir_okay=False, writable=True),
     help="Output file to write the scored log to.",
 )
+@click.option(
+    "--stream",
+    type=bool,
+    is_flag=True,
+    help="Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs.",
+)
 @common_options
 def score_command(
     log_file: str,
@@ -72,6 +79,7 @@ def score_command(
     scorer: str | None,
     s: tuple[str, ...] | None,
     action: ScoreAction | None,
+    stream: bool = False,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
@@ -87,6 +95,7 @@ def score_command(
             overwrite=False if overwrite is None else overwrite,
             action=action,
             log_level=common["log_level"],
+            stream=stream,
         )
 
     anyio.run(run_score, backend=configured_async_backend())
@@ -101,6 +110,7 @@ async def score(
     action: ScoreAction | None,
     log_level: str | None,
     output_file: str | None = None,
+    stream: bool = False,
 ) -> None:
     platform_init()
 
@@ -108,9 +118,18 @@ async def score(
     scorer_args = parse_cli_config(args=s, config=None)
 
     recorder = create_recorder_for_location(log_file, log_dir)
-    eval_log = await recorder.read_log(log_file)
-    if eval_log.samples is None or len(eval_log.samples) == 0:
-        raise ValueError(f"{log_file} does not include samples to score")
+    eval_log = await recorder.read_log(log_file, header_only=stream)
+    num_samples = (
+        len(eval_log.samples)
+        if eval_log.samples
+        else eval_log.results.total_samples
+        if eval_log.results
+        else None
+    )
+    if num_samples is None or num_samples == 0:
+        raise ValueError(
+            f"Cannot determine the number of samples to score for {log_file}"
+        )
 
     scorers = resolve_scorers(eval_log, scorer, scorer_args)
     if len(scorers) == 0:
@@ -121,15 +140,48 @@ async def score(
     output_file = _resolve_output_file(
         log_file, output_file=output_file, overwrite=overwrite
     )
+    write_recorder = create_recorder_for_location(output_file, log_dir)
+
+    read_sample = None
+    if stream:
+        sample_summaries = await recorder.read_log_sample_summaries(log_file)
+        sample_map = sorted(
+            ((x.id, x.epoch) for x in sample_summaries),
+            key=lambda x: (
+                x[1],
+                (x[0] if isinstance(x[0], str) else str(x[0]).zfill(20)),
+            ),
+        )
+
+        @contextlib.asynccontextmanager
+        async def _read_sample(idx_sample: int) -> AsyncGenerator[EvalSample, None]:
+            sample = await recorder.read_log_sample(log_file, *sample_map[idx_sample])
+            yield sample
+            await write_recorder.log_sample(eval_log.eval, sample)
+
+        read_sample = _read_sample
+        await write_recorder.log_init(eval_log.eval, location=output_file)
+        await write_recorder.log_start(eval_log.eval, eval_log.plan)
 
     eval_log = await score_async(
         log=eval_log,
         scorers=scorers,
         action=action,
         copy=False,
+        samples=read_sample,
     )
 
-    await recorder.write_log(output_file, eval_log)
+    if stream:
+        await write_recorder.log_finish(
+            eval_log.eval,
+            eval_log.status,
+            eval_log.stats,
+            eval_log.results,
+            eval_log.reductions,
+            eval_log.error,
+        )
+    else:
+        await recorder.write_log(output_file, eval_log)
 
     print_results(output_file, eval_log)
 
