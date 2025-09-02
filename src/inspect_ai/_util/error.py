@@ -64,6 +64,32 @@ class WriteConflictError(Exception):
     """
 
 
+def aws_credentials_error(log_dir: str) -> PrerequisiteError:
+    """Create a user-friendly error message for AWS credential issues."""
+    return PrerequisiteError(
+        f"[bold]ERROR[/bold]: AWS credentials expired/invalid for S3 directory: [bold]{log_dir}[/bold]\n\n"
+        f"Fix with: [bold]aws sso login[/bold] or [bold]--log-dir ./logs[/bold]"
+    )
+
+
+def is_aws_credentials_error(ex: BaseException) -> bool:
+    """Check if an exception is related to AWS credential issues."""
+    error_text = str(ex).lower()
+    error_type = type(ex).__name__.lower()
+
+    indicators = [
+        "token has expired",
+        "invalidgrantexception",
+        "tokenretrievalerror",
+        "cannot reuse already awaited coroutine",
+        "botocore",
+    ]
+
+    return any(
+        indicator in error_text or indicator in error_type for indicator in indicators
+    )
+
+
 def exception_hook() -> Callable[..., None]:
     sys_handler = sys.excepthook
 
