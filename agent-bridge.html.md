@@ -1,20 +1,6 @@
 # Agent Bridge
 
 
-> [!NOTE]
->
-> The `agent_bridge()` and `sandbox_agent_bridge()` functions described
-> below are available only in the development version of Inspect. To
-> install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
->
-> Note that a previous (and now deprecated) variation of the agent
-> bridge is available in all versions of Inspect via the `bridge()`
-> function.
-
 ## Overview
 
 While Inspect provides facilities for native agent development, you can
