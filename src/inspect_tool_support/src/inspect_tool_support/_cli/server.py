@@ -35,6 +35,9 @@ def main() -> None:
     old_umask = os.umask(0o111)
     try:
         run_app(app, path=str(SOCKET_PATH))
+    except Exception as ex:
+        print(f"Server caught {ex}")
+        raise
     finally:
         os.umask(old_umask)
 

@@ -120,16 +120,16 @@ def run_docker_container(
     cmd = [
         "docker",
         "run",
-        "--rm",
+        # "--rm",
         "--platform",
         platform,
         "-v",
-        f"{repo_root}:/workspace:rw",
+        f"{repo_root}:/inspect_ai:rw",
         "-w",
-        "/workspace/inspect_tool_support",
+        "/inspect_ai",
         image_name,
         "python3",
-        "/workspace/inspect_ai/tool/tool_support/build_executable.py",
+        "./src/inspect_ai/tool/tool_support/build_executable.py",
         filename,
     ]
 

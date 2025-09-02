@@ -32,14 +32,18 @@ def main() -> None:
     print(f"\nBuilding portable executable for {executable_name}...\n")
 
     # Copy source and setup
+    repo_dir = Path("/inspect_ai")
+    output_path = Path(f"{repo_dir}/src/inspect_ai/binaries/{executable_name}")
+    source_dir = Path(f"{repo_dir}/src/inspect_tool_support")
     copy_dir = Path("/tmp/inspect_tool_support-copy")
     if copy_dir.exists():
         shutil.rmtree(
             copy_dir
         )  # This makes it easier to run multiple times when debugging the container
 
-    # Copy from the working directory (should be /workspace/inspect_tool_support)
-    shutil.copytree(".", copy_dir)
+    print(f"\n{repo_dir=}\n{source_dir=}\n{copy_dir=}\n{output_path=}\n")
+    # Make a copy into /tmp to avoid mutating the mounted repo
+    shutil.copytree(source_dir, copy_dir)
     os.chdir(copy_dir)
 
     try:
@@ -65,11 +69,15 @@ def main() -> None:
         pyinstaller_cmd = [
             "pyinstaller",
             "--onefile",
-            "--strip",
+            "--noupx",  # Don't compress - prevents driver corruption
+            # "--strip",  # REMOVED - can break node binary
             "--optimize",
-            "2",
+            "1",  # Less aggressive optimization
+            "--collect-all",
+            "playwright",  # Include everything from playwright
             "--hidden-import=psutil",
             "--copy-metadata=inspect_tool_support",
+            "--copy-metadata=playwright",  # Also copy playwright metadata
             "--exclude-module",
             "tkinter",
             "--exclude-module",
@@ -92,13 +100,12 @@ def main() -> None:
             "staticx",
             "--strip",
             f"dist/{executable_name}",
-            f"/workspace/inspect_ai/binaries/{executable_name}",
+            str(output_path),
         ]
         subprocess.run(staticx_cmd, check=True)
 
         # Make executable
         print("Making executable...")
-        output_path = Path(f"/workspace/inspect_ai/binaries/{executable_name}")
         output_path.chmod(0o755)
 
         # Verify portability
