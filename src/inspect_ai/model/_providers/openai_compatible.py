@@ -14,6 +14,8 @@ from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._openai_responses import ResponsesModelInfo
+from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.chatapi import (
     ChatAPIHandler,
     ChatAPIMessage,
@@ -54,6 +56,8 @@ class OpenAICompatibleAPI(ModelAPI):
         service: str | None = None,
         service_base_url: str | None = None,
         emulate_tools: bool = False,
+        responses_api: bool | None = None,
+        responses_store: bool | None = None,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -98,8 +102,14 @@ class OpenAICompatibleAPI(ModelAPI):
                     [base_url_var],
                 )
 
-        # grab emulate_tools argument
+        # grab emulate_tools and responses_api arguments
         self.emulate_tools = emulate_tools
+        self.responses_api = responses_api
+        self.responses_store = responses_store
+        if self.emulate_tools and self.responses_api:
+            raise ValueError(
+                "emulate_tools is not compatible with using the responses_api"
+            )
 
         # create async http client
         http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -124,71 +134,98 @@ class OpenAICompatibleAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # tool emulation if requested
-        if self.emulate_tools:
-            handler: ChatAPIHandler | None = OpenAICompatibleHandler(self.model_name)
-        else:
-            handler = None
-
-        # resolve input
-        if handler:
-            input = chat_api_messages_for_handler(input, tools, handler)
-
-        # allocate request_id (so we can see it from ModelCall)
-        request_id = self._http_hooks.start_request()
-
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
-
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=openai_media_filter,
-                time=self._http_hooks.end_request(request_id),
-            )
-
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
-        # get completion params (slice off service from model name)
-        completion_params = self.completion_params(
-            config=config,
-            tools=len(tools) > 0,
-        )
+        if self.responses_api:
+            return await generate_responses(
+                client=self.client,
+                http_hooks=self._http_hooks,
+                model_name=self.service_model_name(),
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                background=False,
+                service_tier=None,
+                prompt_cache_key=NOT_GIVEN,
+                safety_identifier=NOT_GIVEN,
+                responses_store=self.responses_store,
+                model_info=ModelInfo(),
+                batcher=None,
+                handle_bad_request=self.handle_bad_request,
+            )
 
-        # prepare request (we do this so we can log the ModelCall)
-        have_tools = (len(tools) > 0) and not self.emulate_tools
-        request = dict(
-            messages=await messages_to_openai(input),
-            tools=openai_chat_tools(tools) if have_tools else NOT_GIVEN,
-            tool_choice=openai_chat_tool_choice(tool_choice)
-            if have_tools
-            else NOT_GIVEN,
-            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
-            **completion_params,
-        )
+        else:
+            # tool emulation if requested
+            if self.emulate_tools:
+                handler: ChatAPIHandler | None = OpenAICompatibleHandler(
+                    self.model_name
+                )
+            else:
+                handler = None
 
-        try:
-            # generate completion and save response for model call
-            completion = await self._generate_completion(request, config)
-            response = completion.model_dump()
-            self.on_response(response)
-
-            # get choices
-            choices = self.chat_choices_from_completion(completion, tools)
-
-            # if we have a handler, see if there are embedded tool calls we need to resolve
+            # resolve input
             if handler:
-                choices = [
-                    _resolve_chat_choice(choice, tools, handler) for choice in choices
-                ]
+                input = chat_api_messages_for_handler(input, tools, handler)
 
-            # return output
-            return model_output_from_openai(completion, choices), model_call()
+            # allocate request_id (so we can see it from ModelCall)
+            request_id = self._http_hooks.start_request()
 
-        except (BadRequestError, UnprocessableEntityError, PermissionDeniedError) as ex:
-            return self.handle_bad_request(ex), model_call()
+            # setup request and response for ModelCall
+            request: dict[str, Any] = {}
+            response: dict[str, Any] = {}
+
+            def model_call() -> ModelCall:
+                return ModelCall.create(
+                    request=request,
+                    response=response,
+                    filter=openai_media_filter,
+                    time=self._http_hooks.end_request(request_id),
+                )
+
+            # get completion params (slice off service from model name)
+            completion_params = self.completion_params(
+                config=config,
+                tools=len(tools) > 0,
+            )
+
+            # prepare request (we do this so we can log the ModelCall)
+            have_tools = (len(tools) > 0) and not self.emulate_tools
+            request = dict(
+                messages=await messages_to_openai(input),
+                tools=openai_chat_tools(tools) if have_tools else NOT_GIVEN,
+                tool_choice=openai_chat_tool_choice(tool_choice)
+                if have_tools
+                else NOT_GIVEN,
+                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+                **completion_params,
+            )
+
+            try:
+                # generate completion and save response for model call
+                completion = await self._generate_completion(request, config)
+                response = completion.model_dump()
+                self.on_response(response)
+
+                # get choices
+                choices = self.chat_choices_from_completion(completion, tools)
+
+                # if we have a handler, see if there are embedded tool calls we need to resolve
+                if handler:
+                    choices = [
+                        _resolve_chat_choice(choice, tools, handler)
+                        for choice in choices
+                    ]
+
+                # return output
+                return model_output_from_openai(completion, choices), model_call()
+
+            except (
+                BadRequestError,
+                UnprocessableEntityError,
+                PermissionDeniedError,
+            ) as ex:
+                return self.handle_bad_request(ex), model_call()
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
@@ -268,3 +305,35 @@ def _resolve_chat_choice(
             return choice
     else:
         return choice
+
+
+class ModelInfo(ResponsesModelInfo):
+    def has_reasoning_options(self) -> bool:
+        return True
+
+    def is_gpt(self) -> bool:
+        return False
+
+    def is_gpt_5(self) -> bool:
+        return False
+
+    def is_o_series(self) -> bool:
+        return False
+
+    def is_o1(self) -> bool:
+        return False
+
+    def is_o1_early(self) -> bool:
+        return False
+
+    def is_o3_mini(self) -> bool:
+        return False
+
+    def is_deep_research(self) -> bool:
+        return False
+
+    def is_computer_use_preview(self) -> bool:
+        return False
+
+    def is_codex(self) -> bool:
+        return False

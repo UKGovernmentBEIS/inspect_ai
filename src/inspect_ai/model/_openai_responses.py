@@ -2,7 +2,7 @@ import json
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
-from typing import TYPE_CHECKING, Any, Sequence, TypeGuard, cast
+from typing import Any, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
     ComputerToolParam,
@@ -113,31 +113,40 @@ from ._providers._openai_computer_use import (
 )
 from ._providers._openai_web_search import maybe_web_search_tool
 
-if TYPE_CHECKING:
-    from ._providers.openai import OpenAIAPI
-
-
 MESSAGE_ID = "message_id"
 
 
+class ResponsesModelInfo(Protocol):
+    def has_reasoning_options(self) -> bool: ...
+    def is_gpt(self) -> bool: ...
+    def is_gpt_5(self) -> bool: ...
+    def is_o_series(self) -> bool: ...
+    def is_o1(self) -> bool: ...
+    def is_o1_early(self) -> bool: ...
+    def is_o3_mini(self) -> bool: ...
+    def is_deep_research(self) -> bool: ...
+    def is_computer_use_preview(self) -> bool: ...
+    def is_codex(self) -> bool: ...
+
+
 async def openai_responses_inputs(
-    messages: list[ChatMessage], openai_api: "OpenAIAPI"
+    messages: list[ChatMessage], model_info: ResponsesModelInfo
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, openai_api)
+        for item in await _openai_input_item_from_chat_message(message, model_info)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, openai_api: "OpenAIAPI"
+    message: ChatMessage, model_info: ResponsesModelInfo
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
         return (
             [Message(type="message", role="developer", content=content)]
-            if openai_api.is_o_series() or openai_api.is_gpt_5()
+            if model_info.is_o_series() or model_info.is_gpt_5()
             else [Message(type="message", role="system", content=content)]
         )
     elif message.role == "user":
