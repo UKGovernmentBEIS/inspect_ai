@@ -1,3 +1,8 @@
+## Unreleased
+
+- Agent Bridge: Don't use `concurrency()` for agent bridge interactions (not required for long-running proxy server or cheap polling requests).
+- Sandboxes: Add `concurrency` parameter to `exec()` to advise whether the execution should be subject to local process concurrency limits.
+
 ## 0.3.128 (02 September 2025)
 
 - Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.
