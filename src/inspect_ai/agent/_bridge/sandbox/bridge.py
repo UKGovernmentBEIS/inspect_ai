@@ -120,7 +120,7 @@ async def run_model_proxy(
         )
 
     # run the model proxy script
-    result = await sandbox.exec([MODEL_PROXY_PY, str(port)])
+    result = await sandbox.exec([MODEL_PROXY_PY, str(port)], concurrency=False)
     if not result.success:
         raise RuntimeError(
             f"Error running model proxy script for agent bridge: {result.stderr}"
