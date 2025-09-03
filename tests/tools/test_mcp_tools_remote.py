@@ -13,13 +13,13 @@ from inspect_ai.tool import mcp_server_http
 
 
 @skip_if_no_openai
-@pytest.mark.flaky
+@pytest.mark.flaky  # deepwiki sometimes causes this to fail with rate limit errors
 def test_openai_remote_mcp() -> None:
     check_remote_mcp("openai/gpt-4o")
 
 
 @skip_if_no_anthropic
-@pytest.mark.flaky
+@pytest.mark.flaky  # deepwiki sometimes causes this to fail with rate limit errors
 def test_anthropic_remote_mcp() -> None:
     # This test is flaky because, sometimes, the model gets confused and does not
     # make do a remote tool use.

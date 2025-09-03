@@ -1,9 +1,12 @@
-## Unreleased 
+## 0.3.128 (02 September 2025)
 
 - Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.
 - Agent Bridge: Respect reference vs. value semantics of agent caller (enables preservation of messages when agent is run via `as_solver()`).
+- OpenAI: Update types to match `openai` v1.104.1 (which is now the minimum required version).
 - Mistral: Support for updated use of `ThinkChunk` types in mistralai v1.9.10.
+- Groq: Support for `--reasoning-effort` parameter (works w/ gpt-oss models).
 - Scoring: Use fallback unicode numeric string parser when default `str_to_float()` fails.
+- Bugfix: Work around OpenAI breaking change that renamed "find" web search action to "find_in_page" (bump required version of `openai` package to v1.104.0).
 
 ## 0.3.127 (01 September 2025)
 
