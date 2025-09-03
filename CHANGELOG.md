@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Starting the view server with a path to a specific log file will automatically open that log file (if it exists) rather than showing the log list.
+
 ## 0.3.128 (02 September 2025)
 
 - Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.
