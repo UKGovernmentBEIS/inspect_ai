@@ -43,6 +43,11 @@ export const SampleRow: FC<SampleRowProps> = ({
   // Determine if this sample can be viewed (completed or streaming)
   const isViewable = completed || streamSampleData;
 
+  // This is used to screen out content when the sample dialog is open
+  // this allows the sample list to retain precise state (since it remains loaded)
+  // while not causing text content to be present in the DOM
+  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
+
   const rowContent = (
     <div
       id={`sample-${id}`}
@@ -59,7 +64,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       }}
     >
       <div className={clsx("sample-id", "three-line-clamp", styles.cell)}>
-        {sample.id}
+        {!showingSampleDialog ? sample.id : undefined}
       </div>
       <div
         className={clsx(
@@ -69,13 +74,15 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.wrapAnywhere,
         )}
       >
-        <RenderedText
-          markdown={inputString(sample.input).join(" ")}
-          forceRender={true}
-        />
+        {!showingSampleDialog ? (
+          <RenderedText
+            markdown={inputString(sample.input).join(" ")}
+            forceRender={true}
+          />
+        ) : undefined}
       </div>
       <div className={clsx("sample-target", "three-line-clamp", styles.cell)}>
-        {sample?.target ? (
+        {sample?.target && !showingSampleDialog ? (
           <RenderedText
             markdown={arrayToString(sample.target)}
             className={clsx("no-last-para-padding", styles.noLeft)}
@@ -84,7 +91,7 @@ export const SampleRow: FC<SampleRowProps> = ({
         ) : undefined}
       </div>
       <div className={clsx("sample-answer", "three-line-clamp", styles.cell)}>
-        {sample ? (
+        {sample && !showingSampleDialog ? (
           <RenderedText
             markdown={answer || ""}
             className={clsx("no-last-para-padding", styles.noLeft)}
@@ -102,7 +109,7 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.cell,
         )}
       >
-        {sample.limit}
+        {!showingSampleDialog ? sample.limit : undefined}
       </div>
       <div
         className={clsx(
@@ -113,10 +120,12 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.centered,
         )}
       >
-        {sample.retries && sample.retries > 0 ? sample.retries : undefined}
+        {!showingSampleDialog && sample.retries && sample.retries > 0
+          ? sample.retries
+          : undefined}
       </div>
       <div className={clsx("text-size-small", styles.cell, styles.score)}>
-        {sample.error ? (
+        {!showingSampleDialog && sample.error ? (
           <SampleErrorView message={sample.error} />
         ) : completed ? (
           scoreRendered

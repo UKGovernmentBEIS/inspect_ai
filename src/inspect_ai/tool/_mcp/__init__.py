@@ -1,3 +1,4 @@
+from ._config import MCPServerConfig, MCPServerConfigHTTP, MCPServerConfigStdio
 from ._types import MCPServer
 from .connection import mcp_connection
 from .server import (
@@ -16,4 +17,7 @@ __all__ = [
     "mcp_server_http",
     "mcp_connection",
     "MCPServer",
+    "MCPServerConfig",
+    "MCPServerConfigStdio",
+    "MCPServerConfigHTTP",
 ]

@@ -20,8 +20,9 @@ import { ToolTitle } from "./ToolTitle";
 interface ToolCallViewProps {
   id: string;
   functionCall: string;
-  input?: string;
-  highlightLanguage?: string;
+  input?: unknown;
+  description?: string;
+  contentType?: string;
   view?: ToolCallContent;
   output:
     | string
@@ -53,7 +54,8 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   id,
   functionCall,
   input,
-  highlightLanguage,
+  description,
+  contentType,
   view,
   output,
   mode,
@@ -115,12 +117,15 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
     <div className={clsx(styles.toolCallView)}>
       <div>
         {mode !== "compact" && (!view || view.title) ? (
-          <ToolTitle title={view?.title || functionCall} />
+          <ToolTitle
+            title={view?.title || functionCall}
+            description={description}
+          />
         ) : (
           ""
         )}
         <ToolInput
-          highlightLanguage={highlightLanguage}
+          contentType={contentType}
           contents={contents}
           toolCallView={view}
         />

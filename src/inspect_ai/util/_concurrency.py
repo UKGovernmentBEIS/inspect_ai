@@ -10,9 +10,7 @@ from inspect_ai._util.working import report_sample_waiting_time
 
 @contextlib.asynccontextmanager
 async def concurrency(
-    name: str,
-    concurrency: int,
-    key: str | None = None,
+    name: str, concurrency: int, key: str | None = None, visible: bool = True
 ) -> AsyncIterator[None]:
     """Concurrency context manager.
 
@@ -39,6 +37,7 @@ async def concurrency(
          Used if the unique key isn't human readable -- e.g. includes
          api tokens or account ids so that the more readable `name`
          can be presented to users e.g in console UI>
+      visible: Should context utilization be visible in the status bar.
     """
     # sort out key
     key = key if key else name
@@ -46,7 +45,9 @@ async def concurrency(
     # do we have an existing semaphore? if not create one and store it
     semaphore = _concurrency_semaphores.get(key, None)
     if semaphore is None:
-        semaphore = ConcurencySempahore(name, concurrency, anyio.Semaphore(concurrency))
+        semaphore = ConcurencySempahore(
+            name, concurrency, anyio.Semaphore(concurrency), visible=visible
+        )
         _concurrency_semaphores[key] = semaphore
 
     # wait and yield to protected code
@@ -60,6 +61,10 @@ def concurrency_status_display() -> dict[str, tuple[int, int]]:
     status: dict[str, tuple[int, int]] = {}
     names = [c.name for c in _concurrency_semaphores.values()]
     for c in _concurrency_semaphores.values():
+        # respect visibility
+        if not c.visible:
+            continue
+
         # compute name for status display. some resources (e.g. models) use
         # a / prefix. if there are no duplicates of a given prefix then shorten
         # it to be only the prefix (e.g. 'openai' rather than 'openai/gpt-4o')
@@ -85,6 +90,7 @@ class ConcurencySempahore:
     name: str
     concurrency: int
     semaphore: anyio.Semaphore
+    visible: bool
 
 
 _concurrency_semaphores: dict[str, ConcurencySempahore] = {}

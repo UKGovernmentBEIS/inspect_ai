@@ -41,6 +41,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
+        concurrency: bool = True,
     ) -> ExecResult[str]:
         return ExecResult(success=True, returncode=0, stdout="Hello!", stderr="")
 
