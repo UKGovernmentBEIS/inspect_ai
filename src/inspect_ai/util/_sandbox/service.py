@@ -341,7 +341,7 @@ class SandboxService:
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
         try:
             return await self._sandbox.exec(
-                cmd, user=self._user, input=input, timeout=30
+                cmd, user=self._user, input=input, timeout=30, concurrency=False
             )
         except TimeoutError:
             raise RuntimeError(
@@ -422,7 +422,7 @@ async def validate_sandbox_python(
     service_name: str, sandbox: SandboxEnvironment, user: str | None = None
 ) -> None:
     # validate python in sandbox
-    result = await sandbox.exec(["which", "python3"], user=user)
+    result = await sandbox.exec(["which", "python3"], user=user, concurrency=False)
     if not result.success:
         raise PrerequisiteError(
             f"The {service_name} requires that Python be installed in the sandbox."

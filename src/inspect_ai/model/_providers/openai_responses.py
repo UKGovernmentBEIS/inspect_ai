@@ -1,8 +1,14 @@
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import Any, Callable
 
 import anyio
-from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError, NotGiven
+from openai import (
+    APIStatusError,
+    AsyncAzureOpenAI,
+    AsyncOpenAI,
+    BadRequestError,
+    NotGiven,
+)
 from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
 from tenacity import (
@@ -28,6 +34,7 @@ from .._openai import (
     openai_media_filter,
 )
 from .._openai_responses import (
+    ResponsesModelInfo,
     openai_responses_chat_choices,
     openai_responses_inputs,
     openai_responses_tool_choice,
@@ -35,9 +42,6 @@ from .._openai_responses import (
     responses_extra_body_fields,
 )
 from .util.hooks import HttpxHooks
-
-if TYPE_CHECKING:
-    from .openai import OpenAIAPI
 
 logger = getLogger(__name__)
 
@@ -55,8 +59,10 @@ async def generate_responses(
     prompt_cache_key: str | NotGiven,
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
-    openai_api: "OpenAIAPI",
+    model_info: ResponsesModelInfo,
     batcher: OpenAIBatcher[Response] | None,
+    handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
+    | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # batch mode and background are incompatible
     if batcher:
@@ -89,7 +95,7 @@ async def generate_responses(
         else NOT_GIVEN
     )
     request = dict(
-        input=await openai_responses_inputs(input, openai_api),
+        input=await openai_responses_inputs(input, model_info),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
@@ -97,7 +103,7 @@ async def generate_responses(
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(
             model_name,
-            openai_api=openai_api,
+            model_info=model_info,
             config=config,
             service_tier=service_tier,
             prompt_cache_key=prompt_cache_key,
@@ -155,9 +161,10 @@ async def generate_responses(
             ),
         ), model_call()
     except BadRequestError as e:
-        return openai_handle_bad_request(
-            openai_api.service_model_name(), e
-        ), model_call()
+        if handle_bad_request:
+            return handle_bad_request(e), model_call()
+        else:
+            return openai_handle_bad_request(model_name, e), model_call()
 
 
 async def wait_for_background_response(
@@ -199,7 +206,7 @@ async def wait_for_background_response(
 def completion_params_responses(
     model_name: str,
     *,
-    openai_api: "OpenAIAPI",
+    model_info: ResponsesModelInfo,
     config: GenerateConfig,
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
@@ -222,11 +229,11 @@ def completion_params_responses(
         params["prompt_cache_key"] = prompt_cache_key
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
-    if openai_api.is_computer_use_preview():
+    if model_info.is_computer_use_preview():
         params["truncation"] = "auto"
 
     if responses_store is False:
-        if openai_api.is_computer_use_preview():
+        if model_info.is_computer_use_preview():
             raise RuntimeError(
                 "OpenAI computer use model requires responses store=True"
             )
@@ -246,7 +253,7 @@ def completion_params_responses(
     if config.seed is not None:
         unsupported_warning("seed")
     if config.temperature is not None:
-        if openai_api.is_o_series() or openai_api.is_gpt_5():
+        if model_info.is_o_series() or model_info.is_gpt_5():
             warn_once(
                 logger,
                 "gpt-5 and o-series models do not support the 'temperature' parameter (temperature is always 1).",
@@ -254,7 +261,7 @@ def completion_params_responses(
         else:
             params["temperature"] = config.temperature
     if config.top_p is not None:
-        if openai_api.is_o_series() or openai_api.is_gpt_5():
+        if model_info.is_o_series() or model_info.is_gpt_5():
             warn_once(
                 logger,
                 "gpt-5 and o-series models do not support the 'top_p' parameter.",
@@ -270,15 +277,11 @@ def completion_params_responses(
     if (
         tools
         and config.parallel_tool_calls is not None
-        and not openai_api.is_o_series()
+        and not model_info.is_o_series()
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    if (
-        (openai_api.is_o_series() and not openai_api.is_o1_early())
-        or openai_api.is_gpt_5()
-        or openai_api.is_codex()
-    ):
+    if model_info.has_reasoning_options():
         reasoning: dict[str, str] = {}
         if config.reasoning_effort is not None:
             reasoning["effort"] = config.reasoning_effort

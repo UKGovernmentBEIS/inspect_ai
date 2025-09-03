@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import io
 import os
@@ -16,7 +17,7 @@ from anyio.abc import ByteReceiveStream, Process
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.trace import trace_action
 
-from ._concurrency import concurrency
+from ._concurrency import concurrency as concurrency_manager
 
 logger = getLogger(__name__)
 
@@ -51,6 +52,7 @@ async def subprocess(
     capture_output: bool = True,
     output_limit: int | None = None,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> ExecResult[str]: ...
 
 
@@ -64,6 +66,7 @@ async def subprocess(
     capture_output: bool = True,
     output_limit: int | None = None,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> ExecResult[bytes]: ...
 
 
@@ -76,6 +79,7 @@ async def subprocess(
     capture_output: bool = True,
     output_limit: int | None = None,
     timeout: int | None = None,
+    concurrency: bool = True,
 ) -> Union[ExecResult[str], ExecResult[bytes]]:
     """Execute and wait for a subprocess.
 
@@ -97,6 +101,8 @@ async def subprocess(
           the specified limit (in bytes).
        timeout (int | None): Timeout. If the timeout expires then
           a `TimeoutError` will be raised.
+       concurrency: Request that the `concurrency()` function is used
+          to throttle concurrent subprocesses.
 
     Returns:
        Subprocess result (text or binary depending on `text` param)
@@ -193,7 +199,12 @@ async def subprocess(
             return await run_command()
 
     # run command
-    async with concurrency("subprocesses", max_subprocesses_context_var.get()):
+    concurrency_ctx = (
+        concurrency_manager("subprocesses", max_subprocesses_context_var.get())
+        if concurrency
+        else contextlib.nullcontext()
+    )
+    async with concurrency_ctx:
         message = args if isinstance(args, str) else shlex.join(args)
         with trace_action(logger, "Subprocess", message):
             return await run_command_timeout()
