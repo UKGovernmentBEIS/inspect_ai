@@ -345,7 +345,8 @@ class SandboxEnvironment:
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
-        timeout_retry: bool = True
+        timeout_retry: bool = True,
+        concurrency: bool = True
     ) -> ExecResult[str]:
         """
         Raises:

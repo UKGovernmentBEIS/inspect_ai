@@ -1089,6 +1089,31 @@ export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
 
+### Responses API
+
+> [!NOTE]
+>
+> The Responses API support described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+You can enable the use of the Responses API with the `openai-api`
+provider by passing the `responses_api` model arg. For example:
+
+``` bash
+$ inspect eval arc.py --model openai-api/<provider>/<model> -M responses_api=true
+```
+
+Or using the `eval()` function:
+
+``` python
+eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(responses_api=True))
+```
+
 ### Tool Emulation
 
 When using OpenAI compatible model providers, tool calling support can
@@ -1096,7 +1121,7 @@ be ‘emulated’ for models that don’t yet support it. Use the
 `emulate_tools` model arg to force tool emulation:
 
 ``` bash
-inspect eval ctf.py -M emulate_tools=true
+inspect eval ctf.py --model openai-api/<provider>/<model> -M emulate_tools=true
 ```
 
 Tool calling emulation works by encoding tool JSON schema in an XML tag

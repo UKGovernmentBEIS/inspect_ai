@@ -147,8 +147,10 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.127 (01 September 2025)</a></li>
-  <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.126 (01 September 2025)</a></li>
+  <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.129 (03 September 2025)</a></li>
+  <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.128 (02 September 2025)</a></li>
+  <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.127 (01 September 2025)</a></li>
+  <li><a href="#september-2025-3" id="toc-september-2025-3" class="nav-link" data-scroll-target="#september-2025-3">0.3.126 (01 September 2025)</a></li>
   <li><a href="#august-2025" id="toc-august-2025" class="nav-link" data-scroll-target="#august-2025">0.3.125 (25 August 2025)</a></li>
   <li><a href="#august-2025-1" id="toc-august-2025-1" class="nav-link" data-scroll-target="#august-2025-1">0.3.124 (24 August 2025)</a></li>
   <li><a href="#august-2025-2" id="toc-august-2025-2" class="nav-link" data-scroll-target="#august-2025-2">0.3.123 (16 August 2025)</a></li>
@@ -285,17 +287,36 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>Scoring: Use fallback unicode numeric string parser when default <code>str_to_float()</code> fails.</li>
+<li>OpenAI Compatible: Add support for using Responses API via <code>responses_api</code> model arg.</li>
 </ul>
 </section>
 <section id="september-2025" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025">0.3.127 (01 September 2025)</h2>
+<h2 class="anchored" data-anchor-id="september-2025">0.3.129 (03 September 2025)</h2>
+<ul>
+<li>Agent Bridge: Don’t use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#concurrency">concurrency()</a></span> for agent bridge interactions (not required for long-running proxy server or cheap polling requests).</li>
+<li>Sandboxes: Add <code>concurrency</code> parameter to <code>exec()</code> to advise whether the execution should be subject to local process concurrency limits.</li>
+</ul>
+</section>
+<section id="september-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-1">0.3.128 (02 September 2025)</h2>
+<ul>
+<li>Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.</li>
+<li>Agent Bridge: Respect reference vs.&nbsp;value semantics of agent caller (enables preservation of messages when agent is run via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span>).</li>
+<li>OpenAI: Update types to match <code>openai</code> v1.104.1 (which is now the minimum required version).</li>
+<li>Mistral: Support for updated use of <code>ThinkChunk</code> types in mistralai v1.9.10.</li>
+<li>Groq: Support for <code>--reasoning-effort</code> parameter (works w/ gpt-oss models).</li>
+<li>Scoring: Use fallback unicode numeric string parser when default <code>str_to_float()</code> fails.</li>
+<li>Bugfix: Work around OpenAI breaking change that renamed “find” web search action to “find_in_page” (bump required version of <code>openai</code> package to v1.104.0).</li>
+</ul>
+</section>
+<section id="september-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-2">0.3.127 (01 September 2025)</h2>
 <ul>
 <li>Bugfix: Preserve sample list state (e.g.&nbsp;scroll position, selection) across sample open/close.</li>
 </ul>
 </section>
-<section id="september-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-1">0.3.126 (01 September 2025)</h2>
+<section id="september-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-3">0.3.126 (01 September 2025)</h2>
 <ul>
 <li>Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.</li>
 <li>Agent Bridge: Bridge can now automatically keep track of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> changes via inspecting model traffic running over the bridge.</li>
