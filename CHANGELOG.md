@@ -1,3 +1,7 @@
+## Unreleased
+
+- OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
+
 ## 0.3.129 (03 September 2025)
 
 - Agent Bridge: Don't use `concurrency()` for agent bridge interactions (not required for long-running proxy server or cheap polling requests).
