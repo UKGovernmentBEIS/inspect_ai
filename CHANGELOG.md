@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
+- Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.
 
 ## 0.3.129 (03 September 2025)
 
