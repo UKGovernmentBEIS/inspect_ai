@@ -16,6 +16,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._display import display as display_manager
+from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, file, filesystem
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
@@ -207,6 +208,7 @@ def eval_set(
     Returns:
         A tuple of bool (whether all tasks completed successfully) and a list of `EvalLog` headers (i.e. raw sample data is not included in the logs returned).
     """
+    from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
     # helper function to run a set of evals
     def run_eval(
@@ -293,6 +295,9 @@ def eval_set(
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
 
+    # get eval set id
+    eval_set_id = eval_set_id_for_log_dir(log_dir)
+
     # resolve some parameters
     retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
@@ -337,9 +342,6 @@ def eval_set(
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
-        # get eval set id
-        eval_set_id = eval_set_id_for_log_dir(log_dir)
-
         # resolve tasks
         resolved_tasks, _ = eval_resolve_tasks(
             tasks,
@@ -427,6 +429,9 @@ def eval_set(
         before=before,
     )
 
+    # emit start event
+    run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+
     # execute w/ retry
     results = retry(try_eval)
 
@@ -445,6 +450,9 @@ def eval_set(
 
     # update manifest
     write_log_dir_manifest(log_dir)
+
+    # emit end event
+    run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
 
     # return status + results
     return success, results

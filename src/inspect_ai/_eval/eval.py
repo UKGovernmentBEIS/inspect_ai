@@ -659,7 +659,7 @@ async def _eval_async_inner(
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
 
-        await emit_run_start(run_id, resolved_tasks)
+        await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
         # single task definition (could be multi-model) or max_tasks capped to 1
         if parallel == 1:
@@ -720,13 +720,13 @@ async def _eval_async_inner(
         cleanup_sample_buffers(log_dir)
 
         try:
-            await emit_run_end(run_id, logs)
+            await emit_run_end(eval_set_id, run_id, logs)
         except UnboundLocalError:
-            await emit_run_end(run_id, EvalLogs([]))
+            await emit_run_end(eval_set_id, run_id, EvalLogs([]))
         _eval_async_running = False
 
     except Exception as e:
-        await emit_run_end(run_id, EvalLogs([]), e)
+        await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         _eval_async_running = False
         raise e
 
