@@ -839,7 +839,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-You can enable the use of the Responses API with the `openai-api` provider by passing the `responses_api` model arg. For exmaple:
+You can enable the use of the Responses API with the `openai-api` provider by passing the `responses_api` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M responses_api=true
