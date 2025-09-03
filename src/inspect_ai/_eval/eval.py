@@ -120,6 +120,7 @@ def eval(
     run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
+    eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -203,6 +204,7 @@ def eval(
             empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
         **kwargs: Model generation options.
 
     Returns:
@@ -260,6 +262,7 @@ def eval(
                 run_samples=run_samples,
                 score=score,
                 score_display=score_display,
+                eval_set_id=eval_set_id,
                 **kwargs,
             )
         # exceptions can escape when debug_errors is True and that's okay
@@ -318,6 +321,7 @@ async def eval_async(
     run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
+    eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -382,6 +386,7 @@ async def eval_async(
            empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
         **kwargs: Model generation options.
 
     Returns:
@@ -435,6 +440,7 @@ async def eval_async(
                 run_samples=run_samples,
                 score=score,
                 score_display=score_display,
+                eval_set_id=eval_set_id,
                 **kwargs,
             )
         finally:
@@ -497,6 +503,7 @@ async def _eval_async_inner(
     run_samples: bool = True,
     score: bool = True,
     score_display: bool | None = None,
+    eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
@@ -663,6 +670,7 @@ async def _eval_async_inner(
                 )
                 results.extend(
                     await eval_run(
+                        eval_set_id=eval_set_id,
                         run_id=run_id,
                         tasks=task_batch,
                         parallel=parallel,
@@ -690,6 +698,7 @@ async def _eval_async_inner(
         # multiple task definitions AND tasks not capped at 1
         else:
             results = await eval_run(
+                eval_set_id=eval_set_id,
                 run_id=run_id,
                 tasks=resolved_tasks,
                 parallel=parallel,
