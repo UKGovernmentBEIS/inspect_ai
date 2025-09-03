@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.129 (03 September 2025)
 
 - Agent Bridge: Don't use `concurrency()` for agent bridge interactions (not required for long-running proxy server or cheap polling requests).
 - Sandboxes: Add `concurrency` parameter to `exec()` to advise whether the execution should be subject to local process concurrency limits.
