@@ -69,7 +69,7 @@ class TestOpenAIWebSearch:
         options = {"key1": "value1", "key2": "value2"}
 
         with patch(
-            "openai.types.responses.WebSearchPreviewTool.model_validate"
+            "openai.types.responses.WebSearchTool.model_validate"
         ) as mock_validate:
             mock_tool = MagicMock()
             mock_tool.model_dump.return_value = {
