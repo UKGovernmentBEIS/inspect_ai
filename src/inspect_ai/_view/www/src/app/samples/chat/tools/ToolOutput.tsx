@@ -5,12 +5,13 @@ import styles from "./ToolOutput.module.css";
 
 interface ToolOutputProps {
   output: string | number | boolean | (ContentText | ContentImage)[];
+  className?: string | string[];
 }
 
 /**
  * Renders the ToolOutput component.
  */
-export const ToolOutput: FC<ToolOutputProps> = ({ output }) => {
+export const ToolOutput: FC<ToolOutputProps> = ({ output, className }) => {
   // If there is no output, don't show the tool
   if (!output) {
     return null;
@@ -42,7 +43,7 @@ export const ToolOutput: FC<ToolOutputProps> = ({ output }) => {
       <ToolTextOutput text={String(output)} key={"tool-output-single"} />,
     );
   }
-  return <div className={clsx(styles.output)}>{outputs}</div>;
+  return <div className={clsx(styles.output, className)}>{outputs}</div>;
 };
 
 interface ToolTextOutputProps {

@@ -9,6 +9,7 @@ import {
 } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { useTotalSampleCount } from "../../../state/hooks";
+import { useStore } from "../../../state/store";
 import { PrimaryBar } from "./PrimaryBar";
 import { SecondaryBar } from "./SecondaryBar";
 import styles from "./TitleView.module.css";
@@ -34,6 +35,11 @@ export const TitleView: FC<TitleViewProps> = ({
   runningMetrics,
 }) => {
   const totalSampleCount = useTotalSampleCount();
+  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
+  if (showingSampleDialog) {
+    return null;
+  }
+
   return (
     <nav className={clsx("navbar", "sticky-top", styles.navbarWrapper)}>
       <PrimaryBar

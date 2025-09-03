@@ -12,6 +12,7 @@ import anyio
 from pydantic import JsonValue
 
 from inspect_ai._util._async import coro_log_exceptions
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
@@ -86,12 +87,15 @@ async def sandbox_service(
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
         instance: If you want multiple instances of a service in a single sandbox
-           then use the `instance` param (and adjust the path for importing the
-           service as described above)
+            then use the `instance` param (and adjust the path for importing the
+            service as described above)
         polling_interval: Polling interval for request checking. If not specified uses
-          sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
+            sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
     """
+    # validate python in sandbox
+    await validate_sandbox_python(name, sandbox, user)
+
     # sort out polling interval
     if polling_interval is None:
         polling_interval = sandbox.default_polling_interval()
@@ -300,10 +304,21 @@ class SandboxService:
 
         # all clear, call the method
         else:
+            from inspect_ai.log._samples import sample_active
+            from inspect_ai.util._limit import LimitExceededError
+
             try:
                 params = cast(dict[str, JsonValue], request_data.get(PARAMS))
-                method = self._methods[method_name]
-                await write_response(await method(**params))
+                try:
+                    method = self._methods[method_name]
+                    await write_response(await method(**params))
+                except LimitExceededError as ex:
+                    active = sample_active()
+                    if active is not None:
+                        active.limit_exceeded(ex)
+                    await write_error_response(
+                        f"Limit exceeded calling method {method_name}: {ex.message}"
+                    )
             except Exception as err:
                 await write_error_response(f"Error calling method {method_name}: {err}")
 
@@ -326,7 +341,7 @@ class SandboxService:
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
         try:
             return await self._sandbox.exec(
-                cmd, user=self._user, input=input, timeout=30
+                cmd, user=self._user, input=input, timeout=30, concurrency=False
             )
         except TimeoutError:
             raise RuntimeError(
@@ -401,3 +416,14 @@ class SandboxService:
             else:
                 return False, None
         """)
+
+
+async def validate_sandbox_python(
+    service_name: str, sandbox: SandboxEnvironment, user: str | None = None
+) -> None:
+    # validate python in sandbox
+    result = await sandbox.exec(["which", "python3"], user=user, concurrency=False)
+    if not result.success:
+        raise PrerequisiteError(
+            f"The {service_name} requires that Python be installed in the sandbox."
+        )

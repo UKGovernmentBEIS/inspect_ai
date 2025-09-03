@@ -16,7 +16,11 @@ import { ChatViewToolCallStyle, Citation } from "./types";
 
 interface MessageContentsProps {
   id: string;
-  message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
+  message:
+    | ChatMessageAssistant
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageTool;
   toolMessages: ChatMessageTool[];
   toolCallStyle: ChatViewToolCallStyle;
 }
@@ -47,10 +51,8 @@ export const MessageContents: FC<MessageContentsProps> = ({
     // Render the tool calls made by this message
     const toolCalls = message.tool_calls.map((tool_call, idx) => {
       // Extract tool input
-      const { input, functionCall, highlightLanguage } = resolveToolInput(
-        tool_call.function,
-        tool_call.arguments,
-      );
+      const { input, description, functionCall, contentType } =
+        resolveToolInput(tool_call.function, tool_call.arguments);
 
       let toolMessage;
       if (tool_call.id) {
@@ -80,7 +82,8 @@ export const MessageContents: FC<MessageContentsProps> = ({
             key={`tool-call-${idx}`}
             functionCall={functionCall}
             input={input}
-            highlightLanguage={highlightLanguage}
+            description={description}
+            contentType={contentType}
             output={resolvedToolOutput}
           />
         );

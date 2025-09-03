@@ -55,18 +55,8 @@ def openai_api() -> type[ModelAPI]:
 
 @modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
-    FEATURE = "Anthropic API"
-    PACKAGE = "anthropic"
-    MIN_VERSION = "0.52.0"
-
-    # verify we have the package
-    try:
-        import anthropic  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+    # validate
+    validate_anthropic_client("Anthropic API")
 
     # in the clear
     from .anthropic import AnthropicAPI
@@ -130,7 +120,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.3"
+    MIN_VERSION = "1.9.10"
 
     # verify we have the package
     try:
@@ -320,7 +310,7 @@ def goodfire() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.99.7"
+    MIN_VERSION = "1.104.1"
 
     # verify we have the package
     try:
@@ -330,3 +320,17 @@ def validate_openai_client(feature: str) -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+
+def validate_anthropic_client(feature: str) -> None:
+    PACKAGE = "anthropic"
+    MIN_VERSION = "0.52.0"
+
+    # verify we have the package
+    try:
+        import anthropic  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(feature, [PACKAGE])
+
+    # verify version
+    verify_required_version(feature, PACKAGE, MIN_VERSION)

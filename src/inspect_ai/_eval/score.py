@@ -17,7 +17,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._model import model_roles_config_to_model_roles
-from inspect_ai.log._transcript import Event, Transcript, init_transcript
+from inspect_ai.log._transcript import Event, Transcript, init_transcript, transcript
 from inspect_ai.log._tree import SpanNode, event_sequence, event_tree, walk_node_spans
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import get_model
@@ -190,6 +190,7 @@ async def score_async(
     )
 
     # prime the scoring tasks
+    action = action or "append"
     states = [
         TaskState(
             model=ModelName(log.eval.model),
@@ -203,6 +204,7 @@ async def score_async(
             completed=True,
             metadata=sample.metadata,
             store=sample.store,
+            scores=(sample.scores or {}).copy() if action == "append" else {},
         )
         for sample in log.samples
     ]
@@ -224,7 +226,6 @@ async def score_async(
         )
 
         # write them back (gather ensures that they come back in the same order)
-        action = action or "append"
         for idx_sample, (scores, transcript) in enumerate(scores_and_events):
             sample = log.samples[idx_sample]
             sample.scores = _get_updated_scores(sample, scores, action=action)
@@ -284,30 +285,42 @@ async def run_score_task(
     # initialize active model and store
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
-    transcript = Transcript()
-    init_transcript(transcript)
+    init_transcript(Transcript())
+
+    if state.scores is None:
+        state.scores = {}
+    existing_score_names = [*state.scores]
 
     results: dict[str, SampleScore] = {}
     async with span(name="scorers"):
         for scorer in scorers:
-            scorer_name = unique_scorer_name(scorer, list(results.keys()))
+            scorer_name = unique_scorer_name(
+                scorer, list({*existing_score_names, *results})
+            )
             async with span(name=scorer_name, type="scorer"):
-                result = await scorer(state, target)
-                results[scorer_name] = SampleScore(
-                    score=result,
-                    sample_id=state.sample_id,
-                    sample_metadata=state.metadata,
-                    scorer=registry_unqualified_name(scorer),
-                )
-                transcript._event(
+                score_result = await scorer(state, target)
+                if scorer_name in state.scores:
+                    raise RuntimeError(
+                        f"Scorer {scorer_name} has modified state.scores"
+                    )
+                state.scores[scorer_name] = score_result
+
+                transcript()._event(
                     ScoreEvent(
-                        score=result,
+                        score=score_result,
                         target=target.target,
                     )
                 )
 
+                results[scorer_name] = SampleScore(
+                    score=score_result,
+                    sample_id=state.sample_id,
+                    sample_metadata=state.metadata,
+                    scorer=registry_unqualified_name(scorer),
+                )
+
     progress()
-    return results, transcript
+    return results, transcript()
 
 
 def metrics_from_log(log: EvalLog) -> list[Metric] | dict[str, list[Metric]] | None:

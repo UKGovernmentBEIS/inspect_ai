@@ -8,6 +8,7 @@ from openai.types.responses import (
     ResponseComputerToolCall,
     ResponseFunctionToolCall,
     ResponseFunctionWebSearch,
+    ResponseInputContentParam,
     ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
@@ -23,7 +24,12 @@ from openai.types.responses import (
 from openai.types.responses import (
     Tool as ResponsesTool,
 )
-from openai.types.responses.response import ToolChoice as ResponsesToolChoice
+from openai.types.responses.response import (
+    IncompleteDetails,
+)
+from openai.types.responses.response import (
+    ToolChoice as ResponsesToolChoice,
+)
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
@@ -51,7 +57,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -60,12 +66,16 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
-from inspect_ai.model._openai import (
-    CONTENT_INTERNAL_TAG,
-    _parse_content_with_internal,
-    content_internal_tag,
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
 )
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    content_internal_tag,
+    parse_content_with_internal,
+)
+from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     content_from_response_input_content_param,
     is_assistant_message_param,
@@ -99,19 +109,24 @@ from inspect_ai.model._openai_responses import (
     web_search_to_tool_use,
 )
 from inspect_ai.model._providers._openai_computer_use import (
-    computer_parmaeters,
     tool_call_arguments_to_action,
     tool_call_from_openai_computer_tool_call,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
-from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.tool._tool_util import tool_to_tool_info
+from inspect_ai.tool._tools._computer._computer import computer
+from inspect_ai.tool._tools._web_search._web_search import (
+    WebSearchProviders,
+    web_search,
+)
 from inspect_ai.util._json import JSONSchema
 
-from .util import resolve_inspect_model
+from .util import apply_message_ids, resolve_generate_config, resolve_inspect_model
 
 logger = getLogger(__file__)
 
@@ -119,7 +134,7 @@ logger = getLogger(__file__)
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     web_search: WebSearchProviders,
-    state: AgentState | None = None,
+    bridge: AgentBridge,
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
@@ -145,25 +160,38 @@ async def inspect_responses_api_request_impl(
     messages = messages_from_responses_input(input, tools, model_name)
     debug_log("INSPECT MESSAGES", messages)
 
+    # extract generate config (hoist instructions into system_message)
+    config = generate_config_from_openai_responses(json_data)
+    if config.system_message is not None:
+        messages.insert(0, ChatMessageSystem(content=config.system_message))
+        config.system_message = None
+
+    # try to maintain id stability
+    apply_message_ids(bridge, messages)
+
+    # give inspect-level config priority over agent default config
+    config = resolve_generate_config(model, config)
+
     # run inference
     output = await model.generate(
         input=messages,
         tool_choice=tool_choice,
         tools=tools,
-        config=generate_config_from_openai_responses(json_data),
+        config=config,
     )
 
-    # update state
-    if state and bridge_model_name == "inspect":
-        state.messages = messages + [output.message]
-        state.output = output
-
     debug_log("INSPECT OUTPUT", output.message)
+
+    # update state
+    if bridge_model_name == "inspect":
+        bridge.state.messages = messages + [output.message]
+        bridge.state.output = output
 
     # return response
     response = Response(
         id=output.message.id or uuid(),
         created_at=int(time()),
+        incomplete_details=responses_incomplete_details(output.stop_reason),
         model=model_name,
         object="response",
         output=responses_output_items_from_assistant_message(output.message),
@@ -227,8 +255,8 @@ def responses_tool_choice_param_to_tool_choice(
 
 
 def tool_from_responses_tool(
-    tool_param: ToolParam, web_search: WebSearchProviders
-) -> ToolInfo:
+    tool_param: ToolParam, web_search_providers: WebSearchProviders
+) -> ToolInfo | Tool:
     if is_function_tool_param(tool_param):
         return ToolInfo(
             name=tool_param["name"],
@@ -236,20 +264,11 @@ def tool_from_responses_tool(
             parameters=ToolParams.model_validate(tool_param["parameters"]),
         )
     elif is_web_search_tool_param(tool_param):
-        return ToolInfo(
-            name="web_search",
-            description="web_search",
-            options=responses_web_search_tool_options(tool_param, web_search),
+        return web_search(
+            resolve_web_search_providers(tool_param, web_search_providers)
         )
     elif is_computer_tool_param(tool_param):
-        return ToolInfo(
-            name="computer",
-            description="computer",
-            # this is a fake parameter def so that we match the check for the
-            # computer tool in maybe_computer_use_preview_tool (openai will
-            # provide its own parmeters internally)
-            parameters=ToolParams(properties={k: k for k in computer_parmaeters()}),  # type: ignore[misc]
-        )
+        return computer()
     elif is_mcp_tool_param(tool_param):
         allowed_tools = tool_param["allowed_tools"]
         if isinstance(allowed_tools, dict):
@@ -272,15 +291,13 @@ def tool_from_responses_tool(
         raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
 
 
-def responses_web_search_tool_options(
+def resolve_web_search_providers(
     tool_param: WebSearchToolParam, web_search: WebSearchProviders
-) -> dict[str, Any]:
+) -> WebSearchProviders:
     # pass through openai options if there is no special openai config
     openai_options = web_search.get("openai", False)
-    if (
-        openai_options is True
-        or isinstance(openai_options, dict)
-        and len(openai_options) == 0
+    if openai_options is True or (
+        isinstance(openai_options, dict) and len(openai_options) == 0
     ):
         if "user_location" in tool_param or "search_context_size" in tool_param:
             # this came from the user in the external scaffold. we want
@@ -293,10 +310,20 @@ def responses_web_search_tool_options(
             web_search = web_search.copy()
             web_search["openai"] = tool_param  # type: ignore[typeddict-item]
 
-    return cast(dict[str, Any], web_search)
+    return web_search
 
 
 tool_list_adapter = TypeAdapter(list[ResponsesTool])
+
+
+def responses_incomplete_details(stop_reason: StopReason) -> IncompleteDetails | None:
+    match stop_reason:
+        case "content_filter":
+            return IncompleteDetails(reason="content_filter")
+        case "max_tokens":
+            return IncompleteDetails(reason="max_output_tokens")
+        case _:
+            return None
 
 
 def responses_tool_params_to_tools(tool_params: list[ToolParam]) -> list[ResponsesTool]:
@@ -353,7 +380,7 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
 
 def messages_from_responses_input(
     input: str | list[ResponseInputItemParam],
-    tools: list[ToolInfo],
+    tools: list[ToolInfo | Tool],
     model_name: str | None = None,
 ) -> list[ChatMessage]:
     # enture input is a list
@@ -365,6 +392,12 @@ def messages_from_responses_input(
                 content=[ResponseInputTextParam(type="input_text", text=input)],
             )
         ]
+
+    # resolve tools to tool info
+    tools_info = [
+        tool_to_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
+        for tool in tools
+    ]
 
     messages: list[ChatMessage] = []
     function_calls_by_id: dict[str, str] = {}
@@ -379,7 +412,7 @@ def messages_from_responses_input(
                     for output in param["content"]:
                         text = str(output.get("text", output.get("refusal", "")))
 
-                        asst_content, content_internal = _parse_content_with_internal(
+                        asst_content, content_internal = parse_content_with_internal(
                             text, CONTENT_INTERNAL_TAG
                         )
 
@@ -414,7 +447,7 @@ def messages_from_responses_input(
                             id=param["call_id"],
                             function=param["name"],
                             arguments=param["arguments"],
-                            tools=tools,
+                            tools=tools_info,
                         )
                     )
                 elif is_response_computer_tool_call(param):
@@ -426,6 +459,11 @@ def messages_from_responses_input(
                 elif is_response_reasoning_item(param):
                     content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_web_search_call(param):
+                    # Workaround for OpenAI server implementation change
+                    # https://github.com/openai/openai-java/issues/526
+                    action = param["action"]
+                    if action["type"] == "find_in_page":  # type: ignore[comparison-overlap]
+                        action["type"] = "find"
                     web_search = ResponseFunctionWebSearch.model_validate(param)
                     content.append(web_search_to_tool_use(web_search))
                 elif is_response_mcp_list_tools(param):
@@ -463,11 +501,7 @@ def messages_from_responses_input(
 
         if is_response_input_message(item):
             # normalize item content
-            item_content: list[
-                ResponseInputTextParam
-                | ResponseInputImageParam
-                | ResponseInputFileParam
-            ] = (
+            item_content: list[ResponseInputContentParam] = (
                 [ResponseInputTextParam(type="input_text", text=item["content"])]
                 if isinstance(item["content"], str)
                 else item["content"]

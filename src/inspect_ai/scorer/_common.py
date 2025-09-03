@@ -6,6 +6,7 @@ from inspect_ai._util.text import (
     strip_numeric_punctuation,
     strip_punctuation,
 )
+from inspect_ai.scorer._unicode import unicode_number_to_float
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
@@ -95,7 +96,13 @@ def first_number_normalized(words: list[str]) -> str:
 
 def normalize_number(number: str, precision: int = 5) -> str:
     if number.replace(".", "").isnumeric():
-        num = str_to_float(number)
+        # first try parsing with our tried and true parser, if that fails
+        # then there were unicode characters that are still .isnumeric()
+        # for that case, parse with our new unicode parser
+        try:
+            num = str_to_float(number)
+        except ValueError:
+            num = unicode_number_to_float(number)
         return format(num, f".{precision}g")
     else:
         return number

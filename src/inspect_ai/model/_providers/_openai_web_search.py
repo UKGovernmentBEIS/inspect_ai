@@ -28,11 +28,9 @@ def _web_search_tool(maybe_openai_options: object) -> WebSearchToolParam:
             f"Expected a dictionary for openai_options, got {type(maybe_openai_options)}"
         )
     openai_options = (
-        WebSearchTool.model_validate(
-            {"type": "web_search_preview", **maybe_openai_options}
-        )
+        WebSearchTool.model_validate({"type": "web_search", **maybe_openai_options})
         if maybe_openai_options
-        else WebSearchTool(type="web_search_preview")
+        else WebSearchTool(type="web_search")
     )
 
     return cast(WebSearchToolParam, openai_options.model_dump(exclude_none=True))
