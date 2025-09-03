@@ -532,7 +532,7 @@ def web_search_to_tool_use(output: ResponseFunctionWebSearch) -> ContentToolUse:
         tool_type="web_search",
         id=output.id,
         name=output.action.type,
-        arguments=output.action.to_json(),
+        arguments=output.action.to_json(exclude_none=True),
         result="",
         error="failed" if output.status == "failed" else None,
     )
