@@ -7,6 +7,7 @@
 
 export type Version = number;
 export type Status = "started" | "success" | "cancelled" | "error";
+export type EvalSetId = string | null;
 export type EvalId = string;
 export type RunId = string;
 export type Created = string;
@@ -787,6 +788,7 @@ export interface EvalLog {
  * Eval target and configuration.
  */
 export interface EvalSpec {
+  eval_set_id: EvalSetId;
   eval_id: EvalId;
   run_id: RunId;
   created: Created;

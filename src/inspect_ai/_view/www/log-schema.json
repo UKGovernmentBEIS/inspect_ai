@@ -2968,6 +2968,18 @@
     "EvalSpec": {
       "description": "Eval target and configuration.",
       "properties": {
+        "eval_set_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Eval Set Id"
+        },
         "eval_id": {
           "title": "Eval Id",
           "type": "string"
@@ -3219,6 +3231,7 @@
         }
       },
       "required": [
+        "eval_set_id",
         "eval_id",
         "run_id",
         "created",
