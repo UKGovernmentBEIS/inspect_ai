@@ -115,6 +115,6 @@ async def test_hooks():
     module = importlib.import_module("inspect_package.hooks.custom")
     module.run_ids = []
 
-    await emit_run_start(run_id="42", tasks=[])
+    await emit_run_start(eval_set_id=None, run_id="42", tasks=[])
 
     assert module.run_ids == ["42"]

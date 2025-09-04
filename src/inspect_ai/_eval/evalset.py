@@ -5,6 +5,7 @@ from typing import Any, Literal, NamedTuple, Set, cast
 import rich
 from pydantic_core import to_json
 from rich.status import Status
+from shortuuid import uuid
 from tenacity import (
     RetryCallState,
     Retrying,
@@ -15,8 +16,9 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._display import display as display_manager
+from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, filesystem
+from inspect_ai._util.file import basename, file, filesystem
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent
 from inspect_ai.approval._policy import ApprovalPolicy
@@ -206,9 +208,12 @@ def eval_set(
     Returns:
         A tuple of bool (whether all tasks completed successfully) and a list of `EvalLog` headers (i.e. raw sample data is not included in the logs returned).
     """
+    from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
     # helper function to run a set of evals
-    def run_eval(tasks: list[ResolvedTask] | list[PreviousTask]) -> list[EvalLog]:
+    def run_eval(
+        eval_set_id: str, tasks: list[ResolvedTask] | list[PreviousTask]
+    ) -> list[EvalLog]:
         # run evals
         results = eval(
             tasks=tasks,
@@ -252,6 +257,7 @@ def eval_set(
             log_shared=log_shared,
             log_header_only=True,
             score=score,
+            eval_set_id=eval_set_id,
             **kwargs,
         )
 
@@ -288,6 +294,9 @@ def eval_set(
     # ensure log_dir
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
+
+    # get eval set id
+    eval_set_id = eval_set_id_for_log_dir(log_dir)
 
     # resolve some parameters
     retry_connections = retry_connections or 1.0
@@ -369,7 +378,7 @@ def eval_set(
         # we have some pending tasks yet to run, run them
         if len(pending_tasks) > 0:
             # run the tasks
-            run_logs = run_eval(pending_tasks)
+            run_logs = run_eval(eval_set_id, pending_tasks)
 
             # if this was the entire list of resolved tasks, return results
             if len(pending_tasks) == len(all_tasks):
@@ -398,7 +407,8 @@ def eval_set(
 
                 # run previous tasks (no models passed b/c previous task already carries its model)
                 retried_logs = run_eval(
-                    tasks=as_previous_tasks(failed_tasks, failed_logs)
+                    eval_set_id=eval_set_id,
+                    tasks=as_previous_tasks(failed_tasks, failed_logs),
                 )
 
                 # return success
@@ -419,6 +429,9 @@ def eval_set(
         before=before,
     )
 
+    # emit start event
+    run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+
     # execute w/ retry
     results = retry(try_eval)
 
@@ -438,8 +451,25 @@ def eval_set(
     # update manifest
     write_log_dir_manifest(log_dir)
 
+    # emit end event
+    run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
+
     # return status + results
     return success, results
+
+
+def eval_set_id_for_log_dir(log_dir: str) -> str:
+    EVAL_SET_ID_FILE = ".eval-set-id"
+    fs = filesystem(log_dir)
+    eval_set_id_file = f"{log_dir}{fs.sep}{EVAL_SET_ID_FILE}"
+    if fs.exists(eval_set_id_file):
+        with file(eval_set_id_file, "r") as f:
+            return f.read().strip()
+    else:
+        eval_set_id = uuid()
+        with file(eval_set_id_file, "w") as f:
+            f.write(eval_set_id)
+        return eval_set_id
 
 
 # convert resolved tasks to previous tasks
