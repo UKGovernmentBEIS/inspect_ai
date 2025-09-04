@@ -620,11 +620,15 @@ class AnthropicAPI(ModelAPI):
         ]
 
         # system messages
+        system_param: list[TextBlockParam] | None = None
         if len(system_messages) > 0:
-            system_param: list[TextBlockParam] | None = [
-                TextBlockParam(type="text", text=message.text)
-                for message in system_messages
+            system_param = [
+                TextBlockParam(type="text", text=m.text)
+                for m in system_messages
+                if m.text
             ]
+            if len(system_param) == 0:
+                system_param = None
         else:
             system_param = None
 
