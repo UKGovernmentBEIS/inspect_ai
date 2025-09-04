@@ -46,4 +46,9 @@ RUN pip install --no-cache-dir \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Ensure Playwright installs Chromium into package path and installs runtime deps
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+RUN playwright install chromium-headless-shell
+RUN playwright install-deps
+
 CMD ["tail", "-f", "/dev/null"]

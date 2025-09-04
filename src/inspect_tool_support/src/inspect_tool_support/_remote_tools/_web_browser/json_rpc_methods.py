@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 
 from inspect_tool_support._remote_tools._web_browser.controller import (
@@ -23,21 +24,21 @@ def get_controller() -> WebBrowserSessionController:
     global _controller
     if _controller:
         return _controller
-    # Detect if running from PyInstaller bundle
-    if getattr(sys, "frozen", False):
-        # Set LD_LIBRARY_PATH to include the temp directory where staticx extracted files
-        mei_pass_dir = sys._MEIPASS
-        current_ld_path = os.environ.get("LD_LIBRARY_PATH", "")
-        print(f"\n\n{' '.join(sys.argv)}\n{os.getpid()=}")
-        if mei_pass_dir not in current_ld_path.split(":"):
-            suffix = f":{current_ld_path}" if current_ld_path else None
-            new_path = f"{mei_pass_dir}{suffix}"
-            os.environ["LD_LIBRARY_PATH"] = new_path
-            print(f"{mei_pass_dir=}\n{current_ld_path=}\n{new_path=}\n\n")
-        else:
-            print(
-                f"LD_LIBRARY_PATH already contained staticx path: {current_ld_path}\n\n"
-            )
+
+    # When running as a PyInstaller onefile binary, all bundled shared libs are extracted
+    # under sys._MEIPASS. Ensure the dynamic linker can find them by prepending that
+    # lib directory to LD_LIBRARY_PATH before launching Chromium.
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        meipass_lib = Path(getattr(sys, "_MEIPASS")) / "lib"
+        existing_ld = os.environ.get("LD_LIBRARY_PATH", "")
+        new_ld = f"{meipass_lib}:{existing_ld}" if existing_ld else str(meipass_lib)
+        os.environ["LD_LIBRARY_PATH"] = new_ld
+        print(f"LD_LIBRARY_PATH set to {os.environ['LD_LIBRARY_PATH']}")
+        # Hint Playwright to use packaged browsers and skip host validation inside minimal containers
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
+        os.environ.setdefault("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1")
+        os.environ["DEBUG"] = "pw:api,pw:browser*"
+
 
     _controller = WebBrowserSessionController()
     return _controller

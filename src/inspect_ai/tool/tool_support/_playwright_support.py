@@ -202,11 +202,19 @@ def _parse_ldd_paths(ldd_output: str) -> list[Path]:
     2. Filters out core system libraries that shouldn't be bundled
     3. Returns unique paths as a set
 
+    CRITICAL: All libraries referenced by ldd (except core system libraries that
+    are intentionally excluded) MUST be found on the system to create a functional
+    PyInstaller package. Missing libraries (=> not found) indicate system dependency
+    issues that will cause runtime failures in the bundled executable.
+
     Args:
         ldd_output: Raw output from the ldd command
 
     Returns:
         Set of Path objects for libraries that should be bundled
+
+    Raises:
+        RuntimeError: If any required libraries are not found on the system
     """
     # Core system libraries that should NOT be bundled
     # These are provided by the host OS and bundling them would break compatibility
@@ -219,6 +227,16 @@ def _parse_ldd_paths(ldd_output: str) -> list[Path]:
         "libdl.so",  # Dynamic loading - part of core glibc
         "librt.so",  # Real-time extensions - part of core glibc
     )
+
+    # Check for missing libraries first - these are fatal for PyInstaller packaging
+    if not_found_libs := [
+        line.split()[0] for line in ldd_output.splitlines() if "=> not found" in line
+    ]:
+        raise RuntimeError(
+            f"Missing required system libraries: {', '.join(not_found_libs)}. "
+            "These libraries are required by Chromium but not installed on the system. "
+            "Install the missing packages or ensure all dependencies are available."
+        )
 
     return [
         Path(m.group(1))

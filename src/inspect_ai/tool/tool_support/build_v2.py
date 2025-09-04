@@ -178,17 +178,14 @@ def _prepare_build_environment() -> Path:
 
     # Install the package
     print("Installing package...")
-    _run([sys.executable, "-m", "pip", "install", "."])
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "."],
+        check=True,
+        stdout=None,
+        stderr=None,
+    )
 
     return copy_dir
-
-
-def _run(
-    cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
-) -> str:
-    return subprocess.run(
-        cmd, cwd=cwd, env=env, text=True, capture_output=True, check=True
-    ).stdout
 
 
 if __name__ == "__main__":

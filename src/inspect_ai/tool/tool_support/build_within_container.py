@@ -150,7 +150,8 @@ def run_docker_container(
     if passthrough_args:
         cmd.extend(passthrough_args)
 
-    subprocess.run(cmd, check=True)
+    # Stream output from container to console so user can see build progress
+    subprocess.run(cmd, check=True, stdout=None, stderr=None)
 
 
 def main() -> None:

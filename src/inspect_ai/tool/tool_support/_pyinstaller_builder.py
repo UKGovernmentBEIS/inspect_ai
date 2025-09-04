@@ -95,6 +95,16 @@ def build_executable(
         extra_arguments, entrypoint, output_path.name, custom_env
     )
 
+    # Generate pyi-archive_viewer output
+    archive_viewer_txt = _generate_archive_viewer_output(temp_output)
+    # Copy the archive viewer output (.txt) to the output directory
+    target_txt = output_path.with_suffix(".txt")
+    if archive_viewer_txt.exists():
+        shutil.copy2(str(archive_viewer_txt), str(target_txt))
+        print(f"✅ Archive viewer output copied to: {target_txt}")
+    else:
+        print(f"⚠️ Archive viewer output not found: {archive_viewer_txt}")
+
     # Apply staticx for maximum portability (or just move if skipping)
     if not no_staticx:
         print("[5/5] Applying staticx for maximum portability...")
@@ -188,7 +198,7 @@ def _apply_staticx(input_path: Path, output_path: Path) -> None:
     _run(
         [
             "staticx",
-            "--strip",
+            # "--strip",  # REMOVED - can break node binary (matches PyInstaller --strip removal)
             str(input_path),
             str(output_path),
         ]
@@ -240,10 +250,34 @@ def _verify_build(
         print("This should run on any Linux x86_64 system from ~2016 onwards")
 
 
+def _generate_archive_viewer_output(output_path: Path) -> Path:
+    """Generate a text file with pyi-archive_viewer output for debugging."""
+    # Create the .txt file path with the same base name as the executable
+    txt_path = output_path.with_suffix(".txt")
+
+    print(f"Generating pyi-archive_viewer output: {txt_path.resolve()}")
+
+    # Run pyi-archive_viewer and capture its output
+    result = _run(["pyi-archive_viewer", "--list", "--recursive", str(output_path)])
+
+    # Write the output to the .txt file
+    txt_path.write_text(result)
+    print(f"✅ Archive viewer output saved to: {txt_path}")
+
+    return txt_path
+
+
 def _run(
     cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
 ) -> str:
     """Run a subprocess command and return stdout."""
-    return subprocess.run(
+    # Stream output to console for user visibility, but still capture for return value
+    result = subprocess.run(
         cmd, cwd=cwd, env=env, text=True, capture_output=True, check=True
-    ).stdout
+    )
+    # Print stdout and stderr to console so user sees the output
+    if result.stdout:
+        print(result.stdout, end='')
+    if result.stderr:
+        print(result.stderr, end='', file=sys.stderr)
+    return result.stdout
