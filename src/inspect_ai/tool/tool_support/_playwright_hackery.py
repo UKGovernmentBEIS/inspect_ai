@@ -1,4 +1,40 @@
-import argparse
+#!/usr/bin/env python3
+"""
+PLAYWRIGHT DEPENDENCY COLLECTION FOR PYINSTALLER BUILDS
+
+PURPOSE:
+This module handles the complex task of bundling Playwright and Chromium
+dependencies for PyInstaller builds. It solves the problem of including
+all necessary shared libraries required by Chromium's headless browser
+in a portable executable.
+
+WHY MANUAL DEPENDENCY COLLECTION IS REQUIRED:
+PyInstaller automatically handles Python module dependencies and their C extensions,
+but it does NOT analyze or bundle dependencies of standalone binaries included via
+--add-binary. When we include Chromium's headless_shell executable, PyInstaller
+treats it as a data file and doesn't discover its shared library dependencies. This
+module manually uses ldd to find these dependencies and explicitly bundles them,
+which PyInstaller cannot do automatically.
+
+WORKFLOW:
+1. Install Chromium into the Playwright package directory (not user home)
+2. Locate the chromium-headless-shell binary that Playwright uses for Chromium
+3. Use ldd to discover all shared library dependencies
+4. Explicitly add NSS and WebGL libraries that may be loaded dynamically
+5. Return --add-binary arguments for PyInstaller to include all dependencies
+
+OUTPUT:
+Returns a list of --add-binary arguments that tell PyInstaller to include:
+- Chromium browser (headless_shell)
+- All necessary shared libraries discovered via ldd
+- NSS security libraries
+- WebGL libraries
+
+USAGE:
+Called by build_v2.py when build_config.browser is True. Should not be
+used directly - use build_v2.py as the main entry point.
+"""
+
 import glob
 import os
 import re
@@ -6,7 +42,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, cast
+from typing import Iterable
 
 # Import playwright to find its installation directory
 import playwright  # type: ignore

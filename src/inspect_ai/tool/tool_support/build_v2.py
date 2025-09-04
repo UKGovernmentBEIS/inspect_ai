@@ -1,43 +1,31 @@
 #!/usr/bin/env python3
 """
-PORTABLE PLAYWRIGHT PYINSTALLER BUILD SCRIPT
+PORTABLE PYINSTALLER BUILD SCRIPT
 
 PURPOSE:
 This script uses PyInstaller to create a fully self-contained, portable executable
-from a Python application that uses Playwright and a headless browser. It solves
-the problem of bundling Chromium dependencies with the application to ensure it
-can run on different Linux systems without requiring users to install Playwright
-or Chromium separately.
-
-WHY MANUAL DEPENDENCY COLLECTION IS REQUIRED:
-PyInstaller automatically handles Python module dependencies and their C extensions,
-but it does NOT analyze or bundle dependencies of standalone binaries included via
---add-binary. When we include Chromium's headless_shell executable, PyInstaller
-treats it as a data file and doesn't discover its shared library dependencies. This
-script manually uses ldd to find these dependencies and explicitly bundles them,
-which PyInstaller cannot do automatically.
+from a Python application. It supports optional browser integration via Playwright
+and Chromium. When browser support is enabled (via build configuration), it
+delegates to playwright_hackery.py to handle the complex dependency bundling
+required for Chromium.
 
 WORKFLOW:
-1. Install Chromium into the Playwright package directory (not user home)
-2. Locate the chromium-headless-shell binary that Playwright uses for Chromium
-3. Use ldd to discover all shared library dependencies
-4. Explicitly add NSS and WebGL libraries that may be loaded dynamically
-5. Bundle everything into a single executable with PyInstaller
+1. Parse build configuration to determine if browser support is needed
+2. Prepare build environment (copy source and install package)
+3. Conditionally call playwright_hackery() for browser dependencies
+4. Bundle everything into a single executable with PyInstaller
+5. Apply StaticX for maximum portability
 
 OUTPUT:
-A single executable file in dist/main that contains:
+A single executable file that contains:
 - Embedded python interpreter
 - The python application code
-- The Playwright library
-- Chromium browser (headless_shell)
-- All necessary shared libraries
-- NSS security libraries
-- WebGL libraries
+- Optionally: Playwright library and Chromium browser with all dependencies
 
 COMPATIBILITY:
 - Requires same or newer glibc version as build system (core glibc libraries are
   excluded to maintain ABI compatibility)
-- For true cross-distribution compatibility, run StaticX on the output
+- For true cross-distribution compatibility, StaticX is applied by default
 """
 
 import argparse
@@ -49,8 +37,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from inspect_ai.tool.tool_support._playwright_hackery import playwright_hackery
-
-# Import playwright to find its installation directory
 
 # Import build configuration
 try:
@@ -145,12 +131,12 @@ def main() -> None:
         build_working_dir = _prepare_build_environment()
 
         # Conditionally install browser and collect dependencies
-        add_binary_args = (
+        extra_arguments = (
             playwright_hackery(build_working_dir) if build_config.browser else []
         )
 
         # Build the executable
-        temp_output = _build_executable(add_binary_args, entrypoint, executable_name)
+        temp_output = _build_executable(extra_arguments, entrypoint, executable_name)
 
         # Apply staticx by default for maximum portability (matching build_executable.py)
         if args.no_staticx:
@@ -276,7 +262,7 @@ def _prepare_build_environment() -> Path:
 
 
 def _build_executable(
-    extra_binaries: list[str], entrypoint: Path, executable_name: str
+    extra_arguments: list[str], entrypoint: Path, executable_name: str
 ) -> Path:
     """
     Execute PyInstaller to create the final executable.
@@ -285,7 +271,7 @@ def _build_executable(
     at runtime and set up the library paths appropriately.
 
     Args:
-        extra_binaries: List of --add-binary arguments for shared libraries
+        extra_arguments: List of --add-binary arguments for shared libraries
         entrypoint: Path to the main Python script
         executable_name: Name for the output executable
 
@@ -325,7 +311,7 @@ def _build_executable(
             "--name",
             executable_name,
         ]
-        + extra_binaries
+        + extra_arguments
         + [str(entrypoint)]
     )  # --add-binary arguments + entry point
 
