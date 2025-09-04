@@ -11,7 +11,9 @@ from typing import Iterable
 import playwright  # type: ignore
 
 
-def stage_playwright_dependencies(build_working_dir: Path) -> list[str]:
+def stage_playwright_dependencies(
+    build_working_dir: Path,
+) -> tuple[list[str], dict[str, str]]:
     """
     Handle the complex task of bundling Playwright and Chromium dependencies for PyInstaller builds.
 
@@ -42,12 +44,14 @@ def stage_playwright_dependencies(build_working_dir: Path) -> list[str]:
                           temporary files and staged libraries will be stored.
 
     Returns:
-        A list of --add-binary arguments that tell PyInstaller to include:
-        - Chromium browser (headless_shell)
-        - All necessary shared libraries discovered via ldd
-        - NSS security libraries
-        - WebGL libraries
-        Each argument is in the format "source:dest" where dest is "lib"
+        A list of PyInstaller arguments that tell PyInstaller to include:
+        - Chromium browser (headless_shell) via --add-binary
+        - All necessary shared libraries discovered via ldd as --add-binary arguments
+        - NSS security libraries as --add-binary arguments
+        - WebGL libraries as --add-binary arguments
+        - Complete playwright package collection via --collect-all
+        - Playwright metadata via --copy-metadata
+        Each --add-binary argument is in the format "source:dest" where dest is "lib"
         to place files in a lib/ subdirectory.
     """
     # Adjust BUILD_LIBS to be in the working directory
@@ -70,7 +74,50 @@ def stage_playwright_dependencies(build_working_dir: Path) -> list[str]:
 
     # Each library needs a --add-binary argument in the format "source:dest"
     # The :lib suffix tells PyInstaller to place these in a lib/ subdirectory
-    return [f"--add-binary={str(f)}:lib" for f in build_libs_dir.glob("*")]
+    binary_args = [f"--add-binary={str(f)}:lib" for f in build_libs_dir.glob("*")]
+
+    # Add playwright-specific PyInstaller options
+    playwright_args = [
+        "--collect-all",
+        "playwright",
+        "--copy-metadata=playwright",
+    ]
+
+    custom_env = os.environ.copy()
+    custom_env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
+
+    return (binary_args + playwright_args, custom_env)
+
+
+def remove_playwright_dependencies() -> tuple[list[str], None]:
+    """
+    Generate PyInstaller arguments to exclude Playwright dependencies.
+
+    This function is essentially the opposite of stage_playwright_dependencies().
+    While stage_playwright_dependencies() includes all necessary components for
+    browser automation, this function explicitly excludes them to prevent
+    wasting space in executables that don't need browser capabilities.
+
+    Returns:
+        A list of --exclude-module arguments that tell PyInstaller to exclude:
+        - playwright: The main Playwright package and all its submodules
+        - greenlet: Async support library used by Playwright
+        - pyee: Event emitter library used by Playwright
+
+    This results in significantly smaller executables (~75% size reduction)
+    when browser automation is not required.
+    """
+    return (
+        [
+            "--exclude-module",
+            "playwright",
+            "--exclude-module",
+            "greenlet",
+            "--exclude-module",
+            "pyee",
+        ],
+        None,
+    )
 
 
 def _run(

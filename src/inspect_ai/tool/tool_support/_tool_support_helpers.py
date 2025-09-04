@@ -153,7 +153,7 @@ async def tool_support_sandbox(
     return await sandbox_with_injection(
         SANDBOX_CLI,
         partial(inject_tool_support_code, with_browser=with_web_browser),
-        sandbox_name=sandbox_name
+        sandbox_name=sandbox_name,
     )
 
 

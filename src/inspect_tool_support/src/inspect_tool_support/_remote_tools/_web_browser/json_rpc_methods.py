@@ -1,5 +1,6 @@
 import os
 import sys
+
 from inspect_tool_support._remote_tools._web_browser.controller import (
     WebBrowserSessionController,
 )
@@ -15,8 +16,7 @@ from inspect_tool_support._remote_tools._web_browser.tool_types import (
 )
 from inspect_tool_support._util.json_rpc_helpers import validated_json_rpc_method
 
-
-_controller:  WebBrowserSessionController | None = None
+_controller: WebBrowserSessionController | None = None
 
 
 def get_controller() -> WebBrowserSessionController:
@@ -24,19 +24,20 @@ def get_controller() -> WebBrowserSessionController:
     if _controller:
         return _controller
     # Detect if running from PyInstaller bundle
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Set LD_LIBRARY_PATH to include the temp directory where staticx extracted files
-        mei_pass_dir = sys._MEIPASS    
-        current_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
+        mei_pass_dir = sys._MEIPASS
+        current_ld_path = os.environ.get("LD_LIBRARY_PATH", "")
         print(f"\n\n{' '.join(sys.argv)}\n{os.getpid()=}")
         if mei_pass_dir not in current_ld_path.split(":"):
-          suffix = f":{current_ld_path}" if current_ld_path else None
-          new_path = f"{mei_pass_dir}{suffix}"
-          os.environ['LD_LIBRARY_PATH'] = new_path
-          print(f"{mei_pass_dir=}\n{current_ld_path=}\n{new_path=}\n\n")
+            suffix = f":{current_ld_path}" if current_ld_path else None
+            new_path = f"{mei_pass_dir}{suffix}"
+            os.environ["LD_LIBRARY_PATH"] = new_path
+            print(f"{mei_pass_dir=}\n{current_ld_path=}\n{new_path=}\n\n")
         else:
-            print(f"LD_LIBRARY_PATH already contained staticx path: {current_ld_path}\n\n")
-
+            print(
+                f"LD_LIBRARY_PATH already contained staticx path: {current_ld_path}\n\n"
+            )
 
     _controller = WebBrowserSessionController()
     return _controller

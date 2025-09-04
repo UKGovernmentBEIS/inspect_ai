@@ -11,7 +11,7 @@ This module has no knowledge of container structure, volume mounts, or repositor
 layout. It receives clean, simple parameters and produces a portable executable.
 """
 
-import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from inspect_ai.tool.tool_support._playwright_support import (
+        remove_playwright_dependencies,
         stage_playwright_dependencies,
     )
     from inspect_ai.tool.tool_support._tool_support_build_config import (
@@ -26,7 +27,10 @@ if TYPE_CHECKING:
         filename_to_config,
     )
 else:
-    from _playwright_support import stage_playwright_dependencies
+    from _playwright_support import (
+        remove_playwright_dependencies,
+        stage_playwright_dependencies,
+    )
     from _tool_support_build_config import BuildConfig, filename_to_config
 
 
@@ -80,13 +84,16 @@ def build_executable(
     # Verify PyInstaller is available
     _ensure_pyinstaller_available()
 
-    # Stage playwright dependencies if browser support is enabled
-    extra_dependencies = (
-        stage_playwright_dependencies(build_working_dir) if build_config.browser else []
+    extra_arguments, custom_env = (
+        stage_playwright_dependencies(build_working_dir)
+        if build_config.browser
+        else remove_playwright_dependencies()
     )
 
     # Build the executable with PyInstaller
-    temp_output = _build_executable(extra_dependencies, entrypoint, output_path.name)
+    temp_output = _build_executable(
+        extra_arguments, entrypoint, output_path.name, custom_env
+    )
 
     # Apply staticx for maximum portability (or just move if skipping)
     if not no_staticx:
@@ -95,7 +102,7 @@ def build_executable(
     else:
         print("[5/5] Skipping staticx")
         if temp_output != output_path:
-            temp_output.rename(output_path)
+            shutil.move(str(temp_output), str(output_path))
 
     # Set executable permissions
     output_path.chmod(0o755)
@@ -118,7 +125,10 @@ def _ensure_pyinstaller_available() -> None:
 
 
 def _build_executable(
-    extra_arguments: list[str], entrypoint: Path, executable_name: str
+    extra_arguments: list[str],
+    entrypoint: Path,
+    executable_name: str,
+    custom_env: dict[str, str] | None,
 ) -> Path:
     """
     Execute PyInstaller to create the final executable.
@@ -127,20 +137,16 @@ def _build_executable(
     at runtime and set up the library paths appropriately.
 
     Args:
-        extra_arguments: List of --add-binary arguments for shared libraries
+        extra_arguments: List of additional PyInstaller arguments (--add-binary, --exclude-module, etc.)
         entrypoint: Path to the main Python script
         executable_name: Name for the output executable
+        custom_env: Optional dictionary of environment variables to use during build
 
     Returns:
         Path to the built executable
     """
     print("[4/4] Building PyInstaller onefile binary")
 
-    # Set environment to use package-local browser
-    env = os.environ.copy()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
-
-    # Construct the full PyInstaller command
     cmd = (
         [
             sys.executable,
@@ -151,11 +157,8 @@ def _build_executable(
             # "--strip",  # REMOVED - can break node binary (consider re-enabling if issues are resolved)
             "--optimize",
             "2",
-            "--collect-all",  # Collect all files from the playwright package
-            "playwright",  # Package name for --collect-all
             "--hidden-import=psutil",
             "--copy-metadata=inspect_tool_support",
-            "--copy-metadata=playwright",  # Include playwright metadata
             "--exclude-module",
             "tkinter",
             "--exclude-module",
@@ -167,15 +170,14 @@ def _build_executable(
             "--name",
             executable_name,
         ]
-        + extra_arguments
+        + extra_arguments  # extra arguments (browser-specific inclusions/exclusions)
         + [str(entrypoint)]
-    )  # --add-binary arguments + entry point
+    )
 
     print("# PyInstaller command:")
     print(" ".join(cmd))
 
-    # Run PyInstaller in the current directory
-    _run(cmd, env=env)
+    _run(cmd, env=custom_env)
 
     # Return path to built executable
     return Path("dist") / executable_name
