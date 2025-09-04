@@ -1,31 +1,23 @@
 #!/usr/bin/env python3
 """
-PORTABLE PYINSTALLER BUILD SCRIPT
+PORTABLE PYINSTALLER BUILD SCRIPT - CLI AND ENVIRONMENT SETUP
 
 PURPOSE:
-This script uses PyInstaller to create a fully self-contained, portable executable
-from a Python application. It supports optional browser integration via Playwright
-and Chromium. When browser support is enabled (via build configuration), it
-delegates to playwright_hackery.py to handle the complex dependency bundling
-required for Chromium.
+This script serves as the command-line interface and environment coordinator for
+building portable executables. It handles container-specific setup, argument parsing,
+and build environment preparation, then delegates the actual PyInstaller build
+process to the _pyinstaller_builder module.
 
-WORKFLOW:
-1. Parse build configuration to determine if browser support is needed
-2. Prepare build environment (copy source and install package)
-3. Conditionally call playwright_hackery() for browser dependencies
-4. Bundle everything into a single executable with PyInstaller
-5. Apply StaticX for maximum portability
+RESPONSIBILITIES:
+1. Parse command line arguments and build configuration
+2. Handle container-specific paths and volume mounts
+3. Prepare build environment (copy source and install package in containers)
+4. Delegate to _pyinstaller_builder for all build logic including browser dependencies
 
-OUTPUT:
-A single executable file that contains:
-- Embedded python interpreter
-- The python application code
-- Optionally: Playwright library and Chromium browser with all dependencies
-
-COMPATIBILITY:
-- Requires same or newer glibc version as build system (core glibc libraries are
-  excluded to maintain ABI compatibility)
-- For true cross-distribution compatibility, StaticX is applied by default
+CONTAINER USAGE:
+Called by build_within_container.py inside Docker containers with the repository
+mounted at /inspect_ai. Handles the container-specific workflow of copying source
+to /tmp and installing the package before building.
 """
 
 import argparse
@@ -35,16 +27,16 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from inspect_ai.tool.tool_support._playwright_support import (
-    stage_playwright_dependencies,
-)
+from inspect_ai.tool.tool_support._pyinstaller_builder import build
 
-# Import build configuration
-try:
-    from ._tool_support_build_config import BuildConfig, filename_to_config
-except ImportError:
-    # Handle direct execution or when run from Docker
+if TYPE_CHECKING:
+    from inspect_ai.tool.tool_support._tool_support_build_config import (
+        BuildConfig,
+        filename_to_config,
+    )
+else:
     from _tool_support_build_config import BuildConfig, filename_to_config
 
 # Directory where this build script is located
@@ -132,30 +124,14 @@ def main() -> None:
         # Prepare build environment (copy source and install package)
         build_working_dir = _prepare_build_environment()
 
-        # Conditionally install browser and collect dependencies
-        extra_arguments = (
-            stage_playwright_dependencies(build_working_dir)
-            if build_config.browser
-            else []
+        # Build the executable using the new builder module
+        build(
+            entrypoint=entrypoint,
+            output_path=output_path,
+            build_config=build_config,
+            build_working_dir=build_working_dir,
+            apply_staticx=not args.no_staticx,
         )
-
-        # Build the executable
-        temp_output = _build_executable(extra_arguments, entrypoint, executable_name)
-
-        # Apply staticx by default for maximum portability (matching build_executable.py)
-        if args.no_staticx:
-            print("[5/5] Skipping staticx (--no-staticx specified)")
-            # Just move the file to final location
-            if temp_output != output_path:
-                shutil.move(temp_output, output_path)
-        else:
-            print("[5/5] Applying staticx for maximum portability...")
-            _apply_staticx(temp_output, output_path)
-
-        output_path.chmod(0o755)
-
-        # Verify the build (matching build_executable.py verification)
-        _verify_build(output_path, executable_name, build_config)
 
     finally:
         # Restore original working directory
@@ -264,126 +240,6 @@ def _prepare_build_environment() -> Path:
     _run([sys.executable, "-m", "pip", "install", "."])
 
     return copy_dir
-
-
-def _build_executable(
-    extra_arguments: list[str], entrypoint: Path, executable_name: str
-) -> Path:
-    """
-    Execute PyInstaller to create the final executable.
-
-    The resulting executable will self-extract to a temporary directory
-    at runtime and set up the library paths appropriately.
-
-    Args:
-        extra_arguments: List of --add-binary arguments for shared libraries
-        entrypoint: Path to the main Python script
-        executable_name: Name for the output executable
-
-    Returns:
-        Path to the built executable
-    """
-    print("[4/4] Building PyInstaller onefile binary")
-
-    # Set environment to use package-local browser
-    env = os.environ.copy()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
-
-    # Construct the full PyInstaller command
-    cmd = (
-        [
-            sys.executable,
-            "-m",
-            "PyInstaller",
-            "--onefile",  # Single executable output
-            "--noupx",  # Don't compress - prevents driver corruption
-            # "--strip",  # REMOVED - can break node binary (consider re-enabling if issues are resolved)
-            "--optimize",
-            "2",
-            "--collect-all",  # Collect all files from the playwright package
-            "playwright",  # Package name for --collect-all
-            "--hidden-import=psutil",
-            "--copy-metadata=inspect_tool_support",
-            "--copy-metadata=playwright",  # Include playwright metadata
-            "--exclude-module",
-            "tkinter",
-            "--exclude-module",
-            "test",
-            "--exclude-module",
-            "unittest",
-            "--exclude-module",
-            "pdb",
-            "--name",
-            executable_name,
-        ]
-        + extra_arguments
-        + [str(entrypoint)]
-    )  # --add-binary arguments + entry point
-
-    print("# PyInstaller command:")
-    print(" ".join(cmd))
-
-    # Run PyInstaller in the current directory (temp directory for container builds)
-    _run(cmd, env=env)
-
-    # Return path to built executable
-    return Path("dist") / executable_name
-
-
-def _apply_staticx(input_path: Path, output_path: Path) -> None:
-    _run(
-        [
-            "staticx",
-            "--strip",
-            str(input_path),
-            str(output_path),
-        ]
-    )
-
-
-def _verify_build(
-    output_path: Path, executable_name: str, build_config: BuildConfig
-) -> None:
-    """
-    Verify the built executable and display build information.
-
-    This matches build_executable.py's verification approach exactly.
-
-    Args:
-        output_path: Path to the final executable
-        executable_name: Name of the executable
-        build_config: Build configuration for architecture messaging
-    """
-    # Verify portability (matching build_executable.py lines 112-123)
-    print("Verifying portability...")
-    try:
-        result = subprocess.run(
-            ["ldd", str(output_path)], capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            print("✅ Fully static - maximum portability achieved")
-        else:
-            print(result.stdout)
-    except FileNotFoundError:
-        # ldd not available
-        print("⚠️ ldd not available - portability could not be verified")
-
-    # Show what we built (matching build_executable.py lines 125-127)
-    try:
-        subprocess.run(["ls", "-lh", str(output_path)], check=True)
-        subprocess.run(["file", str(output_path)], check=True)
-    except subprocess.CalledProcessError:
-        # Commands might not be available in some environments
-        pass
-
-    # Final success messages (matching build_executable.py lines 129-130)
-    print(f"✅ Portable executable ready: {executable_name}")
-
-    # Architecture-specific compatibility message
-    if build_config.arch == "arm64":
-        print("This should run on any Linux ARM64/aarch64 system from ~2016 onwards")
-    else:
-        print("This should run on any Linux x86_64 system from ~2016 onwards")
 
 
 if __name__ == "__main__":

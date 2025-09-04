@@ -6,11 +6,13 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-try:
-    from ._tool_support_build_config import filename_to_config
-except ImportError:
-    # Handle direct execution or when run from Docker
+if TYPE_CHECKING:
+    from inspect_ai.tool.tool_support._tool_support_build_config import (
+        filename_to_config,
+    )
+else:
     from _tool_support_build_config import filename_to_config
 
 

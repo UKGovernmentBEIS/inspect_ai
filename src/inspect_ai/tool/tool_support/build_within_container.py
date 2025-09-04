@@ -8,10 +8,20 @@ import sys
 from pathlib import Path
 from typing import Literal
 
+# IMPORT CONTEXT HANDLING:
+# This script runs in three different execution contexts:
+# 1. GitHub Actions CI/CD - runs from source checkout, package not installed
+# 2. inspect_ai runtime - called when executables missing, package installed
+# 3. Direct developer usage - various working directories possible
+#
+# Unlike build_v2.py/_pyinstaller_builder.py (which only run in containers),
+# this script needs to work at runtime in both installed and source contexts.
+# TYPE_CHECKING pattern won't work here because both import paths need to work
+# at runtime, not just during static analysis.
 try:
     from ._tool_support_build_config import BuildConfig, config_to_filename
 except ImportError:
-    # Handle direct execution
+    # Handle direct execution or source checkout contexts
     from _tool_support_build_config import BuildConfig, config_to_filename
 
 
