@@ -3,7 +3,7 @@ import inspect
 import os
 import sys
 from logging import Logger
-from typing import Any, Awaitable, Callable, Coroutine, Literal, TypeVar, cast
+from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
 
 import anyio
 import nest_asyncio  # type: ignore
@@ -33,14 +33,14 @@ T = TypeVar("T")
 
 
 async def tg_collect(
-    funcs: list[Callable[[], Awaitable[T]]], exception_group: bool = False
+    funcs: Iterable[Callable[[], Awaitable[T]]], exception_group: bool = False
 ) -> list[T]:
     """Runs all of the passed async functions and collects their results.
 
     The results will be returned in the same order as the input `funcs`.
 
     Args:
-       funcs: List of async functions.
+       funcs: Iterable of async functions.
        exception_group: `True` to raise an ExceptionGroup or
           `False` (the default) to raise only the first exception.
 
@@ -58,12 +58,12 @@ async def tg_collect(
 
         async with anyio.create_task_group() as tg:
 
-            async def run_task(index: int) -> None:
-                result = await funcs[index]()
+            async def run_task(func: Callable[[], Awaitable[T]], index: int) -> None:
+                result = await func()
                 results.append((index, result))
 
-            for i in range(0, len(funcs)):
-                tg.start_soon(run_task, i)
+            for index, func in enumerate(funcs):
+                tg.start_soon(run_task, func, index)
 
         # sort results by original index and return just the values
         return [r for _, r in sorted(results)]
