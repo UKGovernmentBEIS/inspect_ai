@@ -494,7 +494,7 @@ def safe_filename(s: str, max_length: int = 255) -> str:
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
     # disable all S3 native caching
-    s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False)
+    s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False),
     # Azure schemes (credentials resolved dynamically in default_fs_options)
     az=dict(),
     abfs=dict(),

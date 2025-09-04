@@ -46,32 +46,32 @@ def view_server(
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
     scheme = (log_dir.split("://", 1)[0].lower() if "://" in log_dir else "")
-        try:
-            # For Azure schemes we avoid container property probes (which may require
-            # permissions the principal doesn't have even if blob listing is allowed).
-            if scheme in {"az", "abfs", "abfss"}:
-                # If INSPECT_AZURE_DEBUG set, attempt an existence check & report
-                if os.getenv("INSPECT_AZURE_DEBUG"):
-                    try:
-                        fs_exists = fs.exists(log_dir)
-                        display().print(f"[azure-debug] exists({log_dir}) -> {fs_exists}")
-                    except Exception as dex:  # noqa: BLE001
-                        display().print(f"[azure-debug] exists() raised: {dex}")
-                # Don't call fs.info(); keep original URI (fsspec paths acceptable downstream)
-            # TODO: handle other cloud providers similarly to catch for existence errors
-            else:
-                if not fs.exists(log_dir):
-                    fs.mkdir(log_dir, True)
-                log_dir = fs.info(log_dir).name
-        except Exception as ex:  # broad catch to provide actionable guidance
-            if scheme in {"az", "abfs", "abfss"}:
-                hint = (
-                    "Azure storage authentication failed. Try: (a) 'az login' or ensure role assignment (Storage Blob Data Reader/Contributor), "
-                    "or (b) supply SAS via AZURE_STORAGE_SAS_TOKEN. If using az:// ensure AZURE_STORAGE_ACCOUNT_NAME is set. Original error: "
-                    + str(ex)
-                )
-                raise RuntimeError(hint) from ex
-            raise
+    try:
+        # For Azure schemes we avoid container property probes (which may require
+        # permissions the principal doesn't have even if blob listing is allowed).
+        if scheme in {"az", "abfs", "abfss"}:
+            # If INSPECT_AZURE_DEBUG set, attempt an existence check & report
+            if os.getenv("INSPECT_AZURE_DEBUG"):
+                try:
+                    fs_exists = fs.exists(log_dir)
+                    display().print(f"[azure-debug] exists({log_dir}) -> {fs_exists}")
+                except Exception as dex:  # noqa: BLE001
+                    display().print(f"[azure-debug] exists() raised: {dex}")
+            # Don't call fs.info(); keep original URI (fsspec paths acceptable downstream)
+        # TODO: handle other cloud providers similarly to catch for existence errors
+        else:
+            if not fs.exists(log_dir):
+                fs.mkdir(log_dir, True)
+            log_dir = fs.info(log_dir).name
+    except Exception as ex:  # broad catch to provide actionable guidance
+        if scheme in {"az", "abfs", "abfss"}:
+            hint = (
+                "Azure storage authentication failed. Try: (a) 'az login' or ensure role assignment (Storage Blob Data Reader/Contributor), "
+                "or (b) supply SAS via AZURE_STORAGE_SAS_TOKEN. If using az:// ensure AZURE_STORAGE_ACCOUNT_NAME is set. Original error: "
+                + str(ex)
+            )
+            raise RuntimeError(hint) from ex
+        raise
 
     # validate log file requests (must be in the log_dir
     # unless authorization has been provided)
@@ -450,7 +450,38 @@ async def list_eval_logs_async(
     fs = filesystem(log_dir, fs_options)
     if fs.is_async():
         async with async_fileystem(log_dir, fs_options=fs_options) as async_fs:
-            if await async_fs._exists(log_dir):
+            # Attempt existence check with robust handling for Azure-style auth issues.
+            try:
+                exists = await async_fs._exists(log_dir)
+            except Exception as ex:  # noqa: BLE001
+                # For remote filesystems we may encounter authentication errors for
+                # existence probes even when blob listing might succeed (or we want
+                # to provide a clearer diagnostic). Detect common auth failures and
+                # return an empty listing with a helpful warning rather than a 500.
+                protocol, _ = split_protocol(log_dir)
+                scheme = (protocol or "file").lower()
+                ex_msg = str(ex)
+                if scheme in {"az", "abfs", "abfss"} and (
+                    "authenticate" in ex_msg
+                    or "NoAuthenticationInformation" in ex_msg
+                    or "AuthenticationFailed" in ex_msg
+                ):
+                    logger.warning(
+                        "Azure storage authentication failed while probing '%s'. "
+                        "Suppressed stack trace. Guidance: (a) run 'az login' or ensure role "
+                        "assignment (Storage Blob Data Reader/Contributor); (b) if using SAS set "
+                        "AZURE_STORAGE_SAS_TOKEN (and AZURE_STORAGE_ACCOUNT_NAME if needed); (c) if using account key, "
+                        "set AZURE_STORAGE_ACCOUNT_KEY. Original error: %s",
+                        log_dir,
+                        ex_msg,
+                    )
+                    return []
+                # TODO: Add S3 login error catching, as well as any other remote file system of interest
+
+                # Re-raise non-auth related issues
+                raise
+
+            if exists:
                 # prevent caching of listings
                 async_fs.invalidate_cache(log_dir)
                 # list logs
