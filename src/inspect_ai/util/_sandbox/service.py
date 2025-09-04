@@ -97,8 +97,12 @@ async def sandbox_service(
     await validate_sandbox_python(name, sandbox, user)
 
     # sort out polling interval
+    default_polling_interval = sandbox.default_polling_interval()
     if polling_interval is None:
-        polling_interval = sandbox.default_polling_interval()
+        polling_interval = default_polling_interval
+    else:
+        # use the default as a limit which you can't go beneath
+        polling_interval = max(polling_interval, default_polling_interval)
 
     # setup and start service
     service = SandboxService(name, sandbox, user, instance, started)

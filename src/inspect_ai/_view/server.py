@@ -16,11 +16,18 @@ from s3fs import S3FileSystem  # type: ignore
 
 from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
-from inspect_ai._util.file import default_fs_options, filesystem, size_in_mb
+from inspect_ai._util.file import (
+    default_fs_options,
+    dirname,
+    filesystem,
+    size_in_mb,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
+    is_log_file,
     list_eval_logs,
+    log_file_info,
     log_files_from_ls,
     read_eval_log_async,
     read_eval_log_headers_async,
@@ -132,6 +139,17 @@ def view_server(
                 request_log_dir = log_dir
         else:
             request_log_dir = log_dir
+
+        # if the log_dir contains the path to a specific file
+        # then just return that file
+        if is_log_file(request_log_dir, [".json"]):
+            file_info = await eval_log_info_async(request_log_dir)
+            if file_info is not None:
+                return log_listing_response(
+                    logs=[file_info], log_dir=dirname(request_log_dir)
+                )
+            else:
+                return web.Response(status=404, reason="File not found")
 
         # list logs
         logs = await list_eval_logs_async(
@@ -420,6 +438,27 @@ def resolve_header_only(path: str, header_only: int | None) -> bool:
         return True
     else:
         return False
+
+
+async def eval_log_info_async(
+    log_file: str,
+    fs_options: dict[str, Any] = {},
+) -> EvalLogInfo | None:
+    """Get EvalLogInfo for a specific log file asynchronously.
+
+    Args:
+        log_file (str): The complete path to the log file
+        fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+
+    Returns:
+        EvalLogInfo or None: The EvalLogInfo object if the file exists and is valid, otherwise None.
+    """
+    fs = filesystem(log_file, fs_options)
+    if fs.exists(log_file):
+        info = fs.info(log_file)
+        return log_file_info(info)
+    else:
+        return None
 
 
 async def list_eval_logs_async(
