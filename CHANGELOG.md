@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Option to force the sandbox agent bridge to use a specific model.
+- Agent Bridge: New `filter` option to enable bridge to filter model generate calls.
 - Agent Bridge: Ensure that Anthropic can't yield an empty system parameter.
 - Agent Bridge: Increase polling interval for sandbox agent bridge to 2 seconds (was 0.2 seconds).
 - OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
