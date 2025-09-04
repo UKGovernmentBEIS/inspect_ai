@@ -114,6 +114,7 @@ WEBSITES_PORT=7575
 
 ## 8. Troubleshooting
 
+- ErrorCode:NoAuthenticationInformation errors: there are some known quirks with implicit authorization when there are multiple authorization sources.  In the case of this error the easiest workaround is to assign a SAS token.
 - 403 errors: ensure the credential has Blob Data Reader/Contributor role.
 - Listing returns empty: verify container name and that URI path casing matches storage container (lowercase recommended).
 - Slow listings with very large containers: partition logs by date prefix, e.g. `az://mycontainer/inspect-logs/2025/09/04/` and rotate `INSPECT_LOG_DIR` per batch.
