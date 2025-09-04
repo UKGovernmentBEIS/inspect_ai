@@ -77,6 +77,7 @@ def run_docker_container(
     image_name: str,
     version: str,
     browser: bool = False,
+    passthrough_args: list[str] | None = None,
 ) -> None:
     """Run the Docker container to build the executable."""
     print("Starting container and building executable...")
@@ -134,12 +135,17 @@ def run_docker_container(
         filename,
     ]
 
+    # Add passthrough arguments if provided
+    if passthrough_args:
+        cmd.extend(passthrough_args)
+
     subprocess.run(cmd, check=True)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build inspect-tool-support executables in containers"
+        description="Build inspect-tool-support executables in containers",
+        epilog="Arguments after '--' will be passed through to the script run within the container",
     )
     parser.add_argument(
         "--arch", choices=["amd64", "arm64"], help="Build for specific architecture"
@@ -163,7 +169,11 @@ def main() -> None:
         help="Build with browser support (adds +browser to filename).",
     )
 
-    args = parser.parse_args()
+    # Parse known args to allow pass-through arguments after "--"
+    args, passthrough_args = parser.parse_known_args()
+
+    # Remove any standalone "--" from passthrough args
+    passthrough_args = [arg for arg in passthrough_args if arg != "--"]
 
     # Save original directory
     original_dir = Path.cwd()
@@ -188,6 +198,10 @@ def main() -> None:
                         cmd.append("--dev=false")
                     if browser:
                         cmd.append("--browser")
+                    # Add passthrough arguments if any
+                    if passthrough_args:
+                        cmd.append("--")
+                        cmd.extend(passthrough_args)
                     print(
                         f"Building {arch} {'with browser' if browser else 'without browser'}..."
                     )
@@ -206,7 +220,9 @@ def main() -> None:
         run_docker_build(platform, image_name, dockerfile)
 
         # Run container to build executable
-        run_docker_container(platform, arch_suffix, image_name, version, args.browser)
+        run_docker_container(
+            platform, arch_suffix, image_name, version, args.browser, passthrough_args
+        )
 
         print(
             f"Build completed. Executable(s) available in container_build/inspect-tool-support-{arch_suffix}"
