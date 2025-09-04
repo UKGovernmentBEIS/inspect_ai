@@ -355,6 +355,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
                         semaphore=sample_semaphore,
+                        eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
                     )
@@ -553,6 +554,7 @@ async def task_run_sample(
     time_limit: int | None,
     working_limit: int | None,
     semaphore: anyio.Semaphore | None,
+    eval_set_id: str | None,
     run_id: str,
     task_id: str,
 ) -> dict[str, SampleScore] | None:
@@ -722,7 +724,11 @@ async def task_run_sample(
                                 # only emit the sample start once: not on retries
                                 if not error_retries:
                                     await emit_sample_start(
-                                        run_id, task_id, state.uuid, sample_summary
+                                        eval_set_id,
+                                        run_id,
+                                        task_id,
+                                        state.uuid,
+                                        sample_summary,
                                     )
 
                                 # set progress for plan then run it
@@ -835,6 +841,9 @@ async def task_run_sample(
                 scoring_time_limit = time_limit / 2 if time_limit else None
 
                 set_sample_state(state)
+                if state.scores is None:
+                    state.scores = {}
+                solver_score_names = [*state.scores]
 
                 # scoring
                 try:
@@ -844,47 +853,44 @@ async def task_run_sample(
                             async with span(name="scorers"):
                                 for scorer in scorers or []:
                                     scorer_name = unique_scorer_name(
-                                        scorer, list(results.keys())
+                                        scorer, list({*solver_score_names, *results})
                                     )
                                     async with span(name=scorer_name, type="scorer"):
-                                        score_result = (
-                                            await scorer(state, Target(sample.target))
-                                            if scorer
-                                            else None
+                                        if not scorer:
+                                            continue
+                                        score_result = await scorer(
+                                            state, Target(sample.target)
                                         )
-                                        if score_result is not None:
-                                            sample_score = SampleScore(
-                                                score=score_result,
-                                                sample_id=sample.id,
-                                                sample_metadata=sample.metadata,
-                                                scorer=registry_unqualified_name(
-                                                    scorer
-                                                ),
+                                        if scorer_name in state.scores:
+                                            raise RuntimeError(
+                                                f"Scorer {scorer_name} has modified state.scores"
                                             )
-                                            transcript()._event(
-                                                ScoreEvent(
-                                                    score=score_result,
-                                                    target=sample.target,
-                                                )
-                                            )
-                                            results[scorer_name] = sample_score
+                                        state.scores[scorer_name] = score_result
 
-                                # add scores returned by solvers
-                                if state.scores is not None:
-                                    for name, score in state.scores.items():
-                                        results[name] = SampleScore(
-                                            score=score,
-                                            sample_id=state.sample_id,
-                                            sample_metadata=state.metadata,
-                                        )
                                         transcript()._event(
                                             ScoreEvent(
-                                                score=score, target=sample.target
+                                                score=score_result,
+                                                target=sample.target,
                                             )
                                         )
 
-                                # propagate results into scores
-                                state.scores = {k: v.score for k, v in results.items()}
+                                        results[scorer_name] = SampleScore(
+                                            score=score_result,
+                                            sample_id=sample.id,
+                                            sample_metadata=sample.metadata,
+                                            scorer=registry_unqualified_name(scorer),
+                                        )
+
+                                for name in solver_score_names:
+                                    score = state.scores[name]
+                                    transcript()._event(
+                                        ScoreEvent(score=score, target=sample.target)
+                                    )
+                                    results[name] = SampleScore(
+                                        score=score,
+                                        sample_id=state.sample_id,
+                                        sample_metadata=state.metadata,
+                                    )
 
                 except anyio.get_cancelled_exc_class():
                     if active.interrupt_action:
@@ -931,7 +937,7 @@ async def task_run_sample(
                 await log_sample(
                     eval_sample=eval_sample, logger=logger, log_images=log_images
                 )
-            await emit_sample_end(run_id, task_id, state.uuid, eval_sample)
+            await emit_sample_end(eval_set_id, run_id, task_id, state.uuid, eval_sample)
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -968,6 +974,7 @@ async def task_run_sample(
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
+            eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
         )

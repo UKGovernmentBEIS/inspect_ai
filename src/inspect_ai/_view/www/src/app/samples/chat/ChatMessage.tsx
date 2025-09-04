@@ -22,7 +22,11 @@ import { ChatViewToolCallStyle } from "./types";
 
 interface ChatMessageProps {
   id: string;
-  message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
+  message:
+    | ChatMessageAssistant
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageTool;
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
@@ -50,6 +54,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
     >
       <div className={clsx(styles.messageGrid, "text-style-label")}>
         {message.role}
+        {message.role === "tool" ? `: ${message.function}` : ""}
         {supportsLinking() && messageUrl ? (
           <CopyButton
             icon={ApplicationIcons.link}

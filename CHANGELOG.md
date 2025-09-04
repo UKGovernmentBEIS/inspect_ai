@@ -1,19 +1,56 @@
 ## Unreleased
 
-- Agent Bridge: Responses API is now supported alongside the Completions API for both in-process and sandbox-based agent bridges.
+- Agent Bridge: Option to force the sandbox agent bridge to use a specific model.
+- OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
+- Eval Set: Add `eval_set_id` to log file (unique id for eval set across invocations for the same `log_dir`).
+- Hooks: New `EvalSetStart` and `EvalSetEnd` hook methods.
+- Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.
+
+## 0.3.129 (03 September 2025)
+
+- Agent Bridge: Don't use `concurrency()` for agent bridge interactions (not required for long-running proxy server or cheap polling requests).
+- Sandboxes: Add `concurrency` parameter to `exec()` to advise whether the execution should be subject to local process concurrency limits.
+
+## 0.3.128 (02 September 2025)
+
+- Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.
+- Agent Bridge: Respect reference vs. value semantics of agent caller (enables preservation of messages when agent is run via `as_solver()`).
+- OpenAI: Update types to match `openai` v1.104.1 (which is now the minimum required version).
+- Mistral: Support for updated use of `ThinkChunk` types in mistralai v1.9.10.
+- Groq: Support for `--reasoning-effort` parameter (works w/ gpt-oss models).
+- Scoring: Use fallback unicode numeric string parser when default `str_to_float()` fails.
+- Bugfix: Work around OpenAI breaking change that renamed "find" web search action to "find_in_page" (bump required version of `openai` package to v1.104.0).
+
+## 0.3.127 (01 September 2025)
+
+- Bugfix: Preserve sample list state (e.g. scroll position, selection) across sample open/close.
+
+## 0.3.126 (01 September 2025)
+
+- Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.
 - Agent Bridge: Bridge can now automatically keep track of `AgentState` changes via inspecting model traffic running over the bridge.
+- Agent Bridge: Improved id stability across generations to prevent duplicated messages in `messages_df()`.
+- Agent Bridge: Ensure that explicitly specified `GenerateConfig` values for models override bridged agent config.
 - Agent `handoff()`: Use `content_only()` filter by default for handoff output and improve detection of new content from handed off to agents. 
 - Model API: Refine available tool types for `ContentToolUse` ("web_search" or "mcp_call")
 - Model API: Remove `internal` field from `ChatMessageBase` (no longer used).
-- OpenAPI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.
+- OpenAI: Added `responses_store` model arg for explicitly enabling or disabling the responses API.
+- Google: Pass tool parameter descriptions for nullable and `enum` typed fields.
 - Google: Support `thought_signature` for thought parts.
+- Google: Use role="user" for tool call results rather than role="function".
+- MCP: Export MCP server configuration types (`MCPServerConfig` and Stdio and HTTP variants).
 - Sandbox Service: New `instance` option for multiple services of the same type in a single container.
 - Sandbox Service: New `polling_interval` option for controlling polling interval from sandbox to scaffold (defaults to 2 seconds, overridden to 0.2 seconds for Docker sandbox).
 - ReAct Agent: Add submit tool content to assistant message (in addition to setting the `completion`).
 - Metrics: Compute metrics when an empty list of reducers is provided (do not reduce the scores before computing metrics). Add `--no-epochs-reducer` CLI flag for specifying no reducers.
+- Scoring: Make `match` more lenient when numeric matches container markdown formatting.
+- Concurrency: Add `visible` option for `concurrency()` contexts to control display in status bar.
 - Inspect View: Add support for filtering sample transcripts by event types. Be default, filter out `sample_init`, `sandbox`, `store`, and `state` events.
+- Inspect View: Add support for displaying raw markdown source when viewing sample data.
+- Inspect View: Remove sample list / title content when sample is displaying (prevents find from matching content behind the sample detail).
+- Inspect View: Custom rendering for TodoWrite tool calls.
 - Bugfix: Fix error in reducing scores when all scores for a sample are NaN.
-
+- Bugfix: Correctly extract authorization token from header in MCP remote server config.
 
 ## 0.3.125 (25 August 2025)
 

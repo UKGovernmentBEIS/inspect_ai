@@ -202,6 +202,8 @@ class GroqAPI(ModelAPI):
             params["seed"] = config.seed
         if config.num_choices is not None:
             params["n"] = config.num_choices
+        if config.reasoning_effort is not None:
+            params["reasoning_effort"] = config.reasoning_effort
         if config.response_schema is not None:
             params["response_format"] = dict(
                 type="json_schema",

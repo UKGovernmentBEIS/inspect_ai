@@ -3,7 +3,7 @@ import { ContentToolUse } from "../../../../@types/log";
 
 import clsx from "clsx";
 import ExpandablePanel from "../../../../components/ExpandablePanel";
-import { isJson } from "../../../../utils/json";
+import { asJsonObjArray, isJson } from "../../../../utils/json";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { RecordTree } from "../../../content/RecordTree";
 import { RenderedContent } from "../../../content/RenderedContent";
@@ -12,16 +12,21 @@ import styles from "./ServerToolCall.module.css";
 interface ServerToolCallProps {
   id?: string;
   content: ContentToolUse;
+  className?: string | string[];
 }
 
 /**
  * Renders the ToolOutput component.
  */
-export const ServerToolCall: FC<ServerToolCallProps> = ({ id, content }) => {
-  return <McpToolUse id={id} content={content} />;
+export const ServerToolCall: FC<ServerToolCallProps> = ({
+  id,
+  content,
+  className,
+}) => {
+  return <McpToolUse id={id} content={content} className={className} />;
 };
 
-const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
+const McpToolUse: FC<ServerToolCallProps> = ({ id, content, className }) => {
   // Resolve the arguments from the content
   const args = resolveArgs(content);
 
@@ -29,8 +34,11 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
     ? `${content.context} — ${content.name}()`
     : `${content.name}()`;
 
+  const listToolsResult = maybeListTools(content);
+  const webSearchResult = maybeWebSearchResult(content);
+
   return (
-    <div id={id} className={clsx(styles.mcpToolUse)}>
+    <div id={id} className={clsx(styles.mcpToolUse, className)}>
       <div
         className={clsx(
           styles.title,
@@ -69,11 +77,11 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
           );
         })}
 
-        {isWebSearchResult(content) ? (
+        {webSearchResult ? (
           <>
             <LabelDiv label={"results"} />
             <ValueDiv>
-              {(content.result as WebResult[]).map((result, index) => (
+              {webSearchResult.result.map((result, index) => (
                 <div key={index} className={styles.result}>
                   <a
                     href={result.url}
@@ -88,8 +96,8 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
           </>
         ) : undefined}
 
-        {isListTools(content)
-          ? (content.result as ToolInfo[]).map((tool, index) => (
+        {listToolsResult
+          ? (listToolsResult.result as ToolInfo[]).map((tool, index) => (
               <>
                 <ExpandablePanel
                   id={`${id}-output`}
@@ -115,7 +123,7 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content }) => {
         <div className={styles.error}>
           <span>Error: {content.error}</span>
         </div>
-      ) : !isWebSearchResult(content) && !isListTools(content) ? (
+      ) : !listToolsResult && !webSearchResult ? (
         <div className={clsx("text-size-small")}>
           <ExpandablePanel id={`${id}-output`} collapse={true}>
             <RenderedContent
@@ -153,30 +161,28 @@ const resolveArgs = (content: ContentToolUse): Record<string, unknown> => {
   }
 };
 
-const isWebSearchResult = (
+const maybeWebSearchResult = (
   content: ContentToolUse,
-): content is ContentToolUse & { result: WebResult[] } => {
-  return (
-    content.name === "web_search" &&
-    Array.isArray(content.result) &&
-    content.result.every(
-      (item) =>
-        typeof item === "object" &&
-        "title" in item &&
-        "url" in item &&
-        "type" in item,
-    )
-  );
+): { result: WebResult[] } | undefined => {
+  if (content.name !== "web_search") {
+    return undefined;
+  }
+  const objArray = asJsonObjArray(content.result);
+  if (objArray !== undefined) {
+    return { result: objArray as WebResult[] };
+  }
 };
 
-const isListTools = (
+const maybeListTools = (
   content: ContentToolUse,
-): content is ContentToolUse & { result: ToolInfo[] } => {
-  return (
-    content.name === "mcp_list_tools" &&
-    Array.isArray(content.result) &&
-    content.result.every((item) => typeof item === "object")
-  );
+): { result: ToolInfo[] } | undefined => {
+  if (content.name !== "mcp_list_tools") {
+    return undefined;
+  }
+  const objArray = asJsonObjArray(content.result);
+  if (objArray !== undefined) {
+    return { result: objArray as ToolInfo[] };
+  }
 };
 
 const LabelDiv: FC<{ label: string }> = ({ label }) => {

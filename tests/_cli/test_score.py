@@ -18,6 +18,13 @@ LOG_UNSCORED = (
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
+    "stream",
+    [
+        pytest.param(True, id="stream"),
+        pytest.param(False, id="no-stream"),
+    ],
+)
+@pytest.mark.parametrize(
     ("log_file", "action", "scorer", "expected_scores"),
     [
         pytest.param(
@@ -63,6 +70,7 @@ async def test_score(
     action: ScoreAction | None,
     scorer: tuple[str, tuple[str, ...]] | None,
     expected_scores: dict[str, dict[str, int]],
+    stream: bool,
 ):
     output_file = tmp_path / "scored.eval"
     await score(
@@ -74,6 +82,7 @@ async def test_score(
         overwrite=True,
         scorer=scorer[0] if scorer else None,
         s=scorer[1] if scorer else None,
+        stream=stream,
     )
     scored_log = await read_eval_log_async(output_file)
     assert scored_log.results is not None

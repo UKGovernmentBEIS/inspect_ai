@@ -19,9 +19,35 @@ logger = getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class EvalSetStart:
+    """Eval set start hook event data."""
+
+    eval_set_id: str
+    """The globally unique identifier for the eval set.  Note that the `eval_set_id` will be stable across multiple invocations of `eval_set()` for the same log directory
+    """
+
+    log_dir: str
+    """The log directory for the eval set."""
+
+
+@dataclass(frozen=True)
+class EvalSetEnd:
+    """Eval set end event data."""
+
+    eval_set_id: str
+    """The globally unique identifier for the eval set.  Note that the `eval_set_id` will be stable across multiple invocations of `eval_set()` for the same log directory
+    """
+
+    log_dir: str
+    """The log directory for the eval set."""
+
+
+@dataclass(frozen=True)
 class RunStart:
     """Run start hook event data."""
 
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
     task_names: list[str]
@@ -32,6 +58,8 @@ class RunStart:
 class RunEnd:
     """Run end hook event data."""
 
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
     exception: Exception | None
@@ -46,6 +74,8 @@ class RunEnd:
 class TaskStart:
     """Task start hook event data."""
 
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
     eval_id: str
@@ -58,6 +88,8 @@ class TaskStart:
 class TaskEnd:
     """Task end hook event data."""
 
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
     eval_id: str
@@ -71,6 +103,8 @@ class TaskEnd:
 class SampleStart:
     """Sample start hook event data."""
 
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
     eval_id: str
@@ -85,6 +119,8 @@ class SampleStart:
 class SampleEnd:
     """Sample end hook event data."""
 
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
     eval_id: str
@@ -139,6 +175,26 @@ class Hooks:
         expensive.
         """
         return True
+
+    async def on_eval_set_start(self, data: EvalSetStart) -> None:
+        """On eval set start.
+
+        A "eval set" is an invocation of `eval_set()` for a log directory. Note
+        that the `eval_set_id` will be stable across multiple invocations of
+        `eval_set()` for the same log directory.
+
+        Args:
+           data: Eval set start data.
+        """
+        pass
+
+    async def on_eval_set_end(self, data: EvalSetEnd) -> None:
+        """On eval set end.
+
+        Args:
+           data: Eval set end data.
+        """
+        pass
 
     async def on_run_start(self, data: RunStart) -> None:
         """On run start.
@@ -266,43 +322,85 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
     return wrapper
 
 
-async def emit_run_start(run_id: str, tasks: list[ResolvedTask]) -> None:
-    data = RunStart(run_id=run_id, task_names=[task.task.name for task in tasks])
+async def emit_eval_set_start(eval_set_id: str, log_dir: str) -> None:
+    data = EvalSetStart(eval_set_id=eval_set_id, log_dir=log_dir)
+    await _emit_to_all(lambda hook: hook.on_eval_set_start(data))
+
+
+async def emit_eval_set_end(eval_set_id: str, log_dir: str) -> None:
+    data = EvalSetEnd(eval_set_id=eval_set_id, log_dir=log_dir)
+    await _emit_to_all(lambda hook: hook.on_eval_set_end(data))
+
+
+async def emit_run_start(
+    eval_set_id: str | None, run_id: str, tasks: list[ResolvedTask]
+) -> None:
+    data = RunStart(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        task_names=[task.task.name for task in tasks],
+    )
     await _emit_to_all(lambda hook: hook.on_run_start(data))
 
 
 async def emit_run_end(
-    run_id: str, logs: EvalLogs, exception: Exception | None = None
+    eval_set_id: str | None,
+    run_id: str,
+    logs: EvalLogs,
+    exception: Exception | None = None,
 ) -> None:
-    data = RunEnd(run_id=run_id, logs=logs, exception=exception)
+    data = RunEnd(
+        eval_set_id=eval_set_id, run_id=run_id, logs=logs, exception=exception
+    )
     await _emit_to_all(lambda hook: hook.on_run_end(data))
 
 
 async def emit_task_start(logger: TaskLogger) -> None:
     data = TaskStart(
-        run_id=logger.eval.run_id, eval_id=logger.eval.eval_id, spec=logger.eval
+        eval_set_id=logger.eval.eval_set_id,
+        run_id=logger.eval.run_id,
+        eval_id=logger.eval.eval_id,
+        spec=logger.eval,
     )
     await _emit_to_all(lambda hook: hook.on_task_start(data))
 
 
 async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
-    data = TaskEnd(run_id=logger.eval.run_id, eval_id=logger.eval.eval_id, log=log)
+    data = TaskEnd(
+        eval_set_id=logger.eval.eval_set_id,
+        run_id=logger.eval.run_id,
+        eval_id=logger.eval.eval_id,
+        log=log,
+    )
     await _emit_to_all(lambda hook: hook.on_task_end(data))
 
 
 async def emit_sample_start(
-    run_id: str, eval_id: str, sample_id: str, summary: EvalSampleSummary
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    summary: EvalSampleSummary,
 ) -> None:
     data = SampleStart(
-        run_id=run_id, eval_id=eval_id, sample_id=sample_id, summary=summary
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        summary=summary,
     )
     await _emit_to_all(lambda hook: hook.on_sample_start(data))
 
 
 async def emit_sample_end(
-    run_id: str, eval_id: str, sample_id: str, sample: EvalSample
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    sample: EvalSample,
 ) -> None:
     data = SampleEnd(
+        eval_set_id=eval_set_id,
         run_id=run_id,
         eval_id=eval_id,
         sample_id=sample_id,

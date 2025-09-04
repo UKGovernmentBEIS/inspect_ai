@@ -9,7 +9,6 @@ from typing import (
     Literal,
     Sequence,
     Type,
-    TypeAlias,
     TypeVar,
     Union,
 )
@@ -512,25 +511,25 @@ class SubtaskEvent(BaseEvent):
         return dt.astimezone().isoformat()
 
 
-Event: TypeAlias = Union[
-    SampleInitEvent
-    | SampleLimitEvent
-    | SandboxEvent
-    | StateEvent
-    | StoreEvent
-    | ModelEvent
-    | ToolEvent
-    | SandboxEvent
-    | ApprovalEvent
-    | InputEvent
-    | ScoreEvent
-    | ErrorEvent
-    | LoggerEvent
-    | InfoEvent
-    | SpanBeginEvent
-    | SpanEndEvent
-    | StepEvent
-    | SubtaskEvent,
+Event = Union[
+    SampleInitEvent,
+    SampleLimitEvent,
+    SandboxEvent,
+    StateEvent,
+    StoreEvent,
+    ModelEvent,
+    ToolEvent,
+    SandboxEvent,
+    ApprovalEvent,
+    InputEvent,
+    ScoreEvent,
+    ErrorEvent,
+    LoggerEvent,
+    InfoEvent,
+    SpanBeginEvent,
+    SpanEndEvent,
+    StepEvent,
+    SubtaskEvent,
 ]
 """Event in a transcript."""
 

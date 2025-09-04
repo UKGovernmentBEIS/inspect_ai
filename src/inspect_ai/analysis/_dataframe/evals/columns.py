@@ -59,6 +59,7 @@ EvalLogPath: list[Column] = [
 """Eval log column."""
 
 EvalInfo: list[Column] = [
+    EvalColumn("eval_set_id", path="eval.eval_set_id"),
     EvalColumn("run_id", path="eval.run_id", required=True),
     EvalColumn("task_id", path="eval.task_id", required=True),
     *EvalLogPath,

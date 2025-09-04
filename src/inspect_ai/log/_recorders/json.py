@@ -23,6 +23,7 @@ from .._log import (
     EvalStats,
     sort_samples,
 )
+from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder
 
 logger = getLogger(__name__)
@@ -149,34 +150,38 @@ class JSONRecorder(FileRecorder):
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
 
-        # full reads (and fallback to streaing reads if they encounter invalid json characters)
-        with file(location, "r") as f:
-            # parse w/ pydantic
-            raw_data = from_json(f.read())
-            log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
-            log.location = location
+        # full reads (and fallback to streaming reads if they encounter invalid json characters)
+        if fs.is_s3():
+            # read content and get ETag such that they always match
+            content, etag = await _s3_read_with_etag(location, fs)
+            raw_data = from_json(content)
+        else:
+            with file(location, "r") as f:
+                raw_data = from_json(f.read())
+            etag = None
 
-            # fail for unknown version
-            _validate_version(log.version)
+        log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
+        log.location = location
+        if etag:
+            log.etag = etag
 
-            # set the version to the schema version we'll be returning
-            log.version = LOG_SCHEMA_VERSION
+        # fail for unknown version
+        _validate_version(log.version)
 
-            # prune if header_only
-            if header_only:
-                # exclude samples
-                log.samples = None
+        # set the version to the schema version we'll be returning
+        log.version = LOG_SCHEMA_VERSION
 
-                # prune sample reductions
-                if log.results is not None:
-                    log.results.sample_reductions = None
-                    log.reductions = None
+        # prune if header_only
+        if header_only:
+            # exclude samples
+            log.samples = None
 
-            if fs.is_s3():
-                file_info = fs.info(location)
-                log.etag = file_info.etag
+            # prune sample reductions
+            if log.results is not None:
+                log.results.sample_reductions = None
+                log.reductions = None
 
-            return log
+        return log
 
     @override
     @classmethod
@@ -209,8 +214,6 @@ class JSONRecorder(FileRecorder):
         """Perform S3 conditional write using aioboto3."""
         from inspect_ai.log._file import eval_log_json
 
-        from .eval import _s3_bucket_and_key, _write_s3_conditional
-
         bucket, key = _s3_bucket_and_key(location)
 
         # get log as bytes
@@ -222,6 +225,33 @@ class JSONRecorder(FileRecorder):
 def _validate_version(ver: int) -> None:
     if ver > LOG_SCHEMA_VERSION:
         raise ValueError(f"Unable to read version {ver} of log format.")
+
+
+async def _s3_read_with_etag(location: str, fs: FileSystem) -> tuple[str, str]:
+    """
+    Read S3 file content and get ETag in a single operation.
+
+    Returns:
+        (content, etag) - etag is guaranteed to match content
+    """
+    import aioboto3
+
+    bucket, key = _s3_bucket_and_key(location)
+
+    session = aioboto3.Session()
+    async with session.client(
+        "s3",
+        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
+        aws_access_key_id=fs.fs.key,
+        aws_secret_access_key=fs.fs.secret,
+        region_name=fs.fs.client_kwargs.get("region_name"),
+    ) as s3_client:
+        response = await s3_client.get_object(Bucket=bucket, Key=key)
+        content = await response["Body"].read()
+        content = content.decode("utf-8")
+        etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
+
+    return content, etag
 
 
 def _read_header_streaming(log_file: str) -> EvalLog:

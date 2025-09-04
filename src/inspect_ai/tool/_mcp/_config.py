@@ -22,7 +22,7 @@ class MCPServerConfig(BaseModel):
 class MCPServerConfigStdio(MCPServerConfig):
     """Configuration for MCP servers with stdio interface."""
 
-    type: Literal["stdio"]
+    type: Literal["stdio"] = Field(default="stdio")
     """Server type."""
 
     command: str
@@ -55,7 +55,7 @@ class MCPServerConfigHTTP(MCPServerConfig):
         if self.headers and "Authorization" in self.headers:
             authorization = str(self.headers["Authorization"])
             authorization = (
-                authorization[:7]
+                authorization[7:]
                 if authorization.upper().startswith("BEARER ")
                 else authorization
             )
