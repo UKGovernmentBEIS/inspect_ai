@@ -7,6 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+from inspect_ai.model._model import GenerateFilter
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
@@ -26,6 +27,7 @@ async def sandbox_agent_bridge(
     state: AgentState | None = None,
     *,
     model: str | None = None,
+    filter: GenerateFilter | None = None,
     sandbox: SandboxEnvironment | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
@@ -46,6 +48,7 @@ async def sandbox_agent_bridge(
         model: Force the bridge to use a speicifc model (e.g. "inspect" to force the
            the default model for the task or "inspect/openai/gpt-4o" to force
            another specific model).
+        filter: Filter for bridge model generation.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         web_search: Configuration for mapping model internal
@@ -73,7 +76,9 @@ async def sandbox_agent_bridge(
             started = anyio.Event()
 
             # create the bridge
-            bridge = SandboxAgentBridge(state=state, port=port, model=model)
+            bridge = SandboxAgentBridge(
+                state=state, filter=filter, port=port, model=model
+            )
 
             # sandbox service that receives model requests
             tg.start_soon(

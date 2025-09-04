@@ -45,6 +45,7 @@ from ._generate_config import (
     ResponseSchema,
 )
 from ._model import (
+    GenerateFilter,
     Model,
     ModelAPI,
     ModelName,
@@ -70,6 +71,7 @@ __all__ = [
     "BatchConfig",
     "GenerateConfig",
     "GenerateConfigArgs",
+    "GenerateFilter",
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",

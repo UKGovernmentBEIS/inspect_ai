@@ -126,7 +126,12 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 
-from .util import apply_message_ids, resolve_generate_config, resolve_inspect_model
+from .util import (
+    apply_message_ids,
+    bridge_generate,
+    resolve_generate_config,
+    resolve_inspect_model,
+)
 
 logger = getLogger(__file__)
 
@@ -172,13 +177,8 @@ async def inspect_responses_api_request_impl(
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
-    # run inference
-    output = await model.generate(
-        input=messages,
-        tool_choice=tool_choice,
-        tools=tools,
-        config=config,
-    )
+    # if there is a bridge filter give it a shot first
+    output = await bridge_generate(bridge, model, messages, tools, tool_choice, config)
 
     debug_log("INSPECT OUTPUT", output.message)
 

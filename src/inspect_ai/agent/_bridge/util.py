@@ -1,13 +1,46 @@
-from typing import cast
+from typing import Sequence, cast
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import Model, active_model, get_model, model_roles
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+
+
+async def bridge_generate(
+    bridge: AgentBridge,
+    model: Model,
+    input: list[ChatMessage],
+    tools: Sequence[ToolInfo | Tool],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> ModelOutput:
+    output: ModelOutput | None = None
+    if bridge.filter:
+        tool_info = [
+            parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
+            for tool in tools
+        ]
+        output = await bridge.filter(input, tool_info, tool_choice, config)
+
+    # if the filter didn't take it then run normal inference
+    if output is None:
+        output = await model.generate(
+            input=input,
+            tool_choice=tool_choice,
+            tools=tools,
+            config=config,
+        )
+
+    # return output
+    return output
 
 
 def resolve_generate_config(

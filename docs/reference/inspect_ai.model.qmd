@@ -8,6 +8,7 @@ title: "inspect_ai.model"
 ### Model
 ### GenerateConfig
 ### GenerateConfigArgs
+### GenerateFilter
 ### BatchConfig
 ### ResponseSchema
 ### ModelOutput
