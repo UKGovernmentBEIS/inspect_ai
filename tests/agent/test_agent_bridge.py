@@ -13,7 +13,7 @@ from inspect_ai._util.content import ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai import (
@@ -24,6 +24,7 @@ from inspect_ai.model._openai_responses import _tool_param_for_tool_info
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer import includes
 from inspect_ai.solver import solver
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._json import json_schema
@@ -97,6 +98,32 @@ def check_openai_responses_log_json(log_json: str, tools: bool):
     if tools:
         assert r'"name": "testing_tool"' in log_json
         assert r'"tool_choice": "auto"' in log_json
+
+
+BRIDGE_FILTER_RESPONSE = "5D1B6E79-C657-4C36-AC38-2032654D3879"
+
+
+@agent
+def bridge_filter_agent() -> Agent:
+    async def filter(
+        model: str,
+        message: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return ModelOutput.from_content(model, BRIDGE_FILTER_RESPONSE)
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state, filter=filter) as bridge:
+            client = AsyncOpenAI()
+            await client.chat.completions.create(
+                model="inspect",
+                messages=await messages_to_openai(state.messages),
+            )
+            return bridge.state
+
+    return execute
 
 
 @agent
@@ -335,6 +362,12 @@ def check_openai_log_json(log_json: str, tools: bool):
         assert r'"top_logprobs": 3' in log_json
     assert r'"response_schema"' in log_json
     assert r'"logprobs"' in log_json
+
+
+@skip_if_no_openai
+def test_bridge_filter():
+    log_json = eval_bridged_task("openai/gpt-4o", agent=bridge_filter_agent())
+    assert BRIDGE_FILTER_RESPONSE in log_json
 
 
 @skip_if_no_openai

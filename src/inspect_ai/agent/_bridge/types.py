@@ -7,17 +7,25 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._model import GenerateFilter
 
 
 class AgentBridge:
     """Agent bridge."""
 
-    def __init__(self, state: AgentState) -> None:
+    def __init__(self, state: AgentState, filter: GenerateFilter | None = None) -> None:
         self.state = state
+        self.filter = filter
         self._message_ids = {}
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
+
+    filter: GenerateFilter | None
+    """Filter for bridge model generation.
+
+    A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
+    """
 
     def _id_for_message(
         self, message: ChatMessage, conversation: list[ChatMessage]
