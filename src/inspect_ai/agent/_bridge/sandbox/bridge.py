@@ -72,7 +72,7 @@ async def sandbox_agent_bridge(
     web_search = web_search or internal_web_search_providers()
 
     # create a state value that will be used to track mesages going over the bridge
-    state = AgentState(messages=state.messages.copy() if state else [])
+    state = state or AgentState(messages=[])
 
     try:
         async with anyio.create_task_group() as tg:
@@ -120,7 +120,7 @@ async def run_model_proxy(
         )
 
     # run the model proxy script
-    result = await sandbox.exec([MODEL_PROXY_PY, str(port)])
+    result = await sandbox.exec([MODEL_PROXY_PY, str(port)], concurrency=False)
     if not result.success:
         raise RuntimeError(
             f"Error running model proxy script for agent bridge: {result.stderr}"

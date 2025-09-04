@@ -153,7 +153,7 @@ def responses_web_search_agent() -> Agent:
                 model="inspect",
                 tools=[
                     {
-                        "type": "web_search_preview",
+                        "type": "web_search",
                         "search_context_size": "low",
                     }
                 ],

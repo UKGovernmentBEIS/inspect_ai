@@ -304,10 +304,21 @@ class SandboxService:
 
         # all clear, call the method
         else:
+            from inspect_ai.log._samples import sample_active
+            from inspect_ai.util._limit import LimitExceededError
+
             try:
                 params = cast(dict[str, JsonValue], request_data.get(PARAMS))
-                method = self._methods[method_name]
-                await write_response(await method(**params))
+                try:
+                    method = self._methods[method_name]
+                    await write_response(await method(**params))
+                except LimitExceededError as ex:
+                    active = sample_active()
+                    if active is not None:
+                        active.limit_exceeded(ex)
+                    await write_error_response(
+                        f"Limit exceeded calling method {method_name}: {ex.message}"
+                    )
             except Exception as err:
                 await write_error_response(f"Error calling method {method_name}: {err}")
 
@@ -330,7 +341,7 @@ class SandboxService:
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
         try:
             return await self._sandbox.exec(
-                cmd, user=self._user, input=input, timeout=30
+                cmd, user=self._user, input=input, timeout=30, concurrency=False
             )
         except TimeoutError:
             raise RuntimeError(
@@ -411,7 +422,7 @@ async def validate_sandbox_python(
     service_name: str, sandbox: SandboxEnvironment, user: str | None = None
 ) -> None:
     # validate python in sandbox
-    result = await sandbox.exec(["which", "python3"], user=user)
+    result = await sandbox.exec(["which", "python3"], user=user, concurrency=False)
     if not result.success:
         raise PrerequisiteError(
             f"The {service_name} requires that Python be installed in the sandbox."

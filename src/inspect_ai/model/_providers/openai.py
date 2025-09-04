@@ -230,6 +230,13 @@ class OpenAIAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
+    def has_reasoning_options(self) -> bool:
+        return (
+            (self.is_o_series() and not self.is_o1_early())
+            or self.is_gpt_5()
+            or self.is_codex()
+        )
+
     def is_o_series(self) -> bool:
         name = self.service_model_name()
         if bool(re.match(r"^o\d+", name)):
@@ -331,7 +338,7 @@ class OpenAIAPI(ModelAPI):
                 prompt_cache_key=self.prompt_cache_key,
                 safety_identifier=self.safety_identifier,
                 responses_store=self.responses_store,
-                openai_api=self,
+                model_info=self,
                 batcher=self._responses_batcher,
             )
             if use_responses
