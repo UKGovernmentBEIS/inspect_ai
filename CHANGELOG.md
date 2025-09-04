@@ -4,7 +4,7 @@
 - OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
 - Eval Set: Add `eval_set_id` to log file (unique id for eval set across invocations for the same `log_dir`).
 - Hooks: New `EvalSetStart` and `EvalSetEnd` hook methods.
-- `inspect score` supports streaming using the `--stream` argument.
+- Scoring: `inspect score` now supports streaming via the `--stream` argument.
 - Inspect View: Starting the view server with a path to a specific log file will automatically open that log file (if it exists) rather than showing the log list.
 - Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.
 
