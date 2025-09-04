@@ -2,6 +2,7 @@
 
 - Agent Bridge: Option to force the sandbox agent bridge to use a specific model.
 - Agent Bridge: Ensure that Anthropic can't yield an empty system parameter.
+- Agent Bridge: Increase polling interval for sandbox agent bridge to 2 seconds (was 0.2 seconds).
 - OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
 - Eval Set: Add `eval_set_id` to log file (unique id for eval set across invocations for the same `log_dir`).
 - Hooks: New `EvalSetStart` and `EvalSetEnd` hook methods.
