@@ -184,19 +184,30 @@ class EvalRecorder(FileRecorder):
         # and then read it from a temp file (eliminates the possiblity of hundreds
         # of small fetches from the zip file streams)
         temp_log: str | None = None
+        etag: str | None = None
         fs = filesystem(location)
+
         if not fs.is_local() and header_only is False:
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 temp_log = temp.name
-                fs.get_file(location, temp_log)
+                if fs.is_s3():
+                    # download file and get ETag so it matches the content
+                    etag = await _s3_download_with_etag(location, temp_log, fs)
+                else:
+                    fs.get_file(location, temp_log)
 
         # read log (use temp_log if we have it)
         try:
             with file(temp_log or location, "rb") as z:
                 log = _read_log(z, location, header_only)
 
-                if fs.is_s3():
+                if etag is not None:
+                    log.etag = etag
+                elif fs.is_s3() and header_only:
                     file_info = fs.info(location)
+                    # if the file is modified in S3 at this point, the ETag will be incorrect
+                    # this is challenging to fix
+                    # but this should be ok because the ETag is for conditional writes, and only the entire log gets written back
                     log.etag = file_info.etag
 
                 return log
@@ -335,6 +346,37 @@ async def _s3_conditional_put_object(
             Body=body,
             IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
         )
+
+
+async def _s3_download_with_etag(
+    location: str, local_path: str, fs: FileSystem
+) -> str | None:
+    """
+    Download S3 file and get its ETag in a single operation.
+
+    Returns:
+        ETag of the downloaded file (guaranteed to match the downloaded content)
+    """
+    import aioboto3
+
+    bucket, key = _s3_bucket_and_key(location)
+
+    session = aioboto3.Session()
+    async with session.client(
+        "s3",
+        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
+        aws_access_key_id=fs.fs.key,
+        aws_secret_access_key=fs.fs.secret,
+        region_name=fs.fs.client_kwargs.get("region_name"),
+    ) as s3_client:
+        response = await s3_client.get_object(Bucket=bucket, Key=key)
+
+        content = await response["Body"].read()
+        with open(local_path, "wb") as f:
+            f.write(content)
+
+        etag: str = response["ETag"]
+        return etag.strip('"')  # S3 returns ETag with quotes
 
 
 async def _write_s3_conditional(
