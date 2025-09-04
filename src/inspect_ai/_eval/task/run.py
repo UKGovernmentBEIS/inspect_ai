@@ -861,7 +861,6 @@ async def task_run_sample(
                                         score_result = await scorer(
                                             state, Target(sample.target)
                                         )
-
                                         if scorer_name in state.scores:
                                             raise RuntimeError(
                                                 f"Scorer {scorer_name} has modified state.scores"
@@ -875,13 +874,12 @@ async def task_run_sample(
                                             )
                                         )
 
-                                        sample_score = SampleScore(
+                                        results[scorer_name] = SampleScore(
                                             score=score_result,
                                             sample_id=sample.id,
                                             sample_metadata=sample.metadata,
                                             scorer=registry_unqualified_name(scorer),
                                         )
-                                        results[scorer_name] = sample_score
 
                                 for name in solver_score_names:
                                     score = state.scores[name]
