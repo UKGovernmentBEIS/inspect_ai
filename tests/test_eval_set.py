@@ -91,6 +91,9 @@ def test_eval_set_dynamic() -> None:
         )
         assert len(logs) == 4
         assert success
+        eval_set_ids = [log.eval.eval_set_id for log in logs]
+        assert eval_set_ids[0] is not None
+        assert len(set(eval_set_ids)) == 1
 
 
 def test_eval_set_identifiers() -> None:

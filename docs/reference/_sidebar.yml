@@ -678,6 +678,10 @@ website:
           href: reference/inspect_ai.hooks.qmd#apikeyoverride
         - text: ModelUsageData
           href: reference/inspect_ai.hooks.qmd#modelusagedata
+        - text: EvalSetStart
+          href: reference/inspect_ai.hooks.qmd#evalsetstart
+        - text: EvalSetEnd
+          href: reference/inspect_ai.hooks.qmd#evalsetend
         - text: RunEnd
           href: reference/inspect_ai.hooks.qmd#runend
         - text: RunStart
