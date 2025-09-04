@@ -17,7 +17,6 @@ from s3fs import S3FileSystem  # type: ignore
 from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import (
-    basename,
     default_fs_options,
     dirname,
     filesystem,
