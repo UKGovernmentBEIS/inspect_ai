@@ -18,6 +18,18 @@ CONTAINER USAGE:
 Called by build_within_container.py inside Docker containers with the repository
 mounted at /inspect_ai. Handles the container-specific workflow of copying source
 to /tmp and installing the package before building.
+
+DIRECTORY STRUCTURE REQUIREMENTS:
+This script expects to run in a Docker container with the following volume mount:
+- inspect_ai repository root mounted at: /inspect_ai
+
+Temporary directories used during build:
+- Working copy: /tmp/inspect_tool_support-copy (source copied here to avoid mutation)
+- PyInstaller output: /tmp/inspect_tool_support-copy/dist/ (temporary staging)
+
+BUILD OUTPUT:
+Final executable is always placed at: /inspect_ai/src/inspect_ai/binaries/<filename>
+This ensures the built executable persists back to the host system via the volume mount.
 """
 
 import argparse
@@ -80,12 +92,7 @@ def main() -> None:
     print(f"Using entry point: {entrypoint}")
 
     # Determine output directory and path
-    # Check if we're in a container environment
-    container_output = Path("/inspect_ai/src/inspect_ai/binaries")
-    if container_output.exists():
-        output_dir = container_output
-    else:
-        output_dir = SCRIPT_DIR / "dist"
+    output_dir = Path("/inspect_ai/src/inspect_ai/binaries")
 
     output_path = output_dir / executable_name
     output_dir.mkdir(parents=True, exist_ok=True)
