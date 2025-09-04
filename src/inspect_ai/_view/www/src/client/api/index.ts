@@ -35,12 +35,12 @@ const resolveApi = (): ClientAPI => {
     const urlParams = new URLSearchParams(window.location.search);
     const log_file = urlParams.get("log_file");
     const log_dir = urlParams.get("log_dir");
-    const forceBrowserApi = urlParams.get("inspect_server") === "true";
+    const forceViewServerApi = urlParams.get("inspect_server") === "true";
 
     const resolved_log_dir = log_dir ?? undefined;
     const resolved_log_file = log_file ?? undefined;
 
-    if (forceBrowserApi) {
+    if (forceViewServerApi) {
       return clientApi(
         createViewServerApi({ log_dir: resolved_log_dir }),
         resolved_log_file,
