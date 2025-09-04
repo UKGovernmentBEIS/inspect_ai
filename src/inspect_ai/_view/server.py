@@ -45,9 +45,33 @@ def view_server(
 
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
-    if not fs.exists(log_dir):
-        fs.mkdir(log_dir, True)
-    log_dir = fs.info(log_dir).name
+    scheme = (log_dir.split("://", 1)[0].lower() if "://" in log_dir else "")
+        try:
+            # For Azure schemes we avoid container property probes (which may require
+            # permissions the principal doesn't have even if blob listing is allowed).
+            if scheme in {"az", "abfs", "abfss"}:
+                # If INSPECT_AZURE_DEBUG set, attempt an existence check & report
+                if os.getenv("INSPECT_AZURE_DEBUG"):
+                    try:
+                        fs_exists = fs.exists(log_dir)
+                        display().print(f"[azure-debug] exists({log_dir}) -> {fs_exists}")
+                    except Exception as dex:  # noqa: BLE001
+                        display().print(f"[azure-debug] exists() raised: {dex}")
+                # Don't call fs.info(); keep original URI (fsspec paths acceptable downstream)
+            # TODO: handle other cloud providers similarly to catch for existence errors
+            else:
+                if not fs.exists(log_dir):
+                    fs.mkdir(log_dir, True)
+                log_dir = fs.info(log_dir).name
+        except Exception as ex:  # broad catch to provide actionable guidance
+            if scheme in {"az", "abfs", "abfss"}:
+                hint = (
+                    "Azure storage authentication failed. Try: (a) 'az login' or ensure role assignment (Storage Blob Data Reader/Contributor), "
+                    "or (b) supply SAS via AZURE_STORAGE_SAS_TOKEN. If using az:// ensure AZURE_STORAGE_ACCOUNT_NAME is set. Original error: "
+                    + str(ex)
+                )
+                raise RuntimeError(hint) from ex
+            raise
 
     # validate log file requests (must be in the log_dir
     # unless authorization has been provided)
@@ -257,13 +281,21 @@ def normalize_uri(uri: str) -> str:
 
 
 def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
+    # Cleanly handle path names, TODO: add support for other cloud providers with multiple access points
+    def normalize_name(name: str) -> str:
+        if log_dir.startswith("az://") and name.startswith(("abfs://", "abfss://")):
+            # Convert abfs[s]://container/path -> az://container/path
+            without_scheme = name.split("://", 1)[1]
+            return f"az://{without_scheme}"
+        return name
+
     response = dict(
         log_dir=aliased_path(log_dir),
         files=[
             dict(
-                name=log.name,
+                name=normalize_name(log.name),
                 size=log.size,
-                mtime=log.mtime,
+                mtime=log.mtime if log.mtime is not None else 0,
                 task=log.task,
                 task_id=log.task_id,
             )
@@ -424,8 +456,36 @@ async def list_eval_logs_async(
                 # list logs
                 if recursive:
                     files: list[dict[str, Any]] = []
-                    async for _, _, filenames in async_fs._walk(log_dir, detail=True):
-                        files.extend(filenames.values())
+                    try:
+                        # Preferred path (providers that accept detail)
+                        async for _, _, filenames in async_fs._walk(
+                            log_dir, detail=True
+                        ):
+                            files.extend(filenames.values())
+                    except TypeError:
+                        # Fallback for providers (e.g. AzureBlobFileSystem) whose
+                        # _walk does not accept 'detail'. Implement manual walk.
+                        stack: list[str] = [log_dir]
+                        seen: set[str] = set()
+                        while stack:
+                            current = stack.pop()
+                            try:
+                                entries = await async_fs._ls(current, detail=True)
+                            except Exception:
+                                continue
+                            for entry in entries:
+                                name = entry.get("name") or entry.get("path")
+                                if not name:
+                                    continue
+                                files.append(entry)
+                                # Heuristic: treat 'directory' or zero-size with trailing slash as dir
+                                entry_type = entry.get("type")
+                                if (
+                                    entry_type == "directory"
+                                    or name.endswith("/")
+                                ) and name not in seen:
+                                    seen.add(name)
+                                    stack.append(name)
                 else:
                     files = cast(
                         list[dict[str, Any]],

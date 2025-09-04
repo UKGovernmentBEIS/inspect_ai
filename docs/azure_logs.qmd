@@ -1,0 +1,140 @@
+---
+title: "Azure Log Storage"
+listing: hidden
+---
+
+# Azure Blob Storage for Inspect Logs
+
+This guide shows how to back Inspect logs with Azure Blob Storage and host the `inspect view` UI in Azure.
+
+## 1. Install Azure Dependencies
+
+`adlfs` is required for Azure Blob / Data Lake access (installed automatically with the `dev` extra):
+
+```
+pip install inspect_ai[dev]
+```
+
+For a minimal runtime image you can add only `adlfs`:
+
+```
+pip install adlfs
+```
+
+## 2. Choose a URI Scheme
+
+Supported schemes (all via `fsspec`):
+
+- `az://container/path` (short form)
+- `abfs://container@account.dfs.core.windows.net/path` (Data Lake Gen2)
+- `abfss://` (secure / TLS explicit form)
+
+Example:
+
+```
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs
+```
+
+::: {.callout-note}
+When using the short `az://` form you MUST also provide the storage account name separately via `AZURE_STORAGE_ACCOUNT_NAME` (or `AZURE_ACCOUNT_NAME`). Without it `adlfs` cannot resolve the endpoint and will raise: `Must provide either a connection_string or account_name with credentials`.
+:::
+
+Or:
+
+```
+INSPECT_LOG_DIR=abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs
+```
+
+## 3. Authentication (Secure-First)
+
+Recommended: **Managed Identity / DefaultAzureCredential**. Assign a system- or user-assigned managed identity to your compute (App Service, Container Apps, VM, AKS) and grant it *Storage Blob Data Contributor* (write) or *Reader* (read-only). Do **not** set any secret env vars—`adlfs` will use managed identity automatically via `DefaultAzureCredential` when no explicit credentials are provided.
+
+Set only:
+
+```
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs
+# (Optional) AZURE_STORAGE_ACCOUNT_NAME=myaccount
+```
+
+If you omit `AZURE_STORAGE_ACCOUNT_NAME` while using the `az://` scheme you will see a connection error. Either set the env var or switch to a fully-qualified `abfss://mycontainer@myaccount.dfs.core.windows.net/...` URI which embeds the account name.
+
+If managed identity is not available, fallback precedence is: **SAS Token > Account Key > Connection String**.
+
+```
+AZURE_STORAGE_ACCOUNT_NAME=myaccount
+# SAS (scoped & time-bound; omit leading '?')
+AZURE_STORAGE_SAS_TOKEN=sv=2024-...
+# Account key (broad; avoid for production)
+# AZURE_STORAGE_ACCOUNT_KEY=xxxxxxxxxxxxxxxx
+# Connection string (legacy)
+# AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=...;AccountKey=...
+```
+
+## 4. Run Evaluations
+
+```
+inspect eval popularity.py --model openai/gpt-4
+inspect eval security_guide.py --model openai/gpt-4
+```
+
+## 5. Launch Local Viewer
+
+```
+inspect view --log-dir az://mycontainer/inspect-logs
+```
+
+The server streams index + log files directly from Azure without local sync.
+
+## 6. Container Deployment (Azure App Service or Container Apps)
+
+1. Build an image containing Inspect (or use your existing one):
+   ```
+   docker build -t myregistry.azurecr.io/inspect-view:latest -f Dockerfile .
+   docker push myregistry.azurecr.io/inspect-view:latest
+   ```
+2. Create a Storage Account + Blob container (enable hierarchical namespace if you want Data Lake URIs).
+3. Deploy the container:
+   - App Service: set container image + enable HTTP port 7575 (or map to 80)
+   - Container Apps: expose external ingress port 7575
+4. Configure environment variables in the service:
+   - `INSPECT_LOG_DIR` (e.g. `az://mycontainer/inspect-logs`)
+   - `AZURE_STORAGE_ACCOUNT_NAME`
+   - One credential variable (SAS/Key/Connection String) or rely on managed identity
+5. (Optional) Add `INSPECT_VIEW_AUTHORIZATION=<shared-secret>` to require an auth header (then run `inspect view --authorization $INSPECT_VIEW_AUTHORIZATION`).
+
+Ingress example (App Service) to map port 7575 -> 80:
+
+```
+WEBSITES_PORT=7575
+```
+
+## 7. Updating Logs in Real Time
+
+`inspect eval` writes directly to Azure; `inspect view` lists recursively and will show new evaluations automatically (client uses `/api/events`). No extra sync layer needed.
+
+## 8. Troubleshooting
+
+- 403 errors: ensure the credential has Blob Data Reader/Contributor role.
+- Listing returns empty: verify container name and that URI path casing matches storage container (lowercase recommended).
+- Slow listings with very large containers: partition logs by date prefix, e.g. `az://mycontainer/inspect-logs/2025/09/04/` and rotate `INSPECT_LOG_DIR` per batch.
+
+## 9. Migration from Local or S3
+
+You can copy existing logs using `azcopy` or `fsspec` script:
+
+```python
+import fsspec
+local = fsspec.filesystem('file')
+azure = fsspec.filesystem('az')
+for path in local.glob('logs/*.eval'):
+    with local.open(path, 'rb') as src, azure.open(f"az://mycontainer/inspect-logs/{path.split('/')[-1]}", 'wb') as dst:
+        dst.write(src.read())
+```
+
+Once uploaded, point `INSPECT_LOG_DIR` to the Azure location.
+
+## 10. Security Notes
+
+Prefer SAS tokens with limited permissions and expiration. Rotate tokens regularly. For production, managed identity + RBAC is recommended to avoid embedding secrets.
+
+---

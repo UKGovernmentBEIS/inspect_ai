@@ -232,14 +232,34 @@ class FileSystem:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
     def is_writeable(self, path: str) -> bool:
+        path = path.rstrip("/\\")
+        touch_file = f"{path}{self.fs.sep}{uuid()}"
+        # First, attempt to create a zero-byte blob/file. If this fails outright we are not writeable.
         try:
-            path = path.rstrip("/\\")
-            touch_file = f"{path}{self.fs.sep}{uuid()}"
             self.touch(touch_file)
-            self.rm(touch_file)
-            return True
         except PermissionError:
             return False
+        except Exception:
+            # Any other failure creating the file indicates non-writeable.
+            return False
+
+        # Attempt to remove the test blob. Some Azure credentials (e.g. SAS without 'd' delete
+        # permission or managed identity with only Data Writer) can create but not delete. Treat
+        # that as writeable (we'll leave behind a tiny marker file that can be GC'd later).
+        try:
+            self.rm(touch_file)
+        except Exception as ex:
+            msg = str(ex)
+            if (
+                "AuthorizationPermissionMismatch" in msg
+                or "not authorized" in msg.lower()
+                or "This request is not authorized" in msg
+            ):
+                return True
+            # Fallback: if delete failed for some other reason, report non-writeable
+            return False
+
+        return True
 
     def is_async(self) -> bool:
         return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
@@ -268,8 +288,11 @@ class FileSystem:
             ).timestamp()
         # if we don't yet have an mtime key then fetch created explicitly
         # note: S3 doesn't give you a directory modification time
-        if "mtime" not in file.keys() and file["type"] == "file":
-            file["mtime"] = self.fs.created(file).timestamp()
+        if "mtime" not in file.keys() and file["type"] == "file" and hasattr(self.fs, "created"):
+            try:
+                file["mtime"] = self.fs.created(file["name"]).timestamp()
+            except Exception:
+                pass
 
         # adjust mtime to be milliseconds
         if "mtime" in file.keys():
@@ -354,6 +377,44 @@ def default_fs_options(file: str) -> dict[str, Any]:
         )
 
     options = deepcopy(DEFAULT_FS_OPTIONS.get(scheme, {}))
+    # Azure Blob / DataLake (adlfs) credential injection (lazy so dependency is optional)
+    if scheme in {"az", "abfs", "abfss"}:
+        account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME") or os.getenv(
+            "AZURE_ACCOUNT_NAME"
+        )
+        if account_name:
+            options.setdefault("account_name", account_name)
+
+        # Auth resolution order (secure-first):
+        # 1. Managed identity / DefaultAzureCredential (implicit if no explicit secret vars set)
+        # 2. SAS token (scoped, time-bound)
+        # 3. Account key (broad access)
+        # 4. Connection string (legacy / broad)
+
+        # Detect explicit secret usage to know whether to construct credential parameter.
+        sas_token = os.getenv("AZURE_STORAGE_SAS_TOKEN") or os.getenv(
+            "AZURE_SAS_TOKEN"
+        )
+        account_key = os.getenv("AZURE_STORAGE_ACCOUNT_KEY") or os.getenv(
+            "AZURE_ACCOUNT_KEY"
+        )
+        connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+
+        if sas_token:
+            options.setdefault("credential", sas_token.lstrip("?"))
+        elif account_key:
+            options.setdefault("credential", account_key)
+        elif connection_string:
+            options.setdefault("connection_string", connection_string)
+        else:
+            # No explicit secret credentials supplied. We intentionally do NOT set a
+            # credential option here so that adlfs will internally invoke
+            # DefaultAzureCredential (supporting managed identity, workload ID, etc.).
+            pass
+
+        # disable caching explicitly (mirrors S3 behavior)
+        options.setdefault("use_listings_cache", False)
+        options.setdefault("skip_instance_cache", False)
     # disable caching for all filesystems
     options.update(
         dict(
@@ -434,4 +495,8 @@ def safe_filename(s: str, max_length: int = 255) -> str:
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
     # disable all S3 native caching
     s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False)
+    # Azure schemes (credentials resolved dynamically in default_fs_options)
+    az=dict(),
+    abfs=dict(),
+    abfss=dict(),
 )

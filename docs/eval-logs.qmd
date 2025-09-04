@@ -52,6 +52,7 @@ If you are running in VS Code, then you should restart terminals and notebooks u
 :::
 
 See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
+See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
 
 ## Log Format {#sec-log-format}
 
@@ -300,6 +301,54 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
+### Azure Blob Storage {#sec-azure}
+
+You can store evaluation logs in Azure Blob Storage using any Azure-compatible fsspec scheme (`az://`, `abfs://`, or `abfss://`). Inspect relies on `fsspec` + `adlfs`, so no code changes are needed beyond installing the Azure dependency.
+
+```
+pip install inspect_ai[dev]  # installs adlfs
+```
+
+**Recommended (Managed Identity / Workload Identity)**
+
+If running in Azure (App Service, Container Apps, VM, AKS) with a managed identity assigned and granted *Storage Blob Data Contributor* (or Reader for read‑only), do **not** set any secret environment variables. The absence of explicit secrets allows `adlfs` to fall back to `DefaultAzureCredential` and use the managed identity securely.
+
+Set only the log directory (and optionally the account name for short `az://` URIs):
+
+```
+AZURE_STORAGE_ACCOUNT_NAME=myaccount   # optional for abfs*/fully-qualified URIs
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs
+```
+
+Or with a fully-qualified Data Lake (hierarchical namespace) URI:
+
+```
+INSPECT_LOG_DIR=abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs
+```
+
+**Fallback Credential Options (when managed identity is unavailable)**
+
+Order of precedence: *SAS Token* > *Account Key* > *Connection String*.
+
+```
+AZURE_STORAGE_ACCOUNT_NAME=myaccount
+# SAS token (scoped, time-bound; omit leading '?')
+AZURE_STORAGE_SAS_TOKEN=sv=2024-...&ss=bfqt&srt=...
+# Account key (broad permissions; avoid in production)
+# AZURE_STORAGE_ACCOUNT_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+# Connection string (legacy, broad)
+# AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=...;AccountKey=...;
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs
+```
+
+**Running Evaluations & Viewer**
+
+```
+inspect eval popularity.py --model openai/gpt-4
+inspect view  # streams directly from Azure
+```
+
+Use `--fs-option key=value` to pass extra `adlfs` options if required (e.g. tuning timeouts). For web deployment (App Service / Container Apps), just replicate the same environment variable setup; managed identity remains the most secure pattern.
 
 ## Log File Name
 
