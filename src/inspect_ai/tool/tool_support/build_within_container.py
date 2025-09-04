@@ -140,8 +140,9 @@ def run_docker_container(
         "/inspect_ai",
         image_name,
         "python3",
+        # TODO: Keep build_v2 and build_executable are swappable while in development
         "./src/inspect_ai/tool/tool_support/build_v2.py",
-        "src/inspect_tool_support/src/inspect_tool_support/_cli/main.py",
+        # "./src/inspect_ai/tool/tool_support/build_executable.py",
         filename,
     ]
 

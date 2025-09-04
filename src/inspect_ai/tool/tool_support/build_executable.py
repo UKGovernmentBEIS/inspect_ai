@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 else:
     from _tool_support_build_config import filename_to_config
 
+# Entry point for the tool support executable
+ENTRY_POINT = "src/inspect_tool_support/src/inspect_tool_support/_cli/main.py"
+
 
 def main() -> None:
     # Parse command line arguments
@@ -22,12 +25,13 @@ def main() -> None:
         description="Build portable inspect-tool-support executable"
     )
     parser.add_argument(
-        "entry_point",
-        help="Path to main.py entry point (relative to current directory or absolute)",
-    )
-    parser.add_argument(
         "output_filename",
         help="Executable filename (e.g., 'inspect-tool-support-amd64-v667-dev')",
+    )
+    parser.add_argument(
+        "--no-staticx",
+        action="store_true",
+        help="Skip staticx processing (reduces portability but faster build)",
     )
 
     args = parser.parse_args()
@@ -37,9 +41,29 @@ def main() -> None:
 
     print(f"\nBuilding portable executable for {executable_name}...\n")
 
+    # Determine entry point (resolve relative to current working directory)
+    entrypoint = Path(ENTRY_POINT)
+    if not entrypoint.is_absolute():
+        entrypoint = Path.cwd() / entrypoint
+    entrypoint = entrypoint.resolve()  # Convert to absolute path
+
+    print(f"Using entry point: {entrypoint}")
+
+    # Determine output directory and path
+    # Check if we're in a container environment
+    container_output = Path("/inspect_ai/src/inspect_ai/binaries")
+    if container_output.exists():
+        output_dir = container_output
+    else:
+        output_dir = Path.cwd() / "dist"
+
+    output_path = output_dir / executable_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Output will be: {output_path}")
+
     # Copy source and setup
     repo_dir = Path("/inspect_ai")
-    output_path = Path(f"{repo_dir}/src/inspect_ai/binaries/{executable_name}")
     source_dir = Path(f"{repo_dir}/src/inspect_tool_support")
     copy_dir = Path("/tmp/inspect_tool_support-copy")
     if copy_dir.exists():
@@ -94,21 +118,27 @@ def main() -> None:
             "pdb",
             "--name",
             executable_name,
-            args.entry_point,
+            str(entrypoint),
         ]
         subprocess.run(pyinstaller_cmd, check=True)
 
-        # Create statically linked executable
-        print(
-            "Creating statically linked executable (eliminating system dependencies)..."
-        )
-        staticx_cmd = [
-            "staticx",
-            "--strip",
-            f"dist/{executable_name}",
-            str(output_path),
-        ]
-        subprocess.run(staticx_cmd, check=True)
+        # Create statically linked executable (or skip if requested)
+        if not args.no_staticx:
+            print(
+                "Creating statically linked executable (eliminating system dependencies)..."
+            )
+            staticx_cmd = [
+                "staticx",
+                "--strip",
+                f"dist/{executable_name}",
+                str(output_path),
+            ]
+            subprocess.run(staticx_cmd, check=True)
+        else:
+            print("Skipping staticx")
+            temp_output = Path(f"dist/{executable_name}")
+            if temp_output != output_path:
+                temp_output.rename(output_path)
 
         # Make executable
         print("Making executable...")

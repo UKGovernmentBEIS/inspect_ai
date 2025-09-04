@@ -21,27 +21,31 @@ if TYPE_CHECKING:
     from inspect_ai.tool.tool_support._playwright_support import (
         stage_playwright_dependencies,
     )
-    from inspect_ai.tool.tool_support._tool_support_build_config import BuildConfig
+    from inspect_ai.tool.tool_support._tool_support_build_config import (
+        BuildConfig,
+        filename_to_config,
+    )
 else:
     from _playwright_support import stage_playwright_dependencies
-    from _tool_support_build_config import BuildConfig
+    from _tool_support_build_config import BuildConfig, filename_to_config
 
 
-def build(
+def build_executable(
     entrypoint: Path,
     output_path: Path,
-    build_config: BuildConfig,
+    output_filename: str,
     build_working_dir: Path,
-    apply_staticx: bool = True,
+    no_staticx: bool,
 ) -> None:
     """
     Build a portable executable using PyInstaller with optional browser support.
 
     WORKFLOW:
-    1. Stage browser dependencies if browser support is enabled (via playwright_support)
-    2. Execute PyInstaller to bundle Python application and all dependencies
-    3. Optionally apply StaticX for maximum cross-distribution portability
-    4. Verify the final executable and display compatibility information
+    1. Verify PyInstaller is available
+    2. Stage browser dependencies if browser support is enabled (via playwright_support)
+    3. Execute PyInstaller to bundle Python application and all dependencies
+    4. Optionally apply StaticX for maximum cross-distribution portability
+    5. Verify the final executable and display compatibility information
 
     OUTPUT:
     A single executable file that contains:
@@ -59,14 +63,23 @@ def build(
     Args:
         entrypoint: Path to the main Python script entry point
         output_path: Final path where the executable should be placed
-        build_config: Build configuration specifying architecture, browser support, etc.
+        output_filename: Executable filename to derive build configuration from
         build_working_dir: Working directory where temporary build files are staged
-        apply_staticx: Whether to apply StaticX for maximum portability (default: True)
+        no_staticx: Whether to skip StaticX for faster builds
 
     Raises:
         RuntimeError: If PyInstaller fails or StaticX processing fails
         FileNotFoundError: If required tools (PyInstaller, StaticX) are not available
     """
+    # Create build config from filename
+    build_config: BuildConfig = filename_to_config(output_filename)
+    print(
+        f"Configuration: arch={build_config.arch}, version={build_config.version}, browser={build_config.browser}, suffix={build_config.suffix}"
+    )
+
+    # Verify PyInstaller is available
+    _ensure_pyinstaller_available()
+
     # Stage playwright dependencies if browser support is enabled
     extra_dependencies = (
         stage_playwright_dependencies(build_working_dir) if build_config.browser else []
@@ -76,7 +89,7 @@ def build(
     temp_output = _build_executable(extra_dependencies, entrypoint, output_path.name)
 
     # Apply staticx for maximum portability (or just move if skipping)
-    if apply_staticx:
+    if not no_staticx:
         print("[5/5] Applying staticx for maximum portability...")
         _apply_staticx(temp_output, output_path)
     else:
@@ -91,13 +104,17 @@ def build(
     _verify_build(output_path, output_path.name, build_config)
 
 
-def _run(
-    cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
-) -> str:
-    """Run a subprocess command and return stdout."""
-    return subprocess.run(
-        cmd, cwd=cwd, env=env, text=True, capture_output=True, check=True
-    ).stdout
+def _ensure_pyinstaller_available() -> None:
+    """Verify that PyInstaller is available in the current environment."""
+    try:
+        # Try to run PyInstaller as a module to check if it's available
+        _run([sys.executable, "-m", "PyInstaller", "--version"])
+    except RuntimeError as e:
+        # Provide helpful error message with installation command
+        raise RuntimeError(
+            "PyInstaller not found in this Python environment. "
+            f"Install it with:\n  {sys.executable} -m pip install pyinstaller"
+        ) from e
 
 
 def _build_executable(
@@ -219,3 +236,12 @@ def _verify_build(
         print("This should run on any Linux ARM64/aarch64 system from ~2016 onwards")
     else:
         print("This should run on any Linux x86_64 system from ~2016 onwards")
+
+
+def _run(
+    cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
+) -> str:
+    """Run a subprocess command and return stdout."""
+    return subprocess.run(
+        cmd, cwd=cwd, env=env, text=True, capture_output=True, check=True
+    ).stdout
