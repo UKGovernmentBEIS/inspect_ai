@@ -36,7 +36,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from inspect_ai.tool.tool_support._playwright_hackery import playwright_hackery
+from inspect_ai.tool.tool_support._playwright_support import (
+    stage_playwright_dependencies,
+)
 
 # Import build configuration
 try:
@@ -132,7 +134,9 @@ def main() -> None:
 
         # Conditionally install browser and collect dependencies
         extra_arguments = (
-            playwright_hackery(build_working_dir) if build_config.browser else []
+            stage_playwright_dependencies(build_working_dir)
+            if build_config.browser
+            else []
         )
 
         # Build the executable
@@ -144,10 +148,11 @@ def main() -> None:
             # Just move the file to final location
             if temp_output != output_path:
                 shutil.move(temp_output, output_path)
-                output_path.chmod(0o755)
         else:
             print("[5/5] Applying staticx for maximum portability...")
             _apply_staticx(temp_output, output_path)
+
+        output_path.chmod(0o755)
 
         # Verify the build (matching build_executable.py verification)
         _verify_build(output_path, executable_name, build_config)
@@ -326,31 +331,14 @@ def _build_executable(
 
 
 def _apply_staticx(input_path: Path, output_path: Path) -> None:
-    """
-    Apply staticx to create a fully static executable for maximum portability.
-
-    Args:
-        input_path: Path to the PyInstaller-built executable
-        output_path: Path for the final static executable
-    """
-    try:
-        staticx_cmd = [
+    _run(
+        [
             "staticx",
             "--strip",
             str(input_path),
             str(output_path),
         ]
-        _run(staticx_cmd)
-
-        # Make executable
-        output_path.chmod(0o755)
-
-    except subprocess.CalledProcessError as e:
-        print(f"Warning: staticx failed: {e}")
-        print("Falling back to PyInstaller-only build...")
-        # Just copy the file if staticx fails
-        shutil.copy2(input_path, output_path)
-        output_path.chmod(0o755)
+    )
 
 
 def _verify_build(
