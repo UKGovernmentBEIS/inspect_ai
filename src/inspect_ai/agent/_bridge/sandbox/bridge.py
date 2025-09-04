@@ -24,18 +24,26 @@ logger = getLogger(__file__)
 class SandboxAgentBridge(AgentBridge):
     """Sandbox agent bridge."""
 
-    def __init__(self, state: AgentState, port: int) -> None:
+    def __init__(self, state: AgentState, port: int, model: str | None) -> None:
         super().__init__(state)
         self.port = port
+        self.model = model
 
     port: int
     """Model proxy server port."""
+
+    model: str | None
+    """Specify that the bridge should use a speicifc model (e.g. "inspect" to use
+    thet default model for the task or "inspect/openai/gpt-4o" to use another
+    specific model).
+    """
 
 
 @contextlib.asynccontextmanager
 async def sandbox_agent_bridge(
     state: AgentState | None = None,
     *,
+    model: str | None = None,
     sandbox: SandboxEnvironment | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
@@ -53,6 +61,9 @@ async def sandbox_agent_bridge(
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
            an updated state based on traffic over the bridge.
+        model: Force the bridge to use a speicifc model (e.g. "inspect" to force the
+           the default model for the task or "inspect/openai/gpt-4o" to force
+           another specific model).
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         web_search: Configuration for mapping model internal
@@ -80,7 +91,7 @@ async def sandbox_agent_bridge(
             started = anyio.Event()
 
             # create the bridge
-            bridge = SandboxAgentBridge(state=state, port=port)
+            bridge = SandboxAgentBridge(state=state, port=port, model=model)
 
             # sandbox service that receives model requests
             tg.start_soon(
