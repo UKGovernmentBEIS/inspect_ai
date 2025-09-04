@@ -2,6 +2,8 @@
 
 This example demonstrates using the [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as an Inspect agent to explore the configuration of a Kali Linux system. The example uses the Inspect [`sandbox_agent_bridge()`](https://inspect.aisi.org.uk/agent-bridge.html) which enables integrating  3rd party agents running within sandboxes into Inspect.
 
+> [!NOTE] This example is intended as a demonstration of the basic mechanics of using the sandbox agent bridge. For a more feature-rich implementation of a Claude Code agent for Inspect see <https://meridianlabs-ai.github.io/inspect_swe/>.
+
 The example includes the following source files:
 
 | File | Description |

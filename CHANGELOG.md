@@ -3,6 +3,7 @@
 - OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
 - Eval Set: Add `eval_set_id` to log file (unique id for eval set across invocations for the same `log_dir`).
 - Hooks: New `EvalSetStart` and `EvalSetEnd` hook methods.
+- Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.
 
 ## 0.3.129 (03 September 2025)
 
