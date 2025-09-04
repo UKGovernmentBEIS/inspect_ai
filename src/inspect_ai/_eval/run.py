@@ -58,6 +58,7 @@ log = logging.getLogger(__name__)
 
 
 async def eval_run(
+    eval_set_id: str | None,
     run_id: str,
     tasks: list[ResolvedTask],
     parallel: int,
@@ -207,6 +208,7 @@ async def eval_run(
                     task_registry_name=resolved_task.task.registry_name,
                     task_display_name=resolved_task.task.display_name,
                     task_id=resolved_task.id if resolved_task.id else uuid(),
+                    eval_set_id=eval_set_id,
                     run_id=run_id,
                     solver=eval_solver_spec,
                     tags=tags,
