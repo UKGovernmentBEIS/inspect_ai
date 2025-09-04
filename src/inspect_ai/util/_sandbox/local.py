@@ -56,6 +56,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
+        concurrency: bool = True,
     ) -> ExecResult[str]:
         if user is not None:
             warnings.warn(
@@ -74,6 +75,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             env=env,
             timeout=timeout,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+            concurrency=concurrency,
         )
         verify_exec_result_size(result)
         return result

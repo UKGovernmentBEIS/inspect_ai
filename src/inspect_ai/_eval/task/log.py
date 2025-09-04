@@ -61,6 +61,7 @@ class TaskLogger:
         task_registry_name: str | None,
         task_display_name: str | None,
         task_id: str | None,
+        eval_set_id: str | None,
         run_id: str,
         solver: SolverSpec | None,
         tags: list[str] | None,
@@ -121,6 +122,7 @@ class TaskLogger:
 
         # create eval spec
         self.eval = EvalSpec(
+            eval_set_id=eval_set_id,
             run_id=run_id,
             created=iso_now(),
             task=f"{task_name}",

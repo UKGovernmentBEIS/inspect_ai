@@ -1,3 +1,16 @@
+## Unreleased
+
+- Agent Bridge: Option to force the sandbox agent bridge to use a specific model.
+- OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
+- Eval Set: Add `eval_set_id` to log file (unique id for eval set across invocations for the same `log_dir`).
+- Hooks: New `EvalSetStart` and `EvalSetEnd` hook methods.
+- Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.
+
+## 0.3.129 (03 September 2025)
+
+- Agent Bridge: Don't use `concurrency()` for agent bridge interactions (not required for long-running proxy server or cheap polling requests).
+- Sandboxes: Add `concurrency` parameter to `exec()` to advise whether the execution should be subject to local process concurrency limits.
+
 ## 0.3.128 (02 September 2025)
 
 - Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.

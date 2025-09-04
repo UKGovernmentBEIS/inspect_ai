@@ -355,6 +355,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
                         semaphore=sample_semaphore,
+                        eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
                     )
@@ -553,6 +554,7 @@ async def task_run_sample(
     time_limit: int | None,
     working_limit: int | None,
     semaphore: anyio.Semaphore | None,
+    eval_set_id: str | None,
     run_id: str,
     task_id: str,
 ) -> dict[str, SampleScore] | None:
@@ -722,7 +724,11 @@ async def task_run_sample(
                                 # only emit the sample start once: not on retries
                                 if not error_retries:
                                     await emit_sample_start(
-                                        run_id, task_id, state.uuid, sample_summary
+                                        eval_set_id,
+                                        run_id,
+                                        task_id,
+                                        state.uuid,
+                                        sample_summary,
                                     )
 
                                 # set progress for plan then run it
@@ -855,7 +861,6 @@ async def task_run_sample(
                                         score_result = await scorer(
                                             state, Target(sample.target)
                                         )
-
                                         if scorer_name in state.scores:
                                             raise RuntimeError(
                                                 f"Scorer {scorer_name} has modified state.scores"
@@ -869,13 +874,12 @@ async def task_run_sample(
                                             )
                                         )
 
-                                        sample_score = SampleScore(
+                                        results[scorer_name] = SampleScore(
                                             score=score_result,
                                             sample_id=sample.id,
                                             sample_metadata=sample.metadata,
                                             scorer=registry_unqualified_name(scorer),
                                         )
-                                        results[scorer_name] = sample_score
 
                                 for name in solver_score_names:
                                     score = state.scores[name]
@@ -933,7 +937,7 @@ async def task_run_sample(
                 await log_sample(
                     eval_sample=eval_sample, logger=logger, log_images=log_images
                 )
-            await emit_sample_end(run_id, task_id, state.uuid, eval_sample)
+            await emit_sample_end(eval_set_id, run_id, task_id, state.uuid, eval_sample)
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
@@ -970,6 +974,7 @@ async def task_run_sample(
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
+            eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
         )

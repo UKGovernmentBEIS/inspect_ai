@@ -282,6 +282,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
+        concurrency: bool = True,
     ) -> ExecResult[str]:
         # additional args
         args = []
@@ -311,6 +312,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+            concurrency=concurrency,
         )
         verify_exec_result_size(exec_result)
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:

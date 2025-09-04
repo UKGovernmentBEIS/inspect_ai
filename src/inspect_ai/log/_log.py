@@ -710,6 +710,9 @@ class EvalModelConfig(BaseModel):
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
+    eval_set_id: str | None = Field(default=None)
+    """Globally unique id for eval set (if any)."""
+
     eval_id: str = Field(default_factory=str)
     """Globally unique id for eval."""
 
