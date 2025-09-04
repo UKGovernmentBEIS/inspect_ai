@@ -95,7 +95,7 @@ from ._model_output import ModelOutput, ModelUsage
 logger = logging.getLogger(__name__)
 
 GenerateFilter: TypeAlias = Callable[
-    [list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
+    [str, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
     Awaitable[ModelOutput | None],
 ]
 """Filter a model generation.

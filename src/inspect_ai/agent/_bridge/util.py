@@ -28,7 +28,7 @@ async def bridge_generate(
             parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
             for tool in tools
         ]
-        output = await bridge.filter(input, tool_info, tool_choice, config)
+        output = await bridge.filter(model.name, input, tool_info, tool_choice, config)
 
     # if the filter didn't take it then run normal inference
     if output is None:
