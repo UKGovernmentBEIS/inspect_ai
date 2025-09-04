@@ -8,7 +8,7 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
 def int_or_bool_flag_callback(
-    true_value: int, false_value: int = 0
+    true_value: int, false_value: int = 0, is_one_true: bool = True
 ) -> Callable[[click.Context, click.Parameter, Any], int]:
     def callback(ctx: click.Context, param: click.Parameter, value: Any) -> int:
         """Callback to parse the an option that can either be a boolean flag or integer.
@@ -33,7 +33,10 @@ def int_or_bool_flag_callback(
 
         # 3. If there is a value, try to parse booleans or an integer.
         lower_val = value.lower()
-        if lower_val in ("true", "yes", "1"):
+        true_vals = {"true", "yes"}
+        if is_one_true:
+            true_vals.add("1")
+        if lower_val in true_vals:
             return true_value
         elif lower_val in ("false", "no", "0"):
             return false_value
