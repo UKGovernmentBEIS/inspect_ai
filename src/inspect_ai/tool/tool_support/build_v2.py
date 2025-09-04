@@ -39,8 +39,12 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from inspect_ai.tool.tool_support._pyinstaller_builder import build_executable
+if TYPE_CHECKING:
+    from inspect_ai.tool.tool_support._pyinstaller_builder import build_executable
+else:
+    from _pyinstaller_builder import build_executable
 
 # Directory where this build script is located
 SCRIPT_DIR = Path(__file__).parent.resolve()

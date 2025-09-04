@@ -95,8 +95,8 @@ def run_docker_container(
     # Ensure binaries directory exists
     Path("../../binaries").mkdir(exist_ok=True)
 
-    # Find repository root (should be 3 levels up from this script)
-    repo_root = get_script_dir().parent.parent.parent
+    # Find repository root (should be 4 levels up from this script)
+    repo_root = get_script_dir().parent.parent.parent.parent
 
     # Parse version to extract numeric version and suffix
     parts = version.split("-", 1)

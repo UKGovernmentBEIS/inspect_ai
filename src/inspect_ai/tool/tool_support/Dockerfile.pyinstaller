@@ -38,6 +38,7 @@ RUN pip install --no-cache-dir \
         #
         # It's scary that this PR has been open since January, 2024. Yikes.
         git+https://github.com/JonathonReinhart/staticx.git@add-type-checking \
+        playwright \
         psutil \
         jsonrpcserver \
         pydantic \
