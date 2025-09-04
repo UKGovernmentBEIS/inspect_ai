@@ -1,12 +1,19 @@
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.model._model import GenerateFilter
 
 
 class SandboxAgentBridge(AgentBridge):
     """Sandbox agent bridge."""
 
-    def __init__(self, state: AgentState, port: int, model: str | None) -> None:
-        super().__init__(state)
+    def __init__(
+        self,
+        state: AgentState,
+        filter: GenerateFilter | None,
+        port: int,
+        model: str | None,
+    ) -> None:
+        super().__init__(state, filter)
         self.port = port
         self.model = model
 

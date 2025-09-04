@@ -12,10 +12,12 @@ from types import TracebackType
 from typing import (
     Any,
     AsyncIterator,
+    Awaitable,
     Callable,
     Literal,
     Sequence,
     Type,
+    TypeAlias,
     cast,
 )
 
@@ -91,6 +93,16 @@ from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
 
 logger = logging.getLogger(__name__)
+
+GenerateFilter: TypeAlias = Callable[
+    [str, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
+    Awaitable[ModelOutput | None],
+]
+"""Filter a model generation.
+
+A filter may substitute for the default model generation by returning a
+`ModelOutput` or return `None` to allow default processing to continue.
+"""
 
 
 class ModelAPI(abc.ABC):

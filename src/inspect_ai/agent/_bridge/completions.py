@@ -19,7 +19,12 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
 
-from .util import apply_message_ids, resolve_generate_config, resolve_inspect_model
+from .util import (
+    apply_message_ids,
+    bridge_generate,
+    resolve_generate_config,
+    resolve_inspect_model,
+)
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -76,12 +81,8 @@ async def inspect_completions_api_request(
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
 
-    output = await model.generate(
-        input=input,
-        tools=tools,
-        tool_choice=tool_choice,
-        config=config,
-    )
+    # if there is a bridge filter give it a shot first
+    output = await bridge_generate(bridge, model, input, tools, tool_choice, config)
 
     # update state
     if bridge_model_name == "inspect":
