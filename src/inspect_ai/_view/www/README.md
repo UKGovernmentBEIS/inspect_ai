@@ -27,4 +27,4 @@ Use the following commands (run in the `src/inspect_ai/_view/www` dir) to ensure
 
    Don't forget to stage newly updated changes in the `dist` folder.
 
-   You may optionally set the `API_URL` environment variable at build time to use an API server running on a different host.
+   You may optionally set the `VIEW_SERVER_API_URL` environment variable at build time to use an API server running on a different host.

@@ -1,7 +1,7 @@
 import JSON5 from "json5";
 import { dirname } from "../../utils/path";
 import { getVscodeApi } from "../../utils/vscode";
-import { createBrowserApi } from "./api-browser";
+import { createViewServerApi } from "./api-view-server";
 import simpleHttpApi from "./api-http";
 import vscodeApi from "./api-vscode";
 import { clientApi } from "./client-api";
@@ -42,7 +42,7 @@ const resolveApi = (): ClientAPI => {
 
     if (forceBrowserApi) {
       return clientApi(
-        createBrowserApi({ log_dir: resolved_log_dir }),
+        createViewServerApi({ log_dir: resolved_log_dir }),
         resolved_log_file,
       );
     }
@@ -55,8 +55,8 @@ const resolveApi = (): ClientAPI => {
     }
 
     // No signal information so use the standard
-    // browser API (inspect view)
-    return clientApi(createBrowserApi());
+    // view server API (inspect view)
+    return clientApi(createViewServerApi());
   }
 };
 

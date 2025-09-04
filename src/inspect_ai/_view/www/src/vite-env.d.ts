@@ -1,3 +1,3 @@
 /// <reference types="vite/client" />
 
-declare const __API_URL__: string;
+declare const __VIEW_SERVER_API_URL__: string;
