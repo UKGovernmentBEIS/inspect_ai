@@ -130,6 +130,7 @@ def run_docker_container(
         image_name,
         "python3",
         "./src/inspect_ai/tool/tool_support/build_v2.py",
+        "src/inspect_tool_support/src/inspect_tool_support/_cli/main.py",
         filename,
     ]
 

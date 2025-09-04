@@ -41,17 +41,16 @@ COMPATIBILITY:
 """
 
 import argparse
-import glob
 import os
-import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+
+from inspect_ai.tool.tool_support._playwright_hackery import playwright_hackery
 
 # Import playwright to find its installation directory
-import playwright  # type: ignore
 
 # Import build configuration
 try:
@@ -65,6 +64,17 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 
 # Temporary directory where collected libraries will be staged before bundling
 BUILD_LIBS = SCRIPT_DIR / "build_libs"
+
+
+@dataclass
+class BuildArgs:
+    """Strongly typed representation of command line arguments."""
+
+    entry_point: str
+    output_filename: str
+    output_dir: str | None
+    no_staticx: bool
+    working_dir: str | None
 
 
 def main() -> None:
@@ -83,78 +93,22 @@ def main() -> None:
     The result is a portable executable that includes everything needed
     to run with or without Playwright and Chromium on any compatible Linux system.
     """
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description="Build portable inspect-tool-support executable"
-    )
-    parser.add_argument(
-        "filename",
-        nargs="?",
-        help="Executable filename (e.g., 'inspect-tool-support-amd64-v667-dev')",
-    )
-    parser.add_argument(
-        "--entry-point",
-        help="Path to main.py entry point (relative to current directory or absolute)",
-    )
-    parser.add_argument(
-        "--output-dir", help="Output directory for the built executable"
-    )
-    parser.add_argument(
-        "--no-staticx",
-        action="store_true",
-        help="Skip staticx processing (reduces portability but faster build)",
-    )
-    parser.add_argument(
-        "--working-dir",
-        help="Working directory for the build (for container-based builds)",
-    )
+    args = _parse_args()
 
-    args = parser.parse_args()
-
-    # Handle filename argument and build config
-    if args.filename:
-        build_config = filename_to_config(args.filename)
-        executable_name = args.filename
-    else:
-        # Default configuration when no filename specified
-        build_config = BuildConfig(arch="amd64", version=1, browser=True, suffix=None)
-        executable_name = "main"
+    # Handle output_filename argument and build config
+    build_config: BuildConfig = filename_to_config(args.output_filename)
+    executable_name = args.output_filename
 
     print(f"\nBuilding portable executable for {executable_name}...\n")
     print(
         f"Configuration: arch={build_config.arch}, version={build_config.version}, browser={build_config.browser}, suffix={build_config.suffix}"
     )
 
-    # Determine entry point
-    if args.entry_point:
-        entrypoint = Path(args.entry_point)
-        if not entrypoint.is_absolute():
-            entrypoint = SCRIPT_DIR / entrypoint
-    else:
-        # Try container path first, then fallback to local main.py
-        container_entry = Path(
-            "/inspect_ai/src/inspect_tool_support/src/inspect_tool_support/_cli/main.py"
-        )
-        local_entry = SCRIPT_DIR / "main.py"
-        relative_entry = (
-            SCRIPT_DIR.parent.parent.parent
-            / "inspect_tool_support/src/inspect_tool_support/_cli/main.py"
-        )
-
-        if container_entry.exists():
-            entrypoint = container_entry
-        elif relative_entry.exists():
-            entrypoint = relative_entry
-        elif local_entry.exists():
-            entrypoint = local_entry
-        else:
-            raise FileNotFoundError(
-                f"Could not locate main.py entry point. Tried:\n"
-                f"  - {container_entry}\n"
-                f"  - {relative_entry}\n"
-                f"  - {local_entry}\n"
-                f"Use --entry-point to specify the location."
-            )
+    # Determine entry point (resolve relative to current working directory)
+    entrypoint = Path(args.entry_point)
+    if not entrypoint.is_absolute():
+        entrypoint = Path.cwd() / entrypoint
+    entrypoint = entrypoint.resolve()  # Convert to absolute path
 
     print(f"Using entry point: {entrypoint}")
 
@@ -190,36 +144,10 @@ def main() -> None:
         # Prepare build environment (copy source and install package)
         build_working_dir = _prepare_build_environment()
 
-        # Adjust BUILD_LIBS to be in the working directory
-        build_libs_dir = build_working_dir / "build_libs"
-
         # Conditionally install browser and collect dependencies
-        headless_shell = None
-        if build_config.browser:
-            # Install browser into package (not user home)
-            headless_shell = _install_chromium_headless_shell()
-        else:
-            print("[1/4] Skipping Chromium installation (browser support disabled)")
-
-        # Collect and stage all extra dependencies/libraries
-        if build_libs_dir.exists():
-            shutil.rmtree(build_libs_dir)
-        build_libs_dir.mkdir(parents=True, exist_ok=True)
-
-        if headless_shell:
-            _stage_libraries(
-                _ldd_deps(headless_shell), "ldd dependencies", build_libs_dir
-            )
-            _stage_libraries(_nss_deps(), "NSS dependencies", build_libs_dir)
-            _stage_libraries(_webgl_deps(), "WebGL dependencies", build_libs_dir)
-        else:
-            print("[3/4] Skipping library collection (no browser support)")
-
-        # Each library needs a --add-binary argument in the format "source:dest"
-        # The :lib suffix tells PyInstaller to place these in a lib/ subdirectory
-        add_binary_args = [
-            f"--add-binary={str(f)}:lib" for f in build_libs_dir.glob("*")
-        ]
+        add_binary_args = (
+            playwright_hackery(build_working_dir) if build_config.browser else []
+        )
 
         # Build the executable
         temp_output = _build_executable(add_binary_args, entrypoint, executable_name)
@@ -242,6 +170,44 @@ def main() -> None:
         # Restore original working directory
         if original_cwd:
             os.chdir(original_cwd)
+
+
+def _parse_args() -> BuildArgs:
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="Build portable inspect-tool-support executable"
+    )
+    parser.add_argument(
+        "entry_point",
+        help="Path to main.py entry point (relative to current directory or absolute)",
+    )
+    parser.add_argument(
+        "output_filename",
+        help="Executable filename (e.g., 'inspect-tool-support-amd64-v667-dev')",
+    )
+    parser.add_argument(
+        "--output-dir", help="Output directory for the built executable"
+    )
+    parser.add_argument(
+        "--no-staticx",
+        action="store_true",
+        help="Skip staticx processing (reduces portability but faster build)",
+    )
+    parser.add_argument(
+        "--working-dir",
+        help="Working directory for the build (for container-based builds)",
+    )
+
+    args = parser.parse_args()
+
+    # Convert the untyped Namespace to strongly typed BuildArgs
+    return BuildArgs(
+        entry_point=args.entry_point,
+        output_filename=args.output_filename,
+        output_dir=args.output_dir,
+        no_staticx=args.no_staticx,
+        working_dir=args.working_dir,
+    )
 
 
 def _run(
@@ -307,305 +273,6 @@ def _prepare_build_environment() -> Path:
     _run([sys.executable, "-m", "pip", "install", "."])
 
     return copy_dir
-
-
-def _install_chromium_headless_shell() -> Path:
-    """
-    Install Chromium browser into the Playwright package directory.
-
-    By setting PLAYWRIGHT_BROWSERS_PATH=0, we tell Playwright to install
-    browsers into its package directory instead of the user's home directory.
-    This is crucial for creating a portable executable - the browser files
-    will be included when PyInstaller bundles the playwright package.
-
-    Without this step, Playwright would look for browsers in ~/.cache/ms-playwright
-    at runtime, which wouldn't exist on target systems.
-    """
-    # Copy current environment and override browser path
-    env = os.environ.copy()
-    env["PLAYWRIGHT_BROWSERS_PATH"] = "0"  # "0" means use package directory
-
-    print("[1/4] Ensuring Chromium is installed into the Playwright package path")
-
-    # Run playwright install command with modified environment
-    _run(
-        [sys.executable, "-m", "playwright", "install", "chromium-headless-shell"],
-        env=env,
-    )
-
-    return _find_chromium_headless_shell()
-
-
-def _find_chromium_headless_shell() -> Path:
-    """
-    Locate the headless_shell binary within the Playwright package.
-
-    The binary is typically located at:
-    playwright/driver/package/.local-browsers/chromium-*/chrome-linux/headless_shell
-
-    Returns:
-        Path to the headless_shell executable
-
-    Raises:
-        FileNotFoundError: If headless_shell cannot be located, suggesting
-                          that Chromium installation may have failed
-    """
-    print("[2/4] Locating headless_shell used by Playwright")
-
-    # Get the playwright package directory
-    pkg = Path(playwright.__file__).parent
-
-    # Search recursively for headless_shell in the driver/package subdirectory
-    # This is where Playwright stores downloaded browser binaries
-    for p in (pkg / "driver" / "package").rglob("headless_shell"):
-        # Verify it's an executable file (not a directory or symlink to nowhere)
-        if p.is_file() and os.access(p, os.X_OK):
-            print(f"Using headless_shell: {p}")
-            return p
-
-    # If we get here, something went wrong with browser installation
-    raise FileNotFoundError(
-        "Could not locate headless_shell. Ensure 'playwright install chromium' succeeds."
-    )
-
-
-def _parse_ldd_paths(ldd_output: str) -> list[Path]:
-    """
-    Parse the output of the ldd command to extract library paths.
-
-    ldd output format examples:
-    - Normal library: libX11.so.6 => /lib/x86_64-linux-gnu/libX11.so.6 (0x00007f...)
-    - Virtual library: linux-vdso.so.1 (0x00007fff...)
-    - Not found: libmissing.so => not found
-
-    This function:
-    1. Extracts the absolute paths from "=>" mappings
-    2. Filters out core system libraries that shouldn't be bundled
-    3. Returns unique paths as a set
-
-    Args:
-        ldd_output: Raw output from the ldd command
-
-    Returns:
-        Set of Path objects for libraries that should be bundled
-    """
-    # Core system libraries that should NOT be bundled
-    # These are provided by the host OS and bundling them would break compatibility
-    # The dynamic linker (ld-linux) and core C libraries must match the host system
-    LDD_EXCLUDES = (
-        "ld-linux",  # Dynamic linker/loader - must match host kernel
-        "libc.so",  # Core C library - defines system ABI
-        "libm.so",  # Math library - part of core glibc
-        "libpthread.so",  # POSIX threads - part of core glibc
-        "libdl.so",  # Dynamic loading - part of core glibc
-        "librt.so",  # Real-time extensions - part of core glibc
-    )
-
-    return [
-        Path(m.group(1))
-        for line in ldd_output.splitlines()
-        if "=>"
-        in line  # Skip lines without "=>" (like linux-vdso or statically linked)
-        for m in [re.search(r"=>\s+(\S+)", line)]  # Extract the path after "=>"
-        if m
-        and m.group(1).startswith("/")  # Skip non-absolute paths (like "not found")
-        and not any(
-            ex in m.group(1) for ex in LDD_EXCLUDES
-        )  # Filter out core system libraries
-    ]
-
-
-def _ldd_deps(binary: Path) -> list[Path]:
-    """
-    Use ldd to discover all shared library dependencies of a binary.
-
-    These are the libraries explicitly linked by headless_shell.
-
-    Args:
-        binary: Path to the executable to analyze
-
-    Returns:
-        Set of paths to required shared libraries (excluding core system libs)
-    """
-    print("[3/4] Collecting shared libraries via ldd")
-
-    return _parse_ldd_paths(_run(["ldd", str(binary)]))
-
-
-# Cache for ldconfig output to avoid multiple calls
-_ldconfig_cache: dict[str, Path] | None = None
-
-
-def _get_ldconfig_cache() -> dict[str, Path]:
-    """
-    Build and cache a dictionary of library names to paths from ldconfig output.
-
-    This function runs ldconfig once and parses its output into a dictionary
-    for fast lookups. The cache is stored globally to avoid repeated calls.
-
-    Returns:
-        Dictionary mapping library names to their file paths
-    """
-    global _ldconfig_cache
-
-    if _ldconfig_cache is not None:
-        return _ldconfig_cache
-
-    _ldconfig_cache = {}
-
-    # Check if ldconfig is available (might not be in minimal containers)
-    if shutil.which("ldconfig"):
-        try:
-            # Get the library cache listing
-            out = _run(["ldconfig", "-p"])
-
-            for line in out.splitlines():
-                # ldconfig -p format:
-                # libX11.so.6 (libc6,x86-64) => /lib/x86_64-linux-gnu/libX11.so.6
-
-                line = line.strip()
-                if not line or "=>" not in line:
-                    continue
-
-                # Split on first space to get library name
-                parts = line.split(" ", 1)
-                if len(parts) < 2:
-                    continue
-
-                lib_name = parts[0]
-
-                # Extract the path after "=>"
-                m = re.search(r"=>\s+(\S+)$", line)
-                if m:
-                    p = Path(m.group(1))
-                    # Verify the file actually exists and cache it
-                    if p.exists():
-                        _ldconfig_cache[lib_name] = p
-        except Exception:
-            # ldconfig might fail in some environments, continue with empty cache
-            pass
-
-    return _ldconfig_cache
-
-
-def _webgl_deps() -> list[Path]:
-    """
-    Best-effort include graphics libraries
-
-    libGLESv2 is needed for WebGL support but location varies by distribution
-    """
-    return [
-        Path(gpath)
-        for pattern in ("/usr/lib/*-linux-gnu/libGLESv2.so*",)
-        for gpath in glob.glob(pattern)
-        if Path(gpath).exists()
-    ]
-
-
-def _nss_deps() -> list[Path]:
-    """
-    Locate the NSS (Network Security Services) Libraries.
-
-    These security libraries are dynamically loaded by Chromium at runtime for HTTPS
-    support and must be explicitly included.
-    """
-    # NSS (Network Security Services) libraries handle SSL/TLS, certificates, and
-    # cryptographic operations and are required by Chromium. These are often loaded
-    # dynamically at runtime using dlopen(), so they don't always appear in ldd output.
-    NSS_NAMES = [
-        "libsoftokn3.so",  # Software token implementation for NSS
-        "libsoftokn3.chk",  # Checksum file for libsoftokn3
-        "libnss3.so",  # Main NSS library
-        "libnssutil3.so",  # NSS utility functions
-        "libsmime3.so",  # S/MIME cryptographic functions
-        "libssl3.so",  # SSL/TLS protocol implementation
-        "libnssckbi.so",  # Built-in root certificates (CRITICAL for HTTPS)
-        "libnspr4.so",  # Netscape Portable Runtime (NSS dependency)
-        "libplc4.so",  # NSPR library for classic I/O
-        "libplds4.so",  # NSPR library for data structures
-        "libfreebl3.so",  # Freebl cryptographic library
-        "libfreeblpriv3.so",  # Private Freebl functions
-    ]
-
-    return [path for name in NSS_NAMES if (path := _find_nss_lib(name))]
-
-
-def _find_nss_lib(name: str) -> Path | None:
-    """
-    Find an NSS library by name, trying multiple strategies.
-
-    NSS libraries are critical for HTTPS support but may be installed
-    in various locations depending on the distribution. This function:
-    1. First tries the fast ldconfig cache lookup
-    2. Falls back to filesystem search in common locations
-
-    Args:
-        name: NSS library filename (e.g., "libnssckbi.so")
-
-    Returns:
-        Path to the library if found, None otherwise.
-        Any returned Path is guaranteed to exist at the time of return.
-    """
-    # Strategy 1: Try ldconfig cache (fastest)
-    if path := _get_ldconfig_cache().get(name):
-        return path
-
-    # Strategy 2: Search common library directories
-    # Different distributions use different layouts:
-    # - Debian/Ubuntu: /usr/lib/x86_64-linux-gnu/
-    # - Fedora/RHEL: /usr/lib64/
-    # - Alpine: /usr/lib/
-    for root in ("/usr/lib", "/lib"):
-        # rglob searches recursively, handling all subdirectory structures
-        for candidate in Path(root).rglob(name):
-            if candidate.is_file():
-                return candidate
-
-    return None
-
-
-def _stage_dependency(src: Path, dest_dir: Path) -> None:
-    """
-    Copy a dependency file (typically a lib) to the destination directory, resolving symlinks.
-
-    Many libraries are symlinks (e.g., libfoo.so -> libfoo.so.1.2.3).
-    This function follows symlinks to copy the actual file content, ensuring the
-    bundled library is complete and functional.
-
-    Args:
-        src: Source library path (may be a symlink)
-        dest_dir: Destination directory for the copy
-    """
-    # Ensure destination directory exists
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    # Keep the original filename in the destination
-    target = dest_dir / src.name
-
-    # follow_symlinks=True ensures we copy the actual file content,
-    # not just create another symlink
-    shutil.copy2(src, target, follow_symlinks=True)
-
-
-def _stage_libraries(
-    dependencies: Iterable[Path], description: str, build_libs_dir: Path
-) -> None:
-    """
-    Stage multiple libraries to the build_libs_dir directory with error handling.
-
-    Args:
-        dependencies: Iterable of library paths to stage
-        description: Optional description for error messages
-        build_libs_dir: Directory where libraries should be staged
-    """
-    print(f"\nStaging {description} dependencies")
-    for dependency in dependencies:
-        try:
-            _stage_dependency(dependency, build_libs_dir)
-            print(f"\t{dependency}")
-        except OSError as e:
-            # Some libraries might be inaccessible, continue with others
-            print(f"WARN: failed to copy {dependency}: {e}")
 
 
 def _build_executable(

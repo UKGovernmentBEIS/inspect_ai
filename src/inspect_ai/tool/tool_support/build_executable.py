@@ -20,14 +20,18 @@ def main() -> None:
         description="Build portable inspect-tool-support executable"
     )
     parser.add_argument(
-        "filename",
+        "entry_point",
+        help="Path to main.py entry point (relative to current directory or absolute)",
+    )
+    parser.add_argument(
+        "output_filename",
         help="Executable filename (e.g., 'inspect-tool-support-amd64-v667-dev')",
     )
 
     args = parser.parse_args()
 
-    build_config = filename_to_config(args.filename)
-    executable_name = args.filename
+    build_config = filename_to_config(args.output_filename)
+    executable_name = args.output_filename
 
     print(f"\nBuilding portable executable for {executable_name}...\n")
 
@@ -88,7 +92,7 @@ def main() -> None:
             "pdb",
             "--name",
             executable_name,
-            "src/inspect_tool_support/_cli/main.py",
+            args.entry_point,
         ]
         subprocess.run(pyinstaller_cmd, check=True)
 
