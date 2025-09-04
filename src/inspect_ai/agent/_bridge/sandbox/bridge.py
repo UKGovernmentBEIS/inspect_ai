@@ -6,6 +6,7 @@ from typing import AsyncIterator
 import anyio
 from shortuuid import uuid
 
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
@@ -14,29 +15,10 @@ from inspect_ai.util._sandbox import SandboxEnvironment
 from inspect_ai.util._sandbox import sandbox as default_sandbox
 
 from ..._agent import AgentState
-from ..types import AgentBridge
 from ..util import internal_web_search_providers
 from .service import run_model_service
 
 logger = getLogger(__file__)
-
-
-class SandboxAgentBridge(AgentBridge):
-    """Sandbox agent bridge."""
-
-    def __init__(self, state: AgentState, port: int, model: str | None) -> None:
-        super().__init__(state)
-        self.port = port
-        self.model = model
-
-    port: int
-    """Model proxy server port."""
-
-    model: str | None
-    """Specify that the bridge should use a speicifc model (e.g. "inspect" to use
-    thet default model for the task or "inspect/openai/gpt-4o" to use another
-    specific model).
-    """
 
 
 @contextlib.asynccontextmanager

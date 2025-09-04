@@ -3,7 +3,7 @@ from typing import Awaitable, Callable
 import anyio
 from pydantic import JsonValue
 
-from inspect_ai.agent._bridge.sandbox.bridge import SandboxAgentBridge
+from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
