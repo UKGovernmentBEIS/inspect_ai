@@ -120,11 +120,11 @@ def view_server(
         # if the log_dir contains the path to a specific file
         # then just return that file
         if is_log_file(request_log_dir, [".json"]):
-            file_name = basename(request_log_dir)
-            request_log_dir = dirname(request_log_dir)
-            file_info = await eval_log_info_async(request_log_dir, file_name)
+            file_info = await eval_log_info_async(request_log_dir)
             if file_info is not None:
-                return log_listing_response(logs=[file_info], log_dir=request_log_dir)
+                return log_listing_response(
+                    logs=[file_info], log_dir=dirname(request_log_dir)
+                )
             else:
                 return web.Response(status=404, reason="File not found")
 
@@ -410,24 +410,21 @@ def resolve_header_only(path: str, header_only: int | None) -> bool:
 
 
 async def eval_log_info_async(
-    log_dir: str,
     log_file: str,
     fs_options: dict[str, Any] = {},
 ) -> EvalLogInfo | None:
     """Get EvalLogInfo for a specific log file asynchronously.
 
     Args:
-        log_dir (str): The log directory
-        log_file (str): The log file name
+        log_file (str): The complete path to the log file
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
 
     Returns:
         EvalLogInfo or None: The EvalLogInfo object if the file exists and is valid, otherwise None.
     """
-    file_path = os.path.join(log_dir, log_file)
-    fs = filesystem(log_dir, fs_options)
-    if fs.exists(file_path):
-        info = fs.info(file_path)
+    fs = filesystem(log_file, fs_options)
+    if fs.exists(log_file):
+        info = fs.info(log_file)
         return log_file_info(info)
     else:
         return None
