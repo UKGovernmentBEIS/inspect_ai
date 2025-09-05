@@ -1,4 +1,4 @@
-import { ChangeEvent, forwardRef } from "react";
+import { ChangeEvent, FocusEvent, forwardRef } from "react";
 
 import clsx from "clsx";
 import { ApplicationIcons } from "../app/appearance/icons";
@@ -7,13 +7,14 @@ import styles from "./TextInput.module.css";
 export interface TextInputProps {
   value?: string;
   onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
+  onFocus?: (event: FocusEvent<HTMLInputElement>) => void;
   icon?: string;
   placeholder?: string;
   className?: string | string[];
 }
 
 export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
-  ({ value, onChange, icon, placeholder, className }, ref) => {
+  ({ value, onChange, onFocus, icon, placeholder, className }, ref) => {
     return (
       <div
         className={clsx(
@@ -30,6 +31,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
           ref={ref}
           placeholder={placeholder}
           className={clsx(styles.input)}
+          onFocus={onFocus}
         />
         <i
           className={clsx(

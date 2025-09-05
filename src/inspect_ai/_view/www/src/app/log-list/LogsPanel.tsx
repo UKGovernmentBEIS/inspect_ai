@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, useEffect, useMemo, useRef } from "react";
+import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
@@ -42,6 +42,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
   const navigate = useNavigate();
+
+  const filterRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Unload the load when this is mounted. This prevents the old log
   // data from being displayed when navigating back to the logs panel
@@ -92,6 +95,13 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       previousWatchedLogs.current = watchedLogs;
     }
   }, [watchedLogs]);
+
+  // Focus the panel when it loads
+  useEffect(() => {
+    setTimeout(() => {
+      rootRef.current?.focus();
+    }, 10);
+  }, []);
 
   // All the items visible in the current directory (might span
   // multiple pages)
@@ -174,10 +184,24 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }, [logItems, maybeShowSingleLog]);
 
+  function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "f" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      filterRef.current?.focus();
+    }
+  }
+
   return (
-    <div className={clsx(styles.panel)}>
+    <div
+      ref={rootRef}
+      className={clsx(styles.panel)}
+      onKeyDown={(e) => {
+        handleKeyDown(e);
+      }}
+      tabIndex={0}
+    >
       <Navbar>
-        <LogsFilterInput />
+        <LogsFilterInput ref={filterRef} />
       </Navbar>
 
       <ProgressBar animating={loading || headersLoading} />
