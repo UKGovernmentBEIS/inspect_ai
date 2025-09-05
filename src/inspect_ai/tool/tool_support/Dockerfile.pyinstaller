@@ -4,6 +4,7 @@ FROM python:3.10-slim-bullseye AS base
 # Architecture-specific package installation
 FROM base AS packages-amd64
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     gcc \
     g++ \
     build-essential \
@@ -14,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 FROM base AS packages-arm64  
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     gcc \
     g++ \
     build-essential \
@@ -24,7 +26,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Final stage - automatically selects correct packages stage
 FROM packages-${TARGETARCH} AS final
-RUN pip install --no-cache-dir \
+
+# Create an isolated Python environment to avoid PEP 668 (externally managed)
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir \
         pyinstaller \
         # Install staticx from `add-type-checking` branch to fix PyInstaller compatibility
         # The `main` branch of staticx naïvely treats any executable file as an ELF
