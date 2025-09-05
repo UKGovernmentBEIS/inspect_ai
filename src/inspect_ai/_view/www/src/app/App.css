@@ -625,10 +625,10 @@ pre[class*="language-"] {
 .markdown-content h4,
 .markdown-content h5,
 .markdown-content h6 {
-  font-size: 1.3em;
+  font-size: 0.9em;
   font-weight: 600;
   margin-top: 0.25em;
-  margin-bottom: 0.75em;
+  margin-bottom: 0.25em;
 }
 
 .sample-answer .markdown-content h1,
