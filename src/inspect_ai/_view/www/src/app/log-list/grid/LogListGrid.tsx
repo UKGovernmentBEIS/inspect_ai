@@ -166,7 +166,6 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         globalFilter.trim() &&
         filterText.current !== globalFilter
       ) {
-        console.log("LOADING ALL HEADERS FOR FILTER", globalFilter);
         loadAllHeadersForItems(logFiles);
         filterText.current = globalFilter;
       }
