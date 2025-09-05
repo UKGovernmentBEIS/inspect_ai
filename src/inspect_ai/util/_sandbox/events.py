@@ -17,6 +17,7 @@ from .environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
 )
+from .service import SERVICES_DIR
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
@@ -58,6 +59,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
         # make call
         result = await self._sandbox.exec(**params)
+
+        # skip sandbox service events
+        if any(SERVICES_DIR in c for c in cmd):
+            return result
 
         # yield event
         options: dict[str, JsonValue] = {}
