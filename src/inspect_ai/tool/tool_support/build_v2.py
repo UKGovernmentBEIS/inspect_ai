@@ -170,7 +170,7 @@ def _prepare_build_environment() -> Path:
     print("  (This avoids mutating the mounted repo)")
 
     # Make a copy into /tmp to avoid mutating the mounted repo
-    shutil.copytree(source_dir, copy_dir)
+    shutil.copytree(source_dir, copy_dir, ignore=shutil.ignore_patterns(".venv"))
 
     # Change to the copy directory
     os.chdir(copy_dir)
