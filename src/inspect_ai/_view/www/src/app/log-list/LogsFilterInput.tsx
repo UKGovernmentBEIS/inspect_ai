@@ -10,7 +10,7 @@ export interface LogsToolbarProps {}
 
 export const LogsFilterInput: FC<LogsToolbarProps> = () => {
   const { globalFilter, setGlobalFilter } = useLogsListing();
-  const debouncedUpdate = useCallback(
+  const handleChange = useCallback(
     async (value: string) => {
       setGlobalFilter(value);
     },
@@ -22,7 +22,7 @@ export const LogsFilterInput: FC<LogsToolbarProps> = () => {
       icon={ApplicationIcons.filter}
       value={globalFilter || ""}
       onChange={(e) => {
-        debouncedUpdate(e.target.value);
+        handleChange(e.target.value);
       }}
       placeholder="Filter..."
       className={clsx(styles.filterInput)}
