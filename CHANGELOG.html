@@ -287,7 +287,18 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
+<li>Agent Bridge: Option to force the sandbox agent bridge to use a specific model.</li>
+<li>Agent Bridge: New <code>filter</code> option to enable bridge to filter model generate calls.</li>
+<li>Agent Bridge: Ensure that Anthropic can’t yield an empty system parameter.</li>
+<li>Agent Bridge: Increase polling interval for sandbox agent bridge to 2 seconds (was 0.2 seconds).</li>
 <li>OpenAI Compatible: Add support for using Responses API via <code>responses_api</code> model arg.</li>
+<li>Eval Set: Add <code>eval_set_id</code> to log file (unique id for eval set across invocations for the same <code>log_dir</code>).</li>
+<li>Task Display: Render tool outputs based on model events rather than tool events (compatible w/ external tool calling e.g.&nbsp;for agent bridge).</li>
+<li>Sandbox Service: Don’t emit sandbox events for sandbox service RPC calls.</li>
+<li>Hooks: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#evalsetstart">EvalSetStart</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#evalsetend">EvalSetEnd</a></span> hook methods.</li>
+<li>Scoring: <code>inspect score</code> now supports streaming via the <code>--stream</code> argument.</li>
+<li>Inspect View: Starting the view server with a path to a specific log file will automatically open that log file (if it exists) rather than showing the log list.</li>
+<li>Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.</li>
 </ul>
 </section>
 <section id="september-2025" class="level2">

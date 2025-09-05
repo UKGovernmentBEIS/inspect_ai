@@ -18,6 +18,7 @@ inspect score [OPTIONS] LOG_FILE
 | `--action` | choice (`append` \| `overwrite`) | Whether to append or overwrite the existing scores. | None |
 | `--overwrite` | boolean | Overwrite log file with the scored version | `False` |
 | `--output-file` | file | Output file to write the scored log to. | None |
+| `--stream` | text | Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being scored. | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
