@@ -103,7 +103,7 @@ export const createLogsSlice = (
           }
 
           // Reload if header status is "started" or "error" (but not if already loading)
-          if (existing.status === "started" || existing.status === "error") {
+          if (existing.status === "started") {
             return !isLoading;
           }
 
