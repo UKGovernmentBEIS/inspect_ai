@@ -240,6 +240,7 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
             prefix.append(Text())
         else:
             content.extend(render_message(message))
+            content.append(Text())
 
     # display assistant message
     if event.output.message and event.output.message.text:
