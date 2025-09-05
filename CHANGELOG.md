@@ -7,6 +7,7 @@
 - OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
 - Eval Set: Enable running additional epochs against an already completed eval set.
 - Eval Set: Add `eval_set_id` to log file (unique id for eval set across invocations for the same `log_dir`).
+- Eval Retry: Use the same `log_format` as the log which is being retried.
 - Task Display: Render tool outputs based on model events rather than tool events (compatible w/ external tool calling e.g. for agent bridge).
 - Sandbox Service: Don't emit sandbox events for sandbox service RPC calls.
 - Hooks: New `EvalSetStart` and `EvalSetEnd` hook methods.
