@@ -16,7 +16,9 @@ interface ToolInputProps {
 export const ToolInput: FC<ToolInputProps> = (props) => {
   const { contentType, contents, toolCallView, className } = props;
 
-  const prismParentRef = usePrismHighlight(toolCallView?.content);
+  const prismParentRef = usePrismHighlight(
+    toolCallView?.content || contents?.toString() || "",
+  );
 
   if (!contents && !toolCallView?.content) return null;
 
