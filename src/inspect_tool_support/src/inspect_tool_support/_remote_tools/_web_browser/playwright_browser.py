@@ -26,7 +26,34 @@ class PlaywrightBrowser:
                 headless=headless,
                 # Required for Gmail signup see
                 # https://stackoverflow.com/questions/65139098/how-to-login-to-google-account-with-playwright
-                args=["--disable-blink-features=AutomationControlled"],
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    # Core signal handling disabling
+                    "--disable-crash-reporter",  # No crash signal handling
+                    "--disable-seccomp-filter-sandbox",  # No syscall filtering/signals
+                    "--single-process",  # Avoid multi-process signal complexity
+                    # Sandboxing that can trigger signals
+                    "--no-sandbox",  # Disable all sandboxing
+                    "--disable-dev-shm-usage",  # Avoid shared memory signals
+                    "--disable-http2",  # Disable HTTP2 protocol
+                    "--disable-spdy4",  # Disable SPDY protocol
+                    "--disable-quic",  # Disable QUIC protocol
+                    # Font debugging args:
+                    "--disable-remote-fonts",  # Skip remote font loading
+                    "--disable-font-subpixel-positioning",
+                    "--disable-web-security",  # Bypass CORS for fonts
+                    "--disable-extensions",
+                    # Crash debugging:
+                    "--no-sandbox",  # May help with crashes
+                    "--disable-dev-shm-usage",  # Reduce memory issues
+                    "--disable-background-timer-throttling",
+                    "--disable-backgrounding-occluded-windows",
+                    "--disable-renderer-backgrounding",
+                    # Verbose logging:
+                    "--enable-logging=stderr",
+                    "--v=1",  # Chrome verbose logging level
+                    "--log-level=0",  # All log levels
+                ],
             )
         )
 
