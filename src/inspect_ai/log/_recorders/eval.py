@@ -179,7 +179,7 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(cls, location: str, header_only: bool = False, skip_sample_validation: bool = False) -> EvalLog:
         # if the log is not stored in the local filesystem then download it first,
         # and then read it from a temp file (eliminates the possiblity of hundreds
         # of small fetches from the zip file streams)
@@ -199,7 +199,7 @@ class EvalRecorder(FileRecorder):
         # read log (use temp_log if we have it)
         try:
             with file(temp_log or location, "rb") as z:
-                log = _read_log(z, location, header_only)
+                log = _read_log(z, location, header_only, skip_sample_validation)
 
                 if etag is not None:
                     log.etag = etag
@@ -223,6 +223,7 @@ class EvalRecorder(FileRecorder):
         id: str | int | None = None,
         epoch: int = 1,
         uuid: str | None = None,
+        skip_sample_validation: bool = False
     ) -> EvalSample:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
@@ -246,9 +247,12 @@ class EvalRecorder(FileRecorder):
                         epoch = sample.epoch
 
                     with zip.open(_sample_filename(id, epoch), "r") as f:
-                        return EvalSample.model_validate(
-                            json.load(f), context=DESERIALIZING_CONTEXT
-                        )
+                        if skip_sample_validation:
+                            return construct_eval_sample_without_validation(json.load(f))
+                        else:
+                            return EvalSample.model_validate(
+                                json.load(f), context=DESERIALIZING_CONTEXT
+                            )
                 except KeyError:
                     raise IndexError(
                         f"Sample id {id} for epoch {epoch} not found in log {location}"
@@ -527,7 +531,7 @@ class ZipLogFile:
         )
 
 
-def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
+def _read_log(log: BinaryIO, location: str, header_only: bool = False, skip_sample_validation: bool = False) -> EvalLog:
     with ZipFile(log, mode="r") as zip:
         evalLog = _read_header(zip, location)
         if REDUCTIONS_JSON in zip.namelist():
@@ -547,10 +551,14 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
             for name in zip.namelist():
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
                     with zip.open(name, "r") as f:
-                        samples.append(
-                            EvalSample.model_validate(
+                        if not skip_sample_validation:
+                            sample = EvalSample.model_validate(
                                 json.load(f), context=DESERIALIZING_CONTEXT
                             ),
+                        else:
+                            sample = _construct_eval_sample_without_validation(json.load(f))
+                        samples.append(
+                            sample
                         )
             sort_samples(samples)
             evalLog.samples = samples
@@ -651,3 +659,8 @@ def _journal_summary_path(file: str | None = None) -> str:
 
 def _journal_summary_file(index: int) -> str:
     return f"{index}.json"
+
+
+def _construct_eval_sample_without_validation(dct: dict) -> EvalSample:
+    # Receives raw dictionary of log as input
+    # Returns EvalSample as output

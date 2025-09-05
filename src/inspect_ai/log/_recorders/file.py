@@ -42,9 +42,10 @@ class FileRecorder(Recorder):
         id: str | int | None = None,
         epoch: int = 1,
         uuid: str | None = None,
+        skip_sample_validation: bool = False,
     ) -> EvalSample:
         # establish the log to read from (might be cached)
-        eval_log = await cls._log_file_maybe_cached(location)
+        eval_log = await cls._log_file_maybe_cached(location, skip_sample_validation)
 
         # throw if no samples
         if not eval_log.samples:
@@ -77,12 +78,16 @@ class FileRecorder(Recorder):
         return [sample.summary() for sample in eval_log.samples]
 
     @classmethod
-    async def _log_file_maybe_cached(cls, location: str) -> EvalLog:
+    async def _log_file_maybe_cached(
+        cls, location: str, skip_sample_validation: bool
+    ) -> EvalLog:
         # establish the log to read from (might be cached)
         if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
             eval_log = cls.__last_read_sample_log[1]
         else:
-            eval_log = await cls.read_log(location)
+            eval_log = await cls.read_log(
+                location, skip_sample_validation=skip_sample_validation
+            )
             cls.__last_read_sample_log = (location, eval_log)
         return eval_log
 

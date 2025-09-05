@@ -124,7 +124,17 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+        skip_sample_validation: bool = False,
+    ) -> EvalLog:
+        if skip_sample_validation:
+            raise NotImplementedError(
+                "Skipping sample validation is only available for EvalRecorder."
+            )
+
         fs = filesystem(location)
 
         if header_only:
