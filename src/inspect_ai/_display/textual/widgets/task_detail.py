@@ -225,9 +225,9 @@ class TaskMetrics(Widget):
                 self.value_widgets[metric.name] = Static(
                     self._metric_value(metric.value), markup=False
                 )
-
-            grid.mount(Static(metric.name, markup=False))
-            grid.mount(self.value_widgets[metric.name])
+            if grid.is_attached:
+                grid.mount(Static(metric.name, markup=False))
+                grid.mount(self.value_widgets[metric.name])
 
     def _title(self) -> Widget:
         if self.scorer is None:

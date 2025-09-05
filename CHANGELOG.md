@@ -5,6 +5,7 @@
 - Agent Bridge: Ensure that Anthropic can't yield an empty system parameter.
 - Agent Bridge: Increase polling interval for sandbox agent bridge to 2 seconds (was 0.2 seconds).
 - OpenAI Compatible: Add support for using Responses API via `responses_api` model arg.
+- Eval Set: Enable running additional epochs against an already completed eval set.
 - Eval Set: Add `eval_set_id` to log file (unique id for eval set across invocations for the same `log_dir`).
 - Task Display: Render tool outputs based on model events rather than tool events (compatible w/ external tool calling e.g. for agent bridge).
 - Sandbox Service: Don't emit sandbox events for sandbox service RPC calls.
