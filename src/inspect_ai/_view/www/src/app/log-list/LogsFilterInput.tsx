@@ -27,7 +27,6 @@ export const LogsFilterInput = forwardRef<HTMLInputElement, LogsToolbarProps>(
           handleChange(e.target.value);
         }}
         onFocus={(e) => {
-          console.log("select all");
           e.target.select();
         }}
         placeholder="Filter..."

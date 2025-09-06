@@ -3,7 +3,7 @@ import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
 
 import clsx from "clsx";
-import { FC, Fragment, useMemo } from "react";
+import { FC, Fragment, useMemo, useRef } from "react";
 import {
   ModelCall,
   ModelEvent,
@@ -190,14 +190,16 @@ export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
   const sourceCode = useMemo(() => {
     return JSON.stringify(contents, undefined, 2);
   }, [contents]);
-  const prismParentRef = usePrismHighlight(sourceCode);
+
+  const sourceCodeRef = useRef<HTMLDivElement | null>(null);
+  usePrismHighlight(sourceCodeRef, sourceCode.length);
 
   if (!contents) {
     return null;
   }
 
   return (
-    <div ref={prismParentRef} className={clsx("model-call")}>
+    <div ref={sourceCodeRef} className={clsx("model-call")}>
       <pre className={clsx(styles.codePre)}>
         <code
           id={id}

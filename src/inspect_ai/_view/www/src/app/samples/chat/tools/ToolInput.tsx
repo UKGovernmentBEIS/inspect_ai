@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, Ref } from "react";
+import { FC, Ref, useRef } from "react";
 
 import { usePrismHighlight } from "../../../../state/hooks";
 import { RenderedText } from "../../../content/RenderedText";
@@ -16,9 +16,13 @@ interface ToolInputProps {
 export const ToolInput: FC<ToolInputProps> = (props) => {
   const { contentType, contents, toolCallView, className } = props;
 
-  const prismParentRef = usePrismHighlight(
-    toolCallView?.content || contents?.toString() || "",
-  );
+  const sourceCodeRef = useRef<HTMLDivElement | null>(null);
+  const sourceCodeLength = toolCallView
+    ? toolCallView.content.length
+    : typeof contents === "string"
+      ? contents.length
+      : JSON.stringify(contents).length;
+  usePrismHighlight(sourceCodeRef, sourceCodeLength);
 
   if (!contents && !toolCallView?.content) return null;
 
@@ -26,7 +30,7 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
     return (
       <RenderedText
         markdown={toolCallView.content}
-        ref={prismParentRef}
+        ref={sourceCodeRef}
         className={clsx("tool-output", styles.toolView, className)}
       />
     );
@@ -35,7 +39,7 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
       <RenderTool
         contents={contents!}
         contentType={contentType || ""}
-        parentRef={prismParentRef}
+        parentRef={sourceCodeRef}
         className={className}
       />
     );
