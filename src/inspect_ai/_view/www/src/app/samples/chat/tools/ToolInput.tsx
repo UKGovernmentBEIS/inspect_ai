@@ -17,11 +17,14 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
   const { contentType, contents, toolCallView, className } = props;
 
   const sourceCodeRef = useRef<HTMLDivElement | null>(null);
+
   const sourceCodeLength = toolCallView
     ? toolCallView.content.length
-    : typeof contents === "string"
-      ? contents.length
-      : JSON.stringify(contents).length;
+    : contents
+      ? typeof contents === "string"
+        ? contents.length
+        : JSON.stringify(contents).length
+      : 0;
   usePrismHighlight(sourceCodeRef, sourceCodeLength);
 
   if (!contents && !toolCallView?.content) return null;
