@@ -11,15 +11,25 @@ interface RenderedTextProps {
 }
 
 export const RenderedText = forwardRef<HTMLDivElement, RenderedTextProps>(
-  ({ markdown, style, className, forceRender }) => {
+  ({ markdown, style, className, forceRender }, ref) => {
     const displayMode = useStore((state) => state.app.displayMode);
     if (forceRender || displayMode === "rendered") {
       return (
-        <MarkdownDiv markdown={markdown} style={style} className={className} />
+        <MarkdownDiv
+          ref={ref}
+          markdown={markdown}
+          style={style}
+          className={className}
+        />
       );
     } else {
       return (
-        <Preformatted text={markdown} style={style} className={className} />
+        <Preformatted
+          ref={ref}
+          text={markdown}
+          style={style}
+          className={className}
+        />
       );
     }
   },
