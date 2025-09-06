@@ -8,7 +8,7 @@ from mcp import JSONRPCRequest, StdioServerParameters
 from mcp.shared.message import SessionMessage
 from mcp.types import JSONRPCMessage, JSONRPCNotification
 
-from inspect_ai.tool._tool_support_helpers import (
+from inspect_ai.tool.tool_support._tool_support_helpers import (
     exec_model_request,
     exec_notification,
     exec_scalar_request,
@@ -32,9 +32,7 @@ async def sandbox_client(  # type: ignore
     timeout: int | None = None,  # default 180 seconds
 ) -> MCPServerContext:  # type: ignore
     timeout = timeout or 180
-    (sandbox_environment, _) = await tool_support_sandbox(
-        "mcp support", sandbox_name=sandbox_name
-    )
+    sandbox_environment = await tool_support_sandbox(sandbox_name=sandbox_name)
 
     # read_stream is remote process's stdout
     read_stream: MemoryObjectReceiveStream[SessionMessage | Exception]

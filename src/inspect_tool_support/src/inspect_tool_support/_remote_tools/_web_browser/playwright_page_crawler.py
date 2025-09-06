@@ -39,6 +39,15 @@ class PageCrawler:
         # Enable chrome development tools, and accessibility tree output.
         cdp_session = await page.context.new_cdp_session(page)
         await cdp_session.send("Accessibility.enable")
+
+        # Add debugging event handlers
+        page.on(
+            "console", lambda msg: print(f"BROWSER CONSOLE [{msg.type}]: {msg.text}")
+        )
+        page.on("crash", lambda _: print("PAGE CRASH EVENT DETECTED"))
+        page.on("close", lambda _: print("PAGE CLOSE EVENT DETECTED"))
+        page.on("pageerror", lambda err: print(f"PAGE JS ERROR: {err}"))
+
         return PageCrawler(
             page,
             cdp_session,
@@ -108,49 +117,56 @@ class PageCrawler:
 
     async def update(self) -> None:
         """Updates the accessibility tree and DOM from current page."""
-        await self._page.wait_for_load_state(_WAIT_STRATEGY)
+        print(f"XXXXX updating {self._page.url}")
+        try:
+            await self._page.wait_for_load_state(_WAIT_STRATEGY)
 
-        available_retries = 2
-        retry_delay = 0.25
-        while available_retries:
-            self._accessibility_tree = create_accessibility_tree(
-                ax_nodes=AXTree(
-                    **await self._cdp_session.send("Accessibility.getFullAXTree", {})
-                ).nodes,
-                dom_snapshot=DOMSnapshot(
-                    **await self._cdp_session.send(
-                        "DOMSnapshot.captureSnapshot",
-                        {
-                            "computedStyles": [],
-                            "includeDOMRects": True,
-                        },
-                    )
-                ),
-                device_scale_factor=self._device_scale_factor,
-                window_bounds=Rectangle(
-                    await self._page.evaluate("window.pageXOffset"),
-                    await self._page.evaluate("window.pageYOffset"),
-                    await self._page.evaluate("window.screen.width"),
-                    await self._page.evaluate("window.screen.height"),
-                ),
-            )
-
-            self._rendered_main_content, self._rendered_accessibility_tree = (
-                (
-                    self._accessibility_tree["root"].render_main_content(),
-                    self._accessibility_tree["root"].render_accessibility_tree(),
+            available_retries = 2
+            retry_delay = 0.25
+            while available_retries:
+                self._accessibility_tree = create_accessibility_tree(
+                    ax_nodes=AXTree(
+                        **await self._cdp_session.send(
+                            "Accessibility.getFullAXTree", {}
+                        )
+                    ).nodes,
+                    dom_snapshot=DOMSnapshot(
+                        **await self._cdp_session.send(
+                            "DOMSnapshot.captureSnapshot",
+                            {
+                                "computedStyles": [],
+                                "includeDOMRects": True,
+                            },
+                        )
+                    ),
+                    device_scale_factor=self._device_scale_factor,
+                    window_bounds=Rectangle(
+                        await self._page.evaluate("window.pageXOffset"),
+                        await self._page.evaluate("window.pageYOffset"),
+                        await self._page.evaluate("window.screen.width"),
+                        await self._page.evaluate("window.screen.height"),
+                    ),
                 )
-                if self._accessibility_tree
-                else (None, "")
-            )
 
-            if self._rendered_accessibility_tree:
-                return
-            # sometimes, the entire tree is initially ignored. in such cases, it's typically
-            # because we're sampling too soon. Waiting a small amount of time and trying again
-            # resolves the issue.
-            available_retries = available_retries - 1
-            await asyncio.sleep(retry_delay)
+                self._rendered_main_content, self._rendered_accessibility_tree = (
+                    (
+                        self._accessibility_tree["root"].render_main_content(),
+                        self._accessibility_tree["root"].render_accessibility_tree(),
+                    )
+                    if self._accessibility_tree
+                    else (None, "")
+                )
+
+                if self._rendered_accessibility_tree:
+                    return
+                # sometimes, the entire tree is initially ignored. in such cases, it's typically
+                # because we're sampling too soon. Waiting a small amount of time and trying again
+                # resolves the issue.
+                available_retries = available_retries - 1
+                await asyncio.sleep(retry_delay)
+        except Exception as e:
+            print(f"XXXXX updating caught {e}")
+            raise e
 
     async def auto_click_cookies(self) -> None:
         """Autoclick any cookies popup."""
@@ -182,7 +198,32 @@ class PageCrawler:
         try:
             await self._page.goto(url, wait_until=_WAIT_STRATEGY)
         except Exception as e:
-            print(f"caught {e}")
+            import traceback
+
+            print(f"go_to_url caught {e}")
+            print(f"Exception type: {type(e).__name__}")
+            print(f"Exception args: {e.args}")
+            print(f"Exception __cause__: {e.__cause__}")
+            print(f"Exception __context__: {e.__context__}")
+            print("Full traceback:")
+            traceback.print_exc()
+
+            # Check if it's a Playwright-specific exception
+            if hasattr(e, "message"):
+                print(f"Playwright message: {e.message}")
+            if hasattr(e, "name"):
+                print(f"Playwright name: {e.name}")
+            if hasattr(e, "stack"):
+                print(f"Playwright stack: {e.stack}")
+
+            # Page state information
+            print(f"Page URL: {self._page.url}")
+            print(f"Page is closed: {self._page.is_closed()}")
+            try:
+                print(f"Page title: {await self._page.title()}")
+            except Exception:
+                print("Could not get page title")
+
             raise
 
     async def click(self, element_id: int | str) -> None:

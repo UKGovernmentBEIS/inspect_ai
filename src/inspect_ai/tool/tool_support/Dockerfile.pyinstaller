@@ -1,0 +1,62 @@
+# Base image will automatically use target platform
+FROM python:3.10-slim-bullseye AS base
+
+# Architecture-specific package installation
+FROM base AS packages-amd64
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    gcc \
+    g++ \
+    build-essential \
+    patchelf \
+    scons \
+    file \
+    git
+
+FROM base AS packages-arm64  
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    gcc \
+    g++ \
+    build-essential \
+    patchelf \
+    scons \
+    file \
+    git
+
+# Final stage - automatically selects correct packages stage
+FROM packages-${TARGETARCH} AS final
+
+# Create an isolated Python environment to avoid PEP 668 (externally managed)
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir \
+        pyinstaller \
+        # Install staticx from `add-type-checking` branch to fix PyInstaller compatibility
+        # The `main` branch of staticx naïvely treats any executable file as an ELF
+        # file when creating static binaries. The playwright package includes some
+        # .sh scripts (e.g. reinstall_chrome_beta_linux.sh), and they are obviously
+        # not ELF binaries.
+        # See: https://github.com/JonathonReinhart/staticx/issues/288
+        #
+        # The `add-type-checking` branch from https://github.com/JonathonReinhart/staticx/pull/277
+        # includes better file type detection to handle non-ELF executables.
+        #
+        # It's scary that this PR has been open since January, 2024. Yikes.
+        git+https://github.com/JonathonReinhart/staticx.git@add-type-checking \
+        playwright \
+        psutil \
+        jsonrpcserver \
+        pydantic \
+        setuptools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ensure Playwright installs Chromium into package path and installs runtime deps
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+RUN playwright install chromium-headless-shell
+RUN playwright install-deps
+
+CMD ["tail", "-f", "/dev/null"]

@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 import socket
 import subprocess
 import sys
@@ -34,12 +35,19 @@ class JSONRPCNotification(JSONRPCIncoming):
 def main() -> None:
     args = _parse_args()
     match args.command:
+        case "healthcheck":
+            healthcheck()
         case "exec":
             asyncio.run(_exec(args.request))
         case "post-install":
             post_install(no_web_browser=args.no_web_browser)
         case "server":
             server_main()
+
+
+def healthcheck():
+    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "version", "id": 666}'))
+    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "remote_version", "id": 667}'))
 
 
 # Example/testing requests
@@ -72,23 +80,35 @@ async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
 
 def _ensure_server_is_running() -> None:
     # TODO: Pipe stdout and stderr to proc 1
+    print(f"\n\nXXXXX _ensure_server_is_running called from ({os.getpid()})")
     if _can_connect_to_socket():
+        print("\tcan connect to socket. no work to do")
         return  # Server already running and responsive
 
+    # Get the correct executable path for staticx bundled executables. When running
+    # under staticx, sys.argv[0] points to the extracted temp executable which gets
+    # deleted when the parent process exits, breaking the server. The STATICX_PROG_PATH
+    # env var provides the absolute path of the program being executed.
+    executable_path = os.environ.get("STATICX_PROG_PATH")
+    if executable_path is None:
+        raise RuntimeError("STATICX_PROG_PATH environment variable not found. ")
+
     # Start server (it will handle socket cleanup on startup)
-    subprocess.Popen(
-        ["inspect-tool-support", "server"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+    print(f"\tunable to connect to socket - launching '{executable_path} server'")
+
+    process = subprocess.Popen(
+        [executable_path, "server"],
     )
 
     # Wait for socket to become available
-    for _ in range(50):  # Wait up to 5 seconds
+    for _ in range(200):  # Wait up to 20 seconds
         if _can_connect_to_socket():
+            print(f"\tprocess {process.pid} created")
             return
         time.sleep(0.1)
 
-    raise RuntimeError("Server failed to start within 5 seconds")
+    process.kill()
+    raise RuntimeError(f"Server ({process.pid}) failed to start within 20 seconds")
 
 
 def _can_connect_to_socket() -> bool:
@@ -116,6 +136,7 @@ def _parse_args() -> argparse.Namespace:
     exec_parser = subparsers.add_parser("exec")
     exec_parser.add_argument(dest="request", type=str, nargs="?")
     subparsers.add_parser("server")
+    subparsers.add_parser("healthcheck")
     post_install_parser = subparsers.add_parser("post-install")
     post_install_parser.add_argument("--no-web-browser", action="store_true")
 

@@ -1,20 +1,17 @@
-from textwrap import dedent
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
-from semver import Version
 
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool import ToolResult
-from inspect_ai.util import StoreModel, store_as
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
-
-from .._tool import Tool, ToolParsingError, tool
-from .._tool_support_helpers import (
+from inspect_ai.tool.tool_support._tool_support_helpers import (
     exec_model_request,
     exec_scalar_request,
     tool_support_sandbox,
 )
+from inspect_ai.util import StoreModel, store_as
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+
+from .._tool import Tool, ToolParsingError, tool
 
 # These models are cloned from the container code. If/when we decide to create
 # a package that is shared between the inspect and tool-container codebases, we'll
@@ -238,14 +235,6 @@ def bash_session(
 
 async def _get_sandbox(store: BashSessionStore) -> SandboxEnvironment:
     if not store.sandbox:
-        (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
-        required_version = Version.parse("1.0.0")
-        if sandbox_version < required_version:
-            raise PrerequisiteError(
-                dedent(f"""
-                    The 'inspect-tool-support' version in your container is '{sandbox_version}'. The 'bash_session' tool requires version '{required_version}' or newer. Please update your container image to the latest version of 'inspect-tool-support'.
-                    """).strip()
-            )
-        store.sandbox = sandbox
+        store.sandbox = await tool_support_sandbox()
 
     return store.sandbox

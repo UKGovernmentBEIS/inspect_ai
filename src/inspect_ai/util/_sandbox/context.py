@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Iterator, NoReturn, cast
+from typing import Any, Awaitable, Callable, Iterator, NoReturn, cast
 
 from shortuuid import uuid
 
@@ -89,30 +89,67 @@ async def sandbox_with(
         if (named_env := environments.get(name, None))
         else []
     ):
-        try:
-            if on_path:
-                # can we find the file on the path?
-                if not (await environment.exec(["which", file])).success:
-                    continue
-            else:
-                # can we read the file?
-                await environment.read_file(file)
-
-            # if so this is our environment, cache and return it
-            environments_with[environment_with_key] = environment
-            return environment
-
-        # allow exception types known to be raised from read_file
-        except (
-            FileNotFoundError,
-            UnicodeDecodeError,
-            PermissionError,
-            IsADirectoryError,
-        ):
-            pass
+        if on_path:
+            # can we find the file on the path?
+            if not (await environment.exec(["which", file])).success:
+                continue
+        else:
+            if await _is_file_readable(environment, file):
+                # if so this is our environment, cache and return it
+                environments_with[environment_with_key] = environment
+                return environment
 
     # not found
     return None
+
+
+async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
+    try:
+        # TODO: This is gross. We actually read the file contents just to see if
+        # it's readable.
+        await environment.read_file(file, False)
+        return True
+    # allow exception types known to be raised from read_file
+    except (
+        FileNotFoundError,
+        UnicodeDecodeError,
+        PermissionError,
+        IsADirectoryError,
+    ):
+        return False
+
+
+# TODO: Enhance this API to:
+# - embrace the fact that the name of the injected file may not be known at compile time
+# - support multiple injections
+# - I'm thinking of a design where an Injector has two Callables
+#    - One to determine if the injection has already been performed in the sandbox
+#    - One to perform that injection
+#
+# This is motivated by
+# - The desire to reuse this injection tech for multiple concerns. e.g. tool-support and human agent
+# - The desire to not rename the tool-support executable from the rich name that
+#   includes the version and arch (e.g. `tool-support-arm64-v2`) to a constant name
+#   like `tool-support`. This just feels like it will be better/easier for debugging
+async def sandbox_with_injection(
+    file: str,
+    injector: Callable[[SandboxEnvironment], Awaitable[None]],
+    *,
+    on_path: bool = False,
+    sandbox_name: str | None = None,
+) -> SandboxEnvironment:
+    if existing_sb := await sandbox_with(file, on_path, name=sandbox_name):
+        return existing_sb
+
+    try:
+        await injector(sandbox(sandbox_name))
+    except Exception as ex:
+        raise RuntimeError("Failure injecting into sandbox") from ex
+
+    if injected_sb := await sandbox_with(file, on_path, name=sandbox_name):
+        return injected_sb
+
+    raise_no_sandbox()
 
 
 async def sandbox_connections() -> dict[str, SandboxConnection]:

@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Discriminator, RootModel
 
 from inspect_ai.tool import ToolResult
-from inspect_ai.tool._tool_support_helpers import (
+from inspect_ai.tool.tool_support._tool_support_helpers import (
     exec_scalar_request,
     tool_support_sandbox,
 )
@@ -102,7 +102,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        (sandbox, _) = await tool_support_sandbox("editor")
+        sandbox = await tool_support_sandbox()
 
         # Create a dictionary of the parameters
         params = {
