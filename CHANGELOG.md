@@ -13,6 +13,14 @@
 - Hooks: New `EvalSetStart` and `EvalSetEnd` hook methods.
 - Scoring: `inspect score` now supports streaming via the `--stream` argument.
 - Inspect View: Starting the view server with a path to a specific log file will automatically open that log file (if it exists) rather than showing the log list.
+- Inspect View: Improve sample scoring detail layout
+- Inspect View: Reduce h1-h6 heading sizes
+- Inspect View: Fix error that caused 'json too large' message to appear incorrectly for sample JSON.
+- Inspect View: Improve filtering of log files in log list (improve performance and loading progress).
+- Inspect View: Add cmd+F shortcut for filtering log in log list.
+- Inspect View: Fix regression in tool input syntax highlighting.
+- Inspect View: Focus transcript or messages when sample dialog is loaded, allowing use of keyboard shortcuts like cmd + arrow down for scrolling.
+- Inspect View: Focus log list when the log list is shown, allowing use of keyboard shortcuts like cmd + F.
 - Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.
 
 ## 0.3.129 (03 September 2025)

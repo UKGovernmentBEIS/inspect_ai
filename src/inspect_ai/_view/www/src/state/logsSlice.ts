@@ -103,7 +103,7 @@ export const createLogsSlice = (
           }
 
           // Reload if header status is "started" or "error" (but not if already loading)
-          if (existing.status === "started" || existing.status === "error") {
+          if (existing.status === "started") {
             return !isLoading;
           }
 
@@ -123,12 +123,9 @@ export const createLogsSlice = (
         });
 
         // Set global loading state if this is the first batch
-        const wasLoading = get().logs.logOverviewsLoading;
-        if (!wasLoading) {
-          set((state) => {
-            state.logs.logOverviewsLoading = true;
-          });
-        }
+        set((state) => {
+          state.logs.logOverviewsLoading = true;
+        });
 
         try {
           log.debug(`LOADING LOG OVERVIEWS for ${filesToLoad.length} files`);
@@ -157,9 +154,7 @@ export const createLogsSlice = (
               state.logs.loadingFiles.delete(logFile.name);
             });
             // Update global loading state if no more files are loading
-            if (state.logs.loadingFiles.size === 0) {
-              state.logs.logOverviewsLoading = false;
-            }
+            state.logs.logOverviewsLoading = false;
           });
 
           return headers;
@@ -171,9 +166,7 @@ export const createLogsSlice = (
             filesToLoad.forEach((logFile) => {
               state.logs.loadingFiles.delete(logFile.name);
             });
-            if (state.logs.loadingFiles.size === 0) {
-              state.logs.logOverviewsLoading = false;
-            }
+            state.logs.logOverviewsLoading = false;
           });
 
           // Don't throw - just return empty array like the old implementation

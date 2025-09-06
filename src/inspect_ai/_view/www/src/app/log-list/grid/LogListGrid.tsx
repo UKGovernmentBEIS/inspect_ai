@@ -13,6 +13,7 @@ import {
 import clsx from "clsx";
 import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 
+import { LogFile } from "../../../client/api/types";
 import { useLogs, useLogsListing, usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { FileLogItem, FolderLogItem } from "../LogItem";
@@ -51,16 +52,21 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const sortingRef = useRef(sorting);
 
-  // Load all headers when needed (store handles deduplication)
-  const loadAllHeadersForItems = useCallback(async () => {
-    const logFiles = items
+  const logFiles = useMemo(() => {
+    return items
       .filter((item) => item.type === "file")
       .map((item) => item.logFile)
       .filter((file) => file !== undefined);
+  }, [items]);
 
-    await loadHeaders(logFiles);
-    setWatchedLogs(logFiles);
-  }, [loadHeaders, items, setWatchedLogs]);
+  // Load all headers when needed (store handles deduplication)
+  const loadAllHeadersForItems = useCallback(
+    async (files: LogFile[]) => {
+      await loadHeaders(files);
+      setWatchedLogs(files);
+    },
+    [loadHeaders, setWatchedLogs],
+  );
 
   // Keep ref updated
   useEffect(() => {
@@ -105,13 +111,13 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     },
     rowCount: items.length,
     onSortingChange: async (updater: Updater<SortingState>) => {
-      await loadAllHeadersForItems();
+      await loadAllHeadersForItems(logFiles);
       setSorting(
         typeof updater === "function" ? updater(sorting || []) : updater,
       );
     },
     onColumnFiltersChange: async (updater: Updater<ColumnFiltersState>) => {
-      await loadAllHeadersForItems();
+      await loadAllHeadersForItems(logFiles);
       setFiltering(
         typeof updater === "function" ? updater(filtering || []) : updater,
       );
@@ -152,11 +158,20 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   }, [table.getFilteredRowModel().rows.length, setFilteredCount]);
 
   // Load all headers when globalFilter changes
+  const filterText = useRef(globalFilter);
   useEffect(() => {
-    if (globalFilter && globalFilter.trim()) {
-      loadAllHeadersForItems();
-    }
-  }, [globalFilter, loadAllHeadersForItems]);
+    const timeoutId = setTimeout(() => {
+      if (
+        globalFilter &&
+        globalFilter.trim() &&
+        filterText.current !== globalFilter
+      ) {
+        loadAllHeadersForItems(logFiles);
+        filterText.current = globalFilter;
+      }
+    }, 200);
+    return () => clearTimeout(timeoutId);
+  }, [globalFilter, logFiles, loadAllHeadersForItems]);
 
   // Load headers for current page (demand loading)
   useEffect(() => {

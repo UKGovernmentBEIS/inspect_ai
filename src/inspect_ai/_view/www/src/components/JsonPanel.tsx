@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { CSSProperties, FC, useMemo } from "react";
+import { CSSProperties, FC, useMemo, useRef } from "react";
 import { usePrismHighlight } from "../state/hooks";
 import "./JsonPanel.css";
 
@@ -23,10 +23,12 @@ export const JSONPanel: FC<JSONPanelProps> = ({
   const sourceCode = useMemo(() => {
     return json || JSON.stringify(resolveBase64(data), undefined, 2);
   }, [json, data]);
-  const prismParentRef = usePrismHighlight(sourceCode);
+
+  const sourceCodeRef = useRef<HTMLDivElement | null>(null);
+  usePrismHighlight(sourceCodeRef, sourceCode.length);
 
   return (
-    <div ref={prismParentRef}>
+    <div ref={sourceCodeRef}>
       <pre
         className={clsx("json-panel", simple ? "simple" : "", className)}
         style={style}
