@@ -993,6 +993,14 @@ async def eval_retry_async(
         task_args = eval_log.eval.task_args_passed
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
+        # try to match log format of retried log
+        if log_format is None and eval_log.location:
+            ext = os.path.splitext(eval_log.location)[1]
+            match ext:
+                case ".eval":
+                    log_format = "eval"
+                case ".json":
+                    log_format = "json"
         sample_id = eval_log.eval.config.sample_id
         sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (

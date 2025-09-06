@@ -6,20 +6,17 @@ from inspect_ai.tool._tool_transcript import transcript_tool_call
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageTool,
-    ChatMessageUser,
 )
 
 
 def messages_preceding_assistant(messages: list[ChatMessage]) -> list[ChatMessage]:
     preceding: list[ChatMessage] = []
     for m in reversed(messages):
-        if not isinstance(m, ChatMessageTool | ChatMessageAssistant) and not (
-            isinstance(m, ChatMessageUser) and m.tool_call_id
-        ):
-            preceding.append(m)
-        else:
+        if isinstance(m, ChatMessageAssistant):
             break
+
+        preceding.append(m)
+
     return list(reversed(preceding))
 
 

@@ -71,10 +71,7 @@ def display_conversation_assistant(
     if display_type() == "conversation":
         # print precding messages that aren't tool or assistant
         for m in messages_preceding_assistant(input):
-            conversation_panel(
-                title=m.role.capitalize(),
-                content=transcript_markdown(m.text, escape=True),
-            )
+            display_conversation_message(m)
 
         # show assistant message
         display_conversation_assistant_message(message)

@@ -31,6 +31,7 @@ from inspect_ai.log._file import (
     read_eval_log_headers,
     write_log_dir_manifest,
 )
+from inspect_ai.log._log import EvalConfig
 from inspect_ai.log._model import model_roles_to_model_roles_config
 from inspect_ai.model import (
     GenerateConfigArgs,
@@ -49,7 +50,7 @@ from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args
 from .task import Epochs
 from .task.resolved import ResolvedTask
-from .task.task import PreviousTask
+from .task.task import PreviousTask, resolve_epochs
 from .task.tasks import Tasks
 
 logger = logging.getLogger(__name__)
@@ -393,7 +394,9 @@ def eval_set(
         # all tasks have had an initial run, perform retries
         else:
             # look for retryable eval logs and cleave them into success/failed
-            success_logs, failed_logs = list_latest_eval_logs(all_logs, retry_cleanup)
+            success_logs, failed_logs = list_latest_eval_logs(
+                all_logs, epochs, retry_cleanup
+            )
 
             # retry the failed logs (look them up in resolved_tasks)
             if len(failed_logs) > 0:
@@ -535,14 +538,47 @@ def list_all_eval_logs(log_dir: str) -> list[Log]:
 
 # get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
 def list_latest_eval_logs(
-    logs: list[Log], cleanup_older: bool
+    logs: list[Log], epochs: int | Epochs | None, cleanup_older: bool
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
         logs=logs, cleanup_older=cleanup_older
     )
-    success_logs = [log for log in latest_logs if log.header.status == "success"]
-    failed_logs = [log for log in latest_logs if log.header.status != "success"]
-    return (success_logs, failed_logs)
+
+    # resolve epochs
+    epochs = resolve_epochs(epochs)
+
+    # figure out which logs still need work
+    complete_logs: list[Log] = []
+    incomplete_logs: list[Log] = []
+    for log in latest_logs:
+        if epochs_changed(epochs, log.header.eval.config):
+            incomplete_logs.append(log)
+        elif log.header.status != "success":
+            incomplete_logs.append(log)
+        else:
+            complete_logs.append(log)
+
+    return (complete_logs, incomplete_logs)
+
+
+def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
+    # user didn't say anything about epochs on subsequent call (not changed)
+    if epochs is None:
+        return False
+    # user did specify epochs and previous call had no epochs config (changed)
+    elif config.epochs is None:
+        return True
+    # number of epochs differs (changed)
+    elif epochs.epochs != config.epochs:
+        return True
+    # different reducer list (changed)
+    elif [r.__name__ for r in (epochs.reducer or [])] != [
+        r for r in (config.epochs_reducer or [])
+    ]:
+        return True
+    # fall through (not changed)
+    else:
+        return False
 
 
 # cleanup logs that aren't the latest

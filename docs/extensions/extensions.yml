@@ -34,6 +34,12 @@
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 
+- name: "[OpenBench](https://github.com/groq/openbench)"
+  description: |
+    Standardized, reproducible benchmarking for LLMs across 30+ evals.
+  author: "[Groq](https://github.com/groq)"
+  categories: ["Tooling"]
+
 - name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
   description: |
     Python package that provides a Kubernetes sandbox environment for Inspect.
