@@ -25,9 +25,13 @@ function buildApiUrl(path: string): string {
 }
 
 function isApiCrossOrigin(): boolean {
-  return Boolean(
-    API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin,
-  );
+  try {
+    return Boolean(
+      API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin,
+    );
+  } catch (TypeError) {
+    return false;
+  }
 }
 
 async function client_events() {
