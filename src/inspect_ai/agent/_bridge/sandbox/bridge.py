@@ -44,10 +44,10 @@ async def sandbox_agent_bridge(
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
-           an updated state based on traffic over the bridge.
+            an updated state based on traffic over the bridge.
         model: Force the bridge to use a speicifc model (e.g. "inspect" to force the
-           the default model for the task or "inspect/openai/gpt-4o" to force
-           another specific model).
+            the default model for the task or "inspect/openai/gpt-4o" to force
+            another specific model).
         filter: Filter for bridge model generation.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
