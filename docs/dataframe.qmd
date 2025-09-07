@@ -33,7 +33,11 @@ Inspect eval logs have a hierarchical structure which is well suited to flexibly
 
 Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g. if you want to immediately summarise or plot them) or normalised (e.g. if you are importing them into a SQL database).
 
-Below we'll walk through a few examples, then after that provide more in-depth documentation on customising how dataframes are read for various scenarios.
+::: {.callout-note}
+#### Inspect Viz
+
+[Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) is a data visualization framework built to work with the Inspect data frame functions described below. After you've explored the basics of data frames you may also want to check out Inspect Viz.
+:::
 
 ## Basics
 
