@@ -57,6 +57,25 @@ The `eval_set()` function returns a tuple of bool (whether all tasks
 completed successfully) and a list of `EvalLog` headers (i.e. raw sample
 data is not included in the logs returned).
 
+### Re-Running
+
+Eval sets that don’t complete due to errors or cancellation can be
+re-run—simply re-execute the same command and any work not yet completed
+will be scheduled (if the eval set is already done then a message to
+that effect will be printed).
+
+You can also amend an eval set with additional tasks, models, or epochs.
+Just re-issue the same command with the additions. For example, here we
+add a model and 2 more epochs to the eval set run in the example from
+above:
+
+``` bash
+$ inspect eval-set mmlu.py mathematics.py \
+   --model openai/gpt-5,openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 \
+   --epochs 3
+   --log-dir logs-run-42
+```
+
 ### Concurrency
 
 By default, `eval_set()` will run multiple tasks in parallel, using the

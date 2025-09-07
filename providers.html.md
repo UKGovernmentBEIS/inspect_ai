@@ -1091,16 +1091,6 @@ inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 
 ### Responses API
 
-> [!NOTE]
->
-> The Responses API support described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 You can enable the use of the Responses API with the `openai-api`
 provider by passing the `responses_api` model arg. For example:
 

@@ -63,7 +63,7 @@ def my_agent() -> AgentState:
             
             await client.chat.completions.create(
                 model="inspect",
-                messages=messages_to_openai(state.messages),
+                messages=messages_to_openai(state.messages)
             )
 
             return bridge.state
@@ -85,6 +85,9 @@ for the task.
 Line 15  
 Convert the `state.messages` input into native OpenAI messages using the
 `messages_to_openai()` function.
+
+Line 18  
+Return the `state` changes automatically tracked by the `bridge` .
 
 The
 [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
@@ -165,6 +168,9 @@ Line 21
 Redirect the OpenAI API to talk to a proxy server that communicates back
 to the current Inspect model provider. Note that we read the `port` to
 listen on from the `bridge` yielded by the context manager.
+
+Line 26  
+Return the `state` changes automatically tracked by the `bridge`.
 
 The [Claude
 Code](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/claude)

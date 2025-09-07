@@ -581,10 +581,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="annotated-cell-1-12"><a href="#annotated-cell-1-12" aria-hidden="true" tabindex="-1"></a>            </span>
 <span id="annotated-cell-1-13"><a href="#annotated-cell-1-13" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> client.chat.completions.create(</span>
 <button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="2">2</button><span id="annotated-cell-1-14" class="code-annotation-target"><a href="#annotated-cell-1-14" aria-hidden="true" tabindex="-1"></a>                model<span class="op">=</span><span class="st">"inspect"</span>,</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="3">3</button><span id="annotated-cell-1-15" class="code-annotation-target"><a href="#annotated-cell-1-15" aria-hidden="true" tabindex="-1"></a>                messages<span class="op">=</span>messages_to_openai(state.messages),</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="3">3</button><span id="annotated-cell-1-15" class="code-annotation-target"><a href="#annotated-cell-1-15" aria-hidden="true" tabindex="-1"></a>                messages<span class="op">=</span>messages_to_openai(state.messages)</span>
 <span id="annotated-cell-1-16"><a href="#annotated-cell-1-16" aria-hidden="true" tabindex="-1"></a>            )</span>
 <span id="annotated-cell-1-17"><a href="#annotated-cell-1-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-1-18"><a href="#annotated-cell-1-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="4">4</button><span id="annotated-cell-1-18" class="code-annotation-target"><a href="#annotated-cell-1-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
 <span id="annotated-cell-1-19"><a href="#annotated-cell-1-19" aria-hidden="true" tabindex="-1"></a></span>
 <span id="annotated-cell-1-20"><a href="#annotated-cell-1-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
@@ -599,6 +599,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dt data-target-cell="annotated-cell-1" data-target-annotation="3">3</dt>
 <dd>
 <span data-code-cell="annotated-cell-1" data-code-lines="15" data-code-annotation="3">Convert the <code>state.messages</code> input into native OpenAI messages using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> function.</span>
+</dd>
+<dt data-target-cell="annotated-cell-1" data-target-annotation="4">4</dt>
+<dd>
+<span data-code-cell="annotated-cell-1" data-code-lines="18" data-code-annotation="4">Return the <code>state</code> changes automatically tracked by the <code>bridge</code> .</span>
 </dd>
 </dl>
 <p>The <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain</a> example provides a more in-depth demonstration of using the Python agent bridge with Inspect.</p>
@@ -637,7 +641,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="annotated-cell-2-23"><a href="#annotated-cell-2-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> result.success:</span>
 <span id="annotated-cell-2-24"><a href="#annotated-cell-2-24" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="ss">f"Agent error: </span><span class="sc">{</span>result<span class="sc">.</span>stderr<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="annotated-cell-2-25"><a href="#annotated-cell-2-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-26"><a href="#annotated-cell-2-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="5">5</button><span id="annotated-cell-2-26" class="code-annotation-target"><a href="#annotated-cell-2-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
 <span id="annotated-cell-2-27"><a href="#annotated-cell-2-27" aria-hidden="true" tabindex="-1"></a></span>
 <span id="annotated-cell-2-28"><a href="#annotated-cell-2-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
@@ -656,6 +660,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dt data-target-cell="annotated-cell-2" data-target-annotation="4">4</dt>
 <dd>
 <span data-code-cell="annotated-cell-2" data-code-lines="21" data-code-annotation="4">Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the <code>port</code> to listen on from the <code>bridge</code> yielded by the context manager.</span>
+</dd>
+<dt data-target-cell="annotated-cell-2" data-target-annotation="5">5</dt>
+<dd>
+<span data-code-cell="annotated-cell-2" data-code-lines="26" data-code-annotation="5">Return the <code>state</code> changes automatically tracked by the <code>bridge</code>.</span>
 </dd>
 </dl>
 <p>The <a href="https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/claude">Claude Code</a> and <a href="https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex">Codex CLI</a> examples provide more in-depth demonstrations of running custom agents in sandboxes.</p>
