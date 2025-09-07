@@ -186,6 +186,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         </a>
     </div>
   </nav>
+  <div id="quarto-announcement" data-announcement-id="573e3824cf8bb5c49ac39b70a3eadc52" class="alert alert-secondary hidden"><i class="bi bi-megaphone quarto-announcement-icon"></i><div class="quarto-announcement-content">
+<p><strong>Announcing Inspect Viz</strong>, a new data visualization framework for Inspect evals. <a href="https://meridianlabs-ai.github.io/inspect_viz/">Learn more</a></p>
+</div><i class="bi bi-x-lg quarto-announcement-action"></i></div>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
@@ -503,6 +506,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#log-analysis" id="toc-log-analysis" class="nav-link" data-scroll-target="#log-analysis">Log Analysis</a></li>
   <li><a href="#log-location" id="toc-log-location" class="nav-link" data-scroll-target="#log-location">Log Location</a></li>
   <li><a href="#sec-log-format" id="toc-sec-log-format" class="nav-link" data-scroll-target="#sec-log-format">Log Format</a>
   <ul class="collapse">
@@ -566,6 +570,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."></a></p>
 <p>This section won’t cover using <code>inspect view</code> though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the <a href="#sec-log-viewer">Log Viewer</a> section for details on interactively exploring logs.</p>
+</section>
+<section id="log-analysis" class="level2">
+<h2 class="anchored" data-anchor-id="log-analysis">Log Analysis</h2>
+<p>This article will focus primarily on configuring Inspect’s logging behavior (location, format, content, etc). Beyond that, analyzing data in log files is in:</p>
+<ol type="1">
+<li><p><a href="#log-file-api">Log File API</a> — API for accessing all data recorded in the log.</p></li>
+<li><p><a href="./dataframe.html">Log Dataframes</a> — API for extracting data frames from log files.</p></li>
+<li><p><a href="https://meridianlabs-ai.github.io/inspect_viz/">Inspect Viz</a> — Data visualization framework built to work with Inspect logs.</p></li>
+</ol>
 </section>
 <section id="log-location" class="level2">
 <h2 class="anchored" data-anchor-id="log-location">Log Location</h2>

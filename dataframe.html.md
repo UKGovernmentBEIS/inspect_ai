@@ -36,9 +36,14 @@ Extracted dataframes can either be denormalized (e.g. if you want to
 immediately summarise or plot them) or normalised (e.g. if you are
 importing them into a SQL database).
 
-Below we’ll walk through a few examples, then after that provide more
-in-depth documentation on customising how dataframes are read for
-various scenarios.
+> [!NOTE]
+>
+> ### Inspect Viz
+>
+> [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) is a
+> data visualization framework built to work with the Inspect data frame
+> functions described below. After you’ve explored the basics of data
+> frames you may also want to check out Inspect Viz.
 
 ## Basics
 

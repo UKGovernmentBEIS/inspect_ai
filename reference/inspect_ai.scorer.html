@@ -183,6 +183,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         </a>
     </div>
   </nav>
+  <div id="quarto-announcement" data-announcement-id="573e3824cf8bb5c49ac39b70a3eadc52" class="alert alert-secondary hidden"><i class="bi bi-megaphone quarto-announcement-icon"></i><div class="quarto-announcement-content">
+<p><strong>Announcing Inspect Viz</strong>, a new data visualization framework for Inspect evals. <a href="https://meridianlabs-ai.github.io/inspect_viz/">Learn more</a></p>
+</div><i class="bi bi-x-lg quarto-announcement-action"></i></div>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
@@ -2464,7 +2467,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="match">match</h3>
 <p>Scorer which matches text or a number.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_match.py#L8">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_match.py#L8">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> match(</span>
@@ -2492,7 +2495,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="includes">includes</h3>
 <p>Check whether the specified text is included in the model output.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_match.py#L39">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_match.py#L39">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> includes(ignore_case: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2509,7 +2512,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Note that at least one regex group is required to match against the target.</p>
 <p>The regex can have a single capture group or multiple groups. In the case of multiple groups, the scorer can be configured to match either one or all of the extracted groups</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_pattern.py#L46">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_pattern.py#L46">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pattern(pattern: <span class="bu">str</span>, ignore_case: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>, match_all: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2534,7 +2537,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Some solvers including multiple_choice solicit answers from the model prefaced with “ANSWER:”. This scorer extracts answers of this form for comparison with the target.</p>
 <p>Note that you must specify a <code>type</code> for the answer scorer.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_answer.py#L35">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_answer.py#L35">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> answer(pattern: Literal[<span class="st">"letter"</span>, <span class="st">"word"</span>, <span class="st">"line"</span>]) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2556,7 +2559,7 @@ B) Berlin
 C) London</code></pre>
 <p>The target for the dataset will then have a letter corresponding to the correct answer, e.g.&nbsp;the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.scorer.html#target">Target</a></span> would be <code>"A"</code> for the above question. If multiple choices are correct, the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.scorer.html#target">Target</a></span> can be an array of these letters.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_choice.py#L40">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_choice.py#L40">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> choice() <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2566,7 +2569,7 @@ C) London</code></pre>
 <p>Scorer which produces an F1 score</p>
 <p>Computes the <code>F1</code> score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_classification.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_classification.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[mean(), stderr()])</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f1(</span>
@@ -2588,7 +2591,7 @@ C) London</code></pre>
 <p>Scorer which produces an exact match score</p>
 <p>Normalizes the text of the answer and target(s) and performs an exact matching comparison of the text. This scorer will return <code>CORRECT</code> when the answer is an exact match to one or more targets.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_classification.py#L42">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_classification.py#L42">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[mean(), stderr()])</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> exact() <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2597,7 +2600,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="model_graded_qa">model_graded_qa</h3>
 <p>Score a question/answer task using a model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_model.py#L76">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_model.py#L76">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_graded_qa(</span>
@@ -2639,7 +2642,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="model_graded_fact">model_graded_fact</h3>
 <p>Score a question/answer task with a fact response using a model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_model.py#L28">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_model.py#L28">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_graded_fact(</span>
@@ -2681,7 +2684,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="multi_scorer">multi_scorer</h3>
 <p>Returns a Scorer that runs multiple Scorers in parallel and aggregates their results into a single Score using the provided reducer function.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_multi.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_multi.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multi_scorer(scorers: <span class="bu">list</span>[Scorer], reducer: <span class="bu">str</span> <span class="op">|</span> ScoreReducer) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2702,7 +2705,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="accuracy">accuracy</h3>
 <p>Compute proportion of total answers which are correct.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metrics/accuracy.py#L14">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metrics/accuracy.py#L14">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accuracy(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2717,7 +2720,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="mean">mean</h3>
 <p>Compute mean of all scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metrics/mean.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metrics/mean.py#L6">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean() <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2726,7 +2729,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="std">std</h3>
 <p>Calculates the sample standard deviation of a list of scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metrics/std.py#L137">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metrics/std.py#L137">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> std(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2741,7 +2744,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="stderr">stderr</h3>
 <p>Standard error of the mean using Central Limit Theorem.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metrics/std.py#L50">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metrics/std.py#L50">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stderr(</span>
@@ -2762,7 +2765,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="bootstrap_stderr">bootstrap_stderr</h3>
 <p>Standard error of the mean using bootstrap.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metrics/std.py#L17">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metrics/std.py#L17">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bootstrap_stderr(</span>
@@ -2786,7 +2789,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="at_least">at_least</h3>
 <p>Score correct if there are at least k score values greater than or equal to the value.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/reducer.py#L77">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/reducer.py#L77">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> at_least(</span>
@@ -2811,7 +2814,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="pass_at">pass_at</h3>
 <p>Probability of at least 1 correct sample given <code>k</code> epochs (<a href="https://arxiv.org/pdf/2107.03374" class="uri">https://arxiv.org/pdf/2107.03374</a>).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/reducer.py#L109">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/reducer.py#L109">Source</a>
 </div>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pass_at(</span>
@@ -2836,7 +2839,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="max_score">max_score</h3>
 <p>Take the maximum value from a list of scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/reducer.py#L144">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/reducer.py#L144">Source</a>
 </div>
 <div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"max"</span>)</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_score(value_to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2851,7 +2854,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="mean_score">mean_score</h3>
 <p>Take the mean of a list of scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/reducer.py#L39">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/reducer.py#L39">Source</a>
 </div>
 <div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"mean"</span>)</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean_score(value_to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2866,7 +2869,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="median_score">median_score</h3>
 <p>Take the median value from a list of scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/reducer.py#L58">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/reducer.py#L58">Source</a>
 </div>
 <div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"median"</span>)</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> median_score(value_to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2881,7 +2884,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="mode_score">mode_score</h3>
 <p>Take the mode from a list of scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/reducer.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/reducer.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"mode"</span>)</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mode_score() <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2894,7 +2897,7 @@ C) London</code></pre>
 <p>Score model outputs.</p>
 <p>Evaluate the passed outputs and targets and return a dictionary with scoring outcomes and context.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_scorer.py#L34">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_scorer.py#L34">Source</a>
 </div>
 <div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Scorer(Protocol):</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -2929,7 +2932,7 @@ C) London</code></pre>
 <p>Target for scoring against the current TaskState.</p>
 <p>Target is a sequence of one or more strings. Use the <code>text</code> property to access the value as a single string.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_target.py#L4">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_target.py#L4">Source</a>
 </div>
 <div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Target(Sequence[<span class="bu">str</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -2937,7 +2940,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="score">Score</h3>
 <p>Score generated by a scorer.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L57">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L57">Source</a>
 </div>
 <div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Score(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2972,7 +2975,7 @@ C) London</code></pre>
 <dd>
 <p>Read the score as a string.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L77">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L77">Source</a>
 </div>
 <div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_str(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -2983,7 +2986,7 @@ C) London</code></pre>
 <dd>
 <p>Read the score as an integer.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L81">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L81">Source</a>
 </div>
 <div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_int(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -2994,7 +2997,7 @@ C) London</code></pre>
 <dd>
 <p>Read the score as a float.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L85">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L85">Source</a>
 </div>
 <div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_float(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">float</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -3005,7 +3008,7 @@ C) London</code></pre>
 <dd>
 <p>Read the score as a boolean.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L89">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L89">Source</a>
 </div>
 <div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_bool(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -3016,7 +3019,7 @@ C) London</code></pre>
 <dd>
 <p>Read the score as a list.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L93">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L93">Source</a>
 </div>
 <div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_list(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -3027,7 +3030,7 @@ C) London</code></pre>
 <dd>
 <p>Read the score as a dictionary.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L100">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L100">Source</a>
 </div>
 <div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_dict(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -3042,7 +3045,7 @@ C) London</code></pre>
 <p>Value provided by a score.</p>
 <p>Use the methods of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.scorer.html#score">Score</a></span> to easily treat the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.scorer.html#value">Value</a></span> as a simple scalar of various types.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L45">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L45">Source</a>
 </div>
 <div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>Value <span class="op">=</span> Union[</span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span>,</span>
@@ -3054,7 +3057,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="scorereducer">ScoreReducer</h3>
 <p>Reduce a set of scores to a single score.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/types.py#L8">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/types.py#L8">Source</a>
 </div>
 <div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScoreReducer(Protocol):</span>
 <span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -3070,7 +3073,7 @@ C) London</code></pre>
 <p>Metric protocol.</p>
 <p>The Metric signature changed in release v0.3.64. Both the previous and new signatures are supported – you should use <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.scorer.html#metricprotocol">MetricProtocol</a></span> for new code as the depreacated signature will eventually be removed.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L230">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L230">Source</a>
 </div>
 <div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>Metric <span class="op">=</span> MetricProtocol <span class="op">|</span> MetricDeprecated</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -3078,7 +3081,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="metricprotocol">MetricProtocol</h3>
 <p>Compute a metric on a list of scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L209">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L209">Source</a>
 </div>
 <div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MetricProtocol(Protocol):</span>
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, scores: <span class="bu">list</span>[SampleScore]) <span class="op">-&gt;</span> Value</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -3101,7 +3104,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="samplescore">SampleScore</h3>
 <p>Score for a Sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L114">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L114">Source</a>
 </div>
 <div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleScore(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3132,7 +3135,7 @@ C) London</code></pre>
 <dd>
 <p>Pydantic model interface to sample metadata.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L126">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L126">Source</a>
 </div>
 <div class="sourceCode" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sample_metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -3152,7 +3155,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="scorer-1">scorer</h3>
 <p>Decorator for registering scorers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_scorer.py#L123">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_scorer.py#L123">Source</a>
 </div>
 <div class="sourceCode" id="cb40"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> scorer(</span>
 <span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]]] <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]],</span>
@@ -3189,7 +3192,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="metric-1">metric</h3>
 <p>Decorator for registering metrics.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_metric.py#L316">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_metric.py#L316">Source</a>
 </div>
 <div class="sourceCode" id="cb42"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metric(</span>
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> Callable[P, Metric],</span>
@@ -3209,7 +3212,7 @@ C) London</code></pre>
 <h3 class="anchored" data-anchor-id="score_reducer">score_reducer</h3>
 <p>Decorator for registering Score Reducers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_reducer/registry.py#L37">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_reducer/registry.py#L37">Source</a>
 </div>
 <div class="sourceCode" id="cb43"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score_reducer(</span>
 <span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>    func: ScoreReducerType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">*</span>, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
@@ -3233,7 +3236,7 @@ C) London</code></pre>
 <p>Score a model conversation.</p>
 <p>Score a model conversation (you may pass <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> or <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#agentstate">AgentState</a></span> as the value for <code>conversation</code>)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/41b8591df3afc77c83dae99f0b2d49bddb98ad0d/src/inspect_ai/scorer/_score.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/ab66beb35cd4271e3c6d455c060dd27f79933549/src/inspect_ai/scorer/_score.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb44"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> score(conversation: ModelConversation) <span class="op">-&gt;</span> <span class="bu">list</span>[Score]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>

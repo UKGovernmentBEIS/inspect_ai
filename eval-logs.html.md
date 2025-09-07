@@ -30,6 +30,21 @@ cover the details of managing log usage from the CLI as well as the
 Python API for reading logs. See the [Log Viewer](#sec-log-viewer)
 section for details on interactively exploring logs.
 
+## Log Analysis
+
+This article will focus primarily on configuring Inspect’s logging
+behavior (location, format, content, etc). Beyond that, analyzing data
+in log files is in:
+
+1.  [Log File API](#log-file-api) — API for accessing all data recorded
+    in the log.
+
+2.  [Log Dataframes](dataframe.qmd) — API for extracting data frames
+    from log files.
+
+3.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data
+    visualization framework built to work with Inspect logs.
+
 ## Log Location
 
 By default, logs are written to the `./logs` sub-directory of the

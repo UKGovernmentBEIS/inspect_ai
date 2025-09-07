@@ -183,6 +183,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         </a>
     </div>
   </nav>
+  <div id="quarto-announcement" data-announcement-id="573e3824cf8bb5c49ac39b70a3eadc52" class="alert alert-secondary hidden"><i class="bi bi-megaphone quarto-announcement-icon"></i><div class="quarto-announcement-content">
+<p><strong>Announcing Inspect Viz</strong>, a new data visualization framework for Inspect evals. <a href="https://meridianlabs-ai.github.io/inspect_viz/">Learn more</a></p>
+</div><i class="bi bi-x-lg quarto-announcement-action"></i></div>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
@@ -589,7 +592,19 @@ table a {
 </tbody>
 </table>
 <p>Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g.&nbsp;if you want to immediately summarise or plot them) or normalised (e.g.&nbsp;if you are importing them into a SQL database).</p>
-<p>Below we’ll walk through a few examples, then after that provide more in-depth documentation on customising how dataframes are read for various scenarios.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Inspect Viz
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><a href="https://meridianlabs-ai.github.io/inspect_viz/">Inspect Viz</a> is a data visualization framework built to work with the Inspect data frame functions described below. After you’ve explored the basics of data frames you may also want to check out Inspect Viz.</p>
+</div>
+</div>
 </section>
 <section id="basics" class="level2">
 <h2 class="anchored" data-anchor-id="basics">Basics</h2>
@@ -773,7 +788,7 @@ The model’s knowledge cutoff date
 <h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
 <p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
-<div id="ffa778df" class="cell">
+<div id="eceb8cb8" class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -789,7 +804,7 @@ The model’s knowledge cutoff date
 <h3 class="anchored" data-anchor-id="score_to_float">score_to_float()</h3>
 <p>Converts one or more score columns to a float representation of the score.</p>
 <p>For each column specified, this operation will convert the values to floats using the provided <code>value_to_float</code> function. The column value will be replaced with the float value.</p>
-<div id="d97e3781" class="cell">
+<div id="3760bc76" class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    samples_df, frontier, model_info, prepare, score_to_float</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)</span>
