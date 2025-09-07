@@ -40,13 +40,18 @@ class PageCrawler:
         cdp_session = await page.context.new_cdp_session(page)
         await cdp_session.send("Accessibility.enable")
 
-        # Add debugging event handlers
         page.on(
             "console", lambda msg: print(f"BROWSER CONSOLE [{msg.type}]: {msg.text}")
         )
         page.on("crash", lambda _: print("PAGE CRASH EVENT DETECTED"))
         page.on("close", lambda _: print("PAGE CLOSE EVENT DETECTED"))
         page.on("pageerror", lambda err: print(f"PAGE JS ERROR: {err}"))
+
+        await page.route("**/*.woff", lambda route: route.abort())
+        await page.route("**/*.woff2", lambda route: route.abort())
+        await page.route("**/*.ttf", lambda route: route.abort())
+        await page.route("**/*.otf", lambda route: route.abort())
+        await page.route("**/*.eot", lambda route: route.abort())
 
         return PageCrawler(
             page,
@@ -198,32 +203,7 @@ class PageCrawler:
         try:
             await self._page.goto(url, wait_until=_WAIT_STRATEGY)
         except Exception as e:
-            import traceback
-
-            print(f"go_to_url caught {e}")
-            print(f"Exception type: {type(e).__name__}")
-            print(f"Exception args: {e.args}")
-            print(f"Exception __cause__: {e.__cause__}")
-            print(f"Exception __context__: {e.__context__}")
-            print("Full traceback:")
-            traceback.print_exc()
-
-            # Check if it's a Playwright-specific exception
-            if hasattr(e, "message"):
-                print(f"Playwright message: {e.message}")
-            if hasattr(e, "name"):
-                print(f"Playwright name: {e.name}")
-            if hasattr(e, "stack"):
-                print(f"Playwright stack: {e.stack}")
-
-            # Page state information
-            print(f"Page URL: {self._page.url}")
-            print(f"Page is closed: {self._page.is_closed()}")
-            try:
-                print(f"Page title: {await self._page.title()}")
-            except Exception:
-                print("Could not get page title")
-
+            print(f"go_to_url caught ({type(e)}) {e}")
             raise
 
     async def click(self, element_id: int | str) -> None:

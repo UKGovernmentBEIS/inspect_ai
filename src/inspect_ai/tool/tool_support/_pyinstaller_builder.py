@@ -195,14 +195,23 @@ def _build_executable(
 
 def _apply_staticx(input_path: Path, output_path: Path) -> None:
     """Apply StaticX to make the executable fully static."""
+    # Use a temporary output path in the same directory as input to avoid cross-device issues
+    temp_output = input_path.parent / f"{input_path.name}.staticx"
+
     _run(
         [
             "staticx",
             # "--strip",  # REMOVED - can break node binary (matches PyInstaller --strip removal)
             str(input_path),
-            str(output_path),
+            str(temp_output),
         ]
     )
+
+    # Manually copy the result to the final destination
+    shutil.copy2(temp_output, output_path)
+
+    # Clean up temporary file
+    temp_output.unlink()
 
 
 def _verify_build(
@@ -272,12 +281,21 @@ def _run(
 ) -> str:
     """Run a subprocess command and return stdout."""
     # Stream output to console for user visibility, but still capture for return value
-    result = subprocess.run(
-        cmd, cwd=cwd, env=env, text=True, capture_output=True, check=True
-    )
-    # Print stdout and stderr to console so user sees the output
-    if result.stdout:
-        print(result.stdout, end='')
-    if result.stderr:
-        print(result.stderr, end='', file=sys.stderr)
-    return result.stdout
+    try:
+        result = subprocess.run(
+            cmd, cwd=cwd, env=env, text=True, capture_output=True, check=True
+        )
+        # Print stdout and stderr to console so user sees the output
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        return result.stdout
+    except subprocess.CalledProcessError as e:
+        # Print captured output even when command fails
+        if e.stdout:
+            print(e.stdout, end="")
+        if e.stderr:
+            print(e.stderr, end="", file=sys.stderr)
+        # Re-raise the exception to preserve error handling
+        raise

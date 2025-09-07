@@ -133,7 +133,7 @@ def main() -> None:
                 f"dist/{executable_name}",
                 str(output_path),
             ]
-            subprocess.run(staticx_cmd, check=True)
+            subprocess.run(staticx_cmd, check=True, stdout=None, stderr=None)
         else:
             print("Skipping staticx")
             temp_output = Path(f"dist/{executable_name}")

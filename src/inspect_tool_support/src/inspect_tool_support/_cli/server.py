@@ -24,7 +24,9 @@ if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     # Hint Playwright to use packaged browsers and skip host validation inside minimal containers
     os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
     os.environ.setdefault("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1")
-    os.environ["DEBUG"] = "pw:*"
+    os.environ["DEBUG"] = (
+        "pw:api,pw:browser,pw:channel,pw:driver,pw:page,pw:network,pw:proxy,pw:fetch"
+    )
 
 
 def main():

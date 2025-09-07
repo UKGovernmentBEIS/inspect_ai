@@ -10,8 +10,8 @@ from typing import Literal
 from jsonrpcserver import async_dispatch
 from pydantic import BaseModel
 
-from inspect_tool_support._cli._post_install import post_install
 from inspect_tool_support._cli.server import main as server_main
+from inspect_tool_support._cli.test_chromium import test_chromium
 from inspect_tool_support._util.common_types import JSONRPCResponseJSON
 from inspect_tool_support._util.constants import SOCKET_PATH
 from inspect_tool_support._util.json_rpc_helpers import json_rpc_unix_call
@@ -39,10 +39,31 @@ def main() -> None:
             healthcheck()
         case "exec":
             asyncio.run(_exec(args.request))
-        case "post-install":
-            post_install(no_web_browser=args.no_web_browser)
+        case "test":
+            _test()
         case "server":
             server_main()
+
+
+def _test() -> None:
+    import os
+    import sys
+    from pathlib import Path
+
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        meipass_lib = Path(sys._MEIPASS) / "lib"
+        existing_ld = os.environ.get("LD_LIBRARY_PATH", "")
+        new_ld = f"{meipass_lib}:{existing_ld}" if existing_ld else str(meipass_lib)
+        os.environ["LD_LIBRARY_PATH"] = new_ld
+        print(f"LD_LIBRARY_PATH set to {os.environ['LD_LIBRARY_PATH']}")
+        # Hint Playwright to use packaged browsers and skip host validation inside minimal containers
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
+        os.environ.setdefault("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1")
+        os.environ["DEBUG"] = (
+            "pw:api,pw:browser,pw:channel,pw:driver,pw:page,pw:network,pw:proxy,pw:fetch"
+        )
+
+    test_chromium()
 
 
 def healthcheck():
@@ -137,8 +158,7 @@ def _parse_args() -> argparse.Namespace:
     exec_parser.add_argument(dest="request", type=str, nargs="?")
     subparsers.add_parser("server")
     subparsers.add_parser("healthcheck")
-    post_install_parser = subparsers.add_parser("post-install")
-    post_install_parser.add_argument("--no-web-browser", action="store_true")
+    subparsers.add_parser("test")
 
     return parser.parse_args()
 
