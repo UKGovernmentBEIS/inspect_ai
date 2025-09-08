@@ -16,6 +16,8 @@ import styles from "./LiveVirtualList.module.css";
 
 interface LiveVirtualListProps<T> {
   id: string;
+  listHandle: RefObject<VirtuosoHandle | null>;
+
   className?: string | string[];
 
   // The scroll ref to use for the virtual list
@@ -47,6 +49,7 @@ interface LiveVirtualListProps<T> {
  */
 export const LiveVirtualList = <T,>({
   id,
+  listHandle,
   className,
   data,
   renderRow,
@@ -58,7 +61,6 @@ export const LiveVirtualList = <T,>({
   components,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
-  const listHandle = useRef<VirtuosoHandle>(null);
   const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
     `live-virtual-list-${id}`,

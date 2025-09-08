@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { FC, memo, RefObject, useMemo } from "react";
+import { FC, memo, RefObject, useEffect, useMemo, useRef } from "react";
+import { VirtuosoHandle } from "react-virtuoso";
 import { Events } from "../../../@types/log";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
@@ -10,6 +11,8 @@ import { TranscriptOutline } from "./outline/TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { useEventNodes } from "./transform/hooks";
+import { flatTree } from "./transform/treeify";
+import { kTranscriptCollapseScope } from "./types";
 
 interface TranscriptPanelProps {
   id: string;
@@ -47,12 +50,38 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     running === true,
   );
 
-  const { logPath } = useLogRouteParams();
+  // The list of events that have been collapsed
+  const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
+  const setCollapsedEvents = useStore(
+    (state) => state.sampleActions.setCollapsedEvents,
+  );
 
+  const flattenedNodes = useMemo(() => {
+    // flattten the event tree
+    return flatTree(
+      eventNodes,
+      (collapsedEvents
+        ? collapsedEvents[kTranscriptCollapseScope]
+        : undefined) || defaultCollapsedIds,
+    );
+  }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+
+  // Update the collapsed events when the default collapsed IDs change
+  // This effect only depends on defaultCollapsedIds, not eventNodes
+  useEffect(() => {
+    // Only initialize collapsedEvents if it's empty
+    if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
+      setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
+    }
+  }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
+
+  const { logPath } = useLogRouteParams();
   const [collapsed, setCollapsed] = useCollapsedState(
     `transcript-panel-${logPath || "na"}`,
     false,
   );
+
+  const listHandle = useRef<VirtuosoHandle | null>(null);
 
   return (
     <div
@@ -82,8 +111,8 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
       </StickyScroll>
       <TranscriptVirtualList
         id={id}
-        eventNodes={eventNodes}
-        defaultCollapsedIds={defaultCollapsedIds}
+        listHandle={listHandle}
+        eventNodes={flattenedNodes}
         scrollRef={scrollRef}
         running={running}
         initialEventId={initialEventId === undefined ? null : initialEventId}

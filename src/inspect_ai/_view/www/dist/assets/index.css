@@ -16867,12 +16867,20 @@ a._citationLink_t2k1z_9:hover {
 .download-panel-message {
   font-size: var(--inspect-font-size-small);
 }
-._toolButton_w9m2e_1 i {
+._toolButton_nu8dt_1 i {
   margin-right: 0.5em;
 }
 
-._latched_w9m2e_5,
-._latched_w9m2e_5:hover {
+._toolButton_nu8dt_1:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
+    inset 0 2px 4px rgba(0, 0, 0, 0.15),
+    inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+._latched_nu8dt_13,
+._latched_nu8dt_13:hover {
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.15),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);

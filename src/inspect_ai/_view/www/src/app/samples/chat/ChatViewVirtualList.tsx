@@ -1,4 +1,4 @@
-import { FC, memo, ReactNode, RefObject, useMemo } from "react";
+import { FC, memo, ReactNode, RefObject, useMemo, useRef } from "react";
 import { Messages } from "../../../@types/log";
 
 import { ChatMessageRow } from "./ChatMessageRow";
@@ -8,7 +8,7 @@ import clsx from "clsx";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import { ChatViewToolCallStyle } from "./types";
 
-import { ContextProp, ItemProps } from "react-virtuoso";
+import { ContextProp, ItemProps, VirtuosoHandle } from "react-virtuoso";
 import styles from "./ChatViewVirtualList.module.css";
 
 interface ChatViewVirtualListProps {
@@ -41,6 +41,8 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     scrollRef,
     running,
   }) => {
+    const listHandle = useRef<VirtuosoHandle>(null);
+
     const collapsedMessages = useMemo(() => {
       return resolveMessages(messages);
     }, [messages]);
@@ -100,6 +102,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     return (
       <LiveVirtualList<ResolvedMessage>
         id="chat-virtual-list"
+        listHandle={listHandle}
         className={className}
         scrollRef={scrollRef}
         data={collapsedMessages}
