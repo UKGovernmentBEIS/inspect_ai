@@ -1,3 +1,7 @@
+## Unreleased
+
+- OpenAI: Correct serialization of web search tool calls (prevent 400 errors).
+
 ## 0.3.130 (06 September 2025)
 
 - Agent Bridge: Option to force the sandbox agent bridge to use a specific model.
