@@ -83,6 +83,36 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
 
   const listHandle = useRef<VirtuosoHandle | null>(null);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey) {
+        if (event.key === "ArrowUp") {
+          listHandle.current?.scrollToIndex({ index: 0, align: "start" });
+          event.preventDefault();
+        } else if (event.key === "ArrowDown") {
+          listHandle.current?.scrollToIndex({
+            index: flattenedNodes.length - 1,
+            align: "end",
+          });
+          event.preventDefault();
+        }
+      }
+    };
+
+    const scrollElement = scrollRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener("keydown", handleKeyDown);
+      // Make the element focusable so it can receive keyboard events
+      if (!scrollElement.hasAttribute("tabIndex")) {
+        scrollElement.setAttribute("tabIndex", "0");
+      }
+
+      return () => {
+        scrollElement.removeEventListener("keydown", handleKeyDown);
+      };
+    }
+  }, [scrollRef]);
+
   return (
     <div
       className={clsx(

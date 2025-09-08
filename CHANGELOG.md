@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
+- Inspect View: Improve scroll keyboard handling in transcript view.
 
 ## 0.3.130 (06 September 2025)
 
