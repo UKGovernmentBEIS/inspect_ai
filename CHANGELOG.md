@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.130 (06 September 2025)
 
 - Agent Bridge: Option to force the sandbox agent bridge to use a specific model.
 - Agent Bridge: New `filter` option to enable bridge to filter model generate calls.

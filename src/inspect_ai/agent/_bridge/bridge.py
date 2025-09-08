@@ -57,14 +57,14 @@ async def agent_bridge(
 
     Args:
        state: Initial state for agent bridge. Used as a basis for yielding
-         an updated state based on traffic over the bridge.
+          an updated state based on traffic over the bridge.
        filter: Filter for bridge model generation.
        web_search: Configuration for mapping model internal
-         web_search tools to Inspect. By default, will map to the
-         internal provider of the target model (supported for OpenAI,
-         Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
-         configuration to use to use an external provider like
-         Tavili or Exa for models that don't support internal search.
+          web_search tools to Inspect. By default, will map to the
+          internal provider of the target model (supported for OpenAI,
+          Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
+          configuration to use to use an external provider like
+          Tavili or Exa for models that don't support internal search.
     """
     # ensure one time init
     init_bridge_request_patch()

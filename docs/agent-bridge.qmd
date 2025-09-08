@@ -48,10 +48,10 @@ def my_agent() -> AgentState:
             
             await client.chat.completions.create(
                 model="inspect", # <2>
-                messages=messages_to_openai(state.messages), # <3>
+                messages=messages_to_openai(state.messages) # <3>
             )
 
-            return bridge.state
+            return bridge.state # <4>
 
     return execute
 ```
@@ -102,7 +102,7 @@ def my_agent() -> AgentState:
             if not result.success:
                 raise RuntimeError(f"Agent error: {result.stderr}")
 
-            return bridge.state
+            return bridge.state # <5>
 
     return execute
 ```
