@@ -33,10 +33,9 @@ if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     # Hint Playwright to use packaged browsers and skip host validation inside minimal containers
     os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
     # os.environ.setdefault("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1")
-    os.environ["DEBUG"] = (
-        "pw:api,pw:browser,pw:channel,pw:driver,pw:page,pw:network,pw:proxy,pw:fetch"
-    )
-    os.environ["PLAYWRIGHT_DEBUG"] = "1"
+    os.environ["DEBUG"] = "pw:*"
+    os.environ["PLAYWRIGHT_DEBUG"] = "pw:*"
+    os.environ["CHROME_LOG_FILE"] = "/tmp/pyinstaller_chrome_debug.log"
 
 
 try:
@@ -46,29 +45,83 @@ except ImportError:
     sys.exit(1)
 
 
+critical_disables = [
+    # Font-related (likely main culprit)
+    "FontSystemFallbackNotoCjk",
+    "FontAccess",
+    "WebFontsCacheAwareTimeoutAdaption",
+    "RenderBlockingFonts",
+    # Memory management
+    "OptimizationGuideModelDownloading",
+    "OptimizationHintsFetching",
+    "OptimizationTargetPrediction",
+    "OptimizationHints",
+    # Background processing
+    "BackgroundFetch",
+    "ServiceWorkerAutoPreload",
+    "BackgroundResourceFetch",
+    # GPU/Rendering
+    "VizDisplayCompositor",
+    "CompositeBGColorAnimation",
+    "TranslateUI",
+    "WebUSB",
+    "WebBluetooth",
+    "FencedFrames",  # Experimental frames
+    "SharedArrayBuffer",  # Shared memory
+    "WebAssemblyLazyCompilation",  # WASM features
+    "VizDisplayCompositor",  # Display compositor
+    "CompositeBGColorAnimation",  # Background animations
+    "CompositeBoxShadowAnimation",  # Shadow animations
+    "Canvas2dGPUTransfer",  # GPU canvas
+    "CanvasHDR",  # HDR canvas
+    "BackgroundFetch",  # Background resource usage
+    "BackgroundResourceFetch",  # More background activity
+    "ServiceWorkerAutoPreload",  # Service worker preloading
+    "PrefetchPrivacyChanges",  # Prefetch behavior
+    "MemorySaverModeRenderTuning",  # Memory tuning
+    "PrivateNetworkAccessForWorkers",  # Network access checks
+    "PrivateNetworkAccessSendPreflights",  # CORS preflights
+    "BlockInsecurePrivateNetworkRequests",  # Security blocks
+    "CorsRFC1918",  # CORS restrictions
+    "InterestFeedContentSuggestions",  # NTP suggestions
+    "Translate",  # Translation popups
+    "GlobalMediaControls",  # Media controls
+    "TabSearch",  # Tab search UI
+    "LensStandalone,LensRegionSearch",  # Google Lens features
+]
+
+
 def test_chromium():
     with sync_playwright() as p:
         browser_args = [
+            f"--disable-features={','.join(critical_disables)}",
             "--disable-dev-shm-usage",
             "--no-sandbox",
             "--disable-setuid-sandbox",
             "--disable-gpu",
-            # "--enable-logging",
+            "--enable-logging",
             "--v=1",
-            "--log-level=0",
+            "--log-level=1",
             "--enable-crash-reporter",
             "--crash-dumps-dir=/tmp/chromium-crashes",
             "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows",
             "--disable-renderer-backgrounding",
-            "--disable-features=TranslateUI",
-            "--disable-web-security",
-            "--disable-features=VizDisplayCompositor",
+            # "--disable-web-security",
             # "--remote-debugging-port=9222",
             "--disable-web-fonts",
             "--disable-remote-fonts",
             "--disable-font-subpixel-positioning",
             "--force-device-scale-factor=1",
+            "--crash-dumps-dir=/tmp/chromium-crashes",
+            "--log-net-log=/tmp/net-export.json",
+            "--disable-dev-shm-usage",
+            # Disable SPDY and QUIC protocols:
+            "--disable-http2",
+            "--disable-quic",
+            # Disable histogram logging:
+            "--disable-background-timer-throttling",
+            "--disable-blink-features=AutomationControlled",
         ]
 
         browser = p.chromium.launch(headless=True, args=browser_args)

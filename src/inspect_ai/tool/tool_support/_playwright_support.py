@@ -58,16 +58,24 @@ def stage_playwright_dependencies(
     build_libs_dir = build_working_dir / "build_libs"
 
     # Install browser into package (not user home)
-    headless_shell = _install_chromium_headless_shell()
+    chromium_binaries = _install_chromium_binaries()
 
     # Collect and stage all extra dependencies/libraries
     if build_libs_dir.exists():
         shutil.rmtree(build_libs_dir)
     build_libs_dir.mkdir(parents=True, exist_ok=True)
 
-    # TODO: It's fatal if headless_shell isn't found
-    if headless_shell:
-        _stage_libraries(_ldd_deps(headless_shell), "ldd dependencies", build_libs_dir)
+    # TODO: It's fatal if chromium_binaries are not found
+    if chromium_binaries:
+        # Find headless_shell for dependency analysis (it's the main binary)
+        headless_shell = next(
+            (binary for binary in chromium_binaries if binary.name == "headless_shell"),
+            None,
+        )
+        if headless_shell:
+            _stage_libraries(
+                _ldd_deps(headless_shell), "ldd dependencies", build_libs_dir
+            )
         _stage_libraries(_nss_deps(), "NSS dependencies", build_libs_dir)
         _stage_libraries(_webgl_deps(), "WebGL dependencies", build_libs_dir)
     else:
@@ -76,6 +84,14 @@ def stage_playwright_dependencies(
     # Each library needs a --add-binary argument in the format "source:dest"
     # The :lib suffix tells PyInstaller to place these in a lib/ subdirectory
     binary_args = [f"--add-binary={str(f)}:lib" for f in build_libs_dir.glob("*")]
+
+    # Add all Chromium binaries as --add-binary arguments
+    # These need to maintain their relative directory structure
+    if chromium_binaries:
+        for binary in chromium_binaries:
+            # Use the chrome-linux directory structure to maintain proper paths
+            # This ensures chrome_crashpad_handler is found by headless_shell
+            binary_args.append(f"--add-binary={str(binary)}:chrome-linux")
 
     # Add playwright-specific PyInstaller options
     playwright_args = [
@@ -146,7 +162,7 @@ def _run(
     ).stdout
 
 
-def _install_chromium_headless_shell() -> Path:
+def _install_chromium_binaries() -> list[Path]:
     """
     Install Chromium browser into the Playwright package directory.
 
@@ -170,40 +186,60 @@ def _install_chromium_headless_shell() -> Path:
         env=env,
     )
 
-    return _find_chromium_headless_shell()
+    return _find_chromium_binaries()
 
 
-def _find_chromium_headless_shell() -> Path:
+def _find_chromium_binaries() -> list[Path]:
     """
-    Locate the headless_shell binary within the Playwright package.
+    Locate all required Chromium binaries within the Playwright package.
 
-    The binary is typically located at:
-    playwright/driver/package/.local-browsers/chromium-*/chrome-linux/headless_shell
+    The binaries are typically located at:
+    playwright/driver/package/.local-browsers/chromium-*/chrome-linux/
+
+    Required binaries:
+    - headless_shell: The main Chromium headless browser
+    - chrome_crashpad_handler: Crash reporting handler (spawned by Chromium)
 
     Returns:
-        Path to the headless_shell executable
+        List of paths to all required Chromium executables
 
     Raises:
         FileNotFoundError: If headless_shell cannot be located, suggesting
                           that Chromium installation may have failed
     """
-    print("[2/4] Locating headless_shell used by Playwright")
+    print("[2/4] Locating Chromium binaries used by Playwright")
 
     # Get the playwright package directory
     pkg = Path(playwright.__file__).parent
 
     # Search recursively for headless_shell in the driver/package subdirectory
     # This is where Playwright stores downloaded browser binaries
+    headless_shell = None
+    chrome_dir = None
     for p in (pkg / "driver" / "package").rglob("headless_shell"):
         # Verify it's an executable file (not a directory or symlink to nowhere)
         if p.is_file() and os.access(p, os.X_OK):
+            headless_shell = p
+            chrome_dir = p.parent
             print(f"Using headless_shell: {p}")
-            return p
+            break
 
-    # If we get here, something went wrong with browser installation
-    raise FileNotFoundError(
-        "Could not locate headless_shell. Ensure 'playwright install chromium' succeeds."
-    )
+    if not headless_shell or not chrome_dir:
+        raise FileNotFoundError(
+            "Could not locate headless_shell. Ensure 'playwright install chromium' succeeds."
+        )
+
+    # Collect all required binaries from the chrome-linux directory
+    binaries = [headless_shell]
+    # Look for chrome_crashpad_handler in the same directory
+    crashpad_handler = chrome_dir / "chrome_crashpad_handler"
+    if crashpad_handler.exists() and os.access(crashpad_handler, os.X_OK):
+        binaries.append(crashpad_handler)
+        print(f"Found chrome_crashpad_handler: {crashpad_handler}")
+    else:
+        print(f"Warning: chrome_crashpad_handler not found at {crashpad_handler}")
+
+    return binaries
 
 
 def _parse_ldd_paths(ldd_output: str) -> list[Path]:
@@ -442,7 +478,7 @@ def _fontconfig_deps() -> tuple[list[Path], list[Path]]:
                     config_files.append(conf)
 
     if not config_files:
-        print(f"UNABLE TO FIND FONT config")
+        raise RuntimeError("UNABLE TO FIND FONT config")
 
     # Collect minimal font set (Liberation or DejaVu for basic rendering)
     for font_dir in [
