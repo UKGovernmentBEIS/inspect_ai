@@ -158,7 +158,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       {sampleData.error ? (
         <ErrorPanel title="Sample Error" error={sampleData.error} />
       ) : (
-        <SampleDisplay id={id} scrollRef={scrollRef} />
+        <SampleDisplay id={id} scrollRef={scrollRef} focusOnLoad={true} />
       )}
     </LargeModal>
   );

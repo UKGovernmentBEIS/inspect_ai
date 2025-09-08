@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { CSSProperties, FC } from "react";
+import { CSSProperties, forwardRef } from "react";
 
 import styles from "./Preformatted.module.css";
 
@@ -9,17 +9,16 @@ export interface PreformattedProps {
   className?: string | string[];
 }
 
-export const Preformatted: FC<PreformattedProps> = ({
-  text,
-  style,
-  className,
-}) => {
-  return (
-    <pre
-      className={clsx(styles.content, "text-size-smaller", className)}
-      style={style}
-    >
-      {text}
-    </pre>
-  );
-};
+export const Preformatted = forwardRef<HTMLPreElement, PreformattedProps>(
+  ({ text, style, className }, ref) => {
+    return (
+      <pre
+        ref={ref}
+        className={clsx(styles.content, "text-size-smaller", className)}
+        style={style}
+      >
+        {text}
+      </pre>
+    );
+  },
+);

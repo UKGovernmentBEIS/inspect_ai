@@ -58,6 +58,12 @@ export const TranscriptVirtualListComponent: FC<
     [eventNodes],
   );
 
+  const contextWithToolEvents = useMemo(() => ({ hasToolEvents: true }), []);
+  const contextWithoutToolEvents = useMemo(
+    () => ({ hasToolEvents: false }),
+    [],
+  );
+
   const renderRow = useCallback(
     (index: number, item: EventNode) => {
       const paddingClass = index === 0 ? styles.first : undefined;
@@ -83,6 +89,9 @@ export const TranscriptVirtualListComponent: FC<
         : undefined;
 
       const hasToolEvents = hasToolEventsAtCurrentDepth(index);
+      const context = hasToolEvents
+        ? contextWithToolEvents
+        : contextWithoutToolEvents;
 
       return (
         <div
@@ -98,12 +107,17 @@ export const TranscriptVirtualListComponent: FC<
             node={item}
             next={next}
             className={clsx(attachedParentClass, attachedChildClass)}
-            context={{ hasToolEvents }}
+            context={context}
           />
         </div>
       );
     },
-    [eventNodes],
+    [
+      eventNodes,
+      hasToolEventsAtCurrentDepth,
+      contextWithToolEvents,
+      contextWithoutToolEvents,
+    ],
   );
 
   return (

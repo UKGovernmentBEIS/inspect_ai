@@ -17,6 +17,12 @@ filters:
  
 website:
    title: "Inspect"
+   announcement: 
+      icon: megaphone
+      dismissable: true
+      content: "**Announcing Inspect Viz**,  a new data visualization framework for Inspect evals. [Learn more](https://meridianlabs-ai.github.io/inspect_viz/)"
+      type: secondary
+      position: below-navbar
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai

@@ -32,15 +32,14 @@ from inspect_ai.log._transcript import (
     ScoreEvent,
     SpanBeginEvent,
     SubtaskEvent,
-    ToolEvent,
 )
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._render import messages_preceding_assistant
+from inspect_ai.model._render import messages_preceding_assistant, render_tool_calls
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_transcript import transcript_tool_call
 
 
 class TranscriptView(ScrollableContainer):
@@ -102,12 +101,20 @@ class TranscriptView(ScrollableContainer):
             self._pending_sample = sample
 
     def _widgets_for_events(
-        self, events: Sequence[Event], limit: int = 10
+        self, events: Sequence[Event], limit: int = 15
     ) -> list[Widget]:
         widgets: list[Widget] = []
 
+        # function to append content
+        def append_content(c: RenderableType) -> None:
+            if isinstance(c, Markdown):
+                set_transcript_markdown_options(c)
+            widgets.append(Static(c, markup=False))
+
+        # first set aside events we don't render
+        filtered_events = [e for e in events if can_render_event(e)]
+
         # filter the events to the <limit> most recent
-        filtered_events = events
         if len(events) > limit:
             filtered_events = filtered_events[-limit:]
 
@@ -125,11 +132,12 @@ class TranscriptView(ScrollableContainer):
         # compute how many events we filtered out
         filtered_count = len(events) - len(filtered_events)
         showed_filtered_count = False
-
         for event in filtered_events:
             display = render_event(event)
             if display:
                 for d in display:
+                    if d.prefix:
+                        append_content(d.prefix)
                     if d.content:
                         widgets.append(
                             Static(
@@ -138,9 +146,7 @@ class TranscriptView(ScrollableContainer):
                                 )
                             )
                         )
-                        if isinstance(d.content, Markdown):
-                            set_transcript_markdown_options(d.content)
-                        widgets.append(Static(d.content, markup=False))
+                        append_content(d.content)
                         widgets.append(Static(Text(" ")))
 
                         if not showed_filtered_count and filtered_count > 0:
@@ -169,6 +175,16 @@ class EventDisplay(NamedTuple):
 
     content: RenderableType | None = None
     """Optional custom content to display."""
+
+    prefix: RenderableType | None = None
+    """Optional content to display above."""
+
+
+def can_render_event(event: Event) -> bool:
+    for event_type, _ in _renderers:
+        if isinstance(event, event_type):
+            return True
+    return False
 
 
 def render_event(event: Event) -> list[EventDisplay] | None:
@@ -213,23 +229,34 @@ def render_sample_limit_event(event: SampleLimitEvent) -> EventDisplay:
 
 def render_model_event(event: ModelEvent) -> EventDisplay:
     # content
+    prefix: list[RenderableType] = []
     content: list[RenderableType] = []
-
-    def append_message(message: ChatMessage) -> None:
-        content.extend(render_message(message))
 
     # render preceding messages
     preceding = messages_preceding_assistant(event.input)
     for message in preceding:
-        append_message(message)
-        content.append(Text())
+        if isinstance(message, ChatMessageTool):
+            prefix.extend(render_message(message))
+            prefix.append(Text())
+        else:
+            content.extend(render_message(message))
+            content.append(Text())
 
-    # display assistant message (note that we don't render tool calls
-    # because they will be handled as part of render_tool)
+    # display assistant message
     if event.output.message and event.output.message.text:
-        append_message(event.output.message)
+        content.extend(render_message(event.output.message))
+        if event.output.message.tool_calls:
+            content.append(Text())
 
-    return EventDisplay(f"model: {event.model}", Group(*content))
+    # render tool calls
+    if event.output.message.tool_calls:
+        content.extend(render_tool_calls(event.output.message.tool_calls))
+
+    return EventDisplay(
+        f"model: {event.model}",
+        Group(*content),
+        Group(*prefix) if len(prefix) > 0 else None,
+    )
 
 
 def render_sub_events(events: list[Event]) -> list[RenderableType]:
@@ -245,30 +272,6 @@ def render_sub_events(events: list[Event]) -> list[RenderableType]:
                 content.append(d.content)
 
     return content
-
-
-def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
-    # render the call
-    content = transcript_tool_call(event)
-
-    # render the output
-    if isinstance(event.result, list):
-        result: ToolResult = "\n".join(
-            [
-                content.text
-                for content in event.result
-                if isinstance(content, ContentText)
-            ]
-        )
-    else:
-        result = event.result
-
-    if result:
-        content.append(Text())
-        result = str(result).strip()
-        content.extend(lines_display(result, 50))
-
-    return [EventDisplay("tool call", Group(*content))]
 
 
 def render_score_event(event: ScoreEvent) -> EventDisplay:
@@ -342,20 +345,41 @@ def render_as_json(json: Any) -> RenderableType:
 
 
 def render_message(message: ChatMessage) -> list[RenderableType]:
-    content: list[RenderableType] = [
-        Text(message.role.capitalize(), style="bold"),
-        Text(),
-    ]
+    content: list[RenderableType] = []
 
-    # deal with plain text or with content blocks
-    if isinstance(message.content, str):
-        content.extend([transcript_markdown(message.text.strip(), escape=True)])
+    # use truncation for tool messages
+    if isinstance(message, ChatMessageTool):
+        # render the output
+        if isinstance(message.content, list):
+            result: ToolResult = "\n".join(
+                [
+                    content.text
+                    for content in message.content
+                    if isinstance(content, ContentText)
+                ]
+            )
+        else:
+            result = message.content
+
+        if result:
+            result = str(result).strip()
+            content.extend(lines_display(result, 50))
+        else:
+            content.extend("(no output)")
+
     else:
-        for c in message.content:
-            if isinstance(c, ContentReasoning):
-                content.extend(transcript_reasoning(c))
-            elif isinstance(c, ContentText):
-                content.extend([transcript_markdown(c.text.strip(), escape=True)])
+        # header
+        content.extend([Text(message.role.capitalize(), style="bold"), Text()])
+
+        # deal with plain text or with content blocks
+        if isinstance(message.content, str):
+            content.extend([transcript_markdown(message.text.strip(), escape=True)])
+        else:
+            for c in message.content:
+                if isinstance(c, ContentReasoning):
+                    content.extend(transcript_reasoning(c))
+                elif isinstance(c, ContentText):
+                    content.extend([transcript_markdown(c.text.strip(), escape=True)])
 
     return content
 
@@ -370,7 +394,6 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SampleInitEvent, render_sample_init_event),
     (SampleLimitEvent, render_sample_limit_event),
     (ModelEvent, render_model_event),
-    (ToolEvent, render_tool_event),
     (SubtaskEvent, render_subtask_event),
     (ScoreEvent, render_score_event),
     (InputEvent, render_input_event),

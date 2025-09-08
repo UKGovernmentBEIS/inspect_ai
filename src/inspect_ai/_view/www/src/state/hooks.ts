@@ -1,5 +1,5 @@
 import { highlightElement } from "prismjs";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { EvalSample, EvalSpec, Events } from "../@types/log";
 import {
   createEvalDescriptor,
@@ -455,28 +455,27 @@ export const usePrevious = <T>(value: T) => {
 // Syntax highlighting strings larger than this is too slow
 const kPrismRenderMaxSize = 250000;
 
-export const usePrismHighlight = (toolCallContent?: string) => {
-  const toolViewRef = useRef<HTMLDivElement>(null);
-
+export const usePrismHighlight = (
+  containerRef: RefObject<HTMLDivElement | null>,
+  contentLength: number,
+) => {
   useEffect(() => {
-    if (
-      toolCallContent &&
-      toolViewRef.current &&
-      toolCallContent.length <= kPrismRenderMaxSize
-    ) {
-      requestAnimationFrame(() => {
-        const codeBlocks = toolViewRef.current?.querySelectorAll("pre code");
+    requestAnimationFrame(() => {
+      if (
+        contentLength > 0 &&
+        containerRef.current !== null &&
+        contentLength <= kPrismRenderMaxSize
+      ) {
+        const codeBlocks = containerRef.current?.querySelectorAll("pre code");
         codeBlocks?.forEach((block) => {
           if (block.className.includes("language-")) {
             block.classList.add("sourceCode");
             highlightElement(block as HTMLElement);
           }
         });
-      });
-    }
-  }, [toolCallContent]);
-
-  return toolViewRef;
+      }
+    });
+  }, [contentLength, containerRef]);
 };
 
 export const useSetSelectedLogIndex = () => {

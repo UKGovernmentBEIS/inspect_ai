@@ -21,6 +21,9 @@ export default defineConfig(({ mode }) => {
       __LOGGING_FILTER__: JSON.stringify(
         process.env.DEV_LOGGING_NAMESPACES || "*",
       ),
+      __VIEW_SERVER_API_URL__: JSON.stringify(
+        process.env.VIEW_SERVER_API_URL || "/api",
+      ),
     },
   };
 
@@ -44,11 +47,7 @@ export default defineConfig(({ mode }) => {
           formats: ["es"],
         },
         rollupOptions: {
-          external: [
-            "react",
-            "react-dom",
-
-          ],
+          external: ["react", "react-dom"],
           output: {
             globals: {
               react: "React",

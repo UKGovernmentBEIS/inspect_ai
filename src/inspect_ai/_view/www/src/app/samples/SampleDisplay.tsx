@@ -57,12 +57,17 @@ import { TranscriptPanel } from "./transcript/TranscriptPanel";
 interface SampleDisplayProps {
   id: string;
   scrollRef: RefObject<HTMLDivElement | null>;
+  focusOnLoad?: boolean;
 }
 
 /**
  * Component to display a sample with relevant context and visibility control.
  */
-export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
+export const SampleDisplay: FC<SampleDisplayProps> = ({
+  id,
+  scrollRef,
+  focusOnLoad,
+}) => {
   // Tab ids
   const baseId = `sample-dialog`;
   const filteredSamples = useFilteredSamples();
@@ -129,6 +134,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     sampleId: urlSampleId,
     epoch: urlEpoch,
   } = useLogRouteParams();
+
+  // Focus the panel when it loads
+  useEffect(() => {
+    setTimeout(() => {
+      if (focusOnLoad) {
+        scrollRef.current?.focus();
+      }
+    }, 10);
+  }, []);
 
   // Tab selection
   const onSelectedTab = useCallback(
@@ -373,7 +387,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         >
           {!sample ? (
             <NoContentsPanel text="JSON not available" />
-          ) : estimateSize(sample.events) > 250000 ? (
+          ) : estimateSize(sample.events) > 25 * 1024 * 1024 ? (
             <NoContentsPanel text="JSON too large to display" />
           ) : (
             <div className={clsx(styles.padded, styles.fullWidth)}>
