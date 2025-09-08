@@ -9,7 +9,7 @@ import {
 } from "./types";
 
 /* global __VIEW_SERVER_API_URL__ */
-const API_BASE_URL = __VIEW_SERVER_API_URL__ || "";
+let API_BASE_URL = __VIEW_SERVER_API_URL__ || "";
 const loaded_time = Date.now();
 let last_eval_time = 0;
 
@@ -333,9 +333,11 @@ async function open_log_file() {
  * Create a view server API with optional server-side log listing
  */
 export function createViewServerApi(
-  options: { log_dir?: string } = {},
+  options: { log_dir?: string; apiBaseUrl?: string } = {},
 ): LogViewAPI {
   const { log_dir } = options;
+
+  if (options.apiBaseUrl) API_BASE_URL = options.apiBaseUrl;
 
   return {
     client_events,
