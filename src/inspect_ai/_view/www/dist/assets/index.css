@@ -17690,19 +17690,24 @@ a._citationLink_t2k1z_9:hover {
   overflow-wrap: break-word;
   margin-bottom: 0;
 }
-._explanation_1ww42_1 {
+._explanation_1k2k0_1 {
   display: grid;
-  grid-template-columns: max-content auto;
+  grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 1em;
   margin: 0.5em 0;
 }
 
-._separator_1ww42_8 {
+._wrappingContent_1k2k0_8 {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+._separator_1k2k0_13 {
   grid-column: 1 / -1;
   border-bottom: solid 1px var(--bs-light-border-subtle);
 }
 
-._metadata_1ww42_13 {
+._metadata_1k2k0_18 {
   margin: 0.5em 0;
 }
 div.ap-wrapper {
