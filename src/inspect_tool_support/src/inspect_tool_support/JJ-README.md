@@ -18,8 +18,6 @@ cd /binaries
 
 This is the same code but unbundled
 
-src/inspect_tool_support/src/inspect_tool_support/\_cli/test_chromium.py
-
 ```bash
 # launch the container
 docker run --platform linux/amd64 --rm -d -v "/Users/ericpatey/code/inspect_ai/src/inspect_tool_support/src/inspect_tool_support/_cli/test_chromium.py:/tmp/test_chromium.py" debian:bookworm-slim bash -lc 'tail -f /dev/null'
