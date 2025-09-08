@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
+
 ## 0.3.130 (06 September 2025)
 
 - Agent Bridge: Option to force the sandbox agent bridge to use a specific model.

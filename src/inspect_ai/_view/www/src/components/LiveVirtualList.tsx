@@ -167,6 +167,7 @@ export const LiveVirtualList = <T,>({
   }, [scrollRef, handleScroll]);
 
   // Scroll to index when component mounts or targetIndex changes
+  const hasScrolled = useRef(false);
   useEffect(() => {
     if (initialTopMostItemIndex !== undefined && listHandle.current) {
       // If there is an initial index, scroll to it after a short delay
@@ -174,11 +175,11 @@ export const LiveVirtualList = <T,>({
         listHandle.current?.scrollToIndex({
           index: initialTopMostItemIndex,
           align: "start",
-          behavior: "smooth",
+          behavior: !hasScrolled.current ? "auto" : "smooth",
           offset: offsetTop ? -offsetTop : undefined,
         });
+        hasScrolled.current = true;
       }, 50);
-
       return () => clearTimeout(timer);
     }
   }, [initialTopMostItemIndex]);
