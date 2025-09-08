@@ -269,7 +269,7 @@ class FileSystem:
         # if we don't yet have an mtime key then fetch created explicitly
         # note: S3 doesn't give you a directory modification time
         if "mtime" not in file.keys() and file["type"] == "file":
-            file["mtime"] = self.fs.created(file).timestamp()
+            file["mtime"] = self.fs.created(file["name"]).timestamp()
 
         # adjust mtime to be milliseconds
         if "mtime" in file.keys():
