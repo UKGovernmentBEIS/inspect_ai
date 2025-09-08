@@ -6,7 +6,6 @@ import simpleHttpApi from "./api-http";
 import vscodeApi from "./api-vscode";
 import { clientApi } from "./client-api";
 import { ClientAPI } from "./types";
-import { createViewServerApiWithAuth } from "./api-view-server-auth";
 
 /**
  * Resolves the client API
@@ -43,7 +42,7 @@ const resolveApi = (): ClientAPI => {
 
     if (forceViewServerApi) {
       return clientApi(
-        createViewServerApiWithAuth({ log_dir: resolved_log_dir }),
+        createViewServerApi({ log_dir: resolved_log_dir }),
         resolved_log_file,
       );
     }
