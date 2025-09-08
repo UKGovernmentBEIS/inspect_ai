@@ -198,6 +198,12 @@ interface Request<T> {
   handleError?: (status: number) => T | undefined;
 }
 
+let globalHeaderProvider: (() => Promise<Record<string, string>>) | null = null;
+
+export function setGlobalHeaderProvider(provider: () => Promise<Record<string, string>>) {
+  globalHeaderProvider = provider;
+}
+
 async function apiRequest<T>(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
@@ -213,6 +219,13 @@ async function apiRequest<T>(
     ["Cache-Control"]: "no-cache",
     ...request.headers,
   };
+
+  // Add global headers if provider is set
+  if (globalHeaderProvider) {
+    const globalHeaders = await globalHeaderProvider();
+    Object.assign(responseHeaders, globalHeaders);
+  }
+
   if (request.body) {
     responseHeaders["Content-Type"] = "application/json";
   }
@@ -267,6 +280,13 @@ async function api(
     ["Cache-Control"]: "no-cache",
     ...headers,
   };
+
+  // Add global headers if provider is set
+  if (globalHeaderProvider) {
+    const globalHeaders = await globalHeaderProvider();
+    Object.assign(responseHeaders, globalHeaders);
+  }
+
   if (body) {
     responseHeaders["Content-Type"] = "application/json";
   }
