@@ -65,6 +65,7 @@ def stage_playwright_dependencies(
         shutil.rmtree(build_libs_dir)
     build_libs_dir.mkdir(parents=True, exist_ok=True)
 
+    # TODO: It's fatal if headless_shell isn't found
     if headless_shell:
         _stage_libraries(_ldd_deps(headless_shell), "ldd dependencies", build_libs_dir)
         _stage_libraries(_nss_deps(), "NSS dependencies", build_libs_dir)
@@ -83,10 +84,27 @@ def stage_playwright_dependencies(
         "--copy-metadata=playwright",
     ]
 
+    # TODO: Start refactoring
+    config_files, font_files = _fontconfig_deps()
+
+    pyinstaller_args = []
+
+    # Add fontconfig configuration
+    for config_file in config_files:
+        # Bundle to etc/fonts/ maintaining structure
+        dest = f"etc/fonts/{config_file.name}"
+        pyinstaller_args.append(f"--add-data={config_file}:{dest}")
+
+    # Add minimal fonts
+    for font_file in font_files:
+        # Bundle to usr/share/fonts/
+        pyinstaller_args.append(f"--add-data={font_file}:usr/share/fonts")
+    # TODO: End refactoring
+
     custom_env = os.environ.copy()
     custom_env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
 
-    return (binary_args + playwright_args, custom_env)
+    return (binary_args + playwright_args + pyinstaller_args, custom_env)
 
 
 def remove_playwright_dependencies() -> tuple[list[str], None]:
@@ -399,6 +417,51 @@ def _find_nss_lib(name: str) -> Path | None:
                 return candidate
 
     return None
+
+
+def _fontconfig_deps() -> tuple[list[Path], list[Path]]:
+    """
+    Collect fontconfig configuration and minimal fonts.
+
+    Returns: (config_files, font_files)
+    """
+    config_files = []
+    font_files: list[Path] = []
+
+    # Collect fontconfig configuration files
+    for dir in [
+        Path("/etc/fonts"),
+        Path("/usr/share/fontconfig"),
+    ]:
+        if dir.exists():
+            # Get fonts.conf and conf.d directory
+            if (dir / "fonts.conf").exists():
+                config_files.append(dir / "fonts.conf")
+            if (dir / "conf.d").exists():
+                for conf in (dir / "conf.d").glob("*.conf"):
+                    config_files.append(conf)
+
+    if not config_files:
+        print(f"UNABLE TO FIND FONT config")
+
+    # Collect minimal font set (Liberation or DejaVu for basic rendering)
+    for font_dir in [
+        Path("/usr/share/fonts/truetype/liberation"),
+        Path("/usr/share/fonts/truetype/dejavu"),
+        Path("/usr/share/fonts/truetype/liberation2"),
+    ]:
+        if font_dir.exists():
+            # Just grab a few essential fonts
+            for pattern in [
+                "*Sans-Regular.ttf",
+                "*Serif-Regular.ttf",
+                "*Mono-Regular.ttf",
+            ]:
+                font_files.extend(font_dir.glob(pattern))
+            if font_files:  # Stop after finding first font set
+                break
+
+    return config_files, font_files
 
 
 def _stage_dependency(src: Path, dest_dir: Path) -> None:
