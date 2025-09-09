@@ -1,21 +1,20 @@
+from logging import getLogger  # noqa: E402
 from typing import Awaitable, Callable
 
 import anyio
 from pydantic import JsonValue
 
-from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..responses import inspect_responses_api_request
-
-MODEL_SERVICE = "bridge_model_service"
-
-from logging import getLogger  # noqa: E402
+from .types import SandboxAgentBridge
 
 logger = getLogger(__file__)
+
+MODEL_SERVICE = "bridge_model_service"
 
 
 async def run_model_service(

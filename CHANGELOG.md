@@ -1,3 +1,7 @@
+## Unreleased
+
+- Sandbox Service: Specify instance externally so a single script can service multiple instances.
+  
 ## 0.3.131 (08 September 2025)
 
 - OpenAI: Correct serialization of web search tool calls (prevent 400 errors).

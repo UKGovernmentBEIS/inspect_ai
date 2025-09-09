@@ -511,12 +511,13 @@ def _http_date() -> str:
 
 
 async def model_proxy_server(
-    port: int, call_bridge_model_service_async: Any = None
+    port: int, instance: str, call_bridge_model_service_async: Any = None
 ) -> AsyncHTTPServer:
     """Create and configure the model proxy server.
 
     Args:
         port: Port to run the server on
+        instance: Instance of service
         call_bridge_model_service_async: Optional bridge service function for testing
 
     Returns:
@@ -524,7 +525,7 @@ async def model_proxy_server(
     """
     # get generate method if not provided (for testing)
     if call_bridge_model_service_async is None:
-        sys.path.append("/var/tmp/sandbox-services/bridge_model_service/<<<instance>>>")
+        sys.path.append(f"/var/tmp/sandbox-services/bridge_model_service/{instance}")
         from bridge_model_service import (  # type: ignore[import-not-found,no-redef]
             call_bridge_model_service_async,
         )
@@ -1737,14 +1738,15 @@ async def model_proxy_server(
     return server
 
 
-async def run_model_proxy_server(port: int) -> None:
+async def run_model_proxy_server(port: int, instance: str) -> None:
     """Run the model proxy server.
 
     Args:
         port: Port to run the server on
+        instance: Server instance
     """
     # Create server
-    server = await model_proxy_server(port)
+    server = await model_proxy_server(port, instance)
 
     # Run server
     try:
@@ -1776,5 +1778,7 @@ def _handle_model_proxy_error(ex: Exception) -> None:
 
 if __name__ == "__main__":
     DEFAULT_PROXY_PORT = 13131
+    DEFAULT_INSTANCE = "instance"
     port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PROXY_PORT
-    asyncio.run(run_model_proxy_server(port=port_arg))
+    instance_arg = str(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_INSTANCE
+    asyncio.run(run_model_proxy_server(port=port_arg, instance=instance_arg))
