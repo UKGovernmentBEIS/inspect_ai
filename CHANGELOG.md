@@ -2,6 +2,7 @@
 
 - Anthropic: Support for images with mime type image/bmp.
 - Sandbox Service: Specify instance externally so a single script can service multiple instances.
+- Agent Bridge: Capture message history in agent state for all bridge generations.
 - Agent Bridge: Embed sandbox service client in sandbox bridge proxy (for ease of bundling).
 - Sandboxes: Add Sandbox Injection API for Dynamic Environment Setup.
   
