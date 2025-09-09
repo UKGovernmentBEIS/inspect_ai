@@ -12,6 +12,8 @@ title: "inspect_ai.log"
 ### read_eval_log_sample
 ### read_eval_log_samples
 ### read_eval_log_sample_summaries
+### edit_score
+### recompute_metrics
 ### convert_eval_logs
 ### bundle_log_dir
 ### write_log_dir_manifest
@@ -68,6 +70,7 @@ title: "inspect_ai.log"
 ### SpanBeginEvent
 ### SpanEndEvent
 ### SubtaskEvent
+### ScoreEditEvent
 
 
 
