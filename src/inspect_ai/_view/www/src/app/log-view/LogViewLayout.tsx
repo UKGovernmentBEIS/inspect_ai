@@ -15,7 +15,6 @@ export const LogViewLayout: FC = () => {
   const appStatus = useStore((state) => state.app.status);
 
   // Find
-  const nativeFind = useStore((state) => state.capabilities.nativeFind);
   const showFind = useStore((state) => state.app.showFind);
   const setShowFind = useStore((state) => state.appActions.setShowFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
@@ -34,7 +33,7 @@ export const LogViewLayout: FC = () => {
   const handleKeyboard = useCallback(
     (e: KeyboardEvent) => {
       // Add keyboard shortcuts for find, if needed
-      if (nativeFind || !setShowFind) {
+      if (!setShowFind) {
         return;
       }
 
@@ -44,7 +43,7 @@ export const LogViewLayout: FC = () => {
         hideFind();
       }
     },
-    [nativeFind, setShowFind, hideFind],
+    [setShowFind, hideFind],
   );
 
   return (
@@ -60,7 +59,7 @@ export const LogViewLayout: FC = () => {
         tabIndex={0}
         onKeyDown={handleKeyboard}
       >
-        {!nativeFind && showFind ? <FindBand /> : ""}
+        {showFind ? <FindBand /> : ""}
         {!singleFileMode ? <Navbar /> : ""}
         <ProgressBar animating={appStatus.loading} />
         {appStatus.error ? (
