@@ -87,14 +87,22 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey) {
         if (event.key === "ArrowUp") {
-          listHandle.current?.scrollToIndex({ index: 0, align: "start" });
+          listHandle.current?.scrollToIndex({ index: 0, align: "center" });
           event.preventDefault();
         } else if (event.key === "ArrowDown") {
           listHandle.current?.scrollToIndex({
-            index: flattenedNodes.length - 1,
-            align: "end",
+            index: Math.floor(flattenedNodes.length * 0.9),
+            align: "center",
           });
-          event.preventDefault();
+
+          // This is needed to allow measurement to complete before finding
+          // the last item to scroll to it properly
+          setTimeout(() => {
+            listHandle.current?.scrollToIndex({
+              index: Math.max(flattenedNodes.length - 1, 0),
+              align: "center",
+            });
+          }, 200);
         }
       }
     };

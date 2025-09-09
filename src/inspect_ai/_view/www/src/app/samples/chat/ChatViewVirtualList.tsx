@@ -56,13 +56,23 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
       const handleKeyDown = (event: KeyboardEvent) => {
         if (event.metaKey || event.ctrlKey) {
           if (event.key === "ArrowUp") {
-            listHandle.current?.scrollToIndex({ index: 0, align: "start" });
+            listHandle.current?.scrollToIndex({ index: 0, align: "center" });
             event.preventDefault();
           } else if (event.key === "ArrowDown") {
             listHandle.current?.scrollToIndex({
-              index: messages.length - 1,
-              align: "end",
+              index: Math.min(messages.length - 5, 0),
+              align: "center",
             });
+
+            // This is needed to allow measurement to complete before finding
+            // the last item to scroll to it properly. The timing isn't magical sadly
+            // it is just a heuristic.
+            setTimeout(() => {
+              listHandle.current?.scrollToIndex({
+                index: messages.length - 1,
+                align: "end",
+              });
+            }, 100);
             event.preventDefault();
           }
         }
