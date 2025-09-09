@@ -1,8 +1,13 @@
 ## Unreleased
 
+- Sandbox Service: Specify instance externally so a single script can service multiple instances.
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
 - Inspect View: Improve scroll keyboard handling in sample transcript view.
 - Inspect View: Improve scroll keyboard handling in sample messages view.
+  
+## 0.3.131 (08 September 2025)
+
+- OpenAI: Correct serialization of web search tool calls (prevent 400 errors).
 
 ## 0.3.130 (06 September 2025)
 

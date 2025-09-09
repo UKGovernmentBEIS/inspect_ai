@@ -467,7 +467,7 @@ def _chat_message_assistant_from_openai_response(
 
             case ResponseFunctionWebSearch():
                 assistant_internal().server_tool_uses[output.id] = cast(
-                    ResponseFunctionWebSearchParam, output.model_dump()
+                    ResponseFunctionWebSearchParam, output.model_dump(exclude_none=True)
                 )
                 message_content.append(web_search_to_tool_use(output))
             case McpListTools():
