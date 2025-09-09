@@ -72,7 +72,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
                 index: messages.length - 1,
                 align: "end",
               });
-            }, 100);
+            }, 250);
             event.preventDefault();
           }
         }
@@ -90,7 +90,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           scrollElement.removeEventListener("keydown", handleKeyDown);
         };
       }
-    }, [scrollRef]);
+    }, [scrollRef, messages]);
 
     return (
       <ChatViewVirtualListComponent

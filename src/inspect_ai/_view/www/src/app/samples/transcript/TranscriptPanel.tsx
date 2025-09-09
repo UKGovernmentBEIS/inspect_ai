@@ -91,18 +91,21 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
           event.preventDefault();
         } else if (event.key === "ArrowDown") {
           listHandle.current?.scrollToIndex({
-            index: Math.floor(flattenedNodes.length * 0.9),
+            index: Math.max(flattenedNodes.length - 5, 0),
             align: "center",
+            behavior: "auto",
           });
 
           // This is needed to allow measurement to complete before finding
-          // the last item to scroll to it properly
+          // the last item to scroll to it properly. The timing isn't magical sadly
+          // it is just a heuristic.
           setTimeout(() => {
             listHandle.current?.scrollToIndex({
               index: Math.max(flattenedNodes.length - 1, 0),
-              align: "center",
+              align: "end",
+              behavior: "auto",
             });
-          }, 200);
+          }, 250);
         }
       }
     };
@@ -119,7 +122,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
         scrollElement.removeEventListener("keydown", handleKeyDown);
       };
     }
-  }, [scrollRef]);
+  }, [scrollRef, flattenedNodes]);
 
   return (
     <div
