@@ -71,15 +71,6 @@ async def sandbox_service(
     spec.loader.exec_module(foo)
     ```
 
-    If you are using an `instance`, then include that in the
-    path after the service name:
-
-    ```python
-    spec = importlib.util.spec_from_file_location(
-        "foo", "/var/tmp/sandbox-services/foo/<instance>/foo.py"
-    )
-    ```
-
     Args:
         name: Service name
         methods: Service methods.
@@ -87,8 +78,7 @@ async def sandbox_service(
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
         instance: If you want multiple instances of a service in a single sandbox
-            then use the `instance` param (and adjust the path for importing the
-            service as described above)
+            then use the `instance` param.
         polling_interval: Polling interval for request checking. If not specified uses
             sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
@@ -178,6 +168,7 @@ class SandboxService:
         self._user = user
         self._started = started
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
+        self._root_service_dir = self._service_dir
         if instance is not None:
             self._service_dir = self._service_dir / instance
         self._methods: dict[str, SandboxServiceMethod] = {}
@@ -352,6 +343,12 @@ class SandboxService:
                 f"Timed out executing command {' '.join(cmd)} in sandbox"
             )
 
+    # NOTE: A snapshot of the generated code for the bridge_model_service lives
+    # within the bridge model proxy implementation. If you change this method you
+    # should therefore re-generate this source code and sync it to the proxy:
+    #   sandbox_service_script('bridge_model_service')
+    # in point of fact we don't expect this code to ever change which is why
+    # we haven't invested in an automated code syncing regimen.
     def _generate_client(self) -> str:
         return dedent(f"""
         from typing import Any
@@ -361,7 +358,7 @@ class SandboxService:
             request_id = _write_{self._name}_request(method, **params)
             while True:
                 sleep({POLLING_INTERVAL})
-                success, result = _read_{self._name}_response(request_id)
+                success, result = _read_{self._name}_response(request_id, method)
                 if success:
                     return result
 
@@ -370,16 +367,15 @@ class SandboxService:
             request_id = _write_{self._name}_request(method, **params)
             while True:
                 await sleep({POLLING_INTERVAL})
-                success, result = _read_{self._name}_response(request_id)
+                success, result = _read_{self._name}_response(request_id, method)
                 if success:
                     return result
 
         def _write_{self._name}_request(method: str, **params: Any) -> str:
             from json import dump
-            from pathlib import Path
             from uuid import uuid4
 
-            requests_dir = Path("{self._service_dir}", "{REQUESTS_DIR}")
+            requests_dir = _{self._name}_service_dir("{REQUESTS_DIR}")
             request_id = str(uuid4())
             request_data = dict({ID}=request_id, {METHOD}=method, {PARAMS}=params)
             request_path = requests_dir / (request_id + ".json")
@@ -387,11 +383,10 @@ class SandboxService:
                 dump(request_data, f)
             return request_id
 
-        def _read_{self._name}_response(request_id: str) -> tuple[bool, Any]:
+        def _read_{self._name}_response(request_id: str, method: str) -> tuple[bool, Any]:
             from json import JSONDecodeError, load
-            from pathlib import Path
 
-            responses_dir = Path("{self._service_dir}", "{RESPONSES_DIR}")
+            responses_dir = _{self._name}_service_dir("{RESPONSES_DIR}")
             response_path = responses_dir / (request_id + ".json")
             if response_path.exists():
                 # read and remove the file
@@ -419,7 +414,22 @@ class SandboxService:
                     )
             else:
                 return False, None
+
+        def _{self._name}_service_dir(subdir: str) -> Any:
+            import os
+            from pathlib import Path
+            service_dir = Path("{self._root_service_dir}")
+            instance = os.environ.get("{self._name.upper()}_INSTANCE", None)
+            if instance is not None:
+                service_dir = service_dir / instance
+            return service_dir / subdir
         """)
+
+
+def sandbox_service_script(name: str) -> str:
+    # create a service just to generate the script (pass no sandbox)
+    service = SandboxService(name, None)  # type: ignore[arg-type]
+    return service._generate_client()
 
 
 async def validate_sandbox_python(

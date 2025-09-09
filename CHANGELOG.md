@@ -1,3 +1,18 @@
+## Unreleased
+
+- Anthropic: Support for images with mime type image/bmp.
+- Sandbox Service: Specify instance externally so a single script can service multiple instances.
+- Agent Bridge: Capture message history in agent state for all bridge generations.
+- Agent Bridge: Embed sandbox service client in sandbox bridge proxy (for ease of bundling).
+- Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
+- Inspect View: Improve scroll keyboard handling in sample transcript view.
+- Inspect View: Improve scroll keyboard handling in sample messages view.
+- Bugfix: Fix file info on filesystem without mtime.
+  
+## 0.3.131 (08 September 2025)
+
+- OpenAI: Correct serialization of web search tool calls (prevent 400 errors).
+
 ## 0.3.130 (06 September 2025)
 
 - Agent Bridge: Option to force the sandbox agent bridge to use a specific model.
