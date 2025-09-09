@@ -351,6 +351,27 @@ def metrics_from_log_header(
                 key: [metric_from_log(metric) for metric in metrics]
                 for key, metrics in log.eval.metrics.items()
             }
+
+    # If no metrics directly in eval, check scorers for metrics
+    if log.eval.scorers:
+        for scorer in log.eval.scorers:
+            if scorer.metrics:
+                # Handle different metric formats (list and dict)
+                if isinstance(scorer.metrics, list):
+                    result_metrics = []
+                    for metric_item in scorer.metrics:
+                        from inspect_ai.log._log import EvalMetricDefinition
+
+                        if isinstance(metric_item, EvalMetricDefinition):
+                            result_metrics.append(metric_from_log(metric_item))
+                    return result_metrics if result_metrics else None
+                else:
+                    # Handle dict format if needed
+                    return {
+                        key: [metric_from_log(metric) for metric in metrics]
+                        for key, metrics in scorer.metrics.items()
+                    }
+
     return None
 
 
