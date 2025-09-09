@@ -25,12 +25,14 @@
 - Scoring: Resolve task metrics on to scores returned by solvers.
 - Scoring: Use `Sequence` and `Mapping` types for metrics on scorer decorator.
 - Scoring: Properly make sample events available in the transcript during re-scoring an eval log.
+- Score Editing: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Inspect View: Display pending tasks in eval sets (tasks that have not yet started running)
 - Inspect View: Fine tune status appearance to improve legibility
 - Inspect View: Fix issue displaying folders with with overlapping path prefixes.
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
 - Bugfix: Enable passing no reducers to `async_score` in eval score.
 - Bugfix: Handle non-contiguous task sequences in task batching.
+
 
 ## 0.3.132 (12 September 2025)
 
