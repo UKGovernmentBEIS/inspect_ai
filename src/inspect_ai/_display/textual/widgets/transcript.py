@@ -349,9 +349,11 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
 
     # use truncation for tool messages
     if isinstance(message, ChatMessageTool):
-        # render the output
-        if isinstance(message.content, list):
-            result: ToolResult = "\n".join(
+        # render the error or the output
+        if message.error:
+            result: ToolResult = f"{message.error.type}: {message.error.message}"
+        elif isinstance(message.content, list):
+            result = "\n".join(
                 [
                     content.text
                     for content in message.content
@@ -365,7 +367,7 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
             result = str(result).strip()
             content.extend(lines_display(result, 50))
         else:
-            content.extend("(no output)")
+            content.append("(no output)")
 
     else:
         # header
