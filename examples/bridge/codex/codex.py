@@ -1,3 +1,7 @@
+# NOTE: This example is intended as a demonstration of the basic mechanics of using the
+# sandbox agent bridge. For a more feature-rich implementation of a Codex CLI agent for
+# Inspectsee <https://meridianlabs-ai.github.io/inspect_swe/>
+
 from inspect_ai.agent import (
     Agent,
     AgentState,
