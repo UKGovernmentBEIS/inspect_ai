@@ -1,7 +1,7 @@
 {
-  "name": "@inspect-ai/log-viewer",
+  "name": "@meridianlabs/log-viewer",
   "version": "0.0.1",
-  "description": "Log viewer for the inspect_ai package",
+  "description": "Log viewer for inspect_ai logs",
   "license": "MIT",
   "type": "module",
   "main": "./lib/index.js",
@@ -12,11 +12,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/UKGovernmentBEIS/inspect_ai.git",
+    "url": "https://github.com/UKGovernmentBEIS/inspect_ai",
     "directory": "src/inspect_ai/_view/www"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "vite build",
