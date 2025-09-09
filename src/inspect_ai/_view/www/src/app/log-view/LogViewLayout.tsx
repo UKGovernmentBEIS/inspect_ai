@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC, KeyboardEvent, useCallback, useRef } from "react";
 import { ErrorPanel } from "../../components/ErrorPanel";
+import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useStore } from "../../state/store";
@@ -38,6 +39,7 @@ export const LogViewLayout: FC = () => {
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault(); // Prevent browser find dialog
         setShowFind(true);
       } else if (e.key === "Escape") {
         hideFind();
@@ -47,7 +49,7 @@ export const LogViewLayout: FC = () => {
   );
 
   return (
-    <>
+    <ExtendedFindProvider>
       <div
         ref={mainAppRef}
         className={clsx(
@@ -71,6 +73,6 @@ export const LogViewLayout: FC = () => {
           <LogView />
         )}
       </div>
-    </>
+    </ExtendedFindProvider>
   );
 };

@@ -1,18 +1,44 @@
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
+import { useExtendedFind } from "./ExtendedFindContext";
 import "./FindBand.css";
 
 interface FindBandProps {}
 
+const findConfig = {
+  caseSensitive: false,
+  wrapAround: false,
+  wholeWord: false,
+  searchInFrames: false,
+  showDialog: false,
+};
+
 export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
   const storeHideFind = useStore((state) => state.appActions.hideFind);
+  const { extendedFindTerm } = useExtendedFind();
 
   useEffect(() => {
     setTimeout(() => {
       searchBoxRef.current?.focus();
     }, 10);
+
+    // Block browser find when FindBand is active
+    const handleGlobalKeydown = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        // Focus our search box instead
+        searchBoxRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleGlobalKeydown, true); // Use capture phase
+
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeydown, true);
+    };
   }, []);
 
   const getParentExpandablePanel = useCallback(
@@ -33,23 +59,59 @@ export const FindBand: FC<FindBandProps> = () => {
   );
 
   const handleSearch = useCallback(
-    (back = false) => {
+    async (back = false) => {
+      // The search term
       const searchTerm = searchBoxRef.current?.value ?? "";
-      const focusedElement = document.activeElement as HTMLElement;
-      // @ts-expect-error: `Window.find` is non-standard
-      const result = window.find(
-        searchTerm,
-        false,
-        back,
-        false,
-        false,
-        true,
-        false,
-      );
-      const noResultEl = document.getElementById("inspect-find-no-results");
+      if (!searchTerm) {
+        return;
+      }
 
+      // Capture the curently focused element so we can restore focus later
+      const focusedElement = document.activeElement as HTMLElement;
+
+      // First try searching current DOM
+      // @ts-expect-error: `Window.find` is non-standard
+      let result = window.find(
+        searchTerm,
+        findConfig.caseSensitive,
+        back,
+        findConfig.wrapAround,
+        findConfig.wholeWord,
+        findConfig.searchInFrames,
+        findConfig.showDialog,
+      );
+      console.log("Base search result:", result);
+
+      // If no results in current DOM, try virtual content
+      if (!result) {
+        console.log("Extended search");
+        const foundInVirtual = await extendedFindTerm(
+          searchTerm,
+          back ? "backward" : "forward",
+        );
+        console.log("Extended search result", result);
+
+        if (foundInVirtual) {
+          console.log("Found in extended search");
+          // Content should now be rendered, try window.find again
+          // @ts-expect-error: `Window.find` is non-standard
+          result = window.find(
+            searchTerm,
+            findConfig.caseSensitive,
+            back,
+            findConfig.wrapAround,
+            findConfig.wholeWord,
+            findConfig.searchInFrames,
+            findConfig.showDialog,
+          );
+          console.log("Secondary find result:", result);
+        }
+      }
+
+      const noResultEl = document.getElementById("inspect-find-no-results");
       if (!noResultEl) return;
 
+      // Show "No results" if neither current DOM nor virtual search found anything
       noResultEl.style.opacity = result ? "0" : "1";
 
       if (result) {
@@ -68,7 +130,7 @@ export const FindBand: FC<FindBandProps> = () => {
           if (element) {
             setTimeout(() => {
               element.scrollIntoView({
-                behavior: "smooth",
+                behavior: "auto",
                 block: "center",
               });
             }, 100);
@@ -78,7 +140,7 @@ export const FindBand: FC<FindBandProps> = () => {
 
       focusedElement?.focus();
     },
-    [getParentExpandablePanel],
+    [getParentExpandablePanel, extendedFindTerm],
   );
 
   const handleKeyDown = useCallback(
