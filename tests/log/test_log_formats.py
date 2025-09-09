@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.log import read_eval_log, write_eval_log
+from inspect_ai.scorer._metric import ProvenanceData, ScoreEdit
 
 
 @pytest.fixture
@@ -16,7 +17,10 @@ def original_log():
     log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     log = read_eval_log(log_file)
     log.location = None
-    return log
+    # Return a deep copy to avoid test pollution
+    import copy
+
+    return copy.deepcopy(log)
 
 
 @pytest.fixture
@@ -184,6 +188,81 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
     assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
         "JSON content changed after roundtrip through EVAL format"
     )
+
+
+def test_score_editing_round_trip(original_log, temp_dir):
+    """Test that logs with edited scores survive round-trip."""
+    # First, add some score edits to the log
+    if original_log.samples and len(original_log.samples) > 0:
+        sample = original_log.samples[0]
+        if sample.scores:
+            score_name = list(sample.scores.keys())[0]
+            score = sample.scores[score_name]
+
+            # Add an edit to the score
+            provenance = ProvenanceData(author="test_user", reason="Test edit")
+            edit = ScoreEdit(value="edited_value", provenance=provenance)
+            score.history.append(edit)
+
+    formats = ["json", "eval"]
+
+    for format in formats:
+        # Write the log with edited scores
+        log_path = temp_dir / f"edited_log.{format}"
+        write_eval_log(original_log, log_path, format=format)
+
+        # Read it back
+        restored_log = read_eval_log(log_path, format=format)
+        restored_log.location = None
+
+        # Check that the edit survived
+        if restored_log.samples and len(restored_log.samples) > 0:
+            restored_sample = restored_log.samples[0]
+            if restored_sample.scores:
+                restored_score_name = list(restored_sample.scores.keys())[0]
+                restored_score = restored_sample.scores[restored_score_name]
+
+                # Should have the edit
+                assert len(restored_score.history) > 1
+                assert restored_score.was_edited
+                assert restored_score.value == "edited_value"
+
+                # Should have provenance
+                edit_with_provenance = None
+                for h in restored_score.history:
+                    if h.provenance is not None:
+                        edit_with_provenance = h
+                        break
+
+                assert edit_with_provenance is not None
+                assert edit_with_provenance.provenance.author == "test_user"
+
+
+def test_mixed_scores_round_trip(original_log, temp_dir):
+    """Test logs with both legacy and edited scores."""
+    # Add edits to some scores but not others
+    if original_log.samples and len(original_log.samples) > 1:
+        # Edit first sample's scores
+        sample1 = original_log.samples[0]
+        if sample1.scores:
+            for score_name, score in sample1.scores.items():
+                edit = ScoreEdit(value="edited")
+                score.history.append(edit)
+                break  # Just edit one score
+
+        # Leave second sample's scores as legacy (no edits)
+        # They should remain in legacy format
+
+    # Test round-trip
+    for format in ["json", "eval"]:
+        log_path = temp_dir / f"mixed_log.{format}"
+        write_eval_log(original_log, log_path, format=format)
+
+        restored_log = read_eval_log(log_path, format=format)
+        restored_log.location = None
+
+        # Compare JSON serialization
+        assert original_log.model_dump_json() == restored_log.model_dump_json()
 
 
 def compare_zip_contents(zip_file1: Path, zip_file2: Path) -> bool:

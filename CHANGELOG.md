@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Sandbox Service: Specify instance externally so a single script can service multiple instances.
+- Score Editing: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
   
 ## 0.3.131 (08 September 2025)
 

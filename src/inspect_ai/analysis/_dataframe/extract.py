@@ -14,7 +14,37 @@ from inspect_ai.model._chat_message import (
 
 
 def model_to_record(model: BaseModel) -> dict[str, JsonValue]:
-    return cast(dict[str, JsonValue], model.model_dump(mode="json", exclude_none=True))
+    result = model.model_dump(mode="json", exclude_none=True)
+
+    # Fix Score objects that get incorrectly serialized
+    def fix_scores(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            # Check if this looks like a Score object (has 'history' but no 'value')
+            if (
+                "history" in obj
+                and "value" not in obj
+                and isinstance(obj["history"], list)
+            ):
+                # This is a Score object that wasn't properly serialized
+                # Extract the value from the latest history entry
+                history = obj["history"]
+                if history:
+                    latest = history[-1]
+                    if isinstance(latest, dict) and "value" in latest:
+                        # Reconstruct the score with backward-compatible fields
+                        obj["value"] = latest["value"]
+                        obj["answer"] = latest.get("answer")
+                        obj["explanation"] = latest.get("explanation")
+                        obj["metadata"] = latest.get("metadata", {})
+
+            # Recursively fix nested objects
+            return {k: fix_scores(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [fix_scores(item) for item in obj]
+        else:
+            return obj
+
+    return cast(dict[str, JsonValue], fix_scores(result))
 
 
 def list_as_str(x: JsonValue) -> str:
@@ -34,7 +64,18 @@ def remove_namespace(x: JsonValue) -> JsonValue:
 
 def score_values(x: JsonValue) -> dict[str, JsonValue]:
     scores = cast(dict[str, Any], x)
-    return {k: v["value"] for k, v in scores.items()}
+    result = {}
+    for k, v in scores.items():
+        if hasattr(v, "value"):
+            # v is a Score object, access the value property
+            result[k] = v.value
+        elif isinstance(v, dict) and "value" in v:
+            # v is a dictionary (old format or raw data)
+            result[k] = v["value"]
+        else:
+            # Fallback: treat v as the value itself
+            result[k] = v
+    return result
 
 
 def auto_id(base: str, index: str) -> str:
