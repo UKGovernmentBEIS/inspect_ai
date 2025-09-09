@@ -511,7 +511,7 @@ def _http_date() -> str:
 
 
 async def model_proxy_server(
-    port: int, instance: str, call_bridge_model_service_async: Any = None
+    port: int, call_bridge_model_service_async: Any = None
 ) -> AsyncHTTPServer:
     """Create and configure the model proxy server.
 
@@ -524,11 +524,9 @@ async def model_proxy_server(
         Configured AsyncHTTPServer instance
     """
     # get generate method if not provided (for testing)
-    if call_bridge_model_service_async is None:
-        sys.path.append(f"/var/tmp/sandbox-services/bridge_model_service/{instance}")
-        from bridge_model_service import (  # type: ignore[import-not-found,no-redef]
-            call_bridge_model_service_async,
-        )
+    call_bridge_model_service_async = (
+        call_bridge_model_service_async or _call_bridge_model_service_async
+    )
 
     # setup server
     server = AsyncHTTPServer(port=port)
@@ -1738,15 +1736,14 @@ async def model_proxy_server(
     return server
 
 
-async def run_model_proxy_server(port: int, instance: str) -> None:
+async def run_model_proxy_server(port: int) -> None:
     """Run the model proxy server.
 
     Args:
         port: Port to run the server on
-        instance: Server instance
     """
     # Create server
-    server = await model_proxy_server(port, instance)
+    server = await model_proxy_server(port)
 
     # Run server
     try:
@@ -1776,9 +1773,77 @@ def _handle_model_proxy_error(ex: Exception) -> None:
     sys.stderr.flush()
 
 
+async def _call_bridge_model_service_async(method: str, **params: Any) -> Any:
+    from asyncio import sleep
+
+    request_id = _write_bridge_model_service_request(method, **params)
+    while True:
+        await sleep(0.1)
+        success, result = _read_bridge_model_service_response(request_id, method)
+        if success:
+            return result
+
+
+def _write_bridge_model_service_request(method: str, **params: Any) -> str:
+    from json import dump
+    from uuid import uuid4
+
+    requests_dir = _bridge_model_service_service_dir("requests")
+    request_id = str(uuid4())
+    request_data = dict(id=request_id, method=method, params=params)
+    request_path = requests_dir / (request_id + ".json")
+    with open(request_path, "w") as f:
+        dump(request_data, f)
+    return request_id
+
+
+def _read_bridge_model_service_response(
+    request_id: str, method: str
+) -> tuple[bool, Any]:
+    from json import JSONDecodeError, load
+
+    responses_dir = _bridge_model_service_service_dir("responses")
+    response_path = responses_dir / (request_id + ".json")
+    if response_path.exists():
+        # read and remove the file
+        with open(response_path, "r") as f:
+            # it's possible the file is still being written so
+            # just catch and wait for another retry if this occurs
+            try:
+                response = load(f)
+            except JSONDecodeError:
+                return False, None
+        response_path.unlink()
+
+        # raise error if we have one
+        if response.get("error", None) is not None:
+            raise Exception(response["error"])
+
+        # return response if we have one
+        elif "result" in response:
+            return True, response["result"]
+
+        # invalid response
+        else:
+            raise RuntimeError(
+                "No error or result field in response for method " + method
+            )
+    else:
+        return False, None
+
+
+def _bridge_model_service_service_dir(subdir: str) -> Any:
+    import os
+    from pathlib import Path
+
+    service_dir = Path("/var/tmp/sandbox-services/bridge_model_service")
+    instance = os.environ.get("BRIDGE_MODEL_SERVICE_INSTANCE", None)
+    if instance is not None:
+        service_dir = service_dir / instance
+    return service_dir / subdir
+
+
 if __name__ == "__main__":
     DEFAULT_PROXY_PORT = 13131
-    DEFAULT_INSTANCE = "instance"
     port_arg = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PROXY_PORT
-    instance_arg = str(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_INSTANCE
-    asyncio.run(run_model_proxy_server(port=port_arg, instance=instance_arg))
+    asyncio.run(run_model_proxy_server(port=port_arg))

@@ -880,7 +880,7 @@ async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
 
     # Create server with mocked bridge service
     server = await model_proxy_server(
-        port=0, instance="instance", call_bridge_model_service_async=mock_bridge_service
+        port=0, call_bridge_model_service_async=mock_bridge_service
     )
 
     # Start server manually (not using start() which blocks)
@@ -1476,7 +1476,6 @@ async def proxy_server_anthropic() -> AsyncGenerator[tuple[AsyncHTTPServer, str]
     # Create server with mocked bridge service
     server = await model_proxy_server(
         port=0,
-        instance="instance",
         call_bridge_model_service_async=mock_bridge_service_anthropic,
     )
 
