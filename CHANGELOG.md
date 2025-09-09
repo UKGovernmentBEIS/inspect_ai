@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Sandbox Service: Specify instance externally so a single script can service multiple instances.
+- Sandboxes: Add Sandbox Injection API for Dynamic Environment Setup.
   
 ## 0.3.131 (08 September 2025)
 
