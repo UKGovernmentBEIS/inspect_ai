@@ -343,6 +343,12 @@ class SandboxService:
                 f"Timed out executing command {' '.join(cmd)} in sandbox"
             )
 
+    # NOTE: A snapshot of the generated code for the bridge_model_service lives
+    # within the bridge model proxy implementation. If you change this method you
+    # should therefore re-generate this source code and sync it to the proxy:
+    #   sandbox_service_script('bridge_model_service')
+    # in point of fact we don't expect this code to ever change which is why
+    # we haven't invested in an automated code syncing regimen.
     def _generate_client(self) -> str:
         return dedent(f"""
         from typing import Any
@@ -352,7 +358,7 @@ class SandboxService:
             request_id = _write_{self._name}_request(method, **params)
             while True:
                 sleep({POLLING_INTERVAL})
-                success, result = _read_{self._name}_response(request_id)
+                success, result = _read_{self._name}_response(request_id, method)
                 if success:
                     return result
 
@@ -361,7 +367,7 @@ class SandboxService:
             request_id = _write_{self._name}_request(method, **params)
             while True:
                 await sleep({POLLING_INTERVAL})
-                success, result = _read_{self._name}_response(request_id)
+                success, result = _read_{self._name}_response(request_id, method)
                 if success:
                     return result
 
@@ -377,7 +383,7 @@ class SandboxService:
                 dump(request_data, f)
             return request_id
 
-        def _read_{self._name}_response(request_id: str) -> tuple[bool, Any]:
+        def _read_{self._name}_response(request_id: str, method: str) -> tuple[bool, Any]:
             from json import JSONDecodeError, load
 
             responses_dir = _{self._name}_service_dir("{RESPONSES_DIR}")
