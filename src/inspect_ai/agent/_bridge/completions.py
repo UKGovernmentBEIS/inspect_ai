@@ -85,9 +85,8 @@ async def inspect_completions_api_request(
     output = await bridge_generate(bridge, model, input, tools, tool_choice, config)
 
     # update state
-    if bridge_model_name == "inspect":
-        bridge.state.messages = input + [output.message]
-        bridge.state.output = output
+    bridge.state.messages = input + [output.message]
+    bridge.state.output = output
 
     # inspect completion to openai completion
     return ChatCompletion(

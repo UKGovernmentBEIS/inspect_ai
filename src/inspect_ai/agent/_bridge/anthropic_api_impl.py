@@ -118,9 +118,8 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state
-    if bridge_model_name == "inspect":
-        bridge.state.messages = messages + [output.message]
-        bridge.state.output = output
+    bridge.state.messages = messages + [output.message]
+    bridge.state.output = output
 
     # return message
     message = Message(
