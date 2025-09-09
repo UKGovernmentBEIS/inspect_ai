@@ -17,7 +17,7 @@ from inspect_ai.util._sandbox import sandbox as default_sandbox
 
 from ..._agent import AgentState
 from ..util import internal_web_search_providers
-from .service import run_model_service
+from .service import MODEL_SERVICE, run_model_service
 
 logger = getLogger(__file__)
 
@@ -107,9 +107,9 @@ async def run_model_proxy(
     await started.wait()
 
     # install the model proxy script in the container
-    MODEL_PROXY_PY = f"/var/tmp/inspect-sandbox/{instance}/model-proxy.py"
+    MODEL_PROXY_PY = "/var/tmp/inspect-sandbox/model-proxy.py"
     with open(Path(__file__).parent / "proxy.py", "r") as f:
-        proxy_script = f.read().replace("<<<instance>>>", instance)
+        proxy_script = f.read()
         await sandbox.write_file(MODEL_PROXY_PY, proxy_script)
     result = await sandbox.exec(["chmod", "+x", MODEL_PROXY_PY])
     if not result.success:
@@ -118,7 +118,11 @@ async def run_model_proxy(
         )
 
     # run the model proxy script
-    result = await sandbox.exec([MODEL_PROXY_PY, str(port)], concurrency=False)
+    result = await sandbox.exec(
+        cmd=[MODEL_PROXY_PY, str(port), instance],
+        env={f"{MODEL_SERVICE.upper()}_INSTANCE": instance},
+        concurrency=False,
+    )
     if not result.success:
         raise RuntimeError(
             f"Error running model proxy script for agent bridge: {result.stderr}"
