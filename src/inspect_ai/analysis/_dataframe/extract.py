@@ -34,7 +34,16 @@ def remove_namespace(x: JsonValue) -> JsonValue:
 
 def score_values(x: JsonValue) -> dict[str, JsonValue]:
     scores = cast(dict[str, Any], x)
-    return {k: v["value"] for k, v in scores.items()}
+    return {
+        k: (
+            v.value
+            if hasattr(v, "value")
+            else v["value"]
+            if isinstance(v, dict) and "value" in v
+            else v
+        )
+        for k, v in scores.items()
+    }
 
 
 def auto_id(base: str, index: str) -> str:
