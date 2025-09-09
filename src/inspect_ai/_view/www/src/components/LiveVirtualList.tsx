@@ -16,6 +16,8 @@ import styles from "./LiveVirtualList.module.css";
 
 interface LiveVirtualListProps<T> {
   id: string;
+  listHandle: RefObject<VirtuosoHandle | null>;
+
   className?: string | string[];
 
   // The scroll ref to use for the virtual list
@@ -47,6 +49,7 @@ interface LiveVirtualListProps<T> {
  */
 export const LiveVirtualList = <T,>({
   id,
+  listHandle,
   className,
   data,
   renderRow,
@@ -58,7 +61,6 @@ export const LiveVirtualList = <T,>({
   components,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
-  const listHandle = useRef<VirtuosoHandle>(null);
   const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
     `live-virtual-list-${id}`,
@@ -167,6 +169,7 @@ export const LiveVirtualList = <T,>({
   }, [scrollRef, handleScroll]);
 
   // Scroll to index when component mounts or targetIndex changes
+  const hasScrolled = useRef(false);
   useEffect(() => {
     if (initialTopMostItemIndex !== undefined && listHandle.current) {
       // If there is an initial index, scroll to it after a short delay
@@ -174,11 +177,11 @@ export const LiveVirtualList = <T,>({
         listHandle.current?.scrollToIndex({
           index: initialTopMostItemIndex,
           align: "start",
-          behavior: "smooth",
+          behavior: !hasScrolled.current ? "auto" : "smooth",
           offset: offsetTop ? -offsetTop : undefined,
         });
+        hasScrolled.current = true;
       }, 50);
-
       return () => clearTimeout(timer);
     }
   }, [initialTopMostItemIndex]);
@@ -192,7 +195,7 @@ export const LiveVirtualList = <T,>({
       defaultItemHeight={250}
       itemContent={renderRow}
       increaseViewportBy={{ top: 1000, bottom: 1000 }}
-      overscan={{ main: 2, reverse: 2 }}
+      overscan={{ main: 5, reverse: 5 }}
       className={clsx("transcript", className)}
       isScrolling={isScrolling}
       restoreStateFrom={getRestoreState()}

@@ -114,12 +114,32 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     (e: KeyboardEvent<HTMLDivElement>) => {
       switch (e.key) {
         case "ArrowUp":
-          sampleNavigation.previousSample();
+          if (e.metaKey || e.ctrlKey) {
+            sampleNavigation.firstSample();
+            listHandle.current?.scrollToIndex({
+              index: 0,
+              align: "start",
+              behavior: "auto",
+            });
+          } else {
+            sampleNavigation.previousSample();
+          }
+
           e.preventDefault();
           e.stopPropagation();
           break;
         case "ArrowDown":
-          sampleNavigation.nextSample();
+          if (e.metaKey || e.ctrlKey) {
+            sampleNavigation.lastSample();
+            listHandle.current?.scrollToIndex({
+              index: items.length - 1,
+              align: "end",
+              behavior: "auto",
+            });
+          } else {
+            sampleNavigation.nextSample();
+          }
+
           e.preventDefault();
           e.stopPropagation();
           break;
@@ -143,6 +163,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       sampleNavigation.nextSample,
       sampleNavigation.previousSample,
       sampleNavigation.showSample,
+      listHandle,
     ],
   );
 

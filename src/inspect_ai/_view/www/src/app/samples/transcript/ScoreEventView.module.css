@@ -1,8 +1,13 @@
 .explanation {
   display: grid;
-  grid-template-columns: max-content auto;
+  grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 1em;
   margin: 0.5em 0;
+}
+
+.wrappingContent {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .separator {
