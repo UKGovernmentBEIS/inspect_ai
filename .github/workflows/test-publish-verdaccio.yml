@@ -1,0 +1,309 @@
+name: Test Publish to Verdaccio
+
+on:
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Enable debug logging'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  test-publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/inspect_ai/_view/www
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: 'http://localhost:4873'
+
+      - name: Install dependencies
+        run: |
+          echo "Installing project dependencies..."
+          yarn install --frozen-lockfile
+
+      - name: Install Verdaccio and dependencies
+        run: |
+          echo "Installing Verdaccio and expect globally..."
+          npm install -g verdaccio expect
+
+      - name: Create Verdaccio config
+        run: |
+          echo "Creating Verdaccio configuration..."
+          mkdir -p ~/.config/verdaccio
+          cat > ~/.config/verdaccio/config.yaml << 'EOF'
+          storage: ./storage
+          auth:
+            htpasswd:
+              file: ./htpasswd
+              max_users: -1
+          uplinks:
+            npmjs:
+              url: https://registry.npmjs.org/
+          packages:
+            '@*/*':
+              access: $all
+              publish: $all
+              unpublish: $all
+              proxy: npmjs
+            '**':
+              access: $all
+              publish: $all
+              unpublish: $all
+              proxy: npmjs
+          server:
+            keepAliveTimeout: 60
+          middlewares:
+            audit:
+              enabled: true
+          logs: { type: stdout, format: pretty, level: http }
+          EOF
+
+      - name: Start Verdaccio
+        run: |
+          echo "Starting Verdaccio in background..."
+          verdaccio --config ~/.config/verdaccio/config.yaml --listen 4873 &
+          sleep 15
+          echo "Verdaccio started, testing connection..."
+          curl -f http://localhost:4873/ || (echo "Verdaccio failed to start" && exit 1)
+          echo "Verdaccio is running successfully"
+
+      - name: Configure npm for Verdaccio
+        run: |
+          echo "Configuring npm to use Verdaccio registry..."
+          npm config set registry http://localhost:4873/
+          echo "NPM registry configured"
+
+      - name: Create Verdaccio user
+        run: |
+          echo "Adding user to Verdaccio..."
+          expect -c '
+          set timeout 30
+          spawn npm adduser --registry http://localhost:4873/
+          expect "Username:" { send "testuser\r" }
+          expect "Password:" { send "testpass123\r" }
+          expect "Email: " { send "test@example.com\r" }
+          expect "Logged in as testuser on http://localhost:4873/." { exit 0 }
+          expect timeout { exit 1 }
+          expect eof
+          '
+          echo "User authentication completed"
+
+      - name: Run quality checks
+        run: |
+          echo "Running TypeScript check..."
+          yarn tsc
+          
+          echo "Running linting..."
+          yarn lint
+          
+          echo "Running tests..."
+          yarn test
+
+      - name: Build package
+        run: |
+          echo "Building library package..."
+          yarn build:lib
+          
+          echo "Verifying build output..."
+          ls -la lib/
+          
+          if [ ! -f "lib/index.js" ]; then
+            echo "Error: lib/index.js not found after build"
+            exit 1
+          fi
+          
+          if [ ! -f "lib/index.d.ts" ]; then
+            echo "Error: lib/index.d.ts not found after build"
+            exit 1
+          fi
+          
+          echo "Build completed successfully"
+
+      - name: Update package.json for Verdaccio
+        run: |
+          echo "Updating package.json to publish to Verdaccio..."
+          # Remove the GitHub packages registry configuration
+          node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          delete pkg.publishConfig;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          
+          echo "Package.json updated for Verdaccio publishing"
+
+      - name: Publish to Verdaccio
+        run: |
+          echo "Publishing package to Verdaccio..."
+          
+          # Publish the package
+          npm publish --registry http://localhost:4873/
+          
+          echo "Package published successfully!"
+
+      - name: Verify package in registry
+        run: |
+          echo "Verifying package exists in Verdaccio registry..."
+          
+          # Check if package exists
+          curl -f "http://localhost:4873/@meridianlabs%2flog-viewer" || {
+            echo "Package not found in registry"
+            exit 1
+          }
+          
+          # Get package info
+          npm view @meridianlabs/log-viewer --registry http://localhost:4873/
+          
+          echo "Package verification completed"
+
+      - name: Test package installation
+        run: |
+          echo "Creating test project to verify package installation..."
+          
+          # Create temporary test directory
+          mkdir -p /tmp/test-install
+          cd /tmp/test-install
+          
+          # Initialize test project
+          npm init -y
+          npm config set registry http://localhost:4873/
+          
+          echo "Installing published package..."
+          npm install @meridianlabs/log-viewer
+          
+          # Verify package is installed
+          if [ ! -d "node_modules/@meridianlabs/log-viewer" ]; then
+            echo "Error: Package not installed correctly"
+            exit 1
+          fi
+          
+          echo "Package installed successfully"
+
+      - name: Test package imports
+        run: |
+          cd /tmp/test-install
+          
+          echo "Creating test file to verify package imports..."
+          cat > test-import.mjs << 'EOF'
+          import { App, api, clientApi } from '@meridianlabs/log-viewer';
+          
+          console.log('Testing package imports...');
+          
+          // Check if main exports are available
+          if (typeof App === 'undefined') {
+            throw new Error('App export not found');
+          }
+          
+          if (typeof api === 'undefined') {
+            throw new Error('api export not found');
+          }
+          
+          if (typeof clientApi === 'undefined') {
+            throw new Error('clientApi export not found');
+          }
+          
+          console.log('✅ All main exports are available');
+          console.log('✅ Package import test passed!');
+          EOF
+          
+          echo "Running import test..."
+          node test-import.mjs
+          
+          echo "Import test completed successfully"
+
+      - name: Test TypeScript definitions
+        run: |
+          cd /tmp/test-install
+          
+          # Install TypeScript
+          npm install --save-dev typescript @types/react @types/react-dom
+          
+          echo "Creating TypeScript test file..."
+          cat > test-types.ts << 'EOF'
+          import { App, api, clientApi, LogType } from '@meridianlabs/log-viewer';
+          import type { ClientAPI, LogViewAPI, Capabilities } from '@meridianlabs/log-viewer';
+          
+          // Test that types are available
+          const testClientAPI: ClientAPI = api;
+          const testLogViewAPI: LogViewAPI = clientApi;
+          
+          // Test that App component type is available
+          const appComponent = App;
+          
+          console.log('TypeScript definitions test passed!');
+          EOF
+          
+          echo "Compiling TypeScript test..."
+          npx tsc --noEmit --skipLibCheck test-types.ts
+          
+          echo "TypeScript definitions test completed successfully"
+
+      - name: Run final verification
+        run: |
+          echo "=== FINAL VERIFICATION ==="
+          
+          echo "1. Checking package exists in registry:"
+          npm view @meridianlabs/log-viewer --registry http://localhost:4873/ --json
+          
+          echo "2. Checking package files are accessible:"
+          cd /tmp/test-install
+          ls -la node_modules/@meridianlabs/log-viewer/
+          
+          echo "3. Verifying main entry points:"
+          node -e "
+          const pkg = require('@meridianlabs/log-viewer/package.json');
+          console.log('Package name:', pkg.name);
+          console.log('Package version:', pkg.version);
+          console.log('Main entry:', pkg.main);
+          console.log('Types entry:', pkg.types);
+          "
+          
+          echo "✅ All verifications passed! Package is ready for npm publishing."
+
+      - name: Debug information
+        if: ${{ inputs.debug == true || failure() }}
+        run: |
+          echo "=== DEBUG INFORMATION ==="
+          echo "Node version:"
+          node --version
+          echo "NPM version:"
+          npm --version
+          echo "Yarn version:"
+          yarn --version
+          
+          echo "NPM configuration:"
+          npm config list
+          
+          echo "Verdaccio packages:"
+          curl -s http://localhost:4873/-/all 2>/dev/null | head -20 || echo "Could not fetch package list"
+          
+          echo "Package.json content:"
+          cd /Users/runner/work/inspect_ai/inspect_ai/src/inspect_ai/_view/www || cd $GITHUB_WORKSPACE/src/inspect_ai/_view/www
+          cat package.json
+          
+          echo "Built files:"
+          ls -la lib/ || echo "lib directory not found"
+          
+          echo "Verdaccio process:"
+          ps aux | grep verdaccio || echo "Verdaccio process not found"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up test files..."
+          rm -rf /tmp/test-install
+          
+          # Stop Verdaccio if still running
+          pkill -f verdaccio || echo "Verdaccio already stopped"
+          
+          echo "Cleanup completed"
