@@ -8,6 +8,8 @@ import jsonpatch
 from pydantic import BaseModel, Field, JsonValue
 from pydantic_core import PydanticSerializationError, to_json, to_jsonable_python
 
+from inspect_ai._util.fastmodel import fast_model
+
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
 
@@ -80,6 +82,7 @@ def python_type_to_json_type(python_type: str | None) -> JSONType:
             )
 
 
+@fast_model()
 class JsonChange(BaseModel):
     """Describes a change to data using JSON Patch format."""
 

@@ -23,10 +23,13 @@ from typing import (
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.fastmodel import fast_model
+
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
 
 
+@fast_model()
 class JSONSchema(BaseModel):
     """JSON Schema for type."""
 

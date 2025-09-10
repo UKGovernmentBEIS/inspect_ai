@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._util.answer import answer_character, answer_index
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.model import ChatMessage
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
 
+@fast_model()
 class Sample(BaseModel):
     r"""Sample for an evaluation task."""
 

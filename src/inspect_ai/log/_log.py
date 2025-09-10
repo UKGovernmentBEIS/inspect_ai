@@ -21,6 +21,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, DESERIALIZING, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -170,6 +171,7 @@ class EvalConfig(BaseModel):
         return values
 
 
+@fast_model()
 class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
@@ -258,6 +260,7 @@ class EvalSampleSummary(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
+@fast_model()
 class EvalSample(BaseModel):
     """Sample from evaluation task."""
 

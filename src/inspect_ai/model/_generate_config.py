@@ -6,9 +6,11 @@ from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai.util._json import JSONSchema
 
 
+@fast_model()
 class ResponseSchema(BaseModel):
     """Schema for model response when using Structured Output."""
 
@@ -26,6 +28,7 @@ class ResponseSchema(BaseModel):
     OpenAI and Mistral only."""
 
 
+@fast_model()
 class BatchConfig(BaseModel):
     """Batch processing configuration."""
 
@@ -140,6 +143,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
 
 
+@fast_model()
 class GenerateConfig(BaseModel):
     """Model generation options."""
 

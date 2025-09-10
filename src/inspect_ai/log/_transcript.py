@@ -23,6 +23,7 @@ from pydantic import (
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.logger import warn_once
@@ -86,6 +87,7 @@ class BaseEvent(BaseModel):
         return dt.astimezone().isoformat()
 
 
+@fast_model()
 class SampleInitEvent(BaseEvent):
     """Beginning of processing a Sample."""
 
@@ -99,6 +101,7 @@ class SampleInitEvent(BaseEvent):
     """Initial state."""
 
 
+@fast_model()
 class SampleLimitEvent(BaseEvent):
     """The sample was unable to finish processing due to a limit"""
 
@@ -115,6 +118,7 @@ class SampleLimitEvent(BaseEvent):
     """The limit value (if any)"""
 
 
+@fast_model()
 class StoreEvent(BaseEvent):
     """Change to data within the current `Store`."""
 
@@ -125,6 +129,7 @@ class StoreEvent(BaseEvent):
     """List of changes to the `Store`."""
 
 
+@fast_model()
 class StateEvent(BaseEvent):
     """Change to the current `TaskState`"""
 
@@ -135,6 +140,7 @@ class StateEvent(BaseEvent):
     """List of changes to the `TaskState`"""
 
 
+@fast_model()
 class ModelEvent(BaseEvent):
     """Call to a language model."""
 
@@ -187,6 +193,7 @@ class ModelEvent(BaseEvent):
         return dt.astimezone().isoformat()
 
 
+@fast_model()
 class ToolEvent(BaseEvent):
     """Call to a tool."""
 
@@ -295,6 +302,7 @@ class ToolEvent(BaseEvent):
         return dt.astimezone().isoformat()
 
 
+@fast_model()
 class SandboxEvent(BaseEvent):
     """Sandbox execution or I/O"""
 
@@ -332,6 +340,7 @@ class SandboxEvent(BaseEvent):
         return dt.astimezone().isoformat()
 
 
+@fast_model()
 class ApprovalEvent(BaseEvent):
     """Tool approval."""
 
@@ -360,6 +369,7 @@ class ApprovalEvent(BaseEvent):
     """Explanation for decision."""
 
 
+@fast_model()
 class InputEvent(BaseEvent):
     """Input screen interaction."""
 
@@ -373,6 +383,7 @@ class InputEvent(BaseEvent):
     """Input interaction (ANSI)."""
 
 
+@fast_model()
 class LoggerEvent(BaseEvent):
     """Log message recorded with Python logger."""
 
@@ -383,6 +394,7 @@ class LoggerEvent(BaseEvent):
     """Logging message"""
 
 
+@fast_model()
 class InfoEvent(BaseEvent):
     """Event with custom info/data."""
 
@@ -396,6 +408,7 @@ class InfoEvent(BaseEvent):
     """Data provided with event."""
 
 
+@fast_model()
 class ErrorEvent(BaseEvent):
     """Event with sample error."""
 
@@ -406,6 +419,7 @@ class ErrorEvent(BaseEvent):
     """Sample error"""
 
 
+@fast_model()
 class ScoreEvent(BaseEvent):
     """Event with score.
 
@@ -426,6 +440,7 @@ class ScoreEvent(BaseEvent):
     """Was this an intermediate scoring?"""
 
 
+@fast_model()
 class SpanBeginEvent(BaseEvent):
     """Mark the beginning of a transcript span."""
 
@@ -445,6 +460,7 @@ class SpanBeginEvent(BaseEvent):
     """Span name."""
 
 
+@fast_model()
 class SpanEndEvent(BaseEvent):
     """Mark the end of a transcript span."""
 
@@ -455,6 +471,7 @@ class SpanEndEvent(BaseEvent):
     """Unique identifier for span."""
 
 
+@fast_model()
 class StepEvent(BaseEvent):
     """Step within current sample or subtask."""
 
@@ -471,6 +488,7 @@ class StepEvent(BaseEvent):
     """Event name."""
 
 
+@fast_model()
 class SubtaskEvent(BaseEvent):
     """Subtask spawned."""
 

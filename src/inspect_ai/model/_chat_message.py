@@ -6,6 +6,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
@@ -97,6 +98,7 @@ class ChatMessageBase(BaseModel):
             self.content = all_other + [ContentText(text=text)]
 
 
+@fast_model()
 class ChatMessageSystem(ChatMessageBase):
     """System chat message."""
 
@@ -104,6 +106,7 @@ class ChatMessageSystem(ChatMessageBase):
     """Conversation role."""
 
 
+@fast_model()
 class ChatMessageUser(ChatMessageBase):
     """User chat message."""
 
@@ -114,6 +117,7 @@ class ChatMessageUser(ChatMessageBase):
     """ID(s) of tool call(s) this message has the content payload for."""
 
 
+@fast_model()
 class ChatMessageAssistant(ChatMessageBase):
     """Assistant chat message."""
 
@@ -167,6 +171,7 @@ class ChatMessageAssistant(ChatMessageBase):
         return data
 
 
+@fast_model()
 class ChatMessageTool(ChatMessageBase):
     """Tool chat message."""
 

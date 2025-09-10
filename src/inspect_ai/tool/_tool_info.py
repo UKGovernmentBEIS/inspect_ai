@@ -10,12 +10,14 @@ from typing import (
 from docstring_parser import Docstring, parse
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai.util._json import JSONType, json_schema
 
 from ._tool_description import tool_description
 from ._tool_params import ToolParam, ToolParams
 
 
+@fast_model()
 class ToolInfo(BaseModel):
     """Specification of a tool (JSON Schema compatible)
 

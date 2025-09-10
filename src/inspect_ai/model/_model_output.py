@@ -4,11 +4,13 @@ from typing import Any, Literal, Type
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai._util.content import Content
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
 
 
+@fast_model()
 class ModelUsage(BaseModel):
     """Token usage for completion."""
 
@@ -67,6 +69,7 @@ StopReason = Literal[
 """Reason that the model stopped or failed to generate."""
 
 
+@fast_model()
 class TopLogprob(BaseModel):
     """List of the most likely tokens and their log probability, at this token position."""
 
@@ -80,6 +83,7 @@ class TopLogprob(BaseModel):
     """The top-kth token represented as a byte array (a list of integers)."""
 
 
+@fast_model()
 class Logprob(BaseModel):
     """Log probability for a token."""
 
@@ -96,6 +100,7 @@ class Logprob(BaseModel):
     """If the `top_logprobs` argument is greater than 0, this will contain an ordered list of the top K most likely tokens and their log probabilities."""
 
 
+@fast_model()
 class Logprobs(BaseModel):
     """Log probability information for a completion choice."""
 
@@ -103,6 +108,7 @@ class Logprobs(BaseModel):
     """a (num_generated_tokens,) length list containing the individual log probabilities for each generated token."""
 
 
+@fast_model()
 class ChatCompletionChoice(BaseModel):
     """Choice generated for completion."""
 
@@ -128,6 +134,7 @@ class ChatCompletionChoice(BaseModel):
         return values
 
 
+@fast_model()
 class ModelOutput(BaseModel):
     """Output from model generation."""
 

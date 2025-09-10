@@ -5,12 +5,14 @@ from typing import (
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai.util._json import JSONSchema
 
 ToolParam: TypeAlias = JSONSchema
 """Description of tool parameter in JSON Schema format."""
 
 
+@fast_model()
 class ToolParams(BaseModel):
     """Description of tool parameters object in JSON Schema format."""
 

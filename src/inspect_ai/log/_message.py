@@ -4,12 +4,15 @@ from typing import Any, Literal, Type, cast
 
 from pydantic import BaseModel, Field, model_validator
 
+from inspect_ai._util.fastmodel import fast_model
+
 LoggingLevel = Literal[
     "debug", "trace", "http", "sandbox", "info", "warning", "error", "critical"
 ]
 """Logging level."""
 
 
+@fast_model()
 class LoggingMessage(BaseModel):
     """Message written to Python log."""
 

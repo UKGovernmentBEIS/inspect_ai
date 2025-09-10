@@ -7,6 +7,7 @@ from typing import Any, Generator
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
+from inspect_ai._util.fastmodel import fast_model
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.registry import registry_create, registry_lookup
 from inspect_ai.model._chat_message import ChatMessage

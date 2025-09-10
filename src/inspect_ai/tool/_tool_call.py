@@ -4,8 +4,10 @@ from typing import Any, Callable, Literal, TypedDict
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.content import Content
+from inspect_ai._util.fastmodel import fast_model
 
 
+@fast_model()
 class ToolCallContent(BaseModel):
     """Content to include in tool call view."""
 
@@ -19,6 +21,7 @@ class ToolCallContent(BaseModel):
     """Text or markdown content."""
 
 
+@fast_model()
 class ToolCallView(BaseModel):
     """Custom view of a tool call.
 

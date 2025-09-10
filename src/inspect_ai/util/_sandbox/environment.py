@@ -18,6 +18,8 @@ from typing import (
 
 from pydantic import BaseModel, Field, model_validator
 
+from inspect_ai._util.fastmodel import fast_model
+
 from inspect_ai._util.logger import warn_once
 
 from .._subprocess import ExecResult
@@ -374,6 +376,7 @@ class SandboxEnvironments:
     """
 
 
+@fast_model()
 class SandboxEnvironmentSpec(BaseModel, frozen=True):
     """Specification of a SandboxEnvironment."""
 

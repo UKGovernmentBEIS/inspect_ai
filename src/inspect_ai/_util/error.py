@@ -7,7 +7,10 @@ from pydantic import BaseModel
 from rich import print
 from rich.console import RenderableType
 
+from inspect_ai._util.fastmodel import fast_model
 
+
+@fast_model()
 class EvalError(BaseModel):
     """Eval error details."""
 
