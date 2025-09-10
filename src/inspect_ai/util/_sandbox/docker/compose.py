@@ -354,14 +354,16 @@ async def compose_command(
                     timeout if retries == 0 else (min(timeout, 60) // retries), 1
                 )
                 return await run_command(command_timeout)
-            except TimeoutError:
+            except TimeoutError as e:
                 retries += 1
                 if timeout_retry and (retries <= MAX_RETRIES):
                     logger.info(
                         f"Retrying docker compose command: {shlex.join(compose_command)}"
                     )
                 else:
-                    raise
+                    raise TimeoutError(
+                        f"Docker compose command {command} timed out after {timeout} seconds"
+                    ) from e
 
     else:
         return await run_command(timeout)
