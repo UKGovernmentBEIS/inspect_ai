@@ -10,8 +10,17 @@ import {
 
 /* global __VIEW_SERVER_API_URL__ */
 const API_BASE_URL = __VIEW_SERVER_API_URL__ || "";
+
 const loaded_time = Date.now();
 let last_eval_time = 0;
+
+type HeaderProvider = () => Promise<Record<string, string>>;
+
+let globalHeaderProvider: HeaderProvider | undefined = undefined;
+
+export const setGlobalHeaderProvider = (
+  provider: () => Promise<Record<string, string>>,
+) => (globalHeaderProvider = provider);
 
 function buildApiUrl(path: string): string {
   if (!API_BASE_URL) {
@@ -198,12 +207,6 @@ interface Request<T> {
   handleError?: (status: number) => T | undefined;
 }
 
-let globalHeaderProvider: (() => Promise<Record<string, string>>) | null = null;
-
-export function setGlobalHeaderProvider(provider: () => Promise<Record<string, string>>) {
-  globalHeaderProvider = provider;
-}
-
 async function apiRequest<T>(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
@@ -353,15 +356,17 @@ async function open_log_file() {
  * Create a view server API with optional server-side log listing
  */
 export function createViewServerApi(
-  options: { log_dir?: string } = {},
+  options: { logDir?: string; headerProvider?: HeaderProvider } = {},
 ): LogViewAPI {
-  const { log_dir } = options;
+  const { logDir, headerProvider } = options;
+
+  if (headerProvider) setGlobalHeaderProvider(headerProvider);
 
   return {
     client_events,
     eval_logs: async () => {
-      const path = log_dir
-        ? `/logs?log_dir=${encodeURIComponent(log_dir)}`
+      const path = logDir
+        ? `/logs?log_dir=${encodeURIComponent(logDir)}`
         : "/logs";
       const logs = await api("GET", path);
       last_eval_time = Date.now();
