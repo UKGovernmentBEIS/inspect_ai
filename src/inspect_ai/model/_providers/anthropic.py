@@ -1638,7 +1638,13 @@ async def image_block_param(image: str) -> ImageBlockParam:
 
 
 def is_image_type(media_type: str) -> bool:
-    return media_type in ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    return media_type in [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/bmp",
+    ]
 
 
 def anthropic_extra_body_fields() -> list[str]:

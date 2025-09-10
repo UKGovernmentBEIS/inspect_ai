@@ -3,11 +3,13 @@ import { FC, RefObject, useCallback, useMemo } from "react";
 import { RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
 
+import { VirtuosoHandle } from "react-virtuoso";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import styles from "./TranscriptVirtualListComponent.module.css";
 
 interface TranscriptVirtualListComponentProps {
   id: string;
+  listHandle: RefObject<VirtuosoHandle | null>;
   eventNodes: EventNode[];
   initialEventId?: string | null;
   offsetTop?: number;
@@ -23,6 +25,7 @@ export const TranscriptVirtualListComponent: FC<
   TranscriptVirtualListComponentProps
 > = ({
   id,
+  listHandle,
   eventNodes,
   scrollRef,
   running,
@@ -122,6 +125,7 @@ export const TranscriptVirtualListComponent: FC<
 
   return (
     <LiveVirtualList<EventNode>
+      listHandle={listHandle}
       className={className}
       id={id}
       scrollRef={scrollRef}

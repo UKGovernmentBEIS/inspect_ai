@@ -202,6 +202,14 @@ export const useSampleNavigation = () => {
     navigateSampleIndex(prev);
   }, [selectedSampleIndex, navigateSampleIndex]);
 
+  const firstSample = useCallback(() => {
+    navigateSampleIndex(0);
+  }, [navigateSampleIndex]);
+
+  const lastSample = useCallback(() => {
+    navigateSampleIndex(sampleSummaries.length - 1);
+  }, [navigateSampleIndex, sampleSummaries]);
+
   // Get a sample URL for a specific sample
   const getSampleUrl = useCallback(
     (
@@ -240,6 +248,8 @@ export const useSampleNavigation = () => {
     nextSample,
     previousEnabled: selectedSampleIndex > 0,
     previousSample,
+    firstSample,
+    lastSample,
     getSampleUrl,
     clearSampleUrl,
   };

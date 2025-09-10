@@ -517,17 +517,16 @@ async def model_proxy_server(
 
     Args:
         port: Port to run the server on
+        instance: Instance of service
         call_bridge_model_service_async: Optional bridge service function for testing
 
     Returns:
         Configured AsyncHTTPServer instance
     """
     # get generate method if not provided (for testing)
-    if call_bridge_model_service_async is None:
-        sys.path.append("/var/tmp/sandbox-services/bridge_model_service/<<<instance>>>")
-        from bridge_model_service import (  # type: ignore[import-not-found,no-redef]
-            call_bridge_model_service_async,
-        )
+    call_bridge_model_service_async = (
+        call_bridge_model_service_async or _call_bridge_model_service_async
+    )
 
     # setup server
     server = AsyncHTTPServer(port=port)
@@ -1772,6 +1771,76 @@ def _handle_model_proxy_error(ex: Exception) -> None:
     # and have the task fail (the 500 error would just result in retries)
     sys.stderr.write(f"Unexpected error during model proxy call: {ex}")
     sys.stderr.flush()
+
+
+async def _call_bridge_model_service_async(method: str, **params: Any) -> Any:
+    from asyncio import sleep
+
+    request_id = _write_bridge_model_service_request(method, **params)
+    while True:
+        await sleep(0.1)
+        success, result = _read_bridge_model_service_response(request_id, method)
+        if success:
+            return result
+
+
+def _write_bridge_model_service_request(method: str, **params: Any) -> str:
+    from json import dump
+    from uuid import uuid4
+
+    requests_dir = _bridge_model_service_service_dir("requests")
+    request_id = str(uuid4())
+    request_data = dict(id=request_id, method=method, params=params)
+    request_path = requests_dir / (request_id + ".json")
+    with open(request_path, "w") as f:
+        dump(request_data, f)
+    return request_id
+
+
+def _read_bridge_model_service_response(
+    request_id: str, method: str
+) -> tuple[bool, Any]:
+    from json import JSONDecodeError, load
+
+    responses_dir = _bridge_model_service_service_dir("responses")
+    response_path = responses_dir / (request_id + ".json")
+    if response_path.exists():
+        # read and remove the file
+        with open(response_path, "r") as f:
+            # it's possible the file is still being written so
+            # just catch and wait for another retry if this occurs
+            try:
+                response = load(f)
+            except JSONDecodeError:
+                return False, None
+        response_path.unlink()
+
+        # raise error if we have one
+        if response.get("error", None) is not None:
+            raise Exception(response["error"])
+
+        # return response if we have one
+        elif "result" in response:
+            return True, response["result"]
+
+        # invalid response
+        else:
+            raise RuntimeError(
+                "No error or result field in response for method " + method
+            )
+    else:
+        return False, None
+
+
+def _bridge_model_service_service_dir(subdir: str) -> Any:
+    import os
+    from pathlib import Path
+
+    service_dir = Path("/var/tmp/sandbox-services/bridge_model_service")
+    instance = os.environ.get("BRIDGE_MODEL_SERVICE_INSTANCE", None)
+    if instance is not None:
+        service_dir = service_dir / instance
+    return service_dir / subdir
 
 
 if __name__ == "__main__":

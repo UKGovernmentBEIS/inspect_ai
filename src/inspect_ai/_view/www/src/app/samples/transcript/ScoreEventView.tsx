@@ -54,12 +54,12 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
         )}
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Answer</div>
-        <div>
+        <div className={clsx(styles.wrappingContent)}>
           <RenderedText markdown={event.score.answer || ""} />
         </div>
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Explanation</div>
-        <div>
+        <div className={clsx(styles.wrappingContent)}>
           <RenderedText markdown={event.score.explanation || ""} />
         </div>
         <div className={clsx(styles.separator)}></div>
