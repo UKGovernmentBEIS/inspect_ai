@@ -1,3 +1,6 @@
+// CSS Styles - Import this to get all required styles
+import "./styles.css";
+
 // Main React App Component
 export { App } from "./app/App";
 

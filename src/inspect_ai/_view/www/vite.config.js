@@ -54,10 +54,17 @@ export default defineConfig(({ mode }) => {
               "react-dom": "ReactDOM",
               "react-router-dom": "ReactRouterDOM",
             },
+            assetFileNames: (assetInfo) => {
+              if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+                return 'styles/[name].[ext]';
+              }
+              return 'assets/[name].[ext]';
+            },
           },
         },
         sourcemap: true,
         minify: false,
+        cssCodeSplit: false,
       },
     };
   } else {

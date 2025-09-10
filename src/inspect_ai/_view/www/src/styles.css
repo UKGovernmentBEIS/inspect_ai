@@ -1,0 +1,16 @@
+/* Main CSS entry point for @meridianlabs/log-viewer library */
+
+/* Third-party dependencies - consumers need to install these separately */
+@import "bootstrap/dist/css/bootstrap.css";
+@import "bootstrap-icons/font/bootstrap-icons.css";
+@import "prismjs/themes/prism.css";
+
+/* Application-specific styles */
+@import "./app/App.css";
+
+/*
+  Note: CSS modules are automatically handled by the build process
+  and don't need to be imported here. They are bundled with their
+  respective components.
+*/
+
