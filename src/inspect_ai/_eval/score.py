@@ -281,6 +281,7 @@ async def _run_score_task(
         target=target,
         choices=sample.choices,
         messages=sample.messages,
+        events=sample.events,
         output=sample.output,
         completed=True,
         metadata=sample.metadata,

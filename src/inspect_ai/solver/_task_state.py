@@ -10,6 +10,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
@@ -151,6 +152,7 @@ class TaskState:
         epoch: int,
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
+        events: list[Event] = [],
         target: Target = Target(""),
         choices: list[str] | None = [],
         output: ModelOutput | None = None,
@@ -168,6 +170,7 @@ class TaskState:
         self._target = target
         self._metadata = metadata
         self._messages: list[ChatMessage] = ChatMessageList(messages)
+        self._events: list[Event] = events
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = create_message_limit(message_limit)
@@ -264,6 +267,15 @@ class TaskState:
     @messages.setter
     def messages(self, messages: list[ChatMessage]) -> None:
         self._messages = ChatMessageList(messages)
+
+    @property
+    def events(self) -> list[Event]:
+        """Events that have occurred during the sample run."""
+        return self._events
+
+    @events.setter
+    def events(self, events: list[Event]) -> None:
+        self._events = events
 
     @property
     def output(self) -> ModelOutput:
