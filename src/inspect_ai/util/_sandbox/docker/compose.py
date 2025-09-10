@@ -362,7 +362,7 @@ async def compose_command(
                     )
                 else:
                     raise TimeoutError(
-                        f"Docker compose command {command} timed out after {timeout} seconds"
+                        f"Docker compose command '{command}' timed out after {timeout} seconds"
                     ) from e
 
     else:
