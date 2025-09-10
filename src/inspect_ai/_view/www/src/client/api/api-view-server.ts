@@ -10,6 +10,7 @@ import {
 
 /* global __VIEW_SERVER_API_URL__ */
 declare global {
+  // from vite config
   const __VIEW_SERVER_API_URL__: string | undefined;
 }
 
@@ -202,8 +203,6 @@ function createServerFetchApi(apiBaseUrl?: string): ServerFetchAPI {
   };
 }
 
-
-
 async function open_log_file() {
   // No op
 }
@@ -223,7 +222,10 @@ export function createViewServerApi(
       const params = new URLSearchParams();
       params.append("loaded_time", String(loaded_time.valueOf()));
       params.append("last_eval_time", String(last_eval_time.valueOf()));
-      const result = await fetchApi.fetchString("GET", `/events?${params.toString()}`);
+      const result = await fetchApi.fetchString(
+        "GET",
+        `/events?${params.toString()}`,
+      );
       return result.parsed;
     },
     eval_logs: async () => {
@@ -245,7 +247,10 @@ export function createViewServerApi(
       );
     },
     eval_log_size: async (file: string): Promise<number> => {
-      const result = await fetchApi.fetchString("GET", `/log-size/${encodeURIComponent(file)}`);
+      const result = await fetchApi.fetchString(
+        "GET",
+        `/log-size/${encodeURIComponent(file)}`,
+      );
       return result.parsed;
     },
     eval_log_bytes: async (file: string, start: number, end: number) => {
@@ -259,7 +264,10 @@ export function createViewServerApi(
       for (const file of files) {
         params.append("file", file);
       }
-      const result = await fetchApi.fetchString("GET", `/log-headers?${params.toString()}`);
+      const result = await fetchApi.fetchString(
+        "GET",
+        `/log-headers?${params.toString()}`,
+      );
       return result.parsed;
     },
     log_message: async (log_file: string, message: string) => {
@@ -278,7 +286,11 @@ export function createViewServerApi(
           return;
         },
       };
-      await fetchApi.fetchType<void>("GET", `/log-message?${params.toString()}`, request);
+      await fetchApi.fetchType<void>(
+        "GET",
+        `/log-message?${params.toString()}`,
+        request,
+      );
     },
     download_file,
     open_log_file,
