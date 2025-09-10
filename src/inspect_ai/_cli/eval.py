@@ -34,6 +34,7 @@ from .util import (
     int_or_bool_flag_callback,
     parse_cli_args,
     parse_cli_config,
+    parse_model_role_cli_args,
     parse_sandbox,
 )
 
@@ -99,7 +100,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help="Named model role, e.g. --model-role critic=openai/gpt-4o",
+        help="Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader={model: mockllm/model, temperature: 0.5}",
     )
     @click.option(
         "-T",
@@ -938,7 +939,7 @@ def eval_exec(
     model_args = parse_cli_config(m, model_config)
 
     # parse model roles
-    eval_model_roles = parse_cli_args(model_role, force_str=True)
+    eval_model_roles = parse_model_role_cli_args(model_role)
 
     # parse tags
     eval_tags = parse_comma_separated(tags)
