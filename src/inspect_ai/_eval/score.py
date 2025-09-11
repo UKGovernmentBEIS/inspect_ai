@@ -15,6 +15,7 @@ import anyio
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import scorer_from_spec
+from inspect_ai._eval.task.task import resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
@@ -247,6 +248,9 @@ async def score_async(
         # that will be taken care of in eval_results)
         log_metrics = metrics_from_log_header(log)
 
+        # resolve the scorer metrics onto the scorers
+        scorers = resolve_scorer_metrics(scorers, log_metrics) or []
+
         # override epochs_reducer if specified
         epochs_reducer = create_reducers(epochs_reducer)
         if epochs_reducer:
@@ -260,7 +264,6 @@ async def score_async(
             list(filter(None, scores)),
             epochs_reducer,
             scorers,
-            log_metrics,
         )
 
     return log
