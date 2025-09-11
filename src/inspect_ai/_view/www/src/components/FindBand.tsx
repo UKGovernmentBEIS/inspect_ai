@@ -29,6 +29,7 @@ export const FindBand: FC<FindBandProps> = () => {
   useEffect(() => {
     setTimeout(() => {
       searchBoxRef.current?.focus();
+      searchBoxRef.current?.select();
     }, 10);
 
     // Block browser find when FindBand is active
@@ -38,6 +39,13 @@ export const FindBand: FC<FindBandProps> = () => {
         e.stopPropagation();
         // Focus our search box instead
         searchBoxRef.current?.focus();
+        searchBoxRef.current?.select();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "g") {
+        e.preventDefault();
+        e.stopPropagation();
+        const back = e.shiftKey;
+        // Find next / previous
+        handleSearch(back);
       }
     };
 
@@ -142,7 +150,13 @@ export const FindBand: FC<FindBandProps> = () => {
       if (e.key === "Escape") {
         storeHideFind();
       } else if (e.key === "Enter") {
-        handleSearch(false);
+        handleSearch(e.shiftKey);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        handleSearch(!e.shiftKey);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        searchBoxRef.current?.focus();
+        searchBoxRef.current?.select();
       }
     },
     [storeHideFind, handleSearch],
