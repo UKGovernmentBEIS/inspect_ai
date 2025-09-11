@@ -214,7 +214,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       if (node === EventPaddingNode) {
         return (
           <div
-            className={styles.eventPadding}
+            className={clsx(styles.eventPadding)}
             key={node.id}
             style={{ height: "2em" }}
           ></div>

@@ -304,6 +304,7 @@ async def _run_score_task(
     # initialize active model and store
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
+
     init_transcript(Transcript())
 
     if state.scores is None:
