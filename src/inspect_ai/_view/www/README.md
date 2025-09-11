@@ -13,7 +13,7 @@ npm install @meridianlabs/log-viewer
 The log viewer requires CSS styles to display correctly. Import the bundled styles:
 
 ```typescript
-import "@meridianlabs/log-viewer/lib/styles/index.css";
+import "@meridianlabs/log-viewer/styles/index.css";
 ```
 
 This includes all required dependencies (Bootstrap, Bootstrap Icons, Prism.js themes).

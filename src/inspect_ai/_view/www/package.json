@@ -1,6 +1,6 @@
 {
   "name": "@meridianlabs/log-viewer",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Log viewer for inspect_ai logs. CSS styles are included - see documentation for usage instructions.",
   "license": "MIT",
   "type": "module",
@@ -40,7 +40,8 @@
     ".": {
       "import": "./lib/index.js",
       "types": "./lib/index.d.ts"
-    }
+    },
+    "./styles/index.css": "./lib/styles/index.css"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",
@@ -72,8 +73,8 @@
     "ts-jest": "^29.3.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.25.0",
-    "vite-plugin-dts": "^4.3.0",
-    "vite": "^7.1.4"
+    "vite": "^7.1.4",
+    "vite-plugin-dts": "^4.3.0"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
