@@ -394,7 +394,9 @@ export function createViewServerApi(
     headerProvider?: HeaderProvider;
   } = {},
 ): LogViewAPI {
-  const { logDir, headerProvider } = options;
+  const { headerProvider } = options;
+
+  const logDir = options.logDir || __VIEW_SERVER_API_URL__;
 
   if (headerProvider) {
     setGlobalHeaderProvider(headerProvider);
