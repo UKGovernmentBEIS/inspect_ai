@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, Iterator, NoReturn, cast
+from typing import Any, Awaitable, Callable, Iterator, NamedTuple, NoReturn, cast
 
 from shortuuid import uuid
 
@@ -18,6 +18,22 @@ from .environment import (
 from .registry import registry_find_sandboxenv
 
 logger = getLogger(__name__)
+
+# Type definitions for sandbox injection
+Detector = Callable[["SandboxEnvironment"], Awaitable[bool]]
+Injector = Callable[["SandboxEnvironment"], Awaitable[None]]
+
+
+class SandboxInjectable(NamedTuple):
+    """A detector/injector pair for sandbox injection.
+
+    Attributes:
+        detector: Function that checks if injection is needed.
+        injector: Function that performs the injection.
+    """
+
+    detector: Detector
+    injector: Injector
 
 
 def sandbox(name: str | None = None) -> SandboxEnvironment:
@@ -82,6 +98,7 @@ async def sandbox_with(
         return environment
 
     # look in each (or the named) sandbox
+    detector = sandbox_file_detector(file, on_path)
     for environment in (
         environments.values()
         if name is None
@@ -89,30 +106,93 @@ async def sandbox_with(
         if (named_env := environments.get(name, None))
         else []
     ):
-        try:
-            if on_path:
-                # can we find the file on the path?
-                if not (await environment.exec(["which", file])).success:
-                    continue
-            else:
-                # can we read the file?
-                await environment.read_file(file)
-
+        # can we find the file on the path?
+        if await detector(environment):
             # if so this is our environment, cache and return it
             environments_with[environment_with_key] = environment
             return environment
 
-        # allow exception types known to be raised from read_file
-        except (
-            FileNotFoundError,
-            UnicodeDecodeError,
-            PermissionError,
-            IsADirectoryError,
-        ):
-            pass
-
     # not found
     return None
+
+
+async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
+    try:
+        # TODO: This is gross. We actually read the file contents just to see if
+        # it's readable.
+        await environment.read_file(file, False)
+        return True
+    # allow exception types known to be raised from read_file
+    except (
+        FileNotFoundError,
+        UnicodeDecodeError,
+        PermissionError,
+        IsADirectoryError,
+    ):
+        return False
+
+
+def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
+    """Create a detector for use with sandbox_with_injection that checks a sandbox for file existence.
+
+    Args:
+        file: Path to file to check for if on_path is False. If on_path is
+            True, file should be a filename that exists on the system path.
+        on_path: If True, file is a filename to be verified using "which".
+            If False, file is a path to be checked within the sandbox.
+
+    Returns:
+        Detector function that returns True if the file exists.
+    """
+
+    async def detect_on_path(sandbox: SandboxEnvironment) -> bool:
+        return (await sandbox.exec(["which", file])).success
+
+    async def detect_file(sandbox: SandboxEnvironment) -> bool:
+        return await _is_file_readable(sandbox, file)
+
+    return detect_on_path if on_path else detect_file
+
+
+async def sandbox_with_injection(
+    injectables: SandboxInjectable | list[SandboxInjectable],
+    name: str | None = None,
+) -> SandboxEnvironment:
+    """Get a SandboxEnvironment that satisfies all the given injection requirements.
+
+    Args:
+        injectables: Single SandboxInjectable or list of SandboxInjectables.
+            Each injectable is a (detector, injector) tuple.
+        name: Optional sandbox environment name.
+
+    Returns:
+        SandboxEnvironment instance that satisfies all injection requirements.
+
+    Raises:
+        ProcessLookupError: If there are no sandboxes available.
+        ValueError: If an invalid sandbox name is specified.
+        RuntimeError: If injection fails.
+    """
+    if isinstance(injectables, tuple):
+        injectables = [injectables]
+
+    target_sandbox, needed_injections = (
+        # Named sandbox: inject directly into the specified sandbox
+        (sb := sandbox(name), await _get_needed_injections(sb, injectables))
+        if name
+        # Unnamed sandbox: find best candidate (fewest injections needed)
+        else await _get_injection_target(injectables)
+    )
+
+    for detector, injector in needed_injections:
+        await injector(target_sandbox)
+        # Verify injection succeeded
+        if not await detector(target_sandbox):
+            raise RuntimeError(
+                "Injection failed - detector still returns False after injection"
+            )
+
+    return target_sandbox
 
 
 async def sandbox_connections() -> dict[str, SandboxConnection]:
@@ -296,3 +376,49 @@ sandbox_with_environments_context_var = ContextVar[dict[str, SandboxEnvironment]
 )
 
 sandbox_default_context_var = ContextVar[str]("sandbox_default")
+
+
+async def _get_injection_target(
+    injectables: list[SandboxInjectable],
+) -> tuple[SandboxEnvironment, list[SandboxInjectable]]:
+    """Find the best sandbox for injection and return it with needed injections.
+
+    Args:
+        injectables: List of detector/injector pairs to evaluate.
+
+    Returns:
+        Tuple of (sandbox_environment, needed_injections) where needed_injections
+        contains only the injectables that require injection into the sandbox.
+
+    Raises:
+        ProcessLookupError: If no sandboxes are available.
+    """
+    environments = sandbox_environments_context_var.get(None)
+    if not environments:
+        raise_no_sandbox()
+
+    # Find sandbox needing fewest injections
+    best_candidate: tuple[SandboxEnvironment, list[SandboxInjectable]] | None = None
+    for sb in environments.values():
+        needed_injections = await _get_needed_injections(sb, injectables)
+
+        if len(needed_injections) == 0:
+            return sb, []
+        elif best_candidate is None:
+            best_candidate = (sb, needed_injections)
+        elif len(needed_injections) < len(best_candidate[1]):
+            best_candidate = (sb, needed_injections)
+
+    if not best_candidate:
+        raise_no_sandbox()
+
+    return best_candidate
+
+
+async def _get_needed_injections(
+    sb: SandboxEnvironment, injectables: list[SandboxInjectable]
+) -> list[SandboxInjectable]:
+    """Get list of injections needed for this sandbox."""
+    return [
+        injectable for injectable in injectables if not await injectable.detector(sb)
+    ]
