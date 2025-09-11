@@ -8,6 +8,7 @@
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
 - Inspect View: Improve scroll keyboard handling in sample transcript view.
 - Inspect View: Improve scroll keyboard handling in sample messages view.
+- Inspect View: Improve find support within sample list, transcript, and messages.
 - Bugfix: Fix file info on filesystem without mtime.
 - Bugfix: Correct rendering of tool call errors in running samples transcript.
   
