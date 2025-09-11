@@ -240,6 +240,7 @@ def responses_extra_body_fields() -> list[str]:
         "prompt_cache_key",
         "safety_identifier",
         "truncation",
+        "store",
     ]
 
 
@@ -498,7 +499,7 @@ def reasoning_from_responses_reasoning(
     item: ResponseReasoningItem | ResponseReasoningItemParam,
 ) -> ContentReasoning:
     if not isinstance(item, ResponseReasoningItem):
-        item = ResponseReasoningItem.model_validate(item)
+        item = read_reasoning_item_param(item)
 
     if item.encrypted_content is not None:
         reasoning = item.encrypted_content
@@ -512,11 +513,23 @@ def reasoning_from_responses_reasoning(
     return ContentReasoning(reasoning=reasoning, signature=item.id, redacted=redacted)
 
 
+# some clients (e.g. codex cli) do not provide id even though the schema requires it
+def read_reasoning_item_param(
+    param: ResponseReasoningItemParam,
+) -> ResponseReasoningItem:
+    no_id = "id" not in param
+    if no_id:
+        param = param.copy()
+        param["id"] = "dummy-id"
+    item = ResponseReasoningItem.model_validate(param)
+    if no_id:
+        item.id = None  # type: ignore[assignment]
+    return item
+
+
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
-    assert content.signature is not None, "reasoning_id must be saved in signature"
-
     summary: list[SummaryParam] = []
     if content.redacted:
         encrypted_content: str | None = content.reasoning
@@ -527,7 +540,7 @@ def responses_reasoning_from_reasoning(
 
     return ResponseReasoningItemParam(
         type="reasoning",
-        id=content.signature,
+        id=content.signature,  # type: ignore[typeddict-item]
         summary=summary,
         encrypted_content=encrypted_content,
     )

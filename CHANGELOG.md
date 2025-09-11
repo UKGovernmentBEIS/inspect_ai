@@ -4,6 +4,7 @@
 - Sandbox Service: Specify instance externally so a single script can service multiple instances.
 - Agent Bridge: Capture message history in agent state for all bridge generations.
 - Agent Bridge: Embed sandbox service client in sandbox bridge proxy (for ease of bundling).
+- Agent Bridge: Respect `store=False` from bridge client and don't insist on `id` being included with reasoning (as it is not returned in `store=False` mode).
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
 - Inspect View: Improve scroll keyboard handling in sample transcript view.
 - Inspect View: Improve scroll keyboard handling in sample messages view.
