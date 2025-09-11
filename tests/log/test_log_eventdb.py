@@ -348,7 +348,7 @@ def test_large_event_attachment_handling(db: SampleBufferDatabase) -> None:
 
 
 def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
-    """Test that identical large content creates only one attachment."""
+    """Test that identical large content creates only one attachment per sample."""
     large_input: list[ChatMessage] = [ChatMessageUser(content="x" * 150)]
 
     # Create two samples with the same large input
@@ -370,7 +370,7 @@ def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
     with db._get_connection() as conn:
         cursor = conn.execute("SELECT COUNT(*) FROM attachments")
         attachment_count = cursor.fetchone()[0]
-        assert attachment_count == 1
+        assert attachment_count == 2
 
 
 def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:
