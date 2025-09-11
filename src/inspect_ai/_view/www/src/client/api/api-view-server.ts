@@ -396,13 +396,15 @@ export function createViewServerApi(
 ): LogViewAPI {
   const { headerProvider } = options;
 
-  const logDir = options.logDir || __VIEW_SERVER_API_URL__;
+  const logDir = options.logDir;
 
   if (headerProvider) {
     setGlobalHeaderProvider(headerProvider);
   }
 
-  const fetchApi = createServerFetchApi(options.apiBaseUrl);
+  const fetchApi = createServerFetchApi(
+    options.apiBaseUrl || __VIEW_SERVER_API_URL__,
+  );
 
   return {
     client_events: clientEvents(fetchApi),

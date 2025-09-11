@@ -55,10 +55,10 @@ export default defineConfig(({ mode }) => {
               "react-router-dom": "ReactRouterDOM",
             },
             assetFileNames: (assetInfo) => {
-              if (assetInfo.name && assetInfo.name.endsWith('.css')) {
-                return 'styles/[name].[ext]';
+              if (assetInfo.name && assetInfo.name.endsWith(".css")) {
+                return "styles/[name].[ext]";
               }
-              return 'assets/[name].[ext]';
+              return "assets/[name].[ext]";
             },
           },
         },
