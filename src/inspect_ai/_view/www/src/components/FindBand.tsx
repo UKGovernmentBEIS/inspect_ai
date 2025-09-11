@@ -19,7 +19,7 @@ export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
   const storeHideFind = useStore((state) => state.appActions.hideFind);
   const { extendedFindTerm } = useExtendedFind();
-  const lastFoundItem = useRef<{ text: string; offset: number } | null>(null);
+  const lastFoundItem = useRef<{ text: string; offset: number; parentElement: Element } | null>(null);
   const currentSearchTerm = useRef<string>("");
 
   useEffect(() => {
@@ -99,9 +99,11 @@ export const FindBand: FC<FindBandProps> = () => {
         if (selection && selection.rangeCount > 0) {
           // Remember this item for next time
           const range = selection.getRangeAt(0);
+          const parentElement = range.startContainer.parentElement || range.commonAncestorContainer as Element;
           lastFoundItem.current = {
             text: range.toString(),
             offset: range.startOffset,
+            parentElement,
           };
 
           const parentPanel = getParentExpandablePanel(selection);
@@ -187,7 +189,7 @@ export const FindBand: FC<FindBandProps> = () => {
 async function findExtendedInDOM(
   searchTerm: string,
   back: boolean,
-  lastFoundItem: { text: string; offset: number } | null,
+  lastFoundItem: { text: string; offset: number; parentElement: Element } | null,
   extendedFindTerm: (
     term: string,
     direction: "forward" | "backward",
@@ -258,20 +260,23 @@ async function findExtendedInDOM(
 
 function isLastFoundItem(
   range: Range,
-  lastFoundItem: { text: string; offset: number } | null,
+  lastFoundItem: { text: string; offset: number; parentElement: Element } | null,
 ) {
+  if (!lastFoundItem) return false;
+  
   const currentText = range.toString();
   const currentOffset = range.startOffset;
-  const isSameAsLast =
-    lastFoundItem &&
+  const currentParentElement = range.startContainer.parentElement || range.commonAncestorContainer as Element;
+  
+  return (
     currentText === lastFoundItem.text &&
-    currentOffset === lastFoundItem.offset;
-  return isSameAsLast;
+    currentOffset === lastFoundItem.offset &&
+    currentParentElement === lastFoundItem.parentElement
+  );
 }
 
 function inUnsearchableElement(range: Range) {
   let element: Element | null = selectionParentElement(range);
-  console.log({ element });
 
   // Check if this match is inside an unsearchable element
   let isUnsearchable = false;
