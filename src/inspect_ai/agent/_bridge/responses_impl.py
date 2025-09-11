@@ -99,6 +99,7 @@ from inspect_ai.model._openai_responses import (
     is_web_search_tool_param,
     mcp_call_to_tool_use,
     mcp_list_tools_to_tool_use,
+    read_reasoning_item_param,
     reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
@@ -618,7 +619,11 @@ def responses_output_items_from_assistant_message(
             )
         elif isinstance(content, ContentReasoning):
             reasoning = responses_reasoning_from_reasoning(content)
-            output.append(ResponseReasoningItem.model_validate(reasoning))
+            output.append(
+                ResponseReasoningItem.model_validate(
+                    read_reasoning_item_param(reasoning)
+                )
+            )
 
         elif isinstance(content, ContentToolUse):
             if content.tool_type == "web_search":

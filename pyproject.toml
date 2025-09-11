@@ -35,7 +35,6 @@ select = [
   "I",      # isort
   "B",      # flake8-bugbear
   "SIM101", # duplicate isinstance
-  "UP038",  # non-pep604-isinstance
   # "RET", # flake8-return
   # "RUF", # ruff rules
 ]
