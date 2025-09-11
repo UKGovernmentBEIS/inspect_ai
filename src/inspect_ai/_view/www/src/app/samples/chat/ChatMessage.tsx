@@ -32,74 +32,70 @@ interface ChatMessageProps {
   toolCallStyle: ChatViewToolCallStyle;
 }
 
-export const ChatMessage: FC<ChatMessageProps> = memo(({
-  id,
-  message,
-  toolMessages,
-  indented,
-  toolCallStyle,
-}) => {
-  const messageUrl = useSampleMessageUrl(message.id);
+export const ChatMessage: FC<ChatMessageProps> = memo(
+  ({ id, message, toolMessages, indented, toolCallStyle }) => {
+    const messageUrl = useSampleMessageUrl(message.id);
 
-  const collapse = message.role === "system" || message.role === "user";
-  return (
-    <div
-      className={clsx(
-        message.role,
-        "text-size-base",
-        styles.message,
-        message.role === "system" ? styles.systemRole : undefined,
-        message.role === "user" ? styles.userRole : undefined,
-      )}
-    >
-      <div className={clsx(styles.messageGrid, "text-style-label")}>
-        {message.role}
-        {message.role === "tool" ? `: ${message.function}` : ""}
-        {supportsLinking() && messageUrl ? (
-          <CopyButton
-            icon={ApplicationIcons.link}
-            value={toFullUrl(messageUrl)}
-            className={clsx(styles.copyLink)}
-          />
-        ) : (
-          ""
-        )}
-      </div>
+    const collapse = message.role === "system" || message.role === "user";
+    return (
       <div
         className={clsx(
-          styles.messageContents,
-          indented ? styles.indented : undefined,
+          message.role,
+          "text-size-base",
+          styles.message,
+          message.role === "system" ? styles.systemRole : undefined,
+          message.role === "user" ? styles.userRole : undefined,
         )}
       >
-        <ExpandablePanel
-          id={`${id}-message`}
-          collapse={collapse}
-          lines={collapse ? 15 : 25}
-        >
-          <MessageContents
-            id={`${id}-contents`}
-            key={`${id}-contents`}
-            message={message}
-            toolMessages={toolMessages}
-            toolCallStyle={toolCallStyle}
-          />
-        </ExpandablePanel>
-
-        {message.metadata && Object.keys(message.metadata).length > 0 ? (
-          <LabeledValue
-            label="Metadata"
-            className={clsx(styles.metadataLabel, "text-size-smaller")}
-          >
-            <RecordTree
-              record={message.metadata}
-              id={`${id}-metadata`}
-              defaultExpandLevel={0}
+        <div className={clsx(styles.messageGrid, "text-style-label")}>
+          {message.role}
+          {message.role === "tool" ? `: ${message.function}` : ""}
+          {supportsLinking() && messageUrl ? (
+            <CopyButton
+              icon={ApplicationIcons.link}
+              value={toFullUrl(messageUrl)}
+              className={clsx(styles.copyLink)}
             />
-          </LabeledValue>
-        ) : (
-          ""
-        )}
+          ) : (
+            ""
+          )}
+        </div>
+        <div
+          className={clsx(
+            styles.messageContents,
+            indented ? styles.indented : undefined,
+          )}
+        >
+          <ExpandablePanel
+            id={`${id}-message`}
+            collapse={collapse}
+            lines={collapse ? 15 : 25}
+          >
+            <MessageContents
+              id={`${id}-contents`}
+              key={`${id}-contents`}
+              message={message}
+              toolMessages={toolMessages}
+              toolCallStyle={toolCallStyle}
+            />
+          </ExpandablePanel>
+
+          {message.metadata && Object.keys(message.metadata).length > 0 ? (
+            <LabeledValue
+              label="Metadata"
+              className={clsx(styles.metadataLabel, "text-size-smaller")}
+            >
+              <RecordTree
+                record={message.metadata}
+                id={`${id}-metadata`}
+                defaultExpandLevel={0}
+              />
+            </LabeledValue>
+          ) : (
+            ""
+          )}
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
