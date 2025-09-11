@@ -251,7 +251,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         main: 10,
         reverse: 10,
       }}
-      className={clsx(className, "transcript-outline")}
+      className={clsx(className, "transcript-outline", "unsearchable")}
       skipAnimationFrameInResizeObserver={true}
       restoreStateFrom={getRestoreState()}
       tabIndex={0}
