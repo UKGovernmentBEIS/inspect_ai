@@ -19,7 +19,11 @@ export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
   const storeHideFind = useStore((state) => state.appActions.hideFind);
   const { extendedFindTerm } = useExtendedFind();
-  const lastFoundItem = useRef<{ text: string; offset: number; parentElement: Element } | null>(null);
+  const lastFoundItem = useRef<{
+    text: string;
+    offset: number;
+    parentElement: Element;
+  } | null>(null);
   const currentSearchTerm = useRef<string>("");
 
   useEffect(() => {
@@ -99,7 +103,9 @@ export const FindBand: FC<FindBandProps> = () => {
         if (selection && selection.rangeCount > 0) {
           // Remember this item for next time
           const range = selection.getRangeAt(0);
-          const parentElement = range.startContainer.parentElement || range.commonAncestorContainer as Element;
+          const parentElement =
+            range.startContainer.parentElement ||
+            (range.commonAncestorContainer as Element);
           lastFoundItem.current = {
             text: range.toString(),
             offset: range.startOffset,
@@ -151,7 +157,7 @@ export const FindBand: FC<FindBandProps> = () => {
   }, [handleSearch]);
 
   return (
-    <div data-unsearchable="true" className={clsx("findBand", "unsearchable")}>
+    <div data-unsearchable="true" className={clsx("findBand")}>
       <input
         type="text"
         ref={searchBoxRef}
@@ -189,7 +195,11 @@ export const FindBand: FC<FindBandProps> = () => {
 async function findExtendedInDOM(
   searchTerm: string,
   back: boolean,
-  lastFoundItem: { text: string; offset: number; parentElement: Element } | null,
+  lastFoundItem: {
+    text: string;
+    offset: number;
+    parentElement: Element;
+  } | null,
   extendedFindTerm: (
     term: string,
     direction: "forward" | "backward",
@@ -260,14 +270,20 @@ async function findExtendedInDOM(
 
 function isLastFoundItem(
   range: Range,
-  lastFoundItem: { text: string; offset: number; parentElement: Element } | null,
+  lastFoundItem: {
+    text: string;
+    offset: number;
+    parentElement: Element;
+  } | null,
 ) {
   if (!lastFoundItem) return false;
-  
+
   const currentText = range.toString();
   const currentOffset = range.startOffset;
-  const currentParentElement = range.startContainer.parentElement || range.commonAncestorContainer as Element;
-  
+  const currentParentElement =
+    range.startContainer.parentElement ||
+    (range.commonAncestorContainer as Element);
+
   return (
     currentText === lastFoundItem.text &&
     currentOffset === lastFoundItem.offset &&
@@ -290,7 +306,6 @@ function inUnsearchableElement(range: Range) {
     }
     element = element.parentElement;
   }
-  console.log(isUnsearchable);
   return isUnsearchable;
 }
 

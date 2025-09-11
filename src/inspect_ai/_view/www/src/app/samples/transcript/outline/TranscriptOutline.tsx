@@ -214,7 +214,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       if (node === EventPaddingNode) {
         return (
           <div
-            className={styles.eventPadding}
+            className={clsx(styles.eventPadding)}
             key={node.id}
             style={{ height: "2em" }}
           ></div>
@@ -251,7 +251,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         main: 10,
         reverse: 10,
       }}
-      className={clsx(className, "transcript-outline", "unsearchable")}
+      className={clsx(className, "transcript-outline")}
       skipAnimationFrameInResizeObserver={true}
       restoreStateFrom={getRestoreState()}
       tabIndex={0}

@@ -1208,7 +1208,10 @@ pre[class*="language-"] {
   -webkit-mask: url("../img/inspect-home.svg") no-repeat center / contain;
 }
 
-.unsearchable {
+/* Use this very carefully, find relies upon checking the 
+document selection to determine if it should skip a find match
+so disabling selection can break that functionality */
+.hideSelection {
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
