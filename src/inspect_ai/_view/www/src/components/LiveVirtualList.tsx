@@ -264,12 +264,12 @@ export const LiveVirtualList = <T,>({
   // Watch for scrolling to stop and trigger pending search callback
   useEffect(() => {
     if (!isCurrentlyScrolling && pendingSearchCallback.current) {
-      // Add a small delay to ensure DOM is fully updated
+      // Add a delay to ensure DOM is fully updated after scrolling stops
       setTimeout(() => {
         const callback = pendingSearchCallback.current;
         pendingSearchCallback.current = null;
         callback?.();
-      }, 50);
+      }, 100);
     }
   }, [isCurrentlyScrolling]);
 

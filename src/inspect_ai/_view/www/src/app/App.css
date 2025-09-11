@@ -1207,3 +1207,10 @@ pre[class*="language-"] {
   mask: url("../img/inspect-home.svg") no-repeat center / contain;
   -webkit-mask: url("../img/inspect-home.svg") no-repeat center / contain;
 }
+
+.unsearchable {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}

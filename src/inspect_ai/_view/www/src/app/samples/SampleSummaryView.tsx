@@ -221,8 +221,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
               "text-size-base",
               col.title ? styles.titled : undefined,
               col.center ? styles.centerLabel : undefined,
+              "unsearchable",
             )}
             title={col.title}
+            data-unsearchable={true}
           >
             {col.label}
           </div>
@@ -237,7 +239,9 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
               styles.wrap,
               col.clamp ? "three-line-clamp" : undefined,
               col.center ? styles.centerValue : undefined,
+              "unsearchable",
             )}
+            data-unsearchable={true}
           >
             {col.value}
           </div>

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, memo } from "react";
 import {
   ChatMessageAssistant,
   ChatMessageSystem,
@@ -32,7 +32,7 @@ interface ChatMessageProps {
   toolCallStyle: ChatViewToolCallStyle;
 }
 
-export const ChatMessage: FC<ChatMessageProps> = ({
+export const ChatMessage: FC<ChatMessageProps> = memo(({
   id,
   message,
   toolMessages,
@@ -102,4 +102,4 @@ export const ChatMessage: FC<ChatMessageProps> = ({
       </div>
     </div>
   );
-};
+});

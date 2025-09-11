@@ -76,7 +76,7 @@ export const TabSet: FC<TabSetProps> = ({
             index={index}
             type={type}
             tab={tab}
-            className={tabControlsClassName}
+            className={clsx(tabControlsClassName, "unsearchable")}
           />
         ))}
         {tools && <TabTools tools={tools} />}

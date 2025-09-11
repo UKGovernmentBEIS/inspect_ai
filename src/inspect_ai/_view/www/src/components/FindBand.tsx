@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
@@ -18,6 +19,8 @@ export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
   const storeHideFind = useStore((state) => state.appActions.hideFind);
   const { extendedFindTerm } = useExtendedFind();
+  const lastFoundItem = useRef<{ text: string; offset: number } | null>(null);
+  const currentSearchTerm = useRef<string>("");
 
   useEffect(() => {
     setTimeout(() => {
@@ -66,50 +69,27 @@ export const FindBand: FC<FindBandProps> = () => {
         return;
       }
 
+      // Reset last found item if search term changed
+      if (currentSearchTerm.current !== searchTerm) {
+        lastFoundItem.current = null;
+        currentSearchTerm.current = searchTerm;
+      }
+
       // Capture the curently focused element so we can restore focus later
       const focusedElement = document.activeElement as HTMLElement;
 
-      // First try searching current DOM
-      // @ts-expect-error: `Window.find` is non-standard
-      let result = window.find(
+      // Find the term in the DOM
+      let result = await findExtendedInDOM(
         searchTerm,
-        findConfig.caseSensitive,
         back,
-        findConfig.wrapAround,
-        findConfig.wholeWord,
-        findConfig.searchInFrames,
-        findConfig.showDialog,
+        lastFoundItem.current,
+        extendedFindTerm,
       );
-      console.log("Base search result:", result);
-
-      // If no results in current DOM, try virtual content
-      if (!result) {
-        console.log("Extended search");
-        const foundInVirtual = await extendedFindTerm(
-          searchTerm,
-          back ? "backward" : "forward",
-        );
-        console.log("Extended search result", result);
-
-        if (foundInVirtual) {
-          console.log("Found in extended search");
-          // Content should now be rendered, try window.find again
-          // @ts-expect-error: `Window.find` is non-standard
-          result = window.find(
-            searchTerm,
-            findConfig.caseSensitive,
-            back,
-            findConfig.wrapAround,
-            findConfig.wholeWord,
-            findConfig.searchInFrames,
-            findConfig.showDialog,
-          );
-          console.log("Secondary find result:", result);
-        }
-      }
 
       const noResultEl = document.getElementById("inspect-find-no-results");
-      if (!noResultEl) return;
+      if (!noResultEl) {
+        return;
+      }
 
       // Show "No results" if neither current DOM nor virtual search found anything
       noResultEl.style.opacity = result ? "0" : "1";
@@ -117,6 +97,13 @@ export const FindBand: FC<FindBandProps> = () => {
       if (result) {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
+          // Remember this item for next time
+          const range = selection.getRangeAt(0);
+          lastFoundItem.current = {
+            text: range.toString(),
+            offset: range.startOffset,
+          };
+
           const parentPanel = getParentExpandablePanel(selection);
           if (parentPanel) {
             parentPanel.style.display = "block";
@@ -124,7 +111,6 @@ export const FindBand: FC<FindBandProps> = () => {
             parentPanel.style.webkitBoxOrient = "";
           }
 
-          const range = selection.getRangeAt(0);
           const element = range.startContainer.parentElement;
 
           if (element) {
@@ -163,7 +149,7 @@ export const FindBand: FC<FindBandProps> = () => {
   }, [handleSearch]);
 
   return (
-    <div className="findBand">
+    <div data-unsearchable="true" className={clsx("findBand", "unsearchable")}>
       <input
         type="text"
         ref={searchBoxRef}
@@ -198,3 +184,130 @@ export const FindBand: FC<FindBandProps> = () => {
     </div>
   );
 };
+async function findExtendedInDOM(
+  searchTerm: string,
+  back: boolean,
+  lastFoundItem: { text: string; offset: number } | null,
+  extendedFindTerm: (
+    term: string,
+    direction: "forward" | "backward",
+  ) => Promise<boolean>,
+) {
+  let result = false;
+  let attempts = 0;
+  let hasTriedExtendedSearch = false;
+  const maxAttempts = 25;
+
+  do {
+    // @ts-expect-error: `Window.find` is non-standard
+    result = window.find(
+      searchTerm,
+      findConfig.caseSensitive,
+      back,
+      findConfig.wrapAround,
+      findConfig.wholeWord,
+      findConfig.searchInFrames,
+      findConfig.showDialog,
+    );
+
+    if (result) {
+      // We have a result, check whether it is valid (not in unsearchable
+      // element and not the same as last). If is isn't valid, ignore it
+      // and continue the loop to find the next match.
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+
+        // We mark certain elements as unsearchable (e.g. )
+        let isUnsearchable = inUnsearchableElement(range);
+
+        // Also check if it's the same item as last time
+        const isSameAsLast = isLastFoundItem(range, lastFoundItem);
+
+        // If this is a valid match (not unsearchable and not same as last), we're done
+        if (!isUnsearchable && !isSameAsLast) {
+          break;
+        }
+        // Otherwise continue the loop to find the next match
+      }
+    } else if (!hasTriedExtendedSearch) {
+      // No result in current DOM and haven't tried extended search yet
+      hasTriedExtendedSearch = true;
+
+      const foundInVirtual = await extendedFindTerm(
+        searchTerm,
+        back ? "backward" : "forward",
+      );
+
+      if (foundInVirtual) {
+        // We found it in the virtual list (which will have scrolled the item
+        // into view), so try finding again in the DOM
+      } else {
+        // Extended search failed, no more options
+        break;
+      }
+    } else {
+      // No result and already tried extended search
+      break;
+    }
+
+    attempts++;
+  } while (attempts < maxAttempts);
+  return result;
+}
+
+function isLastFoundItem(
+  range: Range,
+  lastFoundItem: { text: string; offset: number } | null,
+) {
+  const currentText = range.toString();
+  const currentOffset = range.startOffset;
+  const isSameAsLast =
+    lastFoundItem &&
+    currentText === lastFoundItem.text &&
+    currentOffset === lastFoundItem.offset;
+  return isSameAsLast;
+}
+
+function inUnsearchableElement(range: Range) {
+  let element: Element | null = selectionParentElement(range);
+  console.log({ element });
+
+  // Check if this match is inside an unsearchable element
+  let isUnsearchable = false;
+  while (element) {
+    if (
+      element.hasAttribute("data-unsearchable") ||
+      getComputedStyle(element).userSelect === "none"
+    ) {
+      isUnsearchable = true;
+      break;
+    }
+    element = element.parentElement;
+  }
+  console.log(isUnsearchable);
+  return isUnsearchable;
+}
+
+function selectionParentElement(range: Range) {
+  let element: Element | null = null;
+
+  if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
+    // This is a direct element
+    element = range.startContainer as Element;
+  } else {
+    // This isn't an element, try its parent
+    element = range.startContainer.parentElement;
+  }
+
+  // Still not found, try the common ancestor container
+  if (
+    !element &&
+    range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+  ) {
+    element = range.commonAncestorContainer as Element;
+  } else if (!element && range.commonAncestorContainer.parentElement) {
+    element = range.commonAncestorContainer.parentElement;
+  }
+  return element;
+}
