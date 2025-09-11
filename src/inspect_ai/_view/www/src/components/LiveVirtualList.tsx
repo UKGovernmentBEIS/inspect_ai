@@ -67,10 +67,8 @@ export const LiveVirtualList = <T,>({
   searchInItem,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
-  const { getRestoreState, isScrolling } = useVirtuosoState(
-    listHandle,
-    `live-virtual-list-${id}`,
-  );
+  const { getRestoreState, isScrolling, visibleRange, setVisibleRange } =
+    useVirtuosoState(listHandle, `live-virtual-list-${id}`);
 
   // Search functionality
   const { registerVirtualList } = useExtendedFind();
@@ -167,6 +165,7 @@ export const LiveVirtualList = <T,>({
     (item: T, searchTerm: string): boolean => {
       const searchLower = searchTerm.toLowerCase();
       try {
+        // TODO: should we make this more pluggable?
         const itemString = JSON.stringify(item).toLowerCase();
         return itemString.includes(searchLower);
       } catch {
@@ -186,7 +185,10 @@ export const LiveVirtualList = <T,>({
       if (!data.length || !term) return false;
 
       const searchFn = searchInItem || defaultSearchInItem;
-      const currentIndex = getCurrentVisibleIndex();
+      const currentIndex =
+        direction === "forward"
+          ? visibleRange.endIndex
+          : visibleRange.startIndex;
       const searchStart =
         direction === "forward"
           ? Math.max(0, currentIndex + 1)
@@ -210,15 +212,8 @@ export const LiveVirtualList = <T,>({
 
       return false;
     },
-    [data, searchInItem, defaultSearchInItem],
+    [data, searchInItem, defaultSearchInItem, visibleRange],
   );
-
-  // Helper to get current visible index (approximation)
-  const getCurrentVisibleIndex = useCallback((): number => {
-    // This is a simple approximation - in a real implementation you might
-    // want to track this more precisely
-    return 0;
-  }, []);
 
   // Register with search context
   useEffect(() => {
@@ -295,6 +290,9 @@ export const LiveVirtualList = <T,>({
       overscan={{ main: 5, reverse: 5 }}
       className={clsx("transcript", className)}
       isScrolling={handleScrollingChange}
+      rangeChanged={(range) => {
+        setVisibleRange(range);
+      }}
       restoreStateFrom={getRestoreState()}
       totalListHeightChanged={heightChanged}
       components={{

@@ -304,6 +304,8 @@ async def _run_score_task(
     # initialize active model and store
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
+
+    # TODO: need to read events into this transcript
     init_transcript(Transcript())
 
     if state.scores is None:
@@ -339,6 +341,7 @@ async def _run_score_task(
                 )
 
     sample.scores = _get_updated_scores(sample, results, action=action)
+    # TODO: Be sure that this handles transcripts with existing events in it!
     sample.events = _get_updated_events(sample, transcript(), action=action)
 
 
