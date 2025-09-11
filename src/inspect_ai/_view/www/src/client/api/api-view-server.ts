@@ -12,6 +12,14 @@ const LOADED_TIME = Date.now();
 
 let lastEvalTime = 0;
 
+type HeaderProvider = () => Promise<Record<string, string>>;
+
+let globalHeaderProvider: HeaderProvider | undefined = undefined;
+
+export const setGlobalHeaderProvider = (
+  provider: () => Promise<Record<string, string>>,
+) => (globalHeaderProvider = provider);
+
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 interface Request<T> {
@@ -75,6 +83,12 @@ function createServerFetchApi(apiBaseUrl?: string): ServerFetchAPI {
       "Cache-Control": "no-cache",
       ...request.headers,
     };
+
+    if (globalHeaderProvider) {
+      const globalHeaders = await globalHeaderProvider();
+      Object.assign(responseHeaders, globalHeaders);
+    }
+
     if (request.body) {
       responseHeaders["Content-Type"] = "application/json";
     }
@@ -122,6 +136,12 @@ function createServerFetchApi(apiBaseUrl?: string): ServerFetchAPI {
       "Cache-Control": "no-cache",
       ...headers,
     };
+
+    if (globalHeaderProvider) {
+      const globalHeaders = await globalHeaderProvider();
+      Object.assign(requestHeaders, globalHeaders);
+    }
+
     if (body) {
       requestHeaders["Content-Type"] = "application/json";
     }
@@ -193,10 +213,8 @@ const clientEvents = (fetchApi: ServerFetchAPI) => async () => {
   return result.parsed;
 };
 
-const evalLogs = (fetchApi: ServerFetchAPI, log_dir?: string) => async () => {
-  const path = log_dir
-    ? `/logs?log_dir=${encodeURIComponent(log_dir)}`
-    : "/logs";
+const evalLogs = (fetchApi: ServerFetchAPI, logDir?: string) => async () => {
+  const path = logDir ? `/logs?log_dir=${encodeURIComponent(logDir)}` : "/logs";
   const logs = await fetchApi.fetchString("GET", path);
   lastEvalTime = Date.now();
   return logs.parsed;
@@ -370,15 +388,23 @@ const evalLogSampleData =
  * Create a view server API with optional server-side log listing
  */
 export function createViewServerApi(
-  options: { log_dir?: string; apiBaseUrl?: string } = {},
+  options: {
+    logDir?: string;
+    apiBaseUrl?: string;
+    headerProvider?: HeaderProvider;
+  } = {},
 ): LogViewAPI {
-  const { log_dir } = options;
+  const { logDir, headerProvider } = options;
+
+  if (headerProvider) {
+    setGlobalHeaderProvider(headerProvider);
+  }
 
   const fetchApi = createServerFetchApi(options.apiBaseUrl);
 
   return {
     client_events: clientEvents(fetchApi),
-    eval_logs: evalLogs(fetchApi, log_dir),
+    eval_logs: evalLogs(fetchApi, logDir),
     eval_log: evalLog(fetchApi),
     eval_log_size: evalLogSize(fetchApi),
     eval_log_bytes: evalLogBytes(fetchApi),
