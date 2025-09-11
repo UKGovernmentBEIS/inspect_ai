@@ -7,6 +7,7 @@
 - Sandboxes: Add Sandbox Injection API for Dynamic Environment Setup.
 - Agent Bridge: Respect `store=False` from bridge client and don't insist on `id` being included with reasoning (as it is not returned in `store=False` mode).
 - Scoring: Resolve task or eval level metrics onto scorers immediately rather than waiting until scoring.
+- Logging: Flush log more frequently for very small numbers of samples.
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
 - Inspect View: Improve scroll keyboard handling in sample transcript view.
 - Inspect View: Improve scroll keyboard handling in sample messages view.

@@ -166,7 +166,9 @@ class TaskLogger:
         self._samples_completed = 0
 
         # size of flush buffer (how many samples we buffer before hitting storage)
-        self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer()
+        self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer(
+            len(dataset)
+        )
         self.flush_pending: list[tuple[str | int, int]] = []
 
         # sample buffer db
