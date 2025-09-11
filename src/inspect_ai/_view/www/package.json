@@ -1,6 +1,6 @@
 {
-  "name": "@meridianlabs/log-viewer",
-  "version": "0.0.3",
+  "name": "@METR/inspect-log-viewer",
+  "version": "0.0.4",
   "description": "Log viewer for inspect_ai logs. CSS styles are included - see documentation for usage instructions.",
   "license": "MIT",
   "type": "module",
@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/UKGovernmentBEIS/inspect_ai",
+    "url": "https://github.com/METR/inspect_ai",
     "directory": "src/inspect_ai/_view/www"
   },
   "scripts": {
