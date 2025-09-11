@@ -8,9 +8,11 @@ from typing_extensions import TypedDict, Unpack
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import (
+    RegistryInfo,
     is_registry_object,
     registry_info,
     registry_unqualified_name,
+    set_registry_info,
 )
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
@@ -141,7 +143,7 @@ class Task:
         self.setup = setup
         self.solver = resolve_solver(solver)
         self.cleanup = cleanup
-        self.scorer = resolve_scorer(scorer)
+        self.scorer = resolve_scorer_metrics(resolve_scorer(scorer), metrics)
         self.metrics = metrics
         self.model = resolve_model(model)
         self.config = config
@@ -417,3 +419,17 @@ def resolve_scorer(scorer: Scorer | list[Scorer] | None) -> list[Scorer] | None:
     return (
         scorer if isinstance(scorer, list) else [scorer] if scorer is not None else None
     )
+
+
+def resolve_scorer_metrics(
+    scorers: list[Scorer] | None, metrics: list[Metric] | dict[str, list[Metric]] | None
+) -> list[Scorer] | None:
+    if scorers is not None and metrics is not None:
+        for scorer in scorers:
+            scorer_info = registry_info(scorer)
+            new_metadata = {**scorer_info.metadata, "metrics": metrics}
+            new_info = RegistryInfo(
+                type=scorer_info.type, name=scorer_info.name, metadata=new_metadata
+            )
+            set_registry_info(scorer, new_info)
+    return scorers

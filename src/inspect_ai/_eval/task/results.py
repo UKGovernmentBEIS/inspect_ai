@@ -69,7 +69,6 @@ def eval_results(
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
-    metrics: list[Metric] | dict[str, list[Metric]] | None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
@@ -105,11 +104,9 @@ def eval_results(
             if len(reducers) == 0:
                 # Compute metrics without reduction since no reducers were
                 # explicitly specified
-                targets = metrics if metrics is not None else scorer_info.metrics
-
                 eval_scores = compute_eval_scores(
                     resolved_scores,
-                    targets,
+                    scorer_info.metrics,
                     scorer_name,
                     scorer_info,
                     None,
@@ -135,11 +132,9 @@ def eval_results(
                     sample_reductions.append(reduced_samples)
 
                     # Compute metrics for this scorer
-                    targets = metrics if metrics is not None else scorer_info.metrics
-
                     eval_scores = compute_eval_scores(
                         reduced_scores,
-                        targets,
+                        scorer_info.metrics,
                         scorer_name,
                         scorer_info,
                         reducer_display_nm,
