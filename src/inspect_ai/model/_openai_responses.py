@@ -513,7 +513,9 @@ def reasoning_from_responses_reasoning(
     return ContentReasoning(reasoning=reasoning, signature=item.id, redacted=redacted)
 
 
-# some clients (e.g. codex cli) do not provide id even though the schema requires it
+# two issues addressed here:
+#   - ResponseReasoningItem requires an 'id' but OpenAI doesn't return an 'id' when store=False
+#   - Some clients (e.g. codex cli) do not provide the id even when it has been passed back to them (this is likely b/c they know they are passing store=False)
 def read_reasoning_item_param(
     param: ResponseReasoningItemParam,
 ) -> ResponseReasoningItem:
@@ -540,6 +542,7 @@ def responses_reasoning_from_reasoning(
 
     return ResponseReasoningItemParam(
         type="reasoning",
+        # OpenAI returns 'None' when store=False even though the schema requires the id
         id=content.signature,  # type: ignore[typeddict-item]
         summary=summary,
         encrypted_content=encrypted_content,

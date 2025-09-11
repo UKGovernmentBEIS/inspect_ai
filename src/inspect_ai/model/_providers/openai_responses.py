@@ -233,6 +233,7 @@ def completion_params_responses(
         params["truncation"] = "auto"
 
     # responses_store may have been specified in config.extra_body
+    # (e.g. by a client talking to us through the agent bridge)
     if config.extra_body and "store" in config.extra_body:
         responses_store = config.extra_body["store"]
 
