@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
+
 
 class SandboxToolsBuildConfig(BaseModel):
     arch: Literal["amd64", "arm64"]
@@ -17,10 +19,8 @@ def filename_to_config(filename: str) -> SandboxToolsBuildConfig:
     Expected pattern: inspect-sandbox-tools-{arch}-v{version}[-{suffix}]
     Version is an ordinal integer (not semantic).
     """
-    match = re.match(
-        r"^inspect-sandbox-tools-(?P<arch>\w+)-v(?P<version>\d+)(?:-(?P<suffix>\w+))?$",
-        filename,
-    )
+    pattern = rf"^{SANDBOX_TOOLS_BASE_NAME}-(?P<arch>\w+)-v(?P<version>\d+)(?:-(?P<suffix>\w+))?$"
+    match = re.match(pattern, filename)
     if not match:
         raise ValueError(f"Filename '{filename}' doesn't match expected pattern")
 
@@ -35,7 +35,7 @@ def filename_to_config(filename: str) -> SandboxToolsBuildConfig:
 
 def config_to_filename(config: SandboxToolsBuildConfig) -> str:
     """Convert strongly typed build configuration to filename."""
-    base = f"inspect-sandbox-tools-{config.arch}-v{config.version}"
+    base = f"{SANDBOX_TOOLS_BASE_NAME}-{config.arch}-v{config.version}"
     if config.suffix:
         base += f"-{config.suffix}"
     return base

@@ -117,11 +117,11 @@ def main() -> None:
 def _parse_args() -> BuildArgs:
     # Parse command line arguments
     parser = argparse.ArgumentParser(
-        description="Build portable inspect-tool-support executable"
+        description="Build portable inspect-sandbox-tools executable"
     )
     parser.add_argument(
         "output_filename",
-        help="Executable filename (e.g., 'inspect-tool-support-amd64-v667-dev')",
+        help="Executable filename (e.g., 'inspect-sandbox-tools-amd64-v667-dev'),"
     )
     parser.add_argument(
         "--no-staticx",

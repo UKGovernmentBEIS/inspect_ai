@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import List
 
+from ._build_config import SANDBOX_TOOLS_BASE_NAME
+
 
 class Colors:
     RED = "\033[0;31m"
@@ -49,13 +51,14 @@ def test_distro(distro: str, executable_path: Path) -> bool:
 
 def find_executables() -> List[Path]:
     """Find available executables in the binaries directory."""
-    binaries_dir = Path(__file__).parent / "../inspect_ai/binaries"
+    binaries_dir = Path(__file__).parent.parent.parent / "binaries"
     executables = []
 
-    for arch in ["amd64", "arm64"]:
-        executable_path = binaries_dir / f"inspect-tool-support-{arch}"
-        if executable_path.exists():
-            executables.append(executable_path)
+    # Find all executables matching the prefix pattern
+    for executable in binaries_dir.glob(f"{SANDBOX_TOOLS_BASE_NAME}-*"):
+        # Check if it's for a supported architecture
+        if "amd64" in executable.name or "arm64" in executable.name:
+            executables.append(executable)
 
     return executables
 
@@ -81,7 +84,7 @@ def main() -> None:
 
     if not executables:
         print_colored(
-            "No executables found in ../inspect_ai/binaries/. Run build_within_container.py first.",
+            "No executables found in binaries/. Run build_within_container.py first.",
             Colors.RED,
         )
         sys.exit(1)

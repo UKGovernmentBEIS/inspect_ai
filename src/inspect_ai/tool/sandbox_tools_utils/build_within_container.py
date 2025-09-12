@@ -172,7 +172,7 @@ def run_docker_container(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Build inspect-tool-support executables in containers",
+        description="Build inspect-sandbox-tools executables in containers",
         epilog="Arguments after '--' will be passed through to the script run within the container",
     )
     parser.add_argument(

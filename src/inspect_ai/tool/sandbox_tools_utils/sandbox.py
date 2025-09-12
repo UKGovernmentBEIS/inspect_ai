@@ -21,6 +21,7 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
 from ._build_config import (
+    SANDBOX_TOOLS_BASE_NAME,
     SandboxToolsBuildConfig,
     config_to_filename,
 )
@@ -40,7 +41,7 @@ edited: Non-PyPI install with changes to tool support or version
 # TODO: Currently, this logic relies on a specific file existing at a specific path
 # this may need to be enhanced to use a dynamic predicate instead. otherwise, how
 # would we work on os's with a different directory structure?
-SANDBOX_TOOLS_CLI = "/opt/inspect-sandbox-tools"
+SANDBOX_TOOLS_CLI = f"/opt/{SANDBOX_TOOLS_BASE_NAME}"
 
 
 async def sandbox_with_injected_tools(
