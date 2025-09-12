@@ -85,6 +85,7 @@ exclude = [
   "(?:^|/)_resources/",
   "examples/bridge",
   "src/inspect_tool_support",
+  "src/inspect_sandbox_tools",
 ]
 warn_unused_ignores = true
 no_implicit_reexport = true

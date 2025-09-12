@@ -243,9 +243,7 @@ def main() -> None:
             platform, arch_suffix, image_name, version, passthrough_args
         )
 
-        print(
-            f"Build completed. Executable(s) available in container_build/inspect-sandbox-tools-{arch_suffix}"
-        )
+        print("Build completed. Executable available in src/inspect_ai/binaries/")
 
     finally:
         # Restore original directory
