@@ -8,6 +8,7 @@
 - Sandboxes: Add Sandbox Injection API for Dynamic Environment Setup.
 - Scoring: Resolve task or eval level metrics onto scorers immediately rather than waiting until scoring.
 - Logging: Flush log more frequently for very small numbers of samples.
+- Model Roles: Support specifying model roles on the CLI with config and model args (via YAML or JSON).
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
 - Inspect View: Improve scroll keyboard handling in sample transcript view.
 - Inspect View: Improve scroll keyboard handling in sample messages view.
