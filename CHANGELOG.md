@@ -17,6 +17,7 @@
 - Bugfix: Fix file info on filesystem without mtime.
 - Bugfix: Correct rendering of tool call errors in running samples transcript.
 - Bugfix: Use AzureAI token provider even when no API key is available.
+- Bugfix: Ensure that assistant content without reasoning is always passed to responses API.
   
 ## 0.3.131 (08 September 2025)
 
