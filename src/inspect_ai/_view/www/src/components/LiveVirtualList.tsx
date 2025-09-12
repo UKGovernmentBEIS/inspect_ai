@@ -10,12 +10,15 @@ import {
 import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
+import { ExtendedFindFn, useExtendedFind } from "./ExtendedFindContext";
 import { PulsingDots } from "./PulsingDots";
 
 import styles from "./LiveVirtualList.module.css";
 
 interface LiveVirtualListProps<T> {
   id: string;
+  listHandle: RefObject<VirtuosoHandle | null>;
+
   className?: string | string[];
 
   // The scroll ref to use for the virtual list
@@ -40,6 +43,10 @@ interface LiveVirtualListProps<T> {
   offsetTop?: number;
 
   components?: Components<T>;
+
+  // Optional function to search within data items for text
+  // If not provided, will use JSON.stringify as fallback
+  searchInItem?: (item: T, searchTerm: string) => boolean;
 }
 
 /**
@@ -47,6 +54,7 @@ interface LiveVirtualListProps<T> {
  */
 export const LiveVirtualList = <T,>({
   id,
+  listHandle,
   className,
   data,
   renderRow,
@@ -56,13 +64,16 @@ export const LiveVirtualList = <T,>({
   initialTopMostItemIndex,
   offsetTop,
   components,
+  searchInItem,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
-  const listHandle = useRef<VirtuosoHandle>(null);
-  const { getRestoreState, isScrolling } = useVirtuosoState(
-    listHandle,
-    `live-virtual-list-${id}`,
-  );
+  const { getRestoreState, isScrolling, visibleRange, setVisibleRange } =
+    useVirtuosoState(listHandle, `live-virtual-list-${id}`);
+
+  // Search functionality
+  const { registerVirtualList } = useExtendedFind();
+  const pendingSearchCallback = useRef<(() => void) | null>(null);
+  const [isCurrentlyScrolling, setIsCurrentlyScrolling] = useState(false);
 
   // Track whether we're following output
   const [followOutput, setFollowOutput] = useProperty<boolean | null>(
@@ -149,6 +160,67 @@ export const LiveVirtualList = <T,>({
   const [, forceRender] = useState({});
   const forceUpdate = useCallback(() => forceRender({}), []);
 
+  // Default search function that uses JSON.stringify as fallback
+  const defaultSearchInItem = useCallback(
+    (item: T, searchTerm: string): boolean => {
+      const searchLower = searchTerm.toLowerCase();
+      try {
+        // TODO: should we make this more pluggable?
+        const itemString = JSON.stringify(item).toLowerCase();
+        return itemString.includes(searchLower);
+      } catch {
+        return false;
+      }
+    },
+    [],
+  );
+
+  // Search in data function
+  const searchInData: ExtendedFindFn = useCallback(
+    async (
+      term: string,
+      direction: "forward" | "backward",
+      onContentReady: () => void,
+    ) => {
+      if (!data.length || !term) return false;
+
+      const searchFn = searchInItem || defaultSearchInItem;
+      const currentIndex =
+        direction === "forward"
+          ? visibleRange.endIndex
+          : visibleRange.startIndex;
+      const searchStart =
+        direction === "forward"
+          ? Math.max(0, currentIndex + 1)
+          : Math.min(data.length - 1, currentIndex - 1);
+      const step = direction === "forward" ? 1 : -1;
+
+      for (let i = searchStart; i >= 0 && i < data.length; i += step) {
+        if (searchFn(data[i], term)) {
+          // Found a match! Set up callback and scroll to it
+          pendingSearchCallback.current = onContentReady;
+
+          listHandle.current?.scrollToIndex({
+            index: i,
+            behavior: "auto",
+            align: "center",
+          });
+
+          return true;
+        }
+      }
+
+      return false;
+    },
+    [data, searchInItem, defaultSearchInItem, visibleRange],
+  );
+
+  // Register with search context
+  useEffect(() => {
+    const unregister = registerVirtualList(id, searchInData);
+    return unregister;
+  }, [id, registerVirtualList, searchInData]);
+
   const Footer = () => {
     return showProgress ? (
       <div className={clsx(styles.progressContainer)}>
@@ -167,6 +239,7 @@ export const LiveVirtualList = <T,>({
   }, [scrollRef, handleScroll]);
 
   // Scroll to index when component mounts or targetIndex changes
+  const hasScrolled = useRef(false);
   useEffect(() => {
     if (initialTopMostItemIndex !== undefined && listHandle.current) {
       // If there is an initial index, scroll to it after a short delay
@@ -174,14 +247,36 @@ export const LiveVirtualList = <T,>({
         listHandle.current?.scrollToIndex({
           index: initialTopMostItemIndex,
           align: "start",
-          behavior: "smooth",
+          behavior: !hasScrolled.current ? "auto" : "smooth",
           offset: offsetTop ? -offsetTop : undefined,
         });
+        hasScrolled.current = true;
       }, 50);
-
       return () => clearTimeout(timer);
     }
   }, [initialTopMostItemIndex]);
+
+  // Watch for scrolling to stop and trigger pending search callback
+  useEffect(() => {
+    if (!isCurrentlyScrolling && pendingSearchCallback.current) {
+      // Add a delay to ensure DOM is fully updated after scrolling stops
+      setTimeout(() => {
+        const callback = pendingSearchCallback.current;
+        pendingSearchCallback.current = null;
+        callback?.();
+      }, 100);
+    }
+  }, [isCurrentlyScrolling]);
+
+  // Custom scrolling state callback
+  const handleScrollingChange = useCallback(
+    (scrolling: boolean) => {
+      setIsCurrentlyScrolling(scrolling);
+      // Also call the original isScrolling callback from useVirtuosoState
+      isScrolling(scrolling);
+    },
+    [isScrolling],
+  );
 
   return (
     <Virtuoso
@@ -189,12 +284,15 @@ export const LiveVirtualList = <T,>({
       customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
       style={{ height: "100%", width: "100%" }}
       data={data}
-      defaultItemHeight={250}
+      defaultItemHeight={500}
       itemContent={renderRow}
       increaseViewportBy={{ top: 1000, bottom: 1000 }}
-      overscan={{ main: 2, reverse: 2 }}
+      overscan={{ main: 5, reverse: 5 }}
       className={clsx("transcript", className)}
-      isScrolling={isScrolling}
+      isScrolling={handleScrollingChange}
+      rangeChanged={(range) => {
+        setVisibleRange(range);
+      }}
       restoreStateFrom={getRestoreState()}
       totalListHeightChanged={heightChanged}
       components={{

@@ -54,6 +54,7 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
     <nav
       className={clsx("text-size-smaller", styles.header)}
       aria-label="breadcrumb"
+      data-unsearchable={true}
     >
       <div className={clsx(styles.left)}>
         <Link to={backUrl} className={clsx(styles.toolbarButton)}>

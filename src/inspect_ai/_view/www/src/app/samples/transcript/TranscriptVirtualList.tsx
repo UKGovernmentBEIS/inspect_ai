@@ -1,4 +1,4 @@
-import { FC, memo, RefObject, useEffect, useMemo } from "react";
+import { FC, memo, RefObject } from "react";
 import {
   ApprovalEvent,
   ErrorEvent,
@@ -31,20 +31,19 @@ import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
 import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
-import { EventNode, kTranscriptCollapseScope } from "./types";
+import { EventNode } from "./types";
 
-import { useStore } from "../../../state/store";
+import { VirtuosoHandle } from "react-virtuoso";
 import { SpanEventView } from "./SpanEventView";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
-import { flatTree } from "./transform/treeify";
 
 interface TranscriptVirtualListProps {
   id: string;
   eventNodes: EventNode[];
-  defaultCollapsedIds: Record<string, boolean>;
+  listHandle: RefObject<VirtuosoHandle | null>;
   initialEventId: string | null;
   offsetTop?: number;
-  scrollRef: RefObject<HTMLDivElement | null>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
 }
@@ -58,42 +57,18 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       id,
       scrollRef,
       eventNodes,
-      defaultCollapsedIds,
+      listHandle,
       running,
       initialEventId,
       offsetTop,
       className,
     } = props;
 
-    // The list of events that have been collapsed
-    const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
-    const setCollapsedEvents = useStore(
-      (state) => state.sampleActions.setCollapsedEvents,
-    );
-
-    const flattenedNodes = useMemo(() => {
-      // flattten the event tree
-      return flatTree(
-        eventNodes,
-        (collapsedEvents
-          ? collapsedEvents[kTranscriptCollapseScope]
-          : undefined) || defaultCollapsedIds,
-      );
-    }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
-
-    // Update the collapsed events when the default collapsed IDs change
-    // This effect only depends on defaultCollapsedIds, not eventNodes
-    useEffect(() => {
-      // Only initialize collapsedEvents if it's empty
-      if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-        setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
-      }
-    }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
-
     return (
       <TranscriptVirtualListComponent
         id={id}
-        eventNodes={flattenedNodes}
+        listHandle={listHandle}
+        eventNodes={eventNodes}
         initialEventId={initialEventId}
         offsetTop={offsetTop}
         scrollRef={scrollRef}
