@@ -121,7 +121,7 @@ def _parse_args() -> BuildArgs:
     )
     parser.add_argument(
         "output_filename",
-        help="Executable filename (e.g., 'inspect-sandbox-tools-amd64-v667-dev'),"
+        help="Executable filename (e.g., 'inspect-sandbox-tools-amd64-v667-dev'),",
     )
     parser.add_argument(
         "--no-staticx",
