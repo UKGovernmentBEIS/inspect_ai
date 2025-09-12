@@ -44,8 +44,31 @@ The build process creates portable Linux executables that can be injected into c
 1. **build_within_container.py**: Entry point that creates a Docker container with PyInstaller environment, mounts the repository, and initiates the build
 2. **build_executable.py**: Runs inside the build container, copies source to avoid mutating the mounted repo, installs the package, and delegates to `_pyinstaller_builder.py`
 3. **_pyinstaller_builder.py**: Creates a single-file executable using PyInstaller with StaticX for cross-distribution portability
+4. **validate_distros.py**: Validates that the built executables work across different Linux distributions
 
-The build scripts are located in `src/inspect_ai/tool/sandbox_tools/` and the resulting executables are stored in `src/inspect_ai/binaries/` (architecture-specific: amd64/arm64). The `sandbox_tools_version.txt` file reflecting the inspect_sandbox_tools version also resides in the inspect_ai package.
+The build scripts are located in `src/inspect_ai/tool/sandbox_tools_utils/` and the resulting executables are stored in `src/inspect_ai/binaries/` (architecture-specific: amd64/arm64). The `sandbox_tools_version.txt` file reflecting the inspect_sandbox_tools version also resides in the inspect_ai package.
+
+#### Building New Executables
+
+To build new executables:
+
+```bash
+# Build for all architectures (amd64 and arm64)
+python src/inspect_ai/tool/sandbox_tools_utils/build_within_container.py
+
+# Build for specific architecture
+python src/inspect_ai/tool/sandbox_tools_utils/build_within_container.py --arch amd64
+```
+
+#### Validating Built Executables
+
+After building, validate that the executables work across different Linux distributions:
+
+```bash
+python -m inspect_ai.tool.sandbox_tools_utils.validate_distros
+```
+
+This will test both amd64 and arm64 executables (if available) across Ubuntu, Debian, and Kali Linux distributions using Docker containers.
 
 ### Container Injection Mechanism
 
