@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from inspect_ai._eval.evalset import EvalSetInfo
 from inspect_ai.log import EvalLog
 
 WWW_DIR = os.path.abspath((Path(__file__).parent / "www").as_posix())
@@ -30,8 +31,23 @@ def sync_view_schema() -> None:
 
     with open(schema_path, "w", encoding="utf-8") as f:
         # make everything required
+        eval_set = EvalSetInfo.model_json_schema()
         schema = EvalLog.model_json_schema()
         defs: dict[str, Any] = schema["$defs"]
+
+        # Add EvalSetInfo to definitions and reference it in root schema
+        defs["EvalSetInfo"] = eval_set
+        if "$defs" in eval_set:
+            defs.update(eval_set["$defs"])
+
+        # Add optional EvalSetInfo reference to root schema for TypeScript generation
+        if "properties" not in schema:
+            schema["properties"] = {}
+        schema["properties"]["eval_set_info"] = {
+            "anyOf": [{"$ref": "#/$defs/EvalSetInfo"}, {"type": "null"}],
+            "default": None,
+        }
+
         for key in defs.keys():
             defs[key] = schema_to_strict(defs[key])
         f.write(json.dumps(schema, indent=2))

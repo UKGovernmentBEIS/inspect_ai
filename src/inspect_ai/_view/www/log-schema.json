@@ -6926,6 +6926,134 @@
       "title": "UrlCitation",
       "type": "object",
       "additionalProperties": false
+    },
+    "EvalSetInfo": {
+      "$defs": {
+        "EvalSet": {
+          "properties": {
+            "task_file": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task File"
+            },
+            "task_args": {
+              "additionalProperties": true,
+              "title": "Task Args",
+              "type": "object"
+            },
+            "model": {
+              "title": "Model",
+              "type": "string"
+            },
+            "model_roles": {
+              "anyOf": [
+                {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model Roles"
+            },
+            "sequence": {
+              "title": "Sequence",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "task_file",
+            "task_args",
+            "model",
+            "model_roles",
+            "sequence"
+          ],
+          "title": "EvalSet",
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "properties": {
+        "eval_set_id": {
+          "title": "Eval Set Id",
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/EvalSet"
+          },
+          "title": "Tasks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "eval_set_id",
+        "tasks"
+      ],
+      "title": "EvalSetInfo",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalSet": {
+      "properties": {
+        "task_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Task File"
+        },
+        "task_args": {
+          "additionalProperties": true,
+          "title": "Task Args",
+          "type": "object"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "model_roles": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Model Roles"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "task_file",
+        "task_args",
+        "model",
+        "model_roles",
+        "sequence"
+      ],
+      "title": "EvalSet",
+      "type": "object",
+      "additionalProperties": false
     }
   },
   "description": "Evaluation log.",
@@ -7022,6 +7150,17 @@
       ],
       "default": null,
       "title": "Etag"
+    },
+    "eval_set_info": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EvalSetInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
