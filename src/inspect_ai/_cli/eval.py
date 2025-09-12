@@ -100,7 +100,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help="Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader={model: mockllm/model, temperature: 0.5}",
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
     )
     @click.option(
         "-T",
