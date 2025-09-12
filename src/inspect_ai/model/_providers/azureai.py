@@ -192,10 +192,12 @@ class AzureAIAPI(ModelAPI):
         # create client (note the client needs to be created and closed
         # with each call so it can be cleaned up and not end up on another
         # event loop in a subsequent pass of eval)
-        assert self.api_key
+        assert self.api_key or self.token_provider
         client = ChatCompletionsClient(
             endpoint=self.endpoint_url,
-            credential=AzureKeyCredential(self.api_key),
+            credential=AzureKeyCredential(self.api_key)
+            if self.api_key
+            else AzureKeyCredential(self.token_provider()),
             model=self.model_name,
             model_extras=self.model_args,
         )
