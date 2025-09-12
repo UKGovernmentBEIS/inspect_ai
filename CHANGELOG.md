@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.132 (12 September 2025)
 
 - Anthropic: Support for images with mime type image/bmp.
 - Sandbox Service: Specify instance externally so a single script can service multiple instances.
