@@ -1,20 +1,21 @@
-from textwrap import dedent
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
-from semver import Version
 
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool import ToolResult
+from inspect_ai.tool._json_rpc_helpers import exec_model_request, exec_scalar_request
+from inspect_ai.tool.sandbox_tools_utils._runtime_helpers import (
+    SandboxJSONRPCTransport,
+    SandboxToolsServerErrorMapper,
+)
+from inspect_ai.tool.sandbox_tools_utils.sandbox import (
+    SANDBOX_TOOLS_CLI,
+    sandbox_with_injected_tools,
+)
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._tool import Tool, ToolParsingError, tool
-from .._tool_support_helpers import (
-    exec_model_request,
-    exec_scalar_request,
-    tool_support_sandbox,
-)
 
 # These models are cloned from the container code. If/when we decide to create
 # a package that is shared between the inspect and tool-container codebases, we'll
@@ -193,14 +194,19 @@ def bash_session(
         store = store_as(BashSessionStore, instance=instance)
         sandbox = await _get_sandbox(store)
 
+        # Create transport and server error mapper for all RPC calls
+        transport = SandboxJSONRPCTransport(sandbox, SANDBOX_TOOLS_CLI)
+        server_error_mapper = SandboxToolsServerErrorMapper()
+
         if not store.session_id:
             store.session_id = (
                 await exec_model_request(
-                    sandbox,
-                    "bash_session_new_session",
-                    {},
-                    NewSessionResult,
-                    TRANSPORT_TIMEOUT,
+                    method="bash_session_new_session",
+                    params={},
+                    result_type=NewSessionResult,
+                    transport=transport,
+                    server_error_mapper=server_error_mapper,
+                    timeout=TRANSPORT_TIMEOUT,
                     user=user,
                 )
             ).session_name
@@ -218,11 +224,12 @@ def bash_session(
         }
 
         result = await exec_scalar_request(
-            sandbox,
-            "bash_session",
-            {"session_name": store.session_id, **(action_specific[action])},
-            str,
-            timeout,
+            method="bash_session",
+            params={"session_name": store.session_id, **(action_specific[action])},
+            result_type=str,
+            transport=transport,
+            server_error_mapper=server_error_mapper,
+            timeout=timeout,
             user=user,
         )
 
@@ -238,14 +245,6 @@ def bash_session(
 
 async def _get_sandbox(store: BashSessionStore) -> SandboxEnvironment:
     if not store.sandbox:
-        (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
-        required_version = Version.parse("1.0.0")
-        if sandbox_version < required_version:
-            raise PrerequisiteError(
-                dedent(f"""
-                    The 'inspect-tool-support' version in your container is '{sandbox_version}'. The 'bash_session' tool requires version '{required_version}' or newer. Please update your container image to the latest version of 'inspect-tool-support'.
-                    """).strip()
-            )
-        store.sandbox = sandbox
+        store.sandbox = await sandbox_with_injected_tools()
 
     return store.sandbox

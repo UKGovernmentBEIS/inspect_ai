@@ -21,6 +21,9 @@ git_describe_command = [
 where = ["src"]
 include = ["inspect_ai*"]
 
+[tool.setuptools.package-data]
+inspect_ai = ["binaries/*", "tool/sandbox_tools/sandbox_tools_version.txt"]
+
 
 [tool.ruff]
 extend-exclude = ["docs"]
@@ -82,6 +85,7 @@ exclude = [
   "(?:^|/)_resources/",
   "examples/bridge",
   "src/inspect_tool_support",
+  "src/inspect_sandbox_tools",
 ]
 warn_unused_ignores = true
 no_implicit_reexport = true

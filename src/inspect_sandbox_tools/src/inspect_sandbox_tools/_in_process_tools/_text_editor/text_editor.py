@@ -6,8 +6,11 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal
 
-from inspect_tool_support._in_process_tools._text_editor._run import maybe_truncate, run
-from inspect_tool_support._util.common_types import ToolException
+from inspect_sandbox_tools._in_process_tools._text_editor._run import (
+    maybe_truncate,
+    run,
+)
+from inspect_sandbox_tools._util.common_types import ToolException
 
 DEFAULT_HISTORY_PATH = "/tmp/inspect_editor_history.pkl"
 SNIPPET_LINES: int = 4

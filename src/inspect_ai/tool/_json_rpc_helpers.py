@@ -1,6 +1,6 @@
 import json
 from itertools import count
-from typing import Literal, Protocol, Type, TypeAlias, TypeVar
+from typing import Any, Literal, Protocol, Type, TypeAlias, TypeVar
 
 from pydantic import BaseModel, RootModel
 
@@ -54,12 +54,57 @@ ScalarT = TypeVar("ScalarT", str, int, float, bool, None)
 
 
 class JSONRPCTransport(Protocol):
+    """Protocol for JSON-RPC transport implementations.
+
+    Defines the interface for transport mechanisms that handle the actual
+    communication with JSON-RPC servers. Different implementations may use
+    different underlying protocols (HTTP, Unix sockets, docker exec, etc.)
+    but all must conform to this interface.
+
+    The transport is responsible for:
+    - Serializing the JSON-RPC request
+    - Sending it via the appropriate communication channel
+    - Receiving the response
+    - Returning the raw response string for parsing
+
+    Args:
+        method: The JSON-RPC method name to call
+        params: Parameters to pass to the method (list, dict, or None)
+        is_notification: Whether this is a notification (no response expected)
+        **transport_extra_args: Implementation-specific transport options
+                              (e.g., timeout, authentication, etc.)
+
+    Returns:
+        The raw JSON-RPC response string from the server
+    """
+
     async def __call__(
-        self, method: str, params: JSONRPCParamsType, is_notification: bool
+        self,
+        method: str,
+        params: JSONRPCParamsType,
+        is_notification: bool,
+        **transport_extra_args: Any,
     ) -> str: ...
 
 
 class JSONRPCServerErrorMapper(Protocol):
+    """Protocol for mapping server-specific JSON-RPC error codes to appropriate exceptions.
+
+    This protocol defines the interface for error mapping functions that can interpret
+    server-specific error codes (typically in the -32099 to -32000 range) and convert
+    them into meaningful Python exceptions. Different server implementations may use
+    custom error codes to represent domain-specific error conditions.
+
+    Args:
+        code: The JSON-RPC error code from the server response.
+        message: The error message from the server response.
+        method: The JSON-RPC method that was called when the error occurred.
+        params: The parameters that were passed to the JSON-RPC method.
+
+    Returns:
+        An appropriate Exception instance that represents the server error.
+    """
+
     def __call__(
         self, code: int, message: str, method: str, params: JSONRPCParamsType
     ) -> Exception: ...
@@ -71,6 +116,7 @@ async def exec_scalar_request(
     result_type: Type[ScalarT],
     transport: JSONRPCTransport,
     server_error_mapper: JSONRPCServerErrorMapper,
+    **transport_extra_args: Any,
 ) -> ScalarT:
     """
     Execute a JSON-RPC command expecting a scalar result.
@@ -81,6 +127,7 @@ async def exec_scalar_request(
       result_type (Type[ScalarT]): The scalar type (str, int, float, bool, None) to validate the result against.
       transport (JSONRPCTransport): The transport callable to use for the RPC communication.
       server_error_mapper (JSONRPCServerErrorMapper): A callable to map server specific JSON-RPC errors to exceptions.
+      **transport_extra_args: Additional arguments passed to the transport (e.g. timeout, user).
 
     Returns:
       ScalarT: The scalar result of the JSON-RPC call.
@@ -95,6 +142,7 @@ async def exec_scalar_request(
         params=params,
         transport=transport,
         server_error_mapper=server_error_mapper,
+        **transport_extra_args,
     )
     if (result_type is type(None) and rpc_result is not None) or not isinstance(
         rpc_result, result_type
@@ -109,6 +157,7 @@ async def exec_model_request(
     result_type: Type[BaseModelT],
     transport: JSONRPCTransport,
     server_error_mapper: JSONRPCServerErrorMapper | None = None,
+    **transport_extra_args: Any,
 ) -> BaseModelT:
     """
     Execute a JSON-RPC command to a sandbox environment expecting a model result.
@@ -119,6 +168,7 @@ async def exec_model_request(
       result_type (Type[BaseModelT]): The Pydantic model class to validate and parse the result.
       transport (JSONRPCTransport): The transport callable to use for the RPC communication.
       server_error_mapper (JSONRPCServerErrorMapper): A callable to map server specific JSON-RPC errors to exceptions.
+      **transport_extra_args: Additional arguments passed to the transport (e.g. timeout, user).
 
     Returns:
       BaseModelT: The parsed and validated result of the JSON-RPC call.
@@ -133,6 +183,7 @@ async def exec_model_request(
         params=params,
         transport=transport,
         server_error_mapper=server_error_mapper,
+        **transport_extra_args,
     )
     return result_type.model_validate(rpc_result, strict=True)
 
@@ -141,6 +192,7 @@ async def exec_notification(
     method: str,
     params: JSONRPCParamsType,
     transport: JSONRPCTransport,
+    **transport_extra_args: Any,
 ) -> None:
     """
     Execute a JSON-RPC notification to a sandbox environment.
@@ -148,10 +200,10 @@ async def exec_notification(
     A notification is a JSON-RPC request that doesn't expect any response.
 
     Args:
-      sandbox (SandboxEnvironment): The sandbox environment to execute the notification in.
       method (str): The JSON-RPC method to call.
       params (JSONRPCParamsType): The parameters for the JSON-RPC method.
       transport (JSONRPCTransport): The transport callable to use for the RPC communication.
+      **transport_extra_args: Additional arguments passed to the transport (e.g. timeout, user).
 
     Returns:
       None: The function always returns None if successful.
@@ -163,6 +215,7 @@ async def exec_notification(
         method=method,
         params=params,
         is_notification=True,
+        **transport_extra_args,
     )
     if stdout.strip():
         raise RuntimeError(
@@ -176,6 +229,7 @@ async def _exec_request(
     params: JSONRPCParamsType,
     transport: JSONRPCTransport,
     server_error_mapper: JSONRPCServerErrorMapper | None = None,
+    **transport_extra_args: Any,
 ) -> object:
     """Execute a request using the provided transport mechanism."""
     return parse_json_rpc_response(
@@ -183,6 +237,7 @@ async def _exec_request(
             method=method,
             params=params,
             is_notification=False,
+            **transport_extra_args,
         ),
         method,
         params,
