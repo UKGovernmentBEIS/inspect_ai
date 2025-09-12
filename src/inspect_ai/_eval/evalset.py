@@ -376,6 +376,10 @@ def eval_set(
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
 
+        # TODO: Write eval-set.json file which contains a distilled list of tasks and summaries for the tasks
+        # TODO: Consider what metadata should also be written
+        # TODO: Viewer can poll for eval-set.json when reading a directory, reading information from the eval-set.json file
+
         # we have some pending tasks yet to run, run them
         if len(pending_tasks) > 0:
             # run the tasks
