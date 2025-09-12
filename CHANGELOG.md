@@ -4,8 +4,8 @@
 - Sandbox Service: Specify instance externally so a single script can service multiple instances.
 - Agent Bridge: Capture message history in agent state for all bridge generations.
 - Agent Bridge: Embed sandbox service client in sandbox bridge proxy (for ease of bundling).
-- Sandboxes: Add Sandbox Injection API for Dynamic Environment Setup.
 - Agent Bridge: Respect `store=False` from bridge client and don't insist on `id` being included with reasoning (as it is not returned in `store=False` mode).
+- Sandboxes: Add Sandbox Injection API for Dynamic Environment Setup.
 - Scoring: Resolve task or eval level metrics onto scorers immediately rather than waiting until scoring.
 - Logging: Flush log more frequently for very small numbers of samples.
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
@@ -15,6 +15,7 @@
 - Inspect View: Fix issue that would result in `attachments:/` appearing in content when viewing running samples.
 - Bugfix: Fix file info on filesystem without mtime.
 - Bugfix: Correct rendering of tool call errors in running samples transcript.
+- Bugfix: Use AzureAI token provider even when no API key is available.
   
 ## 0.3.131 (08 September 2025)
 
