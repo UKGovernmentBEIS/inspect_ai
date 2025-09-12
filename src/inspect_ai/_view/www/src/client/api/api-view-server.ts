@@ -10,8 +10,17 @@ import {
 
 /* global __VIEW_SERVER_API_URL__ */
 const API_BASE_URL = __VIEW_SERVER_API_URL__ || "";
+
 const loaded_time = Date.now();
 let last_eval_time = 0;
+
+type HeaderProvider = () => Promise<Record<string, string>>;
+
+let globalHeaderProvider: HeaderProvider | undefined = undefined;
+
+export const setGlobalHeaderProvider = (
+  provider: () => Promise<Record<string, string>>,
+) => (globalHeaderProvider = provider);
 
 function buildApiUrl(path: string): string {
   if (!API_BASE_URL) {
@@ -213,6 +222,13 @@ async function apiRequest<T>(
     ["Cache-Control"]: "no-cache",
     ...request.headers,
   };
+
+  // Add global headers if provider is set
+  if (globalHeaderProvider) {
+    const globalHeaders = await globalHeaderProvider();
+    Object.assign(responseHeaders, globalHeaders);
+  }
+
   if (request.body) {
     responseHeaders["Content-Type"] = "application/json";
   }
@@ -267,6 +283,13 @@ async function api(
     ["Cache-Control"]: "no-cache",
     ...headers,
   };
+
+  // Add global headers if provider is set
+  if (globalHeaderProvider) {
+    const globalHeaders = await globalHeaderProvider();
+    Object.assign(responseHeaders, globalHeaders);
+  }
+
   if (body) {
     responseHeaders["Content-Type"] = "application/json";
   }
@@ -333,15 +356,17 @@ async function open_log_file() {
  * Create a view server API with optional server-side log listing
  */
 export function createViewServerApi(
-  options: { log_dir?: string } = {},
+  options: { logDir?: string; headerProvider?: HeaderProvider } = {},
 ): LogViewAPI {
-  const { log_dir } = options;
+  const { logDir, headerProvider } = options;
+
+  if (headerProvider) setGlobalHeaderProvider(headerProvider);
 
   return {
     client_events,
     eval_logs: async () => {
-      const path = log_dir
-        ? `/logs?log_dir=${encodeURIComponent(log_dir)}`
+      const path = logDir
+        ? `/logs?log_dir=${encodeURIComponent(logDir)}`
         : "/logs";
       const logs = await api("GET", path);
       last_eval_time = Date.now();
