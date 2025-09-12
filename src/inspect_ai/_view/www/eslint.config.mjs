@@ -9,6 +9,7 @@ export default [
       globals: {
         ...globals.browser,
         ...globals.node,
+        __VIEW_SERVER_API_URL__: "readonly",
       },
     },
   },
