@@ -62,9 +62,9 @@ export default defineConfig(({ mode }) => {
             },
           },
         },
+        cssCodeSplit: false,
         sourcemap: true,
         minify: false,
-        cssCodeSplit: false,
       },
     };
   } else {

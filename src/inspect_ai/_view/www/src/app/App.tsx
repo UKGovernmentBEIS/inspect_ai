@@ -1,5 +1,3 @@
-import "bootstrap-icons/font/bootstrap-icons.css";
-import "bootstrap/dist/css/bootstrap.css";
 import JSON5 from "json5";
 
 import "prismjs";
@@ -8,9 +6,6 @@ import "prismjs/components/prism-clike";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
-import "prismjs/themes/prism.css";
-
-import "./App.css";
 
 import ClipboardJS from "clipboard";
 import { FC, useCallback, useEffect } from "react";
@@ -188,5 +183,9 @@ export const App: FC<AppProps> = ({ api }) => {
     loadLogsAndState();
   }, [setLogs, selectLogFile, refreshLogs, onMessage]);
 
-  return <RouterProvider router={AppRouter} />;
+  return (
+    <div className="inspect-ai-log-viewer">
+      <RouterProvider router={AppRouter} />
+    </div>
+  );
 };

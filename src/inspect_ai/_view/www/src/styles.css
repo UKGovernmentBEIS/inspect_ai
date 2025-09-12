@@ -1,12 +1,15 @@
 /* Main CSS entry point for @meridianlabs/log-viewer library */
 
-/* Third-party dependencies - consumers need to install these separately */
-@import "bootstrap/dist/css/bootstrap.css";
-@import "bootstrap-icons/font/bootstrap-icons.css";
-@import "prismjs/themes/prism.css";
+/* Scope all styles within .inspect-ai-log-viewer to prevent global conflicts */
+.inspect-ai-log-viewer {
+  /* Third-party dependencies - scoped within this wrapper */
+  @import "bootstrap/dist/css/bootstrap.css";
+  @import "bootstrap-icons/font/bootstrap-icons.css";
+  @import "prismjs/themes/prism.css";
 
-/* Application-specific styles */
-@import "./app/App.css";
+  /* Application-specific styles */
+  @import "./app/App.css";
+}
 
 /*
   Note: CSS modules are automatically handled by the build process
