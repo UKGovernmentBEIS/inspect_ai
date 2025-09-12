@@ -274,7 +274,7 @@ export const useSampleMessageUrl = (
     targetLogPath = makeLogPath(log_file, log_dir);
   }
 
-  const eventUrl = useMemo(() => {
+  const messageUrl = useMemo(() => {
     return messageId && targetLogPath
       ? sampleMessageUrl(
           messageId,
@@ -284,7 +284,7 @@ export const useSampleMessageUrl = (
         )
       : undefined;
   }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-  return eventUrl;
+  return messageUrl;
 };
 
 export const useSampleEventUrl = (

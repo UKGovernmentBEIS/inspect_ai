@@ -3,6 +3,7 @@ import {
   memo,
   ReactNode,
   RefObject,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -150,21 +151,23 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
         return index !== -1 ? index : undefined;
       }, [initialMessageId, collapsedMessages]);
 
-      const renderRow = (index: number, item: ResolvedMessage): ReactNode => {
-        const number =
-          collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
-
-        return (
-          <ChatMessageRow
-            parentName={id || "chat-virtual-list"}
-            number={number}
-            resolvedMessage={item}
-            indented={indented}
-            toolCallStyle={toolCallStyle}
-            highlightUserMessage={true}
-          />
-        );
-      };
+      const renderRow = useCallback(
+        (index: number, item: ResolvedMessage): ReactNode => {
+          const number =
+            collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+          return (
+            <ChatMessageRow
+              parentName={id || "chat-virtual-list"}
+              number={number}
+              resolvedMessage={item}
+              indented={indented}
+              toolCallStyle={toolCallStyle}
+              highlightUserMessage={true}
+            />
+          );
+        },
+        [id, numbered, indented, toolCallStyle, collapsedMessages],
+      );
 
       const Item = ({
         children,

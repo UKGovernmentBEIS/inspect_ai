@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import tempfile
 from logging import getLogger
@@ -63,10 +64,12 @@ class EvalRecorder(FileRecorder):
         return location.endswith(".eval")
 
     @override
-    def default_log_buffer(self) -> int:
+    def default_log_buffer(self, sample_count: int) -> int:
         # .eval files are 5-8x smaller than .json files so we
         # are much less worried about flushing frequently
-        return 10
+        # scale flushes in alignment with sample_count so small runs
+        # flush more often (sample by sample) and large runs less often
+        return max(1, min(math.floor(sample_count / 3), 10))
 
     def __init__(self, log_dir: str, fs_options: dict[str, Any] = {}):
         super().__init__(log_dir, ".eval", fs_options)

@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import { FC, KeyboardEvent, useCallback, useRef } from "react";
+import { FC, useEffect, useRef } from "react";
 import { ErrorPanel } from "../../components/ErrorPanel";
+import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useStore } from "../../state/store";
@@ -15,7 +16,6 @@ export const LogViewLayout: FC = () => {
   const appStatus = useStore((state) => state.app.status);
 
   // Find
-  const nativeFind = useStore((state) => state.capabilities.nativeFind);
   const showFind = useStore((state) => state.app.showFind);
   const setShowFind = useStore((state) => state.appActions.setShowFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
@@ -31,24 +31,30 @@ export const LogViewLayout: FC = () => {
   // if there are no log files, then don't show sidebar
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
 
-  const handleKeyboard = useCallback(
-    (e: KeyboardEvent) => {
-      // Add keyboard shortcuts for find, if needed
-      if (nativeFind || !setShowFind) {
-        return;
-      }
-
+  // Global keydown handler for keyboard shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        setShowFind(true);
+        e.preventDefault(); // Always prevent browser find
+        e.stopPropagation();
+        if (setShowFind) {
+          setShowFind(true);
+        }
       } else if (e.key === "Escape") {
         hideFind();
       }
-    },
-    [nativeFind, setShowFind, hideFind],
-  );
+    };
+
+    // Use capture phase to catch event before it reaches other handlers
+    document.addEventListener("keydown", handleGlobalKeyDown, true);
+
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeyDown, true);
+    };
+  }, [setShowFind, hideFind]);
 
   return (
-    <>
+    <ExtendedFindProvider>
       <div
         ref={mainAppRef}
         className={clsx(
@@ -58,9 +64,8 @@ export const LogViewLayout: FC = () => {
           "log-view",
         )}
         tabIndex={0}
-        onKeyDown={handleKeyboard}
       >
-        {!nativeFind && showFind ? <FindBand /> : ""}
+        {showFind ? <FindBand /> : ""}
         {!singleFileMode ? <Navbar /> : ""}
         <ProgressBar animating={appStatus.loading} />
         {appStatus.error ? (
@@ -72,6 +77,6 @@ export const LogViewLayout: FC = () => {
           <LogView />
         )}
       </div>
-    </>
+    </ExtendedFindProvider>
   );
 };
