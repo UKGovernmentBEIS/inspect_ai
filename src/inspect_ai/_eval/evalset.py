@@ -3,6 +3,7 @@ import logging
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
+from pydantic import BaseModel
 from pydantic_core import to_json
 from rich.status import Status
 from shortuuid import uuid
@@ -19,6 +20,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, file, filesystem
+from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent
 from inspect_ai.approval._policy import ApprovalPolicy
@@ -367,6 +369,12 @@ def eval_set(
             resolved_tasks, all_logs, log_dir_allow_dirty
         )
 
+        # write eval-set info containing data about
+        # all the tasks that are a part of this eval set
+        # (include all tasks, not just tasks that need to be
+        # run in this pass)
+        write_eval_set_info(eval_set_id, log_dir, resolved_tasks)
+
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
@@ -375,10 +383,6 @@ def eval_set(
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
-
-        # TODO: Write eval-set.json file which contains a distilled list of tasks and summaries for the tasks
-        # TODO: Consider what metadata should also be written
-        # TODO: Viewer can poll for eval-set.json when reading a directory, reading information from the eval-set.json file
 
         # we have some pending tasks yet to run, run them
         if len(pending_tasks) > 0:
@@ -751,3 +755,55 @@ def starting_max_connections(models: list[Model], config: GenerateConfig) -> int
 def status_msg(msg: str) -> str:
     STATUS_FMT = "blue bold"
     return f"[{STATUS_FMT}]{msg}[/{STATUS_FMT}]"
+
+
+class EvalSet(BaseModel):
+    task_file: str | None
+    task_args: dict[str, Any]
+    model: str
+    model_roles: dict[str, str] | None
+    sequence: int
+
+
+class EvalSetInfo(BaseModel):
+    eval_set_id: str
+    tasks: list[EvalSet]
+
+
+def to_eval_set(task: ResolvedTask) -> EvalSet:
+    # resolve model roles to names
+    model_roles = (
+        {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
+    )
+
+    return EvalSet(
+        task_file=task.task_file,
+        task_args=task.task_args,
+        model=task.model.name,
+        model_roles=model_roles,
+        sequence=task.sequence or 0,
+    )
+
+
+def to_eval_set_info(id: str, tasks: list[ResolvedTask]) -> EvalSetInfo:
+    return EvalSetInfo(eval_set_id=id, tasks=[to_eval_set(task) for task in tasks])
+
+
+def write_eval_set_info(
+    eval_set_id: str,
+    log_dir: str,
+    tasks: list[ResolvedTask],
+    fs_options: dict[str, Any] = {},
+) -> None:
+    # resolve log dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
+
+    # get info
+    eval_set_info = to_eval_set_info(eval_set_id, tasks)
+
+    # form target path and write
+    manifest = f"{log_dir}{fs.sep}eval-set.json"
+    eval_set_json = to_json_safe(eval_set_info)
+    with file(manifest, mode="wb", fs_options=fs_options) as f:
+        f.write(eval_set_json)
