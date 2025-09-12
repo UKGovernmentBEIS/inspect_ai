@@ -62,7 +62,7 @@ class RunEnd:
     """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
-    exception: Exception | None
+    exception: BaseException | None
     """The exception that occurred during the run, if any. If None, the run completed
     successfully."""
     logs: EvalLogs
@@ -347,7 +347,7 @@ async def emit_run_end(
     eval_set_id: str | None,
     run_id: str,
     logs: EvalLogs,
-    exception: Exception | None = None,
+    exception: BaseException | None = None,
 ) -> None:
     data = RunEnd(
         eval_set_id=eval_set_id, run_id=run_id, logs=logs, exception=exception

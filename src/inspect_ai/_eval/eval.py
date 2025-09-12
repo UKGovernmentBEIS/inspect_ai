@@ -725,7 +725,7 @@ async def _eval_async_inner(
             await emit_run_end(eval_set_id, run_id, EvalLogs([]))
         _eval_async_running = False
 
-    except Exception as e:
+    except BaseException as e:
         await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         _eval_async_running = False
         raise e
