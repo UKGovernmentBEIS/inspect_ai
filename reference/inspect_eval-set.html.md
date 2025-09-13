@@ -27,7 +27,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--model-base-url` | text | Base URL for for model API | None |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | None |
 | `--model-config` | text | YAML or JSON config file with model arguments. | None |
-| `--model-role` | text | Named model role, e.g. –model-role critic=openai/gpt-4o | None |
+| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}” | None |
 | `-T` | text | One or more task arguments (e.g. -T arg=value) | None |
 | `--task-config` | text | YAML or JSON config file with task arguments. | None |
 | `--solver` | text | Solver to execute (overrides task default solver) | None |

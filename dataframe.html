@@ -788,7 +788,7 @@ The model’s knowledge cutoff date
 <h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
 <p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
-<div id="a2f97e8a" class="cell">
+<div id="c2ce089b" class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -804,7 +804,7 @@ The model’s knowledge cutoff date
 <h3 class="anchored" data-anchor-id="score_to_float">score_to_float()</h3>
 <p>Converts one or more score columns to a float representation of the score.</p>
 <p>For each column specified, this operation will convert the values to floats using the provided <code>value_to_float</code> function. The column value will be replaced with the float value.</p>
-<div id="be4e175c" class="cell">
+<div id="3c520945" class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    samples_df, frontier, model_info, prepare, score_to_float</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)</span>
