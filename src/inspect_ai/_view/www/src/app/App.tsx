@@ -6,6 +6,7 @@ import "prismjs/components/prism-clike";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
+import "./App.css";
 
 import ClipboardJS from "clipboard";
 import { FC, useCallback, useEffect } from "react";
