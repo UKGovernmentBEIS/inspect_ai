@@ -519,7 +519,6 @@ Event = Union[
     StoreEvent,
     ModelEvent,
     ToolEvent,
-    SandboxEvent,
     ApprovalEvent,
     InputEvent,
     ScoreEvent,
