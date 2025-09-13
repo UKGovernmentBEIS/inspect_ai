@@ -11,7 +11,11 @@ from inspect_ai.log._file import (
 
 
 def convert_eval_logs(
-    path: str, to: Literal["eval", "json"], output_dir: str, overwrite: bool = False
+    path: str,
+    to: Literal["eval", "json"],
+    output_dir: str,
+    overwrite: bool = False,
+    resolve_attachments: bool = False,
 ) -> None:
     """Convert between log file formats.
 
@@ -26,6 +30,8 @@ def convert_eval_logs(
         output_dir (str): Output directory to write converted log file(s) to.
         overwrite (bool): Overwrite existing log files (defaults to `False`,
             raising an error if the output file path already exists).
+        resolve_attachments (bool): Resolve attachments (e.g. images)
+            to their full content.
     """
     from inspect_ai._display import display
 
@@ -67,7 +73,7 @@ def convert_eval_logs(
             )
 
         # do a full read/write (normalized deprecated constructs and adds sample summaries)
-        log = read_eval_log(input_file)
+        log = read_eval_log(input_file, resolve_attachments=resolve_attachments)
         write_eval_log(log, output_file)
 
     if fs.info(path).type == "file":
