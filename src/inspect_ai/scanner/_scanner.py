@@ -92,7 +92,7 @@ def scanner(
 ) -> Callable[[ScannerFactory[P, Transcript]], ScannerFactory[P, Transcript]]: ...
 
 
-# overloads for types lists: scanner can take T or list[T]
+# overloads for type lists: scanner can take T or list[T]
 @overload
 def scanner(
     *,
