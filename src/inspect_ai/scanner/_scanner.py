@@ -158,6 +158,12 @@ def scanner(
 # will additionally validate at runtime that the input type matches
 # the filter (including e.g. checking that ["system", "user"] targets
 # either ChatMessage or ChatMessageSystem | ChatMessageUser.
+#
+# Note that runtime type introspection should use inspect.get_type_hints
+# (so that text-based annotations are resolved) and should be sure to
+# resolve types where the scanner was defined, etc. For example:
+#
+# hints = get_type_hints(scanner_fn, globalns=factory.__globals__)
 
 
 def scanner(
