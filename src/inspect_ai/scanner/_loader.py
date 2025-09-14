@@ -2,6 +2,7 @@ from functools import wraps
 from typing import (
     AsyncGenerator,
     Callable,
+    Literal,
     ParamSpec,
     Protocol,
     Required,
@@ -43,8 +44,8 @@ class Loader(Protocol[T]):
 
 class LoaderConfig(TypedDict, total=False):
     name: Required[str]
-    messages: list[MessageType]
-    events: list[EventType]
+    messages: list[MessageType] | Literal["all"]
+    events: list[EventType] | Literal["all"]
 
 
 LoaderFactory = Callable[P, Loader[T]]
@@ -53,8 +54,8 @@ LoaderFactory = Callable[P, Loader[T]]
 def loader(
     *,
     name: str | None = None,
-    messages: MessageType | list[MessageType] | None = None,
-    events: EventType | list[EventType] | None = None,
+    messages: list[MessageType] | Literal["all"] | None = None,
+    events: list[EventType] | Literal["all"] | None = None,
 ) -> Callable[[LoaderFactory[P, T]], LoaderFactory[P, T]]:
     messages = normalize_messages_filter(messages) if messages is not None else None
     events = normalize_events_filter(events) if events is not None else None

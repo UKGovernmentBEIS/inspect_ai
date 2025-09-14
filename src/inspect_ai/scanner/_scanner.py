@@ -21,14 +21,8 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.log._transcript import Event, ModelEvent, ToolEvent
-from inspect_ai.model._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageSystem,
-    ChatMessageTool,
-    ChatMessageUser,
-)
+from inspect_ai.log._transcript import Event
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scanner._result import Result
 from inspect_ai.scanner._transcript import Transcript
 
@@ -40,31 +34,34 @@ from ._filter import (
 )
 from ._loader import Loader
 
+# core types
 T = TypeVar("T", contravariant=True)
 P = ParamSpec("P")
+
+# overloads to enable scanners to take T or list[T]
+TMessage = TypeVar("TMessage", ChatMessage, list[ChatMessage])
+TEvent = TypeVar("TEvent", Event, list[Event])
 
 
 class Scanner(Protocol[T]):
     def __call__(self, input: T, /) -> Awaitable[Result | None]: ...
 
-    __scanner__: "ScannerConfig"
-
 
 class ScannerConfig(TypedDict, total=False):
     name: Required[str]
-    messages: list[MessageType]
-    events: list[EventType]
+    messages: list[MessageType] | Literal["all"]
+    events: list[EventType] | Literal["all"]
     loader: Loader[Any]
 
 
 ScannerFactory = Callable[P, Scanner[T]]
 
 
-# overloads for both messages and events present => factory must return Scanner[Transcript]
+# overloads for both messages and events present: scanner takes Transcript
 @overload
 def scanner(
     *,
-    messages: MessageType,
+    messages: Literal["all"],
     events: list[EventType],
     loader: Loader[Transcript] | None = ...,
     name: str | None = ...,
@@ -73,7 +70,7 @@ def scanner(
 def scanner(
     *,
     messages: list[MessageType],
-    events: EventType,
+    events: Literal["all"],
     loader: Loader[Transcript] | None = ...,
     name: str | None = ...,
 ) -> Callable[[ScannerFactory[P, Transcript]], ScannerFactory[P, Transcript]]: ...
@@ -88,14 +85,14 @@ def scanner(
 @overload
 def scanner(
     *,
-    messages: MessageType,
-    events: EventType,
+    messages: Literal["all"],
+    events: Literal["all"],
     loader: Loader[Transcript] | None = ...,
     name: str | None = ...,
 ) -> Callable[[ScannerFactory[P, Transcript]], ScannerFactory[P, Transcript]]: ...
 
 
-# overload for messages as a list (events absent) => list[ChatMessage]
+# overloads for types lists: scanner can take T or list[T]
 @overload
 def scanner(
     *,
@@ -103,12 +100,7 @@ def scanner(
     events: None = ...,
     loader: Loader[list[ChatMessage]] | None = ...,
     name: str | None = ...,
-) -> Callable[
-    [ScannerFactory[P, list[ChatMessage]]], ScannerFactory[P, list[ChatMessage]]
-]: ...
-
-
-# (E) overload for events is a list (messages absent) => list[Event]
+) -> Callable[[ScannerFactory[P, TMessage]], ScannerFactory[P, TMessage]]: ...
 @overload
 def scanner(
     *,
@@ -116,69 +108,18 @@ def scanner(
     messages: None = ...,
     loader: Loader[list[Event]] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, list[Event]]], ScannerFactory[P, list[Event]]]: ...
+) -> Callable[[ScannerFactory[P, TEvent]], ScannerFactory[P, TEvent]]: ...
 
 
-# (F) SINGLE-VALUE messages (events absent) => specific message type
+# overloads for "all": scanner can take T or list[T]
 @overload
 def scanner(
     *,
-    messages: Literal["system"],
+    messages: Literal["all"],
     events: None = ...,
-    loader: Loader[ChatMessageSystem] | None = ...,
+    loader: Loader[ChatMessage] | None = ...,
     name: str | None = ...,
-) -> Callable[
-    [ScannerFactory[P, ChatMessageSystem]], ScannerFactory[P, ChatMessageSystem]
-]: ...
-@overload
-def scanner(
-    *,
-    messages: Literal["user"],
-    events: None = ...,
-    loader: Loader[ChatMessageUser] | None = ...,
-    name: str | None = ...,
-) -> Callable[
-    [ScannerFactory[P, ChatMessageUser]], ScannerFactory[P, ChatMessageUser]
-]: ...
-@overload
-def scanner(
-    *,
-    messages: Literal["assistant"],
-    events: None = ...,
-    loader: Loader[ChatMessageAssistant] | None = ...,
-    name: str | None = ...,
-) -> Callable[
-    [ScannerFactory[P, ChatMessageAssistant]], ScannerFactory[P, ChatMessageAssistant]
-]: ...
-@overload
-def scanner(
-    *,
-    messages: Literal["tool"],
-    events: None = ...,
-    loader: Loader[ChatMessageTool] | None = ...,
-    name: str | None = ...,
-) -> Callable[
-    [ScannerFactory[P, ChatMessageTool]], ScannerFactory[P, ChatMessageTool]
-]: ...
-
-
-# (G) SINGLE-VALUE events (messages absent) => specific event type
-@overload
-def scanner(
-    *,
-    events: Literal["tool"],
-    messages: None = ...,
-    loader: Loader[ToolEvent] | None = ...,
-    name: str | None = ...,
-) -> Callable[[ScannerFactory[P, ToolEvent]], ScannerFactory[P, ToolEvent]]: ...
-@overload
-def scanner(
-    *,
-    events: Literal["model"],
-    messages: None = ...,
-    loader: Loader[ModelEvent] | None = ...,
-    name: str | None = ...,
-) -> Callable[[ScannerFactory[P, ModelEvent]], ScannerFactory[P, ModelEvent]]: ...
+) -> Callable[[ScannerFactory[P, TMessage]], ScannerFactory[P, TMessage]]: ...
 @overload
 def scanner(
     *,
@@ -186,7 +127,7 @@ def scanner(
     messages: None = ...,
     loader: Loader[Event] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, Event]], ScannerFactory[P, Event]]: ...
+) -> Callable[[ScannerFactory[P, TEvent]], ScannerFactory[P, TEvent]]: ...
 
 
 # (H) Loader-only path (no filters) => arbitrary T from loader instance
@@ -203,8 +144,8 @@ def scanner(
 def scanner(
     *,
     loader: Loader[T] | None = None,
-    messages: MessageType | list[MessageType] | None = None,
-    events: EventType | list[EventType] | None = None,
+    messages: list[MessageType] | Literal["all"] | None = None,
+    events: list[EventType] | Literal["all"] | None = None,
     name: str | None = None,
 ) -> Callable[[ScannerFactory[P, T]], ScannerFactory[P, T]]:
     if loader is None and messages is None and events is None:
@@ -254,3 +195,19 @@ def scanner(
         return cast(ScannerFactory[P, T], factory_wrapper)
 
     return decorate
+
+
+# @scanner(messages=["assistant"])
+# def instruction_auditor() -> Scanner[ChatMessage]:
+#     async def scan(message: ChatMessage) -> Result:
+#         return Result(value=10)
+
+#     return scan
+
+
+# @scanner(events=["model"])
+# def span_checker() -> Scanner[list[Event]]:
+#     async def scan(event: list[Event]) -> Result:
+#         return Result(value=10)
+
+#     return scan

@@ -1,8 +1,7 @@
 from typing import Literal
 
-MessageType = Literal["all", "system", "user", "assistant", "tool"]
+MessageType = Literal["system", "user", "assistant", "tool"]
 EventType = Literal[
-    "all",
     "sample_init",
     "sample_limit",
     "sandbox",
@@ -22,10 +21,10 @@ EventType = Literal[
 
 
 def normalize_messages_filter(
-    filter: MessageType | list[MessageType],
-) -> list[MessageType]:
-    if not isinstance(filter, list):
-        filter = [filter]
+    filter: list[MessageType] | Literal["all"],
+) -> list[MessageType] | Literal["all"]:
+    if filter == "all":
+        return filter
     uniq: list[MessageType] = []
     seen: set[MessageType] = set()
     for x in filter:
@@ -36,9 +35,11 @@ def normalize_messages_filter(
     return uniq
 
 
-def normalize_events_filter(filter: EventType | list[EventType]) -> list[EventType]:
-    if not isinstance(filter, list):
-        filter = [filter]
+def normalize_events_filter(
+    filter: list[EventType] | Literal["all"],
+) -> list[EventType] | Literal["all"]:
+    if filter == "all":
+        return filter
     uniq: list[EventType] = []
     seen: set[EventType] = set()
     for x in filter:
