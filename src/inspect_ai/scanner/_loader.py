@@ -20,12 +20,10 @@ from inspect_ai._util.registry import (
 )
 
 from ._filter import (
-    EventsFilter,
-    MessagesFilter,
+    EventType,
+    MessageType,
     normalize_events_filter,
     normalize_messages_filter,
-    validate_events_filter,
-    validate_messages_filter,
 )
 from ._transcript import Transcript
 
@@ -45,8 +43,8 @@ class Loader(Protocol[T]):
 
 class LoaderConfig(TypedDict, total=False):
     name: Required[str]
-    messages: MessagesFilter
-    events: EventsFilter
+    messages: list[MessageType]
+    events: list[EventType]
 
 
 LoaderFactory = Callable[P, Loader[T]]
@@ -55,17 +53,11 @@ LoaderFactory = Callable[P, Loader[T]]
 def loader(
     *,
     name: str | None = None,
-    messages: MessagesFilter | None = None,
-    events: EventsFilter | None = None,
+    messages: MessageType | list[MessageType] | None = None,
+    events: EventType | list[EventType] | None = None,
 ) -> Callable[[LoaderFactory[P, T]], LoaderFactory[P, T]]:
-    if messages is not None:
-        validate_messages_filter(messages)
-    if events is not None:
-        validate_events_filter(events)
-    messages_norm = (
-        normalize_messages_filter(messages) if messages is not None else None
-    )
-    events_norm = normalize_events_filter(events) if events is not None else None
+    messages = normalize_messages_filter(messages) if messages is not None else None
+    events = normalize_events_filter(events) if events is not None else None
 
     def decorate(factory: LoaderFactory[P, T]) -> LoaderFactory[P, T]:
         loader_name = registry_name(
@@ -82,10 +74,10 @@ def loader(
                 )
 
             loader_config: LoaderConfig = {"name": loader_name}
-            if messages_norm is not None:
-                loader_config["messages"] = messages_norm
-            if events_norm is not None:
-                loader_config["events"] = events_norm
+            if messages is not None:
+                loader_config["messages"] = messages
+            if events is not None:
+                loader_config["events"] = events
             setattr(loader_fn, "__loader__", loader_config)  # type: ignore[attr-defined]
 
             registry_tag(

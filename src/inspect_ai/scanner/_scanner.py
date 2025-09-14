@@ -33,14 +33,10 @@ from inspect_ai.scanner._result import Result
 from inspect_ai.scanner._transcript import Transcript
 
 from ._filter import (
-    EventsFilter,
     EventType,
-    MessagesFilter,
     MessageType,
     normalize_events_filter,
     normalize_messages_filter,
-    validate_events_filter,
-    validate_messages_filter,
 )
 from ._loader import Loader
 
@@ -56,8 +52,8 @@ class Scanner(Protocol[T]):
 
 class ScannerConfig(TypedDict, total=False):
     name: Required[str]
-    messages: MessagesFilter
-    events: EventsFilter
+    messages: list[MessageType]
+    events: list[EventType]
     loader: Loader[Any]
 
 
@@ -207,8 +203,8 @@ def scanner(
 def scanner(
     *,
     loader: Loader[T] | None = None,
-    messages: MessagesFilter | None = None,
-    events: EventsFilter | None = None,
+    messages: MessageType | list[MessageType] | None = None,
+    events: EventType | list[EventType] | None = None,
     name: str | None = None,
 ) -> Callable[[ScannerFactory[P, T]], ScannerFactory[P, T]]:
     if loader is None and messages is None and events is None:
@@ -216,15 +212,8 @@ def scanner(
             "scanner(...) requires at least one of: messages=..., events=..., or loader=..."
         )
 
-    if messages is not None:
-        validate_messages_filter(messages)
-    if events is not None:
-        validate_events_filter(events)
-
-    messages_norm = (
-        normalize_messages_filter(messages) if messages is not None else None
-    )
-    events_norm = normalize_events_filter(events) if events is not None else None
+    messages = normalize_messages_filter(messages) if messages is not None else None
+    events = normalize_events_filter(events) if events is not None else None
 
     def decorate(factory: ScannerFactory[P, T]) -> ScannerFactory[P, T]:
         scanner_name = registry_name(
@@ -241,10 +230,10 @@ def scanner(
                 )
 
             scanner_config: ScannerConfig = {"name": scanner_name}
-            if messages_norm is not None:
-                scanner_config["messages"] = messages_norm
-            if events_norm is not None:
-                scanner_config["events"] = events_norm
+            if messages is not None:
+                scanner_config["messages"] = messages
+            if events is not None:
+                scanner_config["events"] = events
             if loader is not None:
                 scanner_config["loader"] = cast(Loader[Any], loader)
             setattr(scanner_fn, "__scanner__", scanner_config)  # type: ignore[attr-defined]
