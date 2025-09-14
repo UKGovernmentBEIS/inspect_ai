@@ -53,6 +53,11 @@ import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
+import {
+  kTranscriptCollapseScope,
+  kTranscriptOutlineCollapseScope,
+  kCollapsibleEventTypes,
+} from "./transcript/types";
 
 interface SampleDisplayProps {
   id: string;
@@ -177,6 +182,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const displayMode = useStore((state) => state.app.displayMode);
   const setDisplayMode = useStore((state) => state.appActions.setDisplayMode);
 
+  const setCollapsedEvents = useStore(
+    (state) => state.sampleActions.setCollapsedEvents,
+  );
+
   const filterRef = useRef<HTMLButtonElement | null>(null);
   const optionsRef = useRef<HTMLButtonElement | null>(null);
 
@@ -191,6 +200,21 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const toggleDisplayMode = useCallback(() => {
     setDisplayMode(displayMode === "rendered" ? "raw" : "rendered");
   }, [displayMode, setDisplayMode]);
+
+  const collapseTranscript = useCallback(() => {
+    const allCollapsedIds: Record<string, boolean> = {};
+
+    if (sampleEvents) {
+      sampleEvents.forEach((event) => {
+        if (event.uuid && kCollapsibleEventTypes.includes(event.event)) {
+          allCollapsedIds[event.uuid] = true;
+        }
+      });
+    }
+
+    setCollapsedEvents(kTranscriptCollapseScope, allCollapsedIds);
+    setCollapsedEvents(kTranscriptOutlineCollapseScope, allCollapsedIds);
+  }, [sampleEvents, setCollapsedEvents]);
 
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
@@ -209,6 +233,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         icon={ApplicationIcons.filter}
         onClick={toggleFilter}
         ref={filterRef}
+      />,
+    );
+
+    tools.push(
+      <ToolButton
+        key="sample-collapse-transcript"
+        label={"Collapse All"}
+        icon={ApplicationIcons.collapse.all}
+        onClick={collapseTranscript}
       />,
     );
   }
