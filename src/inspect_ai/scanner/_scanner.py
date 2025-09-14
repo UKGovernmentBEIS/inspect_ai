@@ -33,6 +33,7 @@ from ._filter import (
 from ._loader import Loader
 from ._result import Result
 from ._transcript import Transcript
+from ._validate import validate_scanner_signature
 
 # core types
 T = TypeVar("T", contravariant=True)
@@ -193,6 +194,16 @@ def scanner(
             if not is_callable_coroutine(scanner_fn):
                 raise TypeError(
                     f"'{scanner_name}' is not declared as an async callable."
+                )
+
+            # Validate scanner signature matches filters
+            # Only validate if we have filters (not just a custom loader)
+            if messages is not None or events is not None:
+                validate_scanner_signature(
+                    scanner_fn,
+                    messages,
+                    events,
+                    factory.__globals__
                 )
 
             scanner_config: ScannerConfig = {"name": scanner_name}
