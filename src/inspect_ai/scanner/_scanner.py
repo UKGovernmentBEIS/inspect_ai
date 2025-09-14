@@ -23,8 +23,6 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.log._transcript import Event
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.scanner._result import Result
-from inspect_ai.scanner._transcript import Transcript
 
 from ._filter import (
     EventType,
@@ -33,6 +31,8 @@ from ._filter import (
     normalize_messages_filter,
 )
 from ._loader import Loader
+from ._result import Result
+from ._transcript import Transcript
 
 # core types
 T = TypeVar("T", contravariant=True)
