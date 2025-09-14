@@ -100,7 +100,7 @@ def scanner(
     events: None = ...,
     loader: Loader[list[ChatMessage]] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, TMessage]], ScannerFactory[P, TMessage]]: ...
+) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, TMessage]]: ...
 @overload
 def scanner(
     *,
@@ -108,7 +108,7 @@ def scanner(
     messages: None = ...,
     loader: Loader[list[Event]] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, TEvent]], ScannerFactory[P, TEvent]]: ...
+) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, TEvent]]: ...
 
 
 # overloads for "all": scanner can take T or list[T]
@@ -130,7 +130,7 @@ def scanner(
 ) -> Callable[[ScannerFactory[P, TEvent]], ScannerFactory[P, TEvent]]: ...
 
 
-# (H) Loader-only path (no filters) => arbitrary T from loader instance
+# overload for custom loader (no filters): scanner can take arbitrary T from loader instance
 @overload
 def scanner(
     *,
@@ -141,13 +141,32 @@ def scanner(
 ) -> Callable[[ScannerFactory[P, T]], ScannerFactory[P, T]]: ...
 
 
+# NOTE: @scanner can decorate the more liberal ScannerFactory[P, Any] type so
+# that users can write scanners with narrowed types, e.g.
+#
+# @scanner(messages=["assistant"])
+# def instruction_auditor() -> Scanner[ChatMessageAssistant]:
+#     async def scan(message: ChatMessageAssistant) -> Result:
+#         return Result(value=10)
+#
+#     return scan
+#
+# Getting the overloads/type system to be down with this isn't feasible,
+# but we don't want the limits of the type system to force users to write
+# scan(message: ChatMessage) then do their own narrowing. Here we let
+# them do the potentially incompatible (with the filter) thing but we
+# will additionally validate at runtime that the input type matches
+# the filter (including e.g. checking that ["system", "user"] targets
+# either ChatMessage or ChatMessageSystem | ChatMessageUser.
+
+
 def scanner(
     *,
     loader: Loader[T] | None = None,
     messages: list[MessageType] | Literal["all"] | None = None,
     events: list[EventType] | Literal["all"] | None = None,
     name: str | None = None,
-) -> Callable[[ScannerFactory[P, T]], ScannerFactory[P, T]]:
+) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, T]]:
     if loader is None and messages is None and events is None:
         raise ValueError(
             "scanner(...) requires at least one of: messages=..., events=..., or loader=..."
@@ -195,19 +214,3 @@ def scanner(
         return cast(ScannerFactory[P, T], factory_wrapper)
 
     return decorate
-
-
-# @scanner(messages=["assistant"])
-# def instruction_auditor() -> Scanner[ChatMessage]:
-#     async def scan(message: ChatMessage) -> Result:
-#         return Result(value=10)
-
-#     return scan
-
-
-# @scanner(events=["model"])
-# def span_checker() -> Scanner[list[Event]]:
-#     async def scan(event: list[Event]) -> Result:
-#         return Result(value=10)
-
-#     return scan
