@@ -14,6 +14,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.util._limit import LimitExceededError
 
 logger = getLogger(__name__)
 
@@ -447,5 +448,8 @@ async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
             continue
         try:
             await callable(hook)
+        # We propagate LimitExceededError so that limits can be enforced via hooks.
+        except LimitExceededError:
+            raise
         except Exception as ex:
             logger.warning(f"Exception calling hook '{hook.__class__.__name__}': {ex}")
