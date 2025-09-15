@@ -157,62 +157,71 @@ from inspect_ai.log import ModelEvent, ToolEvent, ErrorEvent
 
 @scanner(events=["model"])
 def model_performance_monitor() -> Scanner[ModelEvent]:
-    """Monitors model response times and token usage."""
+    """Monitors model usage and inputs."""
     
     async def scan(event: ModelEvent) -> Result | None:
-        # Track model latency, token consumption, and errors
-        # Identify performance bottlenecks
+        # Track model usage, inputs, and tool availability
+        # Analyze conversation patterns
         
         return Result(value={
             "model": event.model,
-            "duration_ms": event.duration,
-            "input_tokens": event.input_tokens,
-            "output_tokens": event.output_tokens,
-            "total_tokens": event.input_tokens + event.output_tokens
+            "role": event.role,
+            "input_message_count": len(event.input),
+            "tools_available": len(event.tools),
+            "timestamp": event.timestamp.isoformat(),
+            "has_system_message": any(m.role == "system" for m in event.input)
         })
     
     return scan
 
 @scanner(events=["tool"])
 def tool_usage_analyzer() -> Scanner[ToolEvent]:
-    """Analyzes tool usage patterns and effectiveness."""
+    """Analyzes tool usage patterns."""
     
     async def scan(event: ToolEvent) -> Result | None:
         # Track which tools are used most frequently
-        # Measure tool success rates and error patterns
+        # Analyze tool arguments and patterns
         
         return Result(value={
             "tool": event.function,
-            "success": not event.error,
-            "duration_ms": event.duration,
-            "error_type": event.error.type if event.error else None
+            "tool_id": event.id,
+            "argument_count": len(event.arguments),
+            "has_result": event.result is not None,
+            "timestamp": event.timestamp.isoformat()
         })
     
     return scan
 
 # Multiple event types
 @scanner(events=["model", "tool", "error"])
-def failure_detector() -> Scanner[ModelEvent | ToolEvent | ErrorEvent]:
-    """Detects and categorizes failures in agent execution."""
+def event_monitor() -> Scanner[ModelEvent | ToolEvent | ErrorEvent]:
+    """Monitors different types of events in agent execution."""
     
     async def scan(event: ModelEvent | ToolEvent | ErrorEvent) -> Result | None:
-        # Identify different failure modes
-        # Classify error severity and recovery potential
+        # Track different event types
+        # Collect statistics on agent behavior
         
         if isinstance(event, ErrorEvent):
-            severity = "high"
-        elif hasattr(event, 'error') and event.error:
-            severity = "medium"
-        else:
-            return None  # No failure detected
+            return Result(value={
+                "event_type": "error",
+                "error_message": event.error.message,
+                "error_type": event.error.type,
+                "traceback_length": len(event.error.traceback) if event.error.traceback else 0
+            })
+        elif isinstance(event, ModelEvent):
+            return Result(value={
+                "event_type": "model",
+                "model": event.model,
+                "input_count": len(event.input)
+            })
+        elif isinstance(event, ToolEvent):
+            return Result(value={
+                "event_type": "tool",
+                "function": event.function,
+                "args_provided": list(event.arguments.keys())
+            })
             
-        return Result(value={
-            "event_type": event.event,
-            "severity": severity,
-            "recoverable": can_recover_from_error(event)
-        })
-    
-    return scan
+        return None
 ```
 
 ### Combined Message and Event Scanners
@@ -223,24 +232,30 @@ When you need both messages and events, the scanner receives the full `Transcrip
 from inspect_ai.scanner import Transcript
 
 @scanner(messages=["user", "assistant"], events=["model"])
-def conversation_efficiency_analyzer() -> Scanner[Transcript]:
-    """Analyzes conversation efficiency by comparing inputs, outputs, and model usage."""
+def conversation_analyzer() -> Scanner[Transcript]:
+    """Analyzes conversation patterns by examining messages and model events."""
     
     async def scan(transcript: Transcript) -> Result | None:
-        # Calculate conversation efficiency metrics
-        # Compare user query complexity to response quality and resource usage
+        # Analyze conversation patterns
+        # Track message counts and model usage
         
         user_messages = [m for m in transcript.messages if m.role == "user"]
         assistant_messages = [m for m in transcript.messages if m.role == "assistant"]
-        model_events = [e for e in transcript.events if e.event == "model"]
+        model_events = [e for e in transcript.events if e.event == "model" and isinstance(e, ModelEvent)]
         
-        total_tokens = sum(e.total_tokens for e in model_events)
-        avg_response_length = sum(len(m.text) for m in assistant_messages) / len(assistant_messages)
+        # Calculate average message lengths
+        avg_user_length = sum(len(m.text) for m in user_messages) / len(user_messages) if user_messages else 0
+        avg_assistant_length = sum(len(m.text) for m in assistant_messages) / len(assistant_messages) if assistant_messages else 0
+        
+        # Analyze model usage
+        models_used = list(set(e.model for e in model_events))
         
         return Result(value={
-            "efficiency_score": avg_response_length / total_tokens if total_tokens > 0 else 0,
             "turn_count": len(user_messages),
-            "total_tokens": total_tokens,
+            "avg_user_message_length": avg_user_length,
+            "avg_assistant_message_length": avg_assistant_length,
+            "model_calls": len(model_events),
+            "models_used": models_used,
             "transcript_id": transcript.id
         })
     
@@ -332,7 +347,25 @@ Loaders are declared with the `@loader` decorator and can also specify message a
 
 ``` python
 from typing import AsyncGenerator, Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from inspect_ai.scanner import Loader, loader
+
+# Custom data types for loader examples
+@dataclass
+class EnrichedMessage:
+    original: ChatMessageAssistant
+    sentiment: str
+    complexity: float
+    topics: list[str]
+
+@dataclass
+class EventSummary:
+    model_event_count: int
+    tool_event_count: int
+    models_used: list[str]
+    window_start: datetime
+    window_end: datetime
 
 @loader(messages=["assistant"])
 def assistant_message_enricher() -> Loader[EnrichedMessage]:
@@ -365,12 +398,12 @@ Loaders can filter and transform events:
 
 ``` python
 @loader(events=["model", "tool"])
-def performance_event_aggregator() -> Loader[PerformanceMetric]:
-    """Aggregates model and tool events into performance metrics."""
+def event_aggregator() -> Loader[EventSummary]:
+    """Aggregates model and tool events into summaries."""
     
     async def load(
         transcripts: Transcript | Sequence[Transcript]
-    ) -> AsyncGenerator[PerformanceMetric, None]:
+    ) -> AsyncGenerator[EventSummary, None]:
         if isinstance(transcripts, Transcript):
             transcripts = [transcripts]
             
@@ -382,13 +415,22 @@ def performance_event_aggregator() -> Loader[PerformanceMetric]:
             for i in range(0, len(events), window_size):
                 window = events[i:i+window_size]
                 if window:
-                    metric = PerformanceMetric(
-                        avg_latency=calculate_avg_latency(window),
-                        total_tokens=sum_tokens(window),
-                        error_rate=calculate_error_rate(window),
-                        timestamp=window[0].timestamp
+                    # Count event types
+                    model_count = sum(1 for e in window if e.event == "model")
+                    tool_count = sum(1 for e in window if e.event == "tool")
+                    
+                    # Get unique models used
+                    models = list(set(e.model for e in window 
+                                     if hasattr(e, 'model') and e.model))
+                    
+                    summary = EventSummary(
+                        model_event_count=model_count,
+                        tool_event_count=tool_count,
+                        models_used=models,
+                        window_start=window[0].timestamp,
+                        window_end=window[-1].timestamp
                     )
-                    yield metric
+                    yield summary
     
     return load
 ```
@@ -438,24 +480,27 @@ def conversation_turn_loader() -> Loader[ConversationTurn]:
 
 # Use the loader with a scanner
 @scanner(loader=conversation_turn_loader())
-def turn_efficiency_scanner() -> Scanner[ConversationTurn]:
-    """Analyzes efficiency of individual conversation turns."""
+def turn_analyzer() -> Scanner[ConversationTurn]:
+    """Analyzes individual conversation turns."""
     
     async def scan(turn: ConversationTurn) -> Result | None:
-        # Analyze the efficiency of each conversation turn
-        # Compare input complexity to output quality and resource usage
+        # Analyze each conversation turn
+        # Compare input and output characteristics
         
         input_length = len(turn.user_message.text)
         output_length = len(turn.assistant_response.text)
-        tokens_used = turn.model_event.total_tokens
         
-        efficiency = (output_length / tokens_used) if tokens_used > 0 else 0
+        # Analyze the model event
+        tools_available = len(turn.model_event.tools) if hasattr(turn.model_event, 'tools') else 0
         
         return Result(value={
             "turn_number": turn.turn_number,
-            "efficiency": efficiency,
-            "response_time": turn.model_event.duration,
-            "tokens_per_char": tokens_used / output_length if output_length > 0 else 0
+            "input_length": input_length,
+            "output_length": output_length,
+            "length_ratio": output_length / input_length if input_length > 0 else 0,
+            "model_used": turn.model_event.model,
+            "tools_available": tools_available,
+            "timestamp": turn.model_event.timestamp.isoformat()
         })
     
     return scan
@@ -490,8 +535,9 @@ def context_window_loader(window_size: int = 5) -> Loader[ContextWindow]:
                     after_context=messages[i+1:end],
                     relevant_events=[
                         e for e in transcript.events
-                        if start <= e.message_index < end
-                    ]
+                        # Include recent events based on position in list
+                        if transcript.events.index(e) <= i * 2  # Rough heuristic
+                    ][:10]  # Limit to 10 most relevant events
                 )
                 yield window
     
