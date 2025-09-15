@@ -30,7 +30,7 @@ import {
     ClientAPI,
     Capabilities,
 } from "@meridianlabs/log-viewer";
-import "@meridianlabs/log-viewer/lib/styles/index.css";
+import "@meridianlabs/log-viewer/styles/index.css";
 
 export function App() {
     const [api, setApi] = useState<ClientAPI | null>(null);
@@ -63,15 +63,8 @@ export function App() {
                 nativeFind: false,
             };
 
-            const storage = {
-                getItem: (name: string) => localStorage.getItem(name),
-                setItem: (name: string, value: unknown) =>
-                    localStorage.setItem(name, JSON.stringify(value)),
-                removeItem: (name: string) => localStorage.removeItem(name),
-            };
-
             // Initialize store and set API
-            initializeStore(clientApiInstance, capabilities, storage);
+            initializeStore(clientApiInstance, capabilities, undefined);
             setApi(clientApiInstance);
         }
 
