@@ -1,3 +1,11 @@
+## Unreleased
+
+- Eval logs: Option to resolve attachments for `convert_eval_logs()`.
+- Human agent: Enable installation even when default tool user is not root.
+- Hooks: Propagate LimitExceededError so that hooks can raise limit errors.
+- Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
+
+
 ## 0.3.132 (12 September 2025)
 
 - Anthropic: Support for images with mime type image/bmp.
