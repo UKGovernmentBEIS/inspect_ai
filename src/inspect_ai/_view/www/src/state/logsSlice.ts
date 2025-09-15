@@ -3,6 +3,7 @@ import {
   ColumnResizeMode,
   SortingState,
 } from "@tanstack/react-table";
+import { EvalSetInfo } from "../@types/log";
 import { LogsState } from "../app/types";
 import {
   EvalLogHeader,
@@ -36,6 +37,11 @@ export interface LogsSlice {
     refreshLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
+
+    // Try to fetch an eval-set
+    loadEvalSetInfo: (logPath?: string) => Promise<EvalSetInfo | undefined>;
+    setEvalSetInfo: (info: EvalSetInfo | undefined) => void;
+    clearEvalSetInfo: () => void;
 
     setSorting: (sorting: SortingState) => void;
     setFiltering: (filtering: ColumnFiltersState) => void;
@@ -245,6 +251,27 @@ export const createLogsSlice = (
             state.logsActions.setSelectedLogIndex(newIndex);
           }
         }
+      },
+      loadEvalSetInfo: async (logPath?: string) => {
+        const api = get().api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return undefined;
+        }
+
+        const info = await api.get_eval_set_info(logPath);
+        console.log({ logPath, info });
+        return info;
+      },
+      setEvalSetInfo: (info: EvalSetInfo | undefined) => {
+        set((state) => {
+          state.logs.evalSetInfo = info;
+        });
+      },
+      clearEvalSetInfo: () => {
+        set((state) => {
+          state.logs.evalSetInfo = undefined;
+        });
       },
       // Select a specific log file
       selectLogFile: async (logUrl: string) => {

@@ -1,0 +1,541 @@
+{
+  "2025-09-15T15-04-34-04-00_popularity_J5EskSJVsBD9iRd47twk8x.eval": {
+    "version": 2,
+    "status": "success",
+    "eval": {
+      "eval_set_id": "Fcv3TQy7U5DffzLHPyyLGn",
+      "eval_id": "D3NkE6u6KxZJso99iQpau3",
+      "run_id": "Nfe5yTPw4Uk48Any6im6WM",
+      "created": "2025-09-15T15:04:34-04:00",
+      "task": "popularity",
+      "task_id": "J5EskSJVsBD9iRd47twk8x",
+      "task_version": 0,
+      "task_file": "examples/popularity.py",
+      "task_display_name": "popularity",
+      "task_registry_name": "popularity",
+      "task_attribs": {},
+      "task_args": {},
+      "task_args_passed": {},
+      "dataset": {
+        "name": "popularity",
+        "location": "example://popularity",
+        "samples": 100,
+        "sample_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "shuffled": false
+      },
+      "model": "google/gemini-2.5-pro",
+      "model_generate_config": {},
+      "model_args": {},
+      "model_roles": {},
+      "config": {
+        "limit": 10,
+        "epochs": 5,
+        "epochs_reducer": [
+          "mean"
+        ],
+        "fail_on_error": true,
+        "continue_on_fail": false,
+        "max_tasks": 4,
+        "sandbox_cleanup": true,
+        "log_samples": true,
+        "log_realtime": true,
+        "log_images": true,
+        "log_shared": 0,
+        "score_display": true
+      },
+      "revision": {
+        "type": "git",
+        "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+        "commit": "02fdf720f"
+      },
+      "packages": {
+        "inspect_ai": "0.3.128.dev4+g614f5bb29.d20250902"
+      },
+      "scorers": [
+        {
+          "name": "match",
+          "options": {},
+          "metrics": [
+            {
+              "name": "inspect_ai/accuracy",
+              "options": {}
+            },
+            {
+              "name": "inspect_ai/stderr",
+              "options": {}
+            }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    "plan": {
+      "name": "plan",
+      "steps": [
+        {
+          "solver": "system_message",
+          "params": {
+            "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+          }
+        },
+        {
+          "solver": "generate",
+          "params": {}
+        }
+      ],
+      "config": {}
+    },
+    "results": {
+      "total_samples": 50,
+      "completed_samples": 50,
+      "scores": [
+        {
+          "name": "match",
+          "scorer": "match",
+          "scored_samples": 10,
+          "unscored_samples": 0,
+          "params": {},
+          "metrics": {
+            "accuracy": {
+              "name": "accuracy",
+              "value": 0.7,
+              "params": {}
+            },
+            "stderr": {
+              "name": "stderr",
+              "value": 0.15275252316519464,
+              "params": {}
+            }
+          }
+        }
+      ]
+    },
+    "stats": {
+      "started_at": "2025-09-15T15:04:34-04:00",
+      "completed_at": "2025-09-15T15:05:28-04:00",
+      "model_usage": {
+        "google/gemini-2.5-pro": {
+          "input_tokens": 2695,
+          "output_tokens": 50,
+          "total_tokens": 31845,
+          "reasoning_tokens": 29100
+        }
+      }
+    }
+  },
+  "2025-09-15T15-04-34-04-00_popularity_CuCFPdqnwXupUkxp69nJ2a.eval": {
+    "version": 2,
+    "status": "success",
+    "eval": {
+      "eval_set_id": "Fcv3TQy7U5DffzLHPyyLGn",
+      "eval_id": "S9xieTocYrmt8538Z46pQR",
+      "run_id": "Nfe5yTPw4Uk48Any6im6WM",
+      "created": "2025-09-15T15:04:34-04:00",
+      "task": "popularity",
+      "task_id": "CuCFPdqnwXupUkxp69nJ2a",
+      "task_version": 0,
+      "task_file": "examples/popularity.py",
+      "task_display_name": "popularity",
+      "task_registry_name": "popularity",
+      "task_attribs": {},
+      "task_args": {},
+      "task_args_passed": {},
+      "dataset": {
+        "name": "popularity",
+        "location": "example://popularity",
+        "samples": 100,
+        "sample_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "shuffled": false
+      },
+      "model": "openai/gpt-5",
+      "model_generate_config": {},
+      "model_args": {},
+      "model_roles": {},
+      "config": {
+        "limit": 10,
+        "epochs": 5,
+        "epochs_reducer": [
+          "mean"
+        ],
+        "fail_on_error": true,
+        "continue_on_fail": false,
+        "max_tasks": 4,
+        "sandbox_cleanup": true,
+        "log_samples": true,
+        "log_realtime": true,
+        "log_images": true,
+        "log_shared": 0,
+        "score_display": true
+      },
+      "revision": {
+        "type": "git",
+        "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+        "commit": "02fdf720f"
+      },
+      "packages": {
+        "inspect_ai": "0.3.128.dev4+g614f5bb29.d20250902"
+      },
+      "scorers": [
+        {
+          "name": "match",
+          "options": {},
+          "metrics": [
+            {
+              "name": "inspect_ai/accuracy",
+              "options": {}
+            },
+            {
+              "name": "inspect_ai/stderr",
+              "options": {}
+            }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    "plan": {
+      "name": "plan",
+      "steps": [
+        {
+          "solver": "system_message",
+          "params": {
+            "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+          }
+        },
+        {
+          "solver": "generate",
+          "params": {}
+        }
+      ],
+      "config": {}
+    },
+    "results": {
+      "total_samples": 50,
+      "completed_samples": 50,
+      "scores": [
+        {
+          "name": "match",
+          "scorer": "match",
+          "scored_samples": 10,
+          "unscored_samples": 0,
+          "params": {},
+          "metrics": {
+            "accuracy": {
+              "name": "accuracy",
+              "value": 0.6,
+              "params": {}
+            },
+            "stderr": {
+              "name": "stderr",
+              "value": 0.16329931618554522,
+              "params": {}
+            }
+          }
+        }
+      ]
+    },
+    "stats": {
+      "started_at": "2025-09-15T15:04:34-04:00",
+      "completed_at": "2025-09-15T15:05:01-04:00",
+      "model_usage": {
+        "openai/gpt-5": {
+          "input_tokens": 3050,
+          "output_tokens": 12766,
+          "total_tokens": 15816,
+          "input_tokens_cache_read": 0,
+          "reasoning_tokens": 12416
+        }
+      }
+    },
+    "reductions": [
+      {
+        "scorer": "match",
+        "samples": [
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 1
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 2
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 3
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 4
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 5
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 6
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 7
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 8
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 9
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 10
+          }
+        ]
+      }
+    ]
+  },
+  "2025-09-15T15-04-34-04-00_popularity_jKN69eAYYpZFAZhRgMAztp.eval": {
+    "version": 2,
+    "status": "success",
+    "eval": {
+      "eval_set_id": "Fcv3TQy7U5DffzLHPyyLGn",
+      "eval_id": "fSkh5oCVXsM735YEddEDea",
+      "run_id": "Nfe5yTPw4Uk48Any6im6WM",
+      "created": "2025-09-15T15:04:34-04:00",
+      "task": "popularity",
+      "task_id": "jKN69eAYYpZFAZhRgMAztp",
+      "task_version": 0,
+      "task_file": "examples/popularity.py",
+      "task_display_name": "popularity",
+      "task_registry_name": "popularity",
+      "task_attribs": {},
+      "task_args": {},
+      "task_args_passed": {},
+      "dataset": {
+        "name": "popularity",
+        "location": "example://popularity",
+        "samples": 100,
+        "sample_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "shuffled": false
+      },
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "model_generate_config": {},
+      "model_args": {},
+      "model_roles": {},
+      "config": {
+        "limit": 10,
+        "epochs": 5,
+        "epochs_reducer": [
+          "mean"
+        ],
+        "fail_on_error": true,
+        "continue_on_fail": false,
+        "max_tasks": 4,
+        "sandbox_cleanup": true,
+        "log_samples": true,
+        "log_realtime": true,
+        "log_images": true,
+        "log_shared": 0,
+        "score_display": true
+      },
+      "revision": {
+        "type": "git",
+        "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+        "commit": "02fdf720f"
+      },
+      "packages": {
+        "inspect_ai": "0.3.128.dev4+g614f5bb29.d20250902"
+      },
+      "scorers": [
+        {
+          "name": "match",
+          "options": {},
+          "metrics": [
+            {
+              "name": "inspect_ai/accuracy",
+              "options": {}
+            },
+            {
+              "name": "inspect_ai/stderr",
+              "options": {}
+            }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    "plan": {
+      "name": "plan",
+      "steps": [
+        {
+          "solver": "system_message",
+          "params": {
+            "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+          }
+        },
+        {
+          "solver": "generate",
+          "params": {}
+        }
+      ],
+      "config": {}
+    },
+    "results": {
+      "total_samples": 50,
+      "completed_samples": 50,
+      "scores": [
+        {
+          "name": "match",
+          "scorer": "match",
+          "scored_samples": 10,
+          "unscored_samples": 0,
+          "params": {},
+          "metrics": {
+            "accuracy": {
+              "name": "accuracy",
+              "value": 0.6599999999999999,
+              "params": {}
+            },
+            "stderr": {
+              "name": "stderr",
+              "value": 0.14922019523732927,
+              "params": {}
+            }
+          }
+        }
+      ]
+    },
+    "stats": {
+      "started_at": "2025-09-15T15:04:34-04:00",
+      "completed_at": "2025-09-15T15:04:45-04:00",
+      "model_usage": {
+        "anthropic/claude-sonnet-4-20250514": {
+          "input_tokens": 2960,
+          "output_tokens": 200,
+          "total_tokens": 3160,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        }
+      }
+    },
+    "reductions": [
+      {
+        "scorer": "match",
+        "samples": [
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 1
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 2
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 3
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 4
+          },
+          {
+            "value": 0.6,
+            "sample_id": 5
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 6
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 7
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 8
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 9
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 10
+          }
+        ]
+      }
+    ]
+  }
+}

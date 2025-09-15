@@ -48,6 +48,10 @@ async function eval_logs() {
   }
 }
 
+async function eval_set(): Promise<undefined> {
+  throw new Error("TODO: Eval set is not supported in VS Code");
+}
+
 async function eval_log(
   log_file: string,
   headerOnly?: number,
@@ -168,6 +172,7 @@ async function open_log_file(log_file: string, log_dir: string) {
 const api: LogViewAPI = {
   client_events,
   eval_logs,
+  eval_set,
   eval_log,
   eval_log_size,
   eval_log_bytes,

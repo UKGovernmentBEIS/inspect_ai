@@ -1,4 +1,4 @@
-import { EvalLog } from "../../@types/log";
+import { EvalLog, EvalSetInfo } from "../../@types/log";
 import { asyncJsonParse } from "../../utils/json-worker";
 import { encodePathParts } from "../../utils/uri";
 import { fetchRange, fetchSize } from "../remote/remoteZipFile";
@@ -86,6 +86,9 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
       }
 
       return undefined;
+    },
+    eval_set: async () => {
+      return fetchJsonFile<EvalSetInfo>(log_dir + "/eval-set.json");
     },
     log_message: async (log_file: string, message: string) => {
       console.log(`[CLIENT MESSAGE] (${log_file}): ${message}`);
@@ -236,6 +239,15 @@ const fetchManifest = async (
     },
   );
   return logs;
+};
+
+/**
+ * Fetches a file, parsing its content and returning the result.
+ */
+const fetchJsonFile = async <T>(file: string): Promise<T | undefined> => {
+  return fetchFile<T>(file, async (text) => {
+    return (await asyncJsonParse(text)) as T;
+  });
 };
 
 /**

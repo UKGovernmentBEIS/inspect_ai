@@ -16,6 +16,14 @@ type HeaderProvider = () => Promise<Record<string, string>>;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
+class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 interface Request<T> {
   headers?: Record<string, string>;
   body?: string;
@@ -107,7 +115,10 @@ function createServerFetchApi(
       }
 
       const message = (await response.text()) || response.statusText;
-      throw new Error(`API Error ${response.status}: ${message}`);
+      throw new ApiError(
+        response.status,
+        `API Error ${response.status}: ${message}`,
+      );
     }
 
     const text = await response.text();
@@ -159,7 +170,7 @@ function createServerFetchApi(
     }
 
     const message = (await response.text()) || response.statusText;
-    throw new Error(`HTTP ${response.status}: ${message}`);
+    throw new ApiError(response.status, `HTTP ${response.status}: ${message}`);
   }
 
   async function apiBytes(
@@ -183,7 +194,10 @@ function createServerFetchApi(
 
     if (!response.ok) {
       const message = (await response.text()) || response.statusText;
-      throw new Error(`HTTP ${response.status}: ${message}`);
+      throw new ApiError(
+        response.status,
+        `HTTP ${response.status}: ${message}`,
+      );
     }
 
     const buffer = await response.arrayBuffer();
@@ -403,6 +417,20 @@ export function createViewServerApi(
   return {
     client_events: clientEvents(fetchApi),
     eval_logs: evalLogs(fetchApi, logDir),
+    eval_set: async (dir?: string) => {
+      const path = dir
+        ? `/eval-set?dir=${encodeURIComponent(dir)}`
+        : "/eval-set";
+      try {
+        const result = await fetchApi.fetchString("GET", path);
+        return result.parsed;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return undefined;
+        }
+        throw error;
+      }
+    },
     eval_log: evalLog(fetchApi),
     eval_log_size: evalLogSize(fetchApi),
     eval_log_bytes: evalLogBytes(fetchApi),

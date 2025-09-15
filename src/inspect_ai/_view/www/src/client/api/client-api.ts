@@ -332,6 +332,9 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     get_log_overviews: (log_files) => {
       return get_log_headers(log_files);
     },
+    get_eval_set_info: (dir?: string) => {
+      return api.eval_set(dir);
+    },
     get_log_summary,
     get_log_sample,
     open_log_file: (log_file, log_dir) => {

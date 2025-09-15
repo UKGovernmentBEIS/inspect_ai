@@ -1,0 +1,1890 @@
+{
+  "2025-09-15T15-02-26-04-00_popularity_eF3BogZE3jzpiWBjjDWbik.eval": {
+    "version": 2,
+    "status": "success",
+    "eval": {
+      "eval_set_id": "NAbedvggn5KBxcfx2m4LVU",
+      "eval_id": "oLWcP5FzAvrT2k7op7tfNi",
+      "run_id": "BAQv9ftkYYRLojEF4PwqJg",
+      "created": "2025-09-15T15:02:26-04:00",
+      "task": "popularity",
+      "task_id": "eF3BogZE3jzpiWBjjDWbik",
+      "task_version": 0,
+      "task_file": "examples/popularity.py",
+      "task_display_name": "popularity",
+      "task_registry_name": "popularity",
+      "task_attribs": {},
+      "task_args": {},
+      "task_args_passed": {},
+      "dataset": {
+        "name": "popularity",
+        "location": "example://popularity",
+        "samples": 100,
+        "sample_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "shuffled": false
+      },
+      "model": "google/gemini-2.5-pro",
+      "model_generate_config": {},
+      "model_args": {},
+      "model_roles": {},
+      "config": {
+        "epochs": 1,
+        "epochs_reducer": [
+          "mean"
+        ],
+        "fail_on_error": true,
+        "continue_on_fail": false,
+        "max_tasks": 4,
+        "sandbox_cleanup": true,
+        "log_samples": true,
+        "log_realtime": true,
+        "log_images": true,
+        "log_shared": 0,
+        "score_display": true
+      },
+      "revision": {
+        "type": "git",
+        "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+        "commit": "02fdf720f"
+      },
+      "packages": {
+        "inspect_ai": "0.3.128.dev4+g614f5bb29.d20250902"
+      },
+      "scorers": [
+        {
+          "name": "match",
+          "options": {},
+          "metrics": [
+            {
+              "name": "inspect_ai/accuracy",
+              "options": {}
+            },
+            {
+              "name": "inspect_ai/stderr",
+              "options": {}
+            }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    "plan": {
+      "name": "plan",
+      "steps": [
+        {
+          "solver": "system_message",
+          "params": {
+            "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+          }
+        },
+        {
+          "solver": "generate",
+          "params": {}
+        }
+      ],
+      "config": {}
+    },
+    "results": {
+      "total_samples": 100,
+      "completed_samples": 100,
+      "scores": [
+        {
+          "name": "match",
+          "scorer": "match",
+          "scored_samples": 100,
+          "unscored_samples": 0,
+          "params": {},
+          "metrics": {
+            "accuracy": {
+              "name": "accuracy",
+              "value": 0.66,
+              "params": {}
+            },
+            "stderr": {
+              "name": "stderr",
+              "value": 0.04760952285695234,
+              "params": {}
+            }
+          }
+        }
+      ]
+    },
+    "stats": {
+      "started_at": "2025-09-15T15:02:27-04:00",
+      "completed_at": "2025-09-15T15:04:10-04:00",
+      "model_usage": {
+        "google/gemini-2.5-pro": {
+          "input_tokens": 5249,
+          "output_tokens": 100,
+          "total_tokens": 68456,
+          "reasoning_tokens": 63107
+        }
+      }
+    }
+  },
+  "2025-09-15T15-02-26-04-00_popularity_L8g2GLGDDfsiXvdJ8LyZNJ.eval": {
+    "version": 2,
+    "status": "success",
+    "eval": {
+      "eval_set_id": "NAbedvggn5KBxcfx2m4LVU",
+      "eval_id": "bpkQiizurZbU5mMaYqLbL4",
+      "run_id": "BAQv9ftkYYRLojEF4PwqJg",
+      "created": "2025-09-15T15:02:26-04:00",
+      "task": "popularity",
+      "task_id": "L8g2GLGDDfsiXvdJ8LyZNJ",
+      "task_version": 0,
+      "task_file": "examples/popularity.py",
+      "task_display_name": "popularity",
+      "task_registry_name": "popularity",
+      "task_attribs": {},
+      "task_args": {},
+      "task_args_passed": {},
+      "dataset": {
+        "name": "popularity",
+        "location": "example://popularity",
+        "samples": 100,
+        "sample_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "shuffled": false
+      },
+      "model": "openai/gpt-5",
+      "model_generate_config": {},
+      "model_args": {},
+      "model_roles": {},
+      "config": {
+        "epochs": 1,
+        "epochs_reducer": [
+          "mean"
+        ],
+        "fail_on_error": true,
+        "continue_on_fail": false,
+        "max_tasks": 4,
+        "sandbox_cleanup": true,
+        "log_samples": true,
+        "log_realtime": true,
+        "log_images": true,
+        "log_shared": 0,
+        "score_display": true
+      },
+      "revision": {
+        "type": "git",
+        "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+        "commit": "02fdf720f"
+      },
+      "packages": {
+        "inspect_ai": "0.3.128.dev4+g614f5bb29.d20250902"
+      },
+      "scorers": [
+        {
+          "name": "match",
+          "options": {},
+          "metrics": [
+            {
+              "name": "inspect_ai/accuracy",
+              "options": {}
+            },
+            {
+              "name": "inspect_ai/stderr",
+              "options": {}
+            }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    "plan": {
+      "name": "plan",
+      "steps": [
+        {
+          "solver": "system_message",
+          "params": {
+            "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+          }
+        },
+        {
+          "solver": "generate",
+          "params": {}
+        }
+      ],
+      "config": {}
+    },
+    "results": {
+      "total_samples": 100,
+      "completed_samples": 100,
+      "scores": [
+        {
+          "name": "match",
+          "scorer": "match",
+          "scored_samples": 100,
+          "unscored_samples": 0,
+          "params": {},
+          "metrics": {
+            "accuracy": {
+              "name": "accuracy",
+              "value": 0.52,
+              "params": {}
+            },
+            "stderr": {
+              "name": "stderr",
+              "value": 0.05021167315686782,
+              "params": {}
+            }
+          }
+        }
+      ]
+    },
+    "stats": {
+      "started_at": "2025-09-15T15:02:27-04:00",
+      "completed_at": "2025-09-15T15:03:32-04:00",
+      "model_usage": {
+        "openai/gpt-5": {
+          "input_tokens": 5955,
+          "output_tokens": 29244,
+          "total_tokens": 35199,
+          "input_tokens_cache_read": 0,
+          "reasoning_tokens": 28544
+        }
+      }
+    },
+    "reductions": [
+      {
+        "scorer": "match",
+        "samples": [
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 1
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 2
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 3
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 4
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 5
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 6
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 7
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 8
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 9
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 10
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 11
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 12
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 13
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 14
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 15
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 16
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 17
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 18
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 19
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 20
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 21
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 22
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 23
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 24
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 25
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 26
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 27
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 28
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 29
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 30
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 31
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 32
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 33
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 34
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 35
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 36
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 37
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 38
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 39
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 40
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 41
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 42
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 43
+          },
+          {
+            "value": 0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 44
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 45
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 46
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 47
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 48
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 49
+          },
+          {
+            "value": 0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 50
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 51
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 52
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 53
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 54
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 55
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 56
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 57
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 58
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 59
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 60
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 61
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 62
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 63
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 64
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 65
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 66
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 67
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 68
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 69
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 70
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 71
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 72
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 73
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 74
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 75
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 76
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 77
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 78
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 79
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 80
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 81
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 82
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 83
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 84
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 85
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 86
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 87
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 88
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 89
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 90
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 91
+          },
+          {
+            "value": 0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 92
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 93
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 94
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 95
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 96
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 97
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 98
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 99
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 100
+          }
+        ]
+      }
+    ]
+  },
+  "2025-09-15T15-02-26-04-00_popularity_LthYhadZHuQjsMYHHKRep2.eval": {
+    "version": 2,
+    "status": "success",
+    "eval": {
+      "eval_set_id": "NAbedvggn5KBxcfx2m4LVU",
+      "eval_id": "htasqKA4fhi79CUrvAjhWs",
+      "run_id": "BAQv9ftkYYRLojEF4PwqJg",
+      "created": "2025-09-15T15:02:26-04:00",
+      "task": "popularity",
+      "task_id": "LthYhadZHuQjsMYHHKRep2",
+      "task_version": 0,
+      "task_file": "examples/popularity.py",
+      "task_display_name": "popularity",
+      "task_registry_name": "popularity",
+      "task_attribs": {},
+      "task_args": {},
+      "task_args_passed": {},
+      "dataset": {
+        "name": "popularity",
+        "location": "example://popularity",
+        "samples": 100,
+        "sample_ids": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "shuffled": false
+      },
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "model_generate_config": {},
+      "model_args": {},
+      "model_roles": {},
+      "config": {
+        "epochs": 1,
+        "epochs_reducer": [
+          "mean"
+        ],
+        "fail_on_error": true,
+        "continue_on_fail": false,
+        "max_tasks": 4,
+        "sandbox_cleanup": true,
+        "log_samples": true,
+        "log_realtime": true,
+        "log_images": true,
+        "log_shared": 0,
+        "score_display": true
+      },
+      "revision": {
+        "type": "git",
+        "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+        "commit": "02fdf720f"
+      },
+      "packages": {
+        "inspect_ai": "0.3.128.dev4+g614f5bb29.d20250902"
+      },
+      "scorers": [
+        {
+          "name": "match",
+          "options": {},
+          "metrics": [
+            {
+              "name": "inspect_ai/accuracy",
+              "options": {}
+            },
+            {
+              "name": "inspect_ai/stderr",
+              "options": {}
+            }
+          ],
+          "metadata": {}
+        }
+      ]
+    },
+    "plan": {
+      "name": "plan",
+      "steps": [
+        {
+          "solver": "system_message",
+          "params": {
+            "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+          }
+        },
+        {
+          "solver": "generate",
+          "params": {}
+        }
+      ],
+      "config": {}
+    },
+    "results": {
+      "total_samples": 100,
+      "completed_samples": 100,
+      "scores": [
+        {
+          "name": "match",
+          "scorer": "match",
+          "scored_samples": 100,
+          "unscored_samples": 0,
+          "params": {},
+          "metrics": {
+            "accuracy": {
+              "name": "accuracy",
+              "value": 0.57,
+              "params": {}
+            },
+            "stderr": {
+              "name": "stderr",
+              "value": 0.0497569851956243,
+              "params": {}
+            }
+          }
+        }
+      ]
+    },
+    "stats": {
+      "started_at": "2025-09-15T15:02:27-04:00",
+      "completed_at": "2025-09-15T15:02:47-04:00",
+      "model_usage": {
+        "anthropic/claude-sonnet-4-20250514": {
+          "input_tokens": 5703,
+          "output_tokens": 400,
+          "total_tokens": 6103,
+          "input_tokens_cache_write": 0,
+          "input_tokens_cache_read": 0
+        }
+      }
+    },
+    "reductions": [
+      {
+        "scorer": "match",
+        "samples": [
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 1
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 2
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 3
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 4
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 5
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 6
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 7
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 8
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 9
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 10
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 11
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 12
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 13
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 14
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 15
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 16
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 17
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 18
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 19
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 20
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 21
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 22
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 23
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 24
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 25
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 26
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 27
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 28
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 29
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 30
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 31
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 32
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 33
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 34
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 35
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 36
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 37
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 38
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 39
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 40
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 41
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 42
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 43
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 44
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 45
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 46
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 47
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 48
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 49
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 50
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 51
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 52
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 53
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 54
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 55
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 56
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 57
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 58
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 59
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 60
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 61
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 62
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 63
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 64
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 65
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 66
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 67
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 68
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 69
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 70
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 71
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 72
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 73
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 74
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 75
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 76
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 77
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 78
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 79
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 80
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 81
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 82
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 83
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 84
+          },
+          {
+            "value": 1.0,
+            "answer": "Yes",
+            "explanation": "Yes",
+            "sample_id": 85
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 86
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 87
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 88
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 89
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 90
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 91
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 92
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 93
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 94
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 95
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 96
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 97
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 98
+          },
+          {
+            "value": 0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 99
+          },
+          {
+            "value": 1.0,
+            "answer": "No",
+            "explanation": "No",
+            "sample_id": 100
+          }
+        ]
+      }
+    ]
+  }
+}

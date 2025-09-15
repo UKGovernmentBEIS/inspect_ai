@@ -1,0 +1,26 @@
+{
+  "eval_set_id": "Fcv3TQy7U5DffzLHPyyLGn",
+  "tasks": [
+    {
+      "task_file": "examples/popularity.py",
+      "task_args": {},
+      "model": "openai/gpt-5",
+      "model_args": {},
+      "sequence": 0
+    },
+    {
+      "task_file": "examples/popularity.py",
+      "task_args": {},
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "model_args": {},
+      "sequence": 0
+    },
+    {
+      "task_file": "examples/popularity.py",
+      "task_args": {},
+      "model": "google/gemini-2.5-pro",
+      "model_args": {},
+      "sequence": 0
+    }
+  ]
+}

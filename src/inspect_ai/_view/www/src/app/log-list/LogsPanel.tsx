@@ -9,6 +9,7 @@ import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
+import { ApplicationIcons } from "../appearance/icons";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid } from "./grid/LogListGrid";
@@ -38,6 +39,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const { loadLogs } = useLogs();
   const logs = useStore((state) => state.logs.logs);
+  const evalSetInfo = useStore((state) => state.logs.evalSetInfo);
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
@@ -172,10 +174,10 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   useEffect(() => {
     const exec = async () => {
-      await loadLogs();
+      await loadLogs(logPath);
     };
     exec();
-  }, [loadLogs]);
+  }, [loadLogs, logPath]);
 
   useEffect(() => {
     if (maybeShowSingleLog && logItems.length === 1) {
@@ -202,6 +204,11 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     >
       <Navbar>
         <LogsFilterInput ref={filterRef} />
+        {evalSetInfo ? (
+          <div title={"This directory is an evaluation set"}>
+            <i className={clsx(ApplicationIcons["eval-set"])} />
+          </div>
+        ) : undefined}
       </Navbar>
 
       <ProgressBar animating={loading || headersLoading} />
