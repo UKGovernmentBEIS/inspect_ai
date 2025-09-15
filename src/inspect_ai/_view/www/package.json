@@ -34,7 +34,7 @@
     "lint": "eslint 'src/**/*.{js,jsx,mjs,ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{js,jsx,mjs,ts,tsx}' --fix",
     "tsc": "tsc --noEmit",
-    "check-all": "yarn tsc && yarn lint:fix && yarn prettier:write && yarn test && yarn build:lib"
+    "check-all": "yarn tsc && yarn lint:fix && yarn prettier:write && yarn test && yarn build"
   },
   "exports": {
     ".": {
