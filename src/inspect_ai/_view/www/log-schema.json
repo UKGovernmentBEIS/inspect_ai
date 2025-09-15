@@ -6951,6 +6951,11 @@
               "title": "Model",
               "type": "string"
             },
+            "model_args": {
+              "additionalProperties": true,
+              "title": "Model Args",
+              "type": "object"
+            },
             "model_roles": {
               "anyOf": [
                 {
@@ -6963,6 +6968,7 @@
                   "type": "null"
                 }
               ],
+              "default": null,
               "title": "Model Roles"
             },
             "sequence": {
@@ -6974,6 +6980,7 @@
             "task_file",
             "task_args",
             "model",
+            "model_args",
             "model_roles",
             "sequence"
           ],
@@ -7025,6 +7032,11 @@
           "title": "Model",
           "type": "string"
         },
+        "model_args": {
+          "additionalProperties": true,
+          "title": "Model Args",
+          "type": "object"
+        },
         "model_roles": {
           "anyOf": [
             {
@@ -7037,6 +7049,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Model Roles"
         },
         "sequence": {
@@ -7048,6 +7061,7 @@
         "task_file",
         "task_args",
         "model",
+        "model_args",
         "model_roles",
         "sequence"
       ],

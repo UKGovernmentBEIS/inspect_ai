@@ -1854,9 +1854,13 @@ export interface EvalSet {
   task_file: TaskFile1;
   task_args: TaskArgs1;
   model: Model5;
+  model_args: ModelArgs1;
   model_roles: ModelRoles1;
   sequence: Sequence;
 }
 export interface TaskArgs1 {
+  [k: string]: unknown;
+}
+export interface ModelArgs1 {
   [k: string]: unknown;
 }

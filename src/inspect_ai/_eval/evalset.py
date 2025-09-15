@@ -40,6 +40,7 @@ from inspect_ai.model import (
     Model,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import ModelName
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._display import (
@@ -761,7 +762,8 @@ class EvalSet(BaseModel):
     task_file: str | None
     task_args: dict[str, Any]
     model: str
-    model_roles: dict[str, str] | None
+    model_args: dict[str, Any]
+    model_roles: dict[str, str] | None = None
     sequence: int
 
 
@@ -771,6 +773,10 @@ class EvalSetInfo(BaseModel):
 
 
 def to_eval_set(task: ResolvedTask) -> EvalSet:
+    # resolve core model info
+    model_name = str(ModelName(task.model))
+    model_args = task.model.model_args
+
     # resolve model roles to names
     model_roles = (
         {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
@@ -779,7 +785,8 @@ def to_eval_set(task: ResolvedTask) -> EvalSet:
     return EvalSet(
         task_file=task.task_file,
         task_args=task.task_args,
-        model=task.model.name,
+        model=model_name,
+        model_args=model_args,
         model_roles=model_roles,
         sequence=task.sequence or 0,
     )
@@ -807,3 +814,22 @@ def write_eval_set_info(
     eval_set_json = to_json_safe(eval_set_info)
     with file(manifest, mode="wb", fs_options=fs_options) as f:
         f.write(eval_set_json)
+
+
+def read_eval_set_info(
+    log_dir: str, fs_options: dict[str, Any] = {}
+) -> EvalSetInfo | None:
+    # resolve log dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
+
+    # form target path and read
+    manifest = f"{log_dir}{fs.sep}eval-set.json"
+    if not fs.exists(manifest):
+        return None
+
+    with file(manifest, mode="rb", fs_options=fs_options) as f:
+        eval_set_json = f.read()
+
+    # parse and return
+    return EvalSetInfo.model_validate_json(eval_set_json)
