@@ -1,6 +1,6 @@
 {
   "name": "@meridianlabs/log-viewer",
-  "version": "0.0.9",
+  "version": "0.0.11",
   "description": "Log viewer for inspect_ai logs.",
   "license": "MIT",
   "type": "module",
