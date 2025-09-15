@@ -1,4 +1,4 @@
-import { RefObject, useCallback, useEffect, useRef } from "react";
+import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { StateCallback, StateSnapshot, VirtuosoHandle } from "react-virtuoso";
 import { createLogger } from "../utils/logger";
 import { debounce } from "../utils/sync";
@@ -198,7 +198,28 @@ export const useVirtuosoState = (
 
   const getRestoreState = useCallback(() => stateRef.current, []);
 
-  return { getRestoreState, isScrolling };
+  const setVisibleRangeRaw = useStore(
+    (state) => state.appActions.setVisibleRange,
+  );
+
+  const setVisibleRange = useCallback(
+    (value: { startIndex: number; endIndex: number }) => {
+      setVisibleRangeRaw(elementKey, value);
+    },
+    [setVisibleRangeRaw, elementKey],
+  );
+
+  const visibleRanges = useStore((state) => state.app.visibleRanges);
+  const visibleRange = useMemo(() => {
+    return (
+      visibleRanges[elementKey] || {
+        startIndex: 0,
+        endIndex: 0,
+      }
+    );
+  }, [visibleRanges, elementKey]);
+
+  return { getRestoreState, isScrolling, visibleRange, setVisibleRange };
 };
 
 export function useRafThrottle<T extends (...args: any[]) => any>(

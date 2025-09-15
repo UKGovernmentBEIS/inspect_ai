@@ -674,7 +674,7 @@ def _openai_input_items_from_chat_message_assistant(
                     # Is it okay to dynamically generate this here? We need this in
                     # order to read this back into the equivalent BaseModel for the bridge
                     id=pending_response_output_id,  # type: ignore[typeddict-item]
-                    content=pending_response_output,
+                    content=pending_response_output.copy(),
                     status="completed",
                 )
             )
@@ -719,7 +719,7 @@ def _openai_input_items_from_chat_message_assistant(
                 else:
                     message_id = None
 
-                # see if we need to flush
+                # see if we need to flush d
                 if message_id is not pending_response_output_id:
                     flush_pending_context_text()
 

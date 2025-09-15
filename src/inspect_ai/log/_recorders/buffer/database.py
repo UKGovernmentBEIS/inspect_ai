@@ -83,8 +83,9 @@ class SampleBufferDatabase(SampleBuffer):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sample_id TEXT,
         sample_epoch INTEGER,
-        hash TEXT UNIQUE,
-        content TEXT
+        hash TEXT,
+        content TEXT,
+        UNIQUE(sample_id, sample_epoch, hash)
     );
 
     -- Indices for foreign keys and common queries

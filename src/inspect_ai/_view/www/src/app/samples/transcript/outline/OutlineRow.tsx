@@ -53,6 +53,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
           selected ? styles.selected : "",
         )}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
+        data-unsearchable={true}
       >
         <div
           className={clsx(styles.toggle)}

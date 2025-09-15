@@ -273,8 +273,14 @@ class GoogleGenAIAPI(ModelAPI):
 
         # Create google-genai types.
         gemini_contents = await as_chat_messages(client, input)
-        gemini_tools = self.chat_tools(tools) if len(tools) > 0 else None
-        gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
+        has_native_search, gemini_tools = (
+            self.chat_tools(tools) if len(tools) > 0 else (False, None)
+        )
+        gemini_tool_config = (
+            chat_tool_config(tool_choice)
+            if not has_native_search and len(tools) > 0
+            else None
+        )
         parameters = GenerateContentConfig(
             http_options=HttpOptions(headers={HttpHooks.REQUEST_ID_HEADER: request_id}),
             temperature=config.temperature,
@@ -437,7 +443,7 @@ class GoogleGenAIAPI(ModelAPI):
             )
         )
 
-    def chat_tools(self, tools: list[ToolInfo]) -> ToolListUnion:
+    def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
         has_native_search, function_declarations = functools.reduce(
             self._categorize_tool, tools, (False, list[FunctionDeclaration]())
         )
@@ -450,9 +456,9 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         return (
-            [Tool(google_search=GoogleSearch())]
+            (True, [Tool(google_search=GoogleSearch())])
             if has_native_search
-            else [Tool(function_declarations=function_declarations)]
+            else (False, [Tool(function_declarations=function_declarations)])
         )
 
     def _resolve_batcher(self, config: GenerateConfig, client: Client) -> None:

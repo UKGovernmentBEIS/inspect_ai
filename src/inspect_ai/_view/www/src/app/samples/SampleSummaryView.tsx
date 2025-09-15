@@ -223,6 +223,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
               col.center ? styles.centerLabel : undefined,
             )}
             title={col.title}
+            data-unsearchable={true}
           >
             {col.label}
           </div>
@@ -238,6 +239,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
               col.clamp ? "three-line-clamp" : undefined,
               col.center ? styles.centerValue : undefined,
             )}
+            data-unsearchable={true}
           >
             {col.value}
           </div>
