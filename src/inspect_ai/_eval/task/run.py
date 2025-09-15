@@ -39,6 +39,7 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.working import init_sample_working_time, sample_waiting_time
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
+from inspect_ai.hooks._hooks import emit_sample_score
 from inspect_ai.log import (
     EvalConfig,
     EvalError,
@@ -840,6 +841,7 @@ async def task_run_sample(
                 solver_score_names = [*state.scores]
 
                 # scoring
+                await emit_sample_score()
                 try:
                     # timeout during scoring will result in an ordinary sample error
                     with create_time_limit(scoring_time_limit):

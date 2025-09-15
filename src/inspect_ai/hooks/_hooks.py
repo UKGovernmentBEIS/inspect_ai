@@ -271,6 +271,13 @@ class Hooks:
         """
         pass
 
+    async def on_sample_score(self) -> None:
+        """Called before the sample is scored.
+
+        Can be used by hooks to demarcate the end of solver execution and the start of scoring.
+        """
+        pass
+
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
         """Optionally override an API key.
 
@@ -417,6 +424,10 @@ async def emit_model_usage(
         model_name=model_name, usage=usage, call_duration=call_duration
     )
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
+
+
+async def emit_sample_score() -> None:
+    await _emit_to_all(lambda hook: hook.on_sample_score())
 
 
 def override_api_key(env_var_name: str, value: str) -> str | None:
