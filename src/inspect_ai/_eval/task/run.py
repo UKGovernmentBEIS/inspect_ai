@@ -39,7 +39,6 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.working import init_sample_working_time, sample_waiting_time
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
-from inspect_ai.hooks._hooks import emit_sample_score
 from inspect_ai.log import (
     EvalConfig,
     EvalError,
@@ -146,7 +145,10 @@ class TaskRunOptions:
 
 
 async def task_run(options: TaskRunOptions) -> EvalLog:
-    from inspect_ai.hooks._hooks import emit_task_end, emit_task_start
+    from inspect_ai.hooks._hooks import (
+        emit_task_end,
+        emit_task_start,
+    )
     from inspect_ai.hooks._legacy import send_telemetry_legacy
 
     # destructure options
@@ -553,7 +555,11 @@ async def task_run_sample(
     run_id: str,
     task_id: str,
 ) -> dict[str, SampleScore] | None:
-    from inspect_ai.hooks._hooks import emit_sample_end, emit_sample_start
+    from inspect_ai.hooks._hooks import (
+        emit_sample_end,
+        emit_sample_score,
+        emit_sample_start,
+    )
 
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
