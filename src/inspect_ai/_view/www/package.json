@@ -1,7 +1,7 @@
 {
   "name": "@meridianlabs/log-viewer",
-  "version": "0.0.6",
-  "description": "Log viewer for inspect_ai logs. CSS styles are included - see documentation for usage instructions.",
+  "version": "0.0.7",
+  "description": "Log viewer for inspect_ai logs.",
   "license": "MIT",
   "type": "module",
   "main": "./lib/index.js",
