@@ -231,3 +231,46 @@ def test_no_inference_without_type_hints():
             return scan
 
         untyped_scanner()
+
+
+def test_decorator_without_parentheses():
+    """Scanner decorator can be used without parentheses when types can be inferred."""
+
+    @scanner  # No parentheses!
+    def user_scanner() -> Scanner[ChatMessageUser]:
+        async def scan(message: ChatMessageUser) -> Result | None:
+            return Result(value={"text": message.text})
+
+        return scan
+
+    instance = user_scanner()
+    assert hasattr(instance, "__scanner__")
+    assert instance.__scanner__["messages"] == ["user"]
+
+
+def test_decorator_without_parentheses_with_union():
+    """Scanner decorator without parentheses works with union types."""
+
+    @scanner  # No parentheses!
+    def multi_scanner() -> Scanner[ChatMessageSystem | ChatMessageUser]:
+        async def scan(message: ChatMessageSystem | ChatMessageUser) -> Result | None:
+            return Result(value={"role": message.role})
+
+        return scan
+
+    instance = multi_scanner()
+    assert set(instance.__scanner__["messages"]) == {"system", "user"}
+
+
+def test_decorator_without_parentheses_fails_for_base_type():
+    """Scanner decorator without parentheses should fail for base ChatMessage type."""
+    with pytest.raises(ValueError, match="requires at least one of"):
+
+        @scanner  # No parentheses, but base type needs explicit filter
+        def base_scanner() -> Scanner[ChatMessage]:
+            async def scan(message: ChatMessage) -> Result | None:
+                return Result(value={"role": message.role})
+
+            return scan
+
+        base_scanner()

@@ -44,11 +44,10 @@ def user_input_analyzer() -> Scanner[ChatMessageUser]:
 
 #### Filter Inference from Type Annotations
 
-For specific message and event types, filters can be automatically inferred from type annotations, making the API more concise:
+For specific message and event types, filters can be automatically inferred from type annotations, making the API more concise.
 
 ```python
-# No explicit filter needed - inferred from ChatMessageUser type
-@scanner()
+@scanner
 def user_analyzer() -> Scanner[ChatMessageUser]:
     """Filter inferred as messages=['user'] from type."""
     
@@ -58,7 +57,7 @@ def user_analyzer() -> Scanner[ChatMessageUser]:
     return scan
 
 # Works with unions too - infers messages=["system", "user"]
-@scanner()
+@scanner
 def multi_analyzer() -> Scanner[ChatMessageSystem | ChatMessageUser]:
     """Filters inferred from union type."""
     
@@ -68,7 +67,7 @@ def multi_analyzer() -> Scanner[ChatMessageSystem | ChatMessageUser]:
     return scan
 
 # Also works with lists
-@scanner()
+@scanner
 def batch_analyzer() -> Scanner[list[ChatMessageAssistant]]:
     """Filter inferred as messages=['assistant'] from list type."""
     
@@ -78,7 +77,7 @@ def batch_analyzer() -> Scanner[list[ChatMessageAssistant]]:
     return scan
 
 # Event types work the same way
-@scanner()
+@scanner
 def model_monitor() -> Scanner[ModelEvent]:
     """Filter inferred as events=['model'] from type."""
     
